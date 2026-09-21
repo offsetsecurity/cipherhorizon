@@ -1,0 +1,536 @@
+?   	github.com/example/cbom-scan/cmd/cbom-scan	[no test files]
+?   	github.com/example/cbom-scan/cmd/demo-targets	[no test files]
+=== RUN   TestCatalogueIsWellFormed
+--- PASS: TestCatalogueIsWellFormed (0.00s)
+=== RUN   TestOIDsAreUnique
+--- PASS: TestOIDsAreUnique (0.00s)
+=== RUN   TestComponentShape
+--- PASS: TestComponentShape (0.00s)
+=== RUN   TestUnsetFieldsAreOmitted
+--- PASS: TestUnsetFieldsAreOmitted (0.00s)
+=== RUN   TestLookup
+--- PASS: TestLookup (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/algo	0.653s
+=== RUN   TestGoldenCBOMs
+=== RUN   TestGoldenCBOMs/ubuntu-24.04
+=== RUN   TestGoldenCBOMs/debian-13
+--- PASS: TestGoldenCBOMs (0.23s)
+    --- PASS: TestGoldenCBOMs/ubuntu-24.04 (0.10s)
+    --- PASS: TestGoldenCBOMs/debian-13 (0.13s)
+=== RUN   TestGoldenContent
+--- PASS: TestGoldenContent (0.01s)
+=== RUN   TestOutputFile
+--- PASS: TestOutputFile (0.08s)
+=== RUN   TestPQCCanBeDisabled
+--- PASS: TestPQCCanBeDisabled (0.03s)
+=== RUN   TestFlagsOverrideConfig
+--- PASS: TestFlagsOverrideConfig (0.01s)
+=== RUN   TestHostWithoutDpkgIsNotAnError
+--- PASS: TestHostWithoutDpkgIsNotAnError (0.06s)
+=== RUN   TestIncompleteScanExitsTwoButStillWritesTheCBOM
+--- PASS: TestIncompleteScanExitsTwoButStillWritesTheCBOM (0.05s)
+=== RUN   TestInterruptedScanWritesNothing
+--- PASS: TestInterruptedScanWritesNothing (0.00s)
+=== RUN   TestFatalErrors
+--- PASS: TestFatalErrors (0.01s)
+=== RUN   TestVersionHelpAndPlugins
+--- PASS: TestVersionHelpAndPlugins (0.00s)
+=== RUN   TestServeRefusesNetworkBindWithoutToken
+--- PASS: TestServeRefusesNetworkBindWithoutToken (0.00s)
+=== RUN   TestServeRunsAndShutsDownGracefully
+--- PASS: TestServeRunsAndShutsDownGracefully (0.14s)
+=== RUN   TestTLSScanTextReport
+    tls_test.go:30: 
+        TLS scan of 127.0.0.1:54234 (127.0.0.1:54234)
+          38 connections in 0.0s; IANA registry retrieved 2026-09-21
+        
+        Protocols
+          TLSv1.3  YES  
+          TLSv1.2  YES  
+          TLSv1.1  no   refused (alert protocol_version)
+          TLSv1.0  no   refused (alert protocol_version)
+          SSLv3    no   refused (alert protocol_version)
+          SSLv2    no   not an SSLv2 server
+        
+        Cipher suites
+          TLSv1.3 (order depends on the client; no ranking)
+            -  TLS_AES_128_GCM_SHA256        AES-128 GCM            iana:Y  
+            -  TLS_AES_256_GCM_SHA384        AES-256 GCM            iana:Y  
+            -  TLS_CHACHA20_POLY1305_SHA256  CHACHA20-256 POLY1305  iana:Y  
+          TLSv1.2 (order depends on the client; no ranking)
+            -  TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA           AES-128 CBC kx:ECDHE            iana:N  
+            -  TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA           AES-256 CBC kx:ECDHE            iana:N  
+            -  TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256        AES-128 GCM kx:ECDHE            iana:Y  
+            -  TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384        AES-256 GCM kx:ECDHE            iana:Y  
+            -  TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256  CHACHA20-256 POLY1305 kx:ECDHE  iana:Y  
+        
+        Key-exchange groups
+          TLSv1.3 (server's preference order)
+            1  X25519MLKEM768  iana:Y  POST-QUANTUM HYBRID
+            2  x25519          iana:Y  
+            3  secp256r1       iana:Y  
+          TLSv1.2 (server follows the client's order; no ranking)
+            -  secp256r1  iana:Y  
+            -  x25519     iana:Y  
+        
+        Server features
+          secure renegotiation (RFC 5746)    supported
+          extended master secret (RFC 7627)  supported
+          encrypt-then-MAC (RFC 7366)        not offered
+          session tickets                    offered
+          OCSP stapling                      not offered
+          TLS compression                    refused
+        
+        Certificates
+          [tls-default, tls1.2-ecdsa]
+            subject   CN=localhost,O=cbom-scan test
+            issuer    CN=localhost,O=cbom-scan test
+            key       ECDSA 256-bit P-256 (OID 1.2.840.10045.2.1)
+            signature ECDSA-SHA256 (OID 1.2.840.10045.4.3.2)
+            validity  2026-09-21 to 2026-09-22
+            trust     NOT trusted: x509: certificate signed by unknown authority
+            name      matches 127.0.0.1
+            sha256    60bf266d856f874d94c8d3b8aa3047eb736a906cbc91dedbb0f6cb2b13ab137f
+        
+        Negotiated by a current client (Go crypto/tls)
+          TLSv1.3  TLS_AES_128_GCM_SHA256  group X25519MLKEM768 (post-quantum)
+--- PASS: TestTLSScanTextReport (0.13s)
+=== RUN   TestTLSScanJSON
+--- PASS: TestTLSScanJSON (0.02s)
+=== RUN   TestTLSScanSeveralTargetsAndFailures
+--- PASS: TestTLSScanSeveralTargetsAndFailures (0.06s)
+=== RUN   TestTLSScanUsageErrors
+--- PASS: TestTLSScanUsageErrors (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/app	1.114s
+=== RUN   TestVocabularyMatchesSchema
+--- PASS: TestVocabularyMatchesSchema (0.06s)
+=== RUN   TestSanitizeOmitsOutOfVocabulary
+--- PASS: TestSanitizeOmitsOutOfVocabulary (0.00s)
+=== RUN   TestSanitizeFailsClosedOnUnsupportedAssetTypes
+--- PASS: TestSanitizeFailsClosedOnUnsupportedAssetTypes (0.00s)
+=== RUN   TestBuildProducesSchemaValidCBOM
+--- PASS: TestBuildProducesSchemaValidCBOM (0.04s)
+=== RUN   TestEncodeKeepsCryptographicAssetType
+--- PASS: TestEncodeKeepsCryptographicAssetType (0.00s)
+=== RUN   TestSchemaValidatorRejectsInvalidDocument
+--- PASS: TestSchemaValidatorRejectsInvalidDocument (0.09s)
+=== RUN   TestBuildIsDeterministic
+--- PASS: TestBuildIsDeterministic (0.00s)
+=== RUN   TestBuildMergesIdenticalDuplicates
+--- PASS: TestBuildMergesIdenticalDuplicates (0.00s)
+=== RUN   TestBuildRejectsConflictingDuplicates
+--- PASS: TestBuildRejectsConflictingDuplicates (0.00s)
+=== RUN   TestBuildDropsDanglingEdgesAndInvalidAssets
+--- PASS: TestBuildDropsDanglingEdgesAndInvalidAssets (0.07s)
+=== RUN   TestBuildNeverEmitsUnvettedVocabulary
+--- PASS: TestBuildNeverEmitsUnvettedVocabulary (0.05s)
+=== RUN   TestBuildEmptyInput
+--- PASS: TestBuildEmptyInput (0.04s)
+PASS
+ok  	github.com/example/cbom-scan/internal/cbom	1.017s
+=== RUN   TestPluginInfoValidate
+=== RUN   TestPluginInfoValidate/trailing_dash
+=== RUN   TestPluginInfoValidate/leading_digit
+=== RUN   TestPluginInfoValidate/empty_version
+=== RUN   TestPluginInfoValidate/unknown_source
+=== RUN   TestPluginInfoValidate/empty_source_type
+=== RUN   TestPluginInfoValidate/empty_name
+=== RUN   TestPluginInfoValidate/uppercase_name
+=== RUN   TestPluginInfoValidate/underscore_name
+--- PASS: TestPluginInfoValidate (0.00s)
+    --- PASS: TestPluginInfoValidate/trailing_dash (0.00s)
+    --- PASS: TestPluginInfoValidate/leading_digit (0.00s)
+    --- PASS: TestPluginInfoValidate/empty_version (0.00s)
+    --- PASS: TestPluginInfoValidate/unknown_source (0.00s)
+    --- PASS: TestPluginInfoValidate/empty_source_type (0.00s)
+    --- PASS: TestPluginInfoValidate/empty_name (0.00s)
+    --- PASS: TestPluginInfoValidate/uppercase_name (0.00s)
+    --- PASS: TestPluginInfoValidate/underscore_name (0.00s)
+=== RUN   TestCryptoAssetValidate
+--- PASS: TestCryptoAssetValidate (0.00s)
+=== RUN   TestRegisterAndNew
+--- PASS: TestRegisterAndNew (0.00s)
+=== RUN   TestRegisterRejectsBadInput
+--- PASS: TestRegisterRejectsBadInput (0.00s)
+=== RUN   TestNamesSorted
+--- PASS: TestNamesSorted (0.00s)
+=== RUN   TestNewErrors
+--- PASS: TestNewErrors (0.00s)
+=== RUN   TestDefaultRegisterPanicsOnDuplicate
+--- PASS: TestDefaultRegisterPanicsOnDuplicate (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/collector	0.462s
+?   	github.com/example/cbom-scan/internal/collector/collectortest	[no test files]
+=== RUN   TestEmptyInputYieldsDefaults
+--- PASS: TestEmptyInputYieldsDefaults (0.00s)
+=== RUN   TestPartialConfigKeepsOtherDefaults
+--- PASS: TestPartialConfigKeepsOtherDefaults (0.00s)
+=== RUN   TestBooleansCanBeSwitchedOff
+--- PASS: TestBooleansCanBeSwitchedOff (0.00s)
+=== RUN   TestRejectsBadConfig
+--- PASS: TestRejectsBadConfig (0.00s)
+=== RUN   TestLoad
+--- PASS: TestLoad (0.01s)
+=== RUN   TestExampleConfigIsValidAndMatchesDefaults
+--- PASS: TestExampleConfigIsValidAndMatchesDefaults (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/config	0.466s
+=== RUN   TestIdenticalScansHaveNoChanges
+--- PASS: TestIdenticalScansHaveNoChanges (0.00s)
+=== RUN   TestEnablingPostQuantumIsBetter
+--- PASS: TestEnablingPostQuantumIsBetter (0.00s)
+=== RUN   TestRegressionsAreWorse
+--- PASS: TestRegressionsAreWorse (0.00s)
+=== RUN   TestProtocolAndSuiteImpactDependOnWhatChanged
+--- PASS: TestProtocolAndSuiteImpactDependOnWhatChanged (0.00s)
+=== RUN   TestCertificateRenewalIsNeutralAndVisible
+--- PASS: TestCertificateRenewalIsNeutralAndVisible (0.00s)
+=== RUN   TestIncompleteScansAreFlaggedInTheSummary
+--- PASS: TestIncompleteScansAreFlaggedInTheSummary (0.00s)
+=== RUN   TestChangesAreOrderedByImportance
+--- PASS: TestChangesAreOrderedByImportance (0.00s)
+=== RUN   TestEveryRuleFiresAndIsCited
+--- PASS: TestEveryRuleFiresAndIsCited (0.00s)
+=== RUN   TestEveryReadinessClaimIsCited
+--- PASS: TestEveryReadinessClaimIsCited (0.00s)
+=== RUN   TestRuleIDsAreUniqueAndStable
+--- PASS: TestRuleIDsAreUniqueAndStable (0.00s)
+=== RUN   TestSpecificFindings
+--- PASS: TestSpecificFindings (0.00s)
+=== RUN   TestInferredFindingsSayTheyAreInferred
+--- PASS: TestInferredFindingsSayTheyAreInferred (0.00s)
+=== RUN   TestACleanEndpointHasNoActionableFindings
+--- PASS: TestACleanEndpointHasNoActionableFindings (0.00s)
+=== RUN   TestNoFindingsFromInconclusiveProbes
+--- PASS: TestNoFindingsFromInconclusiveProbes (0.00s)
+=== RUN   TestReadinessLevels
+--- PASS: TestReadinessLevels (0.00s)
+=== RUN   TestReadinessDimensions
+--- PASS: TestReadinessDimensions (0.00s)
+=== RUN   TestEvaluateIsDeterministicAndSerialisable
+--- PASS: TestEvaluateIsDeterministicAndSerialisable (0.00s)
+=== RUN   TestReadinessAgainstRealServers
+--- PASS: TestReadinessAgainstRealServers (0.20s)
+=== RUN   TestBands
+--- PASS: TestBands (0.00s)
+=== RUN   TestACleanEndpointIsStrong
+--- PASS: TestACleanEndpointIsStrong (0.00s)
+=== RUN   TestEveryDeductionTracesToAFinding
+--- PASS: TestEveryDeductionTracesToAFinding (0.00s)
+=== RUN   TestTerribleEndpointIsBroken
+--- PASS: TestTerribleEndpointIsBroken (0.00s)
+=== RUN   TestCeilings
+--- PASS: TestCeilings (0.00s)
+=== RUN   TestPostQuantumStateDoesNotChangeHygiene
+--- PASS: TestPostQuantumStateDoesNotChangeHygiene (0.00s)
+=== RUN   TestUnratableWhenNoProtocolAnswers
+--- PASS: TestUnratableWhenNoProtocolAnswers (0.00s)
+=== RUN   TestRatingVocabularyIsOwn
+--- PASS: TestRatingVocabularyIsOwn (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/eval	1.330s
+?   	github.com/example/cbom-scan/internal/plugins/all	[no test files]
+=== RUN   TestUpstreamVersion
+--- PASS: TestUpstreamVersion (0.00s)
+=== RUN   TestAtLeast
+--- PASS: TestAtLeast (0.00s)
+=== RUN   TestParseStatus
+--- PASS: TestParseStatus (0.00s)
+=== RUN   TestInstalled
+--- PASS: TestInstalled (0.00s)
+=== RUN   TestCollectClassicalOpenSSL
+--- PASS: TestCollectClassicalOpenSSL (0.00s)
+=== RUN   TestCollectOpenSSL35IsPQCCapable
+--- PASS: TestCollectOpenSSL35IsPQCCapable (0.00s)
+=== RUN   TestCollectUnparseableVersionOmitsGatedCapabilities
+--- PASS: TestCollectUnparseableVersionOmitsGatedCapabilities (0.00s)
+=== RUN   TestCollectGnuPG
+--- PASS: TestCollectGnuPG (0.00s)
+=== RUN   TestCollectInventoryOnlyFamilyHasNoCapabilities
+--- PASS: TestCollectInventoryOnlyFamilyHasNoCapabilities (0.00s)
+=== RUN   TestCollectSkipsRemovedAndDevPackages
+--- PASS: TestCollectSkipsRemovedAndDevPackages (0.00s)
+=== RUN   TestCollectWithoutOSReleaseOmitsPurl
+--- PASS: TestCollectWithoutOSReleaseOmitsPurl (0.00s)
+=== RUN   TestPurlOmitsDistroWhenVersionIDMissing
+--- PASS: TestPurlOmitsDistroWhenVersionIDMissing (0.00s)
+=== RUN   TestMultiArchPackagesGetDistinctRefs
+--- PASS: TestMultiArchPackagesGetDistinctRefs (0.00s)
+=== RUN   TestDetect
+--- PASS: TestDetect (0.00s)
+=== RUN   TestCollectHonoursCancellation
+--- PASS: TestCollectHonoursCancellation (0.00s)
+=== RUN   TestRegisteredWithDefaultRegistry
+--- PASS: TestRegisteredWithDefaultRegistry (0.00s)
+=== RUN   TestRulesAreSound
+--- PASS: TestRulesAreSound (0.00s)
+=== RUN   TestComponentTypeSplitsExecutablesFromLibraries
+--- PASS: TestComponentTypeSplitsExecutablesFromLibraries (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/plugins/apt	0.495s
+=== RUN   TestEveryRuleIsCited
+--- PASS: TestEveryRuleIsCited (0.00s)
+=== RUN   TestEveryCatalogueAlgorithmIsClassified
+--- PASS: TestEveryCatalogueAlgorithmIsClassified (0.00s)
+=== RUN   TestRulesDoNotOverlapOrContradict
+--- PASS: TestRulesDoNotOverlapOrContradict (0.00s)
+=== RUN   TestVerdicts
+--- PASS: TestVerdicts (0.00s)
+=== RUN   TestUnknownIsUnclassified
+--- PASS: TestUnknownIsUnclassified (0.00s)
+=== RUN   TestUnderArcRespectsComponentBoundaries
+--- PASS: TestUnderArcRespectsComponentBoundaries (0.00s)
+=== RUN   TestAnalyze
+--- PASS: TestAnalyze (0.00s)
+=== RUN   TestAnalyzeDoesNotMutateAndHandlesEmpty
+--- PASS: TestAnalyzeDoesNotMutateAndHandlesEmpty (0.00s)
+=== RUN   TestAnnotate
+--- PASS: TestAnnotate (0.15s)
+PASS
+ok  	github.com/example/cbom-scan/internal/pqc	0.887s
+=== RUN   TestRunStatuses
+--- PASS: TestRunStatuses (0.00s)
+=== RUN   TestSkippedAloneIsNotIncomplete
+--- PASS: TestSkippedAloneIsNotIncomplete (0.00s)
+=== RUN   TestOnePanickingPluginDoesNotStopTheRest
+--- PASS: TestOnePanickingPluginDoesNotStopTheRest (0.00s)
+=== RUN   TestPluginTimeout
+--- PASS: TestPluginTimeout (0.02s)
+=== RUN   TestSelection
+--- PASS: TestSelection (0.00s)
+=== RUN   TestUnknownPluginNameIsAnError
+--- PASS: TestUnknownPluginNameIsAnError (0.00s)
+=== RUN   TestFactoryFailureIsRecordedNotFatal
+--- PASS: TestFactoryFailureIsRecordedNotFatal (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/scan	0.555s
+?   	github.com/example/cbom-scan/internal/schematest	[no test files]
+=== RUN   TestAC10_HostCBOMIngest
+--- PASS: TestAC10_HostCBOMIngest (0.05s)
+=== RUN   TestAC10_IngestRejectsBadInput
+--- PASS: TestAC10_IngestRejectsBadInput (0.04s)
+=== RUN   TestAC09_Export
+--- PASS: TestAC09_Export (0.41s)
+=== RUN   TestAC11_TokenIsRequiredWhenConfigured
+--- PASS: TestAC11_TokenIsRequiredWhenConfigured (0.18s)
+=== RUN   TestAC11_ForeignHostHeaderIsRefusedWithoutAToken
+--- PASS: TestAC11_ForeignHostHeaderIsRefusedWithoutAToken (0.07s)
+=== RUN   TestAC11_ConfiguredAllowedHostsAreAccepted
+--- PASS: TestAC11_ConfiguredAllowedHostsAreAccepted (0.04s)
+=== RUN   TestAC11_MutationsAreProtectedFromForgery
+--- PASS: TestAC11_MutationsAreProtectedFromForgery (0.05s)
+=== RUN   TestAC11_SecurityHeaders
+--- PASS: TestAC11_SecurityHeaders (0.04s)
+=== RUN   TestAC11_ScansCannotReachBlockedNetworks
+--- PASS: TestAC11_ScansCannotReachBlockedNetworks (0.07s)
+=== RUN   TestGuardCheckIP
+--- PASS: TestGuardCheckIP (0.00s)
+=== RUN   TestGuardDialRefusesBlockedAddressesAtConnectTime
+--- PASS: TestGuardDialRefusesBlockedAddressesAtConnectTime (0.00s)
+=== RUN   TestAC11_HostileStringsAreInertData
+--- PASS: TestAC11_HostileStringsAreInertData (0.02s)
+=== RUN   TestAPIRobustness
+--- PASS: TestAPIRobustness (0.55s)
+=== RUN   TestDeletingAnAssetMidScanIsSafe
+--- PASS: TestDeletingAnAssetMidScanIsSafe (0.48s)
+=== RUN   TestAC12_RestartMarksInterruptedScansFailed
+--- PASS: TestAC12_RestartMarksInterruptedScansFailed (0.03s)
+=== RUN   TestAC01_AddAssets
+--- PASS: TestAC01_AddAssets (0.03s)
+=== RUN   TestAC01_TargetsAreNormalisedAndValidated
+--- PASS: TestAC01_TargetsAreNormalisedAndValidated (0.04s)
+=== RUN   TestAC01_BulkAddReportsEveryLine
+--- PASS: TestAC01_BulkAddReportsEveryLine (0.03s)
+=== RUN   TestAC01_EditAndDeleteAsset
+--- PASS: TestAC01_EditAndDeleteAsset (0.04s)
+=== RUN   TestAC02_ScanCompletesWithResults
+--- PASS: TestAC02_ScanCompletesWithResults (0.03s)
+=== RUN   TestAC02_ProgressIsLiveAndScanCanBeCancelled
+--- PASS: TestAC02_ProgressIsLiveAndScanCanBeCancelled (1.35s)
+=== RUN   TestAC02_UnreachableAndNonTLSEndpointsFailClearly
+--- PASS: TestAC02_UnreachableAndNonTLSEndpointsFailClearly (0.08s)
+=== RUN   TestAC03_BulkScanRespectsConcurrencyAndQueue
+--- PASS: TestAC03_BulkScanRespectsConcurrencyAndQueue (0.94s)
+=== RUN   TestAC04_ReadinessOfRealEndpoints
+--- PASS: TestAC04_ReadinessOfRealEndpoints (0.13s)
+=== RUN   TestAC07_HistoryTrendAndDiff
+--- PASS: TestAC07_HistoryTrendAndDiff (0.16s)
+=== RUN   TestAC08_ScheduledRescans
+--- PASS: TestAC08_ScheduledRescans (0.57s)
+PASS
+ok  	github.com/example/cbom-scan/internal/server	5.614s
+=== RUN   TestMigrationFromLetterGrades
+--- PASS: TestMigrationFromLetterGrades (0.07s)
+=== RUN   TestAssetLifecycle
+--- PASS: TestAssetLifecycle (0.03s)
+=== RUN   TestDeletingAnAssetDeletesItsHistory
+--- PASS: TestDeletingAnAssetDeletesItsHistory (0.02s)
+=== RUN   TestOnlyOneActiveScanPerAsset
+--- PASS: TestOnlyOneActiveScanPerAsset (0.05s)
+=== RUN   TestClaimNextIsAtomic
+--- PASS: TestClaimNextIsAtomic (0.05s)
+=== RUN   TestScanProgressAndResult
+--- PASS: TestScanProgressAndResult (0.02s)
+=== RUN   TestFailedAndCanceledScansKeepHistoryAndFreeTheSlot
+--- PASS: TestFailedAndCanceledScansKeepHistoryAndFreeTheSlot (0.02s)
+=== RUN   TestInterruptedScansAreFailedAfterRestart
+--- PASS: TestInterruptedScansAreFailedAfterRestart (0.03s)
+=== RUN   TestHistoryAndRetention
+--- PASS: TestHistoryAndRetention (0.02s)
+=== RUN   TestSchedulingAndDueAssets
+--- PASS: TestSchedulingAndDueAssets (0.02s)
+=== RUN   TestListScansFilters
+--- PASS: TestListScansFilters (0.02s)
+=== RUN   TestFleetSummary
+--- PASS: TestFleetSummary (0.02s)
+=== RUN   TestCertExpirySurfacesInAttention
+--- PASS: TestCertExpirySurfacesInAttention (0.02s)
+=== RUN   TestNewerSchemaIsRefused
+--- PASS: TestNewerSchemaIsRefused (0.05s)
+PASS
+ok  	github.com/example/cbom-scan/internal/store	1.466s
+=== RUN   TestSSLv3ServerWithExportAndNullSuites
+--- PASS: TestSSLv3ServerWithExportAndNullSuites (0.01s)
+=== RUN   TestPreferenceVerdicts
+--- PASS: TestPreferenceVerdicts (0.01s)
+=== RUN   TestSSLv2Detection
+--- PASS: TestSSLv2Detection (0.00s)
+=== RUN   TestSSLv2NotSupported
+--- PASS: TestSSLv2NotSupported (0.00s)
+=== RUN   TestFeaturesFromARealServer
+--- PASS: TestFeaturesFromARealServer (0.12s)
+=== RUN   TestHostileServersDoNotPanicOrHang
+=== RUN   TestHostileServersDoNotPanicOrHang/garbage
+=== RUN   TestHostileServersDoNotPanicOrHang/truncated_hello
+=== RUN   TestHostileServersDoNotPanicOrHang/alert_storm
+=== RUN   TestHostileServersDoNotPanicOrHang/wrong_hello
+--- PASS: TestHostileServersDoNotPanicOrHang (0.01s)
+    --- PASS: TestHostileServersDoNotPanicOrHang/garbage (0.00s)
+    --- PASS: TestHostileServersDoNotPanicOrHang/truncated_hello (0.00s)
+    --- PASS: TestHostileServersDoNotPanicOrHang/alert_storm (0.00s)
+    --- PASS: TestHostileServersDoNotPanicOrHang/wrong_hello (0.00s)
+=== RUN   TestEnumeratesExactlyWhatTheServerIsConfiguredFor
+--- PASS: TestEnumeratesExactlyWhatTheServerIsConfiguredFor (0.02s)
+=== RUN   TestClassicalOnlyServerHasNoPostQuantumGroup
+--- PASS: TestClassicalOnlyServerHasNoPostQuantumGroup (0.01s)
+=== RUN   TestNegotiatedShowsHybridWhenAvailable
+--- PASS: TestNegotiatedShowsHybridWhenAvailable (0.01s)
+=== RUN   TestOldProtocolOnlyServer
+--- PASS: TestOldProtocolOnlyServer (0.04s)
+=== RUN   TestCertificatesAndTrust
+--- PASS: TestCertificatesAndTrust (0.04s)
+=== RUN   TestSkipCertificates
+--- PASS: TestSkipCertificates (0.01s)
+=== RUN   TestNameMismatchIsReported
+--- PASS: TestNameMismatchIsReported (0.02s)
+=== RUN   TestPlainHTTPPortIsRecognised
+--- PASS: TestPlainHTTPPortIsRecognised (0.00s)
+=== RUN   TestClosedPort
+--- PASS: TestClosedPort (0.00s)
+=== RUN   TestSilentServerTimesOut
+--- PASS: TestSilentServerTimesOut (0.50s)
+=== RUN   TestUnresolvableName
+--- PASS: TestUnresolvableName (0.00s)
+=== RUN   TestConnectionBudgetIsAHardCap
+--- PASS: TestConnectionBudgetIsAHardCap (0.00s)
+=== RUN   TestCancellationStopsTheScan
+--- PASS: TestCancellationStopsTheScan (0.00s)
+=== RUN   TestSpacingBetweenConnections
+--- PASS: TestSpacingBetweenConnections (0.34s)
+=== RUN   TestParseTarget
+--- PASS: TestParseTarget (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/tlsprobe	2.052s
+=== RUN   TestSuitesMatchGoStdlib
+--- PASS: TestSuitesMatchGoStdlib (0.00s)
+=== RUN   TestGroupsMatchGoStdlib
+--- PASS: TestGroupsMatchGoStdlib (0.00s)
+=== RUN   TestKnownSuiteDecompositions
+--- PASS: TestKnownSuiteDecompositions (0.00s)
+=== RUN   TestSignallingValues
+--- PASS: TestSignallingValues (0.00s)
+=== RUN   TestSuiteInvariants
+--- PASS: TestSuiteInvariants (0.00s)
+=== RUN   TestPostQuantumGroups
+--- PASS: TestPostQuantumGroups (0.00s)
+=== RUN   TestNamesAndProvenance
+--- PASS: TestNamesAndProvenance (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/tlsprobe/registry	0.581s
+?   	github.com/example/cbom-scan/internal/tlsprobe/registry/gen	[no test files]
+?   	github.com/example/cbom-scan/internal/tlsprobe/testserver	[no test files]
+=== RUN   TestClientHelloEncoding
+--- PASS: TestClientHelloEncoding (0.00s)
+=== RUN   TestClientHelloValidation
+--- PASS: TestClientHelloValidation (0.00s)
+=== RUN   TestOversizedFieldsAreErrorsNotTruncation
+--- PASS: TestOversizedFieldsAreErrorsNotTruncation (0.00s)
+=== RUN   TestReadFlightTLS12
+--- PASS: TestReadFlightTLS12 (0.04s)
+=== RUN   TestReadFlightOldProtocolVersions
+--- PASS: TestReadFlightOldProtocolVersions (0.00s)
+=== RUN   TestReadFlightTLS13HelloRetryRevealsGroup
+--- PASS: TestReadFlightTLS13HelloRetryRevealsGroup (0.00s)
+=== RUN   TestTLS13ServerRefusesAPre13Offer
+--- PASS: TestTLS13ServerRefusesAPre13Offer (0.00s)
+=== RUN   TestPeersThatAreNotTLS
+--- PASS: TestPeersThatAreNotTLS (0.00s)
+=== RUN   TestMalformedFlights
+--- PASS: TestMalformedFlights (0.00s)
+=== RUN   TestSSLv3ServerHelloIsParsed
+--- PASS: TestSSLv3ServerHelloIsParsed (0.00s)
+=== RUN   TestMessagesSplitAcrossRecords
+--- PASS: TestMessagesSplitAcrossRecords (0.00s)
+=== RUN   TestReadFlightStopsAtLimits
+--- PASS: TestReadFlightStopsAtLimits (0.00s)
+=== RUN   TestParseServerKeyExchangeDHE
+--- PASS: TestParseServerKeyExchangeDHE (0.00s)
+=== RUN   TestParseServerKeyExchangeECDHEAndPSK
+--- PASS: TestParseServerKeyExchangeECDHEAndPSK (0.00s)
+=== RUN   TestSSLv2ClientHello
+--- PASS: TestSSLv2ClientHello (0.00s)
+=== RUN   TestSSLv2ServerReplies
+--- PASS: TestSSLv2ServerReplies (0.00s)
+=== RUN   TestAlertNumbersCoverGoStdlib
+--- PASS: TestAlertNumbersCoverGoStdlib (0.00s)
+=== RUN   TestVersionString
+--- PASS: TestVersionString (0.00s)
+=== RUN   FuzzReadFlight
+=== RUN   FuzzReadFlight/seed#0
+=== RUN   FuzzReadFlight/seed#1
+=== RUN   FuzzReadFlight/seed#2
+=== RUN   FuzzReadFlight/seed#3
+--- PASS: FuzzReadFlight (0.00s)
+    --- PASS: FuzzReadFlight/seed#0 (0.00s)
+    --- PASS: FuzzReadFlight/seed#1 (0.00s)
+    --- PASS: FuzzReadFlight/seed#2 (0.00s)
+    --- PASS: FuzzReadFlight/seed#3 (0.00s)
+=== RUN   FuzzParseServerKeyExchange
+=== RUN   FuzzParseServerKeyExchange/seed#0
+=== RUN   FuzzParseServerKeyExchange/seed#1
+=== RUN   FuzzParseServerKeyExchange/seed#2
+--- PASS: FuzzParseServerKeyExchange (0.00s)
+    --- PASS: FuzzParseServerKeyExchange/seed#0 (0.00s)
+    --- PASS: FuzzParseServerKeyExchange/seed#1 (0.00s)
+    --- PASS: FuzzParseServerKeyExchange/seed#2 (0.00s)
+=== RUN   FuzzReadSSLv2ServerHello
+=== RUN   FuzzReadSSLv2ServerHello/seed#0
+=== RUN   FuzzReadSSLv2ServerHello/seed#1
+--- PASS: FuzzReadSSLv2ServerHello (0.00s)
+    --- PASS: FuzzReadSSLv2ServerHello/seed#0 (0.00s)
+    --- PASS: FuzzReadSSLv2ServerHello/seed#1 (0.00s)
+PASS
+ok  	github.com/example/cbom-scan/internal/tlsprobe/wire	1.071s
+?   	github.com/example/cbom-scan/internal/version	[no test files]
+=== RUN   TestNoExternalRequests
+--- PASS: TestNoExternalRequests (0.00s)
+=== RUN   TestNoInnerHTMLOrEval
+--- PASS: TestNoInnerHTMLOrEval (0.01s)
+=== RUN   TestPageHasNoInlineScriptOrStyle
+--- PASS: TestPageHasNoInlineScriptOrStyle (0.00s)
+=== RUN   TestUIDoesNotBorrowAnotherScannersRatingVocabulary
+--- PASS: TestUIDoesNotBorrowAnotherScannersRatingVocabulary (0.01s)
+PASS
+ok  	github.com/example/cbom-scan/web	0.699s

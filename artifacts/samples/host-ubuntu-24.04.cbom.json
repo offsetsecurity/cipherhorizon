@@ -1,0 +1,691 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:00000000-0000-4000-8000-000000000000",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-01-02T03:04:05Z",
+    "lifecycles": [
+      {
+        "phase": "operations"
+      }
+    ],
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "cbom-scan",
+          "version": "0.0.0-dev"
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "host:fixture-host",
+      "type": "device",
+      "name": "fixture-host"
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "crypto/algorithm/aes",
+      "type": "cryptographic-asset",
+      "name": "AES",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Symmetric block cipher. The best known quantum attack on key search, Grover's algorithm, gives only a quadratic speed-up, so an n-bit key keeps about n/2 bits of quantum security. NIST defines post-quantum security categories 1, 3 and 5 as the cost of key search against AES-128, AES-192 and AES-256, so AES at any key size the standard defines meets at least category 1. This is a statement about the algorithm, not about the key size or mode in use on a given host."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "name \"AES\""
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search <https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "FIPS 197, Advanced Encryption Standard (AES) <https://doi.org/10.6028/NIST.FIPS.197>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "block-cipher"
+        }
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/dh@1.2.840.10046.2.1",
+      "type": "cryptographic-asset",
+      "name": "DH",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Relies on the hardness of the discrete logarithm problem in a finite field. Shor's algorithm solves discrete logarithms in polynomial time on a sufficiently large quantum computer."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "OID 1.2.840.10046.2.1"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "RFC 3279 (id-dsa 1.2.840.10040.4.1, dhpublicnumber 1.2.840.10046.2.1) <https://www.rfc-editor.org/rfc/rfc3279>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "key-agree"
+        },
+        "oid": "1.2.840.10046.2.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/dsa@1.2.840.10040.4.1",
+      "type": "cryptographic-asset",
+      "name": "DSA",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Relies on the hardness of the discrete logarithm problem in a finite field. Shor's algorithm solves discrete logarithms in polynomial time on a sufficiently large quantum computer."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "OID 1.2.840.10040.4.1"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "RFC 3279 (id-dsa 1.2.840.10040.4.1, dhpublicnumber 1.2.840.10046.2.1) <https://www.rfc-editor.org/rfc/rfc3279>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature"
+        },
+        "oid": "1.2.840.10040.4.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ecdh@1.3.132.1.12",
+      "type": "cryptographic-asset",
+      "name": "ECDH",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Relies on the hardness of the elliptic-curve discrete logarithm problem. Shor's algorithm extends to elliptic-curve groups and solves it in polynomial time on a sufficiently large quantum computer."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "OID 1.3.132.1.12"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Proos & Zalka, Shor's discrete logarithm quantum algorithm for elliptic curves, QIC 3(4), 2003 <https://arxiv.org/abs/quant-ph/0301141>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "RFC 5480 (id-ecPublicKey under ansi-X9-62 1.2.840.10045; id-ecDH 1.3.132.1.12) <https://www.rfc-editor.org/rfc/rfc5480>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "key-agree"
+        },
+        "oid": "1.3.132.1.12"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ecdsa",
+      "type": "cryptographic-asset",
+      "name": "ECDSA",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Relies on the hardness of the elliptic-curve discrete logarithm problem. Shor's algorithm extends to elliptic-curve groups and solves it in polynomial time on a sufficiently large quantum computer."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "name \"ECDSA\""
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Proos & Zalka, Shor's discrete logarithm quantum algorithm for elliptic curves, QIC 3(4), 2003 <https://arxiv.org/abs/quant-ph/0301141>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "RFC 5480 (id-ecPublicKey under ansi-X9-62 1.2.840.10045; id-ecDH 1.3.132.1.12) <https://www.rfc-editor.org/rfc/rfc5480>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature"
+        }
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ed25519@1.3.101.112",
+      "type": "cryptographic-asset",
+      "name": "Ed25519",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Relies on the hardness of the elliptic-curve discrete logarithm problem. Shor's algorithm extends to elliptic-curve groups and solves it in polynomial time on a sufficiently large quantum computer. Applies to the Edwards and Montgomery curves used by EdDSA and X25519/X448 as it does to the NIST curves."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "OID 1.3.101.112"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Proos & Zalka, Shor's discrete logarithm quantum algorithm for elliptic curves, QIC 3(4), 2003 <https://arxiv.org/abs/quant-ph/0301141>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "RFC 8410 (X25519 1.3.101.110, X448 .111, Ed25519 .112, Ed448 .113) <https://www.rfc-editor.org/rfc/rfc8410>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature"
+        },
+        "oid": "1.3.101.112"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/rsa@1.2.840.113549.1.1.1",
+      "type": "cryptographic-asset",
+      "name": "RSA",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Relies on the hardness of integer factorization. Shor's algorithm factors integers in polynomial time on a sufficiently large quantum computer, so larger keys raise the quantum resources needed only polynomially and give no lasting protection."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "OID 1.2.840.113549.1.1.1"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "RFC 8017, PKCS #1 v2.2 (RSA); the 1.2.840.113549.1.1 arc is pkcs-1 <https://www.rfc-editor.org/rfc/rfc8017>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "pke"
+        },
+        "oid": "1.2.840.113549.1.1.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/sha-256@2.16.840.1.101.3.4.2.1",
+      "type": "cryptographic-asset",
+      "name": "SHA-256",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Hash function. NIST defines post-quantum security categories 2 and 4 as the cost of collision search against 256-bit and 384-bit hash functions (SHA-256, SHA-384), i.e. it treats them as the benchmark of quantum-era strength; SHA-512 is larger still."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.2.1"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search <https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "FIPS 180-4, Secure Hash Standard (SHA-2) <https://doi.org/10.6028/NIST.FIPS.180-4>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "hash"
+        },
+        "oid": "2.16.840.1.101.3.4.2.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/sha-384@2.16.840.1.101.3.4.2.2",
+      "type": "cryptographic-asset",
+      "name": "SHA-384",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Hash function. NIST defines post-quantum security categories 2 and 4 as the cost of collision search against 256-bit and 384-bit hash functions (SHA-256, SHA-384), i.e. it treats them as the benchmark of quantum-era strength; SHA-512 is larger still."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.2.2"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search <https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "FIPS 180-4, Secure Hash Standard (SHA-2) <https://doi.org/10.6028/NIST.FIPS.180-4>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "hash"
+        },
+        "oid": "2.16.840.1.101.3.4.2.2"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/sha-512@2.16.840.1.101.3.4.2.3",
+      "type": "cryptographic-asset",
+      "name": "SHA-512",
+      "properties": [
+        {
+          "name": "cbom-scan:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cbom-scan:pqc:rationale",
+          "value": "Hash function. NIST defines post-quantum security categories 2 and 4 as the cost of collision search against 256-bit and 384-bit hash functions (SHA-256, SHA-384), i.e. it treats them as the benchmark of quantum-era strength; SHA-512 is larger still."
+        },
+        {
+          "name": "cbom-scan:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.2.3"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search <https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "FIPS 180-4, Secure Hash Standard (SHA-2) <https://doi.org/10.6028/NIST.FIPS.180-4>"
+        },
+        {
+          "name": "cbom-scan:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "hash"
+        },
+        "oid": "2.16.840.1.101.3.4.2.3"
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/gnupg@2.4.4-2ubuntu17?arch=all&distro=ubuntu-24.04",
+      "type": "application",
+      "name": "gnupg",
+      "version": "2.4.4-2ubuntu17",
+      "purl": "pkg:deb/ubuntu/gnupg@2.4.4-2ubuntu17?arch=all&distro=ubuntu-24.04",
+      "properties": [
+        {
+          "name": "cbom-scan:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cbom-scan:package-family",
+          "value": "gnupg"
+        },
+        {
+          "name": "cbom-scan:evidence",
+          "value": "installed-package-capability"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "GnuPG manual, gpg options: rsa2048/ed25519 key specs and --enable-dsa2 (https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html)"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "GnuPG 2.1 'What's new': ECC support (NIST and Brainpool curves) and Ed25519 signing (https://gnupg.org/faq/whats-new-in-2.1.html)"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "RFC 6637: Elliptic Curve Cryptography in OpenPGP (ECDSA, ECDH)"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/gpg@2.4.4-2ubuntu17?arch=amd64&distro=ubuntu-24.04",
+      "type": "application",
+      "name": "gpg",
+      "version": "2.4.4-2ubuntu17",
+      "purl": "pkg:deb/ubuntu/gpg@2.4.4-2ubuntu17?arch=amd64&distro=ubuntu-24.04",
+      "properties": [
+        {
+          "name": "cbom-scan:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cbom-scan:package-family",
+          "value": "gnupg"
+        },
+        {
+          "name": "cbom-scan:evidence",
+          "value": "installed-package-capability"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "GnuPG manual, gpg options: rsa2048/ed25519 key specs and --enable-dsa2 (https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html)"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "GnuPG 2.1 'What's new': ECC support (NIST and Brainpool curves) and Ed25519 signing (https://gnupg.org/faq/whats-new-in-2.1.html)"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "RFC 6637: Elliptic Curve Cryptography in OpenPGP (ECDSA, ECDH)"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libgcrypt20@1.10.3-2build1?arch=amd64&distro=ubuntu-24.04",
+      "type": "library",
+      "name": "libgcrypt20",
+      "version": "1.10.3-2build1",
+      "purl": "pkg:deb/ubuntu/libgcrypt20@1.10.3-2build1?arch=amd64&distro=ubuntu-24.04",
+      "properties": [
+        {
+          "name": "cbom-scan:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cbom-scan:package-family",
+          "value": "libgcrypt"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libgnutls30t64@3.8.3-1.1ubuntu3.2?arch=amd64&distro=ubuntu-24.04",
+      "type": "library",
+      "name": "libgnutls30t64",
+      "version": "3.8.3-1.1ubuntu3.2",
+      "purl": "pkg:deb/ubuntu/libgnutls30t64@3.8.3-1.1ubuntu3.2?arch=amd64&distro=ubuntu-24.04",
+      "properties": [
+        {
+          "name": "cbom-scan:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cbom-scan:package-family",
+          "value": "gnutls"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/libssl3t64@3.0.13-0ubuntu3.4?arch=amd64&distro=ubuntu-24.04",
+      "type": "library",
+      "name": "libssl3t64",
+      "version": "3.0.13-0ubuntu3.4",
+      "purl": "pkg:deb/ubuntu/libssl3t64@3.0.13-0ubuntu3.4?arch=amd64&distro=ubuntu-24.04",
+      "properties": [
+        {
+          "name": "cbom-scan:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cbom-scan:package-family",
+          "value": "openssl"
+        },
+        {
+          "name": "cbom-scan:evidence",
+          "value": "installed-package-capability"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "OpenSSL manual: EVP_PKEY-RSA, EVP_PKEY-DSA, EVP_PKEY-DH, EVP_PKEY-EC, EVP_CIPHER-AES, EVP_MD-SHA2 (https://docs.openssl.org/3.0/man7/)"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "OpenSSL 3.5.0 (2025-04-08) CHANGES.md: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), 'added in OpenSSL 3.5' (https://docs.openssl.org/3.5/man7/EVP_PKEY-ML-KEM/)"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/openssh-server@1:9.6p1-3ubuntu13.5?arch=amd64&distro=ubuntu-24.04",
+      "type": "application",
+      "name": "openssh-server",
+      "version": "1:9.6p1-3ubuntu13.5",
+      "purl": "pkg:deb/ubuntu/openssh-server@1:9.6p1-3ubuntu13.5?arch=amd64&distro=ubuntu-24.04",
+      "properties": [
+        {
+          "name": "cbom-scan:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cbom-scan:package-family",
+          "value": "openssh"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/ubuntu/openssl@3.0.13-0ubuntu3.4?arch=amd64&distro=ubuntu-24.04",
+      "type": "application",
+      "name": "openssl",
+      "version": "3.0.13-0ubuntu3.4",
+      "purl": "pkg:deb/ubuntu/openssl@3.0.13-0ubuntu3.4?arch=amd64&distro=ubuntu-24.04",
+      "properties": [
+        {
+          "name": "cbom-scan:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cbom-scan:package-family",
+          "value": "openssl"
+        },
+        {
+          "name": "cbom-scan:evidence",
+          "value": "installed-package-capability"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "OpenSSL manual: EVP_PKEY-RSA, EVP_PKEY-DSA, EVP_PKEY-DH, EVP_PKEY-EC, EVP_CIPHER-AES, EVP_MD-SHA2 (https://docs.openssl.org/3.0/man7/)"
+        },
+        {
+          "name": "cbom-scan:capability-basis",
+          "value": "OpenSSL 3.5.0 (2025-04-08) CHANGES.md: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), 'added in OpenSSL 3.5' (https://docs.openssl.org/3.5/man7/EVP_PKEY-ML-KEM/)"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:deb/ubuntu/gnupg@2.4.4-2ubuntu17?arch=all&distro=ubuntu-24.04",
+      "provides": [
+        "crypto/algorithm/dsa@1.2.840.10040.4.1",
+        "crypto/algorithm/ecdh@1.3.132.1.12",
+        "crypto/algorithm/ecdsa",
+        "crypto/algorithm/ed25519@1.3.101.112",
+        "crypto/algorithm/rsa@1.2.840.113549.1.1.1"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/gpg@2.4.4-2ubuntu17?arch=amd64&distro=ubuntu-24.04",
+      "provides": [
+        "crypto/algorithm/dsa@1.2.840.10040.4.1",
+        "crypto/algorithm/ecdh@1.3.132.1.12",
+        "crypto/algorithm/ecdsa",
+        "crypto/algorithm/ed25519@1.3.101.112",
+        "crypto/algorithm/rsa@1.2.840.113549.1.1.1"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/libssl3t64@3.0.13-0ubuntu3.4?arch=amd64&distro=ubuntu-24.04",
+      "provides": [
+        "crypto/algorithm/aes",
+        "crypto/algorithm/dh@1.2.840.10046.2.1",
+        "crypto/algorithm/dsa@1.2.840.10040.4.1",
+        "crypto/algorithm/ecdh@1.3.132.1.12",
+        "crypto/algorithm/ecdsa",
+        "crypto/algorithm/rsa@1.2.840.113549.1.1.1",
+        "crypto/algorithm/sha-256@2.16.840.1.101.3.4.2.1",
+        "crypto/algorithm/sha-384@2.16.840.1.101.3.4.2.2",
+        "crypto/algorithm/sha-512@2.16.840.1.101.3.4.2.3"
+      ]
+    },
+    {
+      "ref": "pkg:deb/ubuntu/openssl@3.0.13-0ubuntu3.4?arch=amd64&distro=ubuntu-24.04",
+      "provides": [
+        "crypto/algorithm/aes",
+        "crypto/algorithm/dh@1.2.840.10046.2.1",
+        "crypto/algorithm/dsa@1.2.840.10040.4.1",
+        "crypto/algorithm/ecdh@1.3.132.1.12",
+        "crypto/algorithm/ecdsa",
+        "crypto/algorithm/rsa@1.2.840.113549.1.1.1",
+        "crypto/algorithm/sha-256@2.16.840.1.101.3.4.2.1",
+        "crypto/algorithm/sha-384@2.16.840.1.101.3.4.2.2",
+        "crypto/algorithm/sha-512@2.16.840.1.101.3.4.2.3"
+      ]
+    }
+  ]
+}

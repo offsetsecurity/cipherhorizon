@@ -1,0 +1,15 @@
+== FuzzReadFlight (15s)
+fuzz: elapsed: 15s, execs: 1244754 (78213/sec), new interesting: 5 (total: 53)
+fuzz: elapsed: 15s, execs: 1245592 (12050/sec), new interesting: 5 (total: 53)
+PASS
+ok  	github.com/example/cbom-scan/internal/tlsprobe/wire	16.268s
+== FuzzParseServerKeyExchange (15s)
+fuzz: elapsed: 15s, execs: 885290 (56351/sec), new interesting: 19 (total: 199)
+fuzz: elapsed: 15s, execs: 885290 (0/sec), new interesting: 19 (total: 199)
+PASS
+ok  	github.com/example/cbom-scan/internal/tlsprobe/wire	16.203s
+== FuzzReadSSLv2ServerHello (15s)
+fuzz: elapsed: 15s, execs: 891997 (60933/sec), new interesting: 0 (total: 20)
+fuzz: elapsed: 15s, execs: 891997 (0/sec), new interesting: 0 (total: 20)
+PASS
+ok  	github.com/example/cbom-scan/internal/tlsprobe/wire	16.113s

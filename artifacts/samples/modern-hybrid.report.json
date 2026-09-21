@@ -1,0 +1,291 @@
+{
+  "schemaVersion": "tls-report/1",
+  "target": {
+    "host": "127.0.0.1",
+    "port": 9440
+  },
+  "addresses": [
+    "127.0.0.1"
+  ],
+  "address": "127.0.0.1:9440",
+  "started": "2026-09-22T01:50:11.4490384+05:30",
+  "durationMs": 13,
+  "connections": 38,
+  "protocols": [
+    {
+      "version": "TLSv1.3",
+      "code": 772,
+      "supported": true,
+      "evidence": "server-hello"
+    },
+    {
+      "version": "TLSv1.2",
+      "code": 771,
+      "supported": true,
+      "evidence": "server-hello"
+    },
+    {
+      "version": "TLSv1.1",
+      "code": 770,
+      "supported": false,
+      "evidence": "alert",
+      "detail": "protocol_version"
+    },
+    {
+      "version": "TLSv1.0",
+      "code": 769,
+      "supported": false,
+      "evidence": "alert",
+      "detail": "protocol_version"
+    },
+    {
+      "version": "SSLv3",
+      "code": 768,
+      "supported": false,
+      "evidence": "alert",
+      "detail": "protocol_version"
+    },
+    {
+      "version": "SSLv2",
+      "code": 2,
+      "supported": false,
+      "evidence": "closed",
+      "detail": "not an SSLv2 server"
+    }
+  ],
+  "suites": [
+    {
+      "version": "TLSv1.3",
+      "id": 4865,
+      "name": "TLS_AES_128_GCM_SHA256",
+      "rank": 0,
+      "ianaRecommended": "Y",
+      "cipher": "AES",
+      "keyBits": 128,
+      "mode": "GCM",
+      "blockBits": 128,
+      "mac": "AEAD",
+      "aead": true
+    },
+    {
+      "version": "TLSv1.3",
+      "id": 4866,
+      "name": "TLS_AES_256_GCM_SHA384",
+      "rank": 0,
+      "ianaRecommended": "Y",
+      "cipher": "AES",
+      "keyBits": 256,
+      "mode": "GCM",
+      "blockBits": 128,
+      "mac": "AEAD",
+      "aead": true
+    },
+    {
+      "version": "TLSv1.3",
+      "id": 4867,
+      "name": "TLS_CHACHA20_POLY1305_SHA256",
+      "rank": 0,
+      "ianaRecommended": "Y",
+      "cipher": "CHACHA20",
+      "keyBits": 256,
+      "mode": "POLY1305",
+      "mac": "AEAD",
+      "aead": true
+    },
+    {
+      "version": "TLSv1.2",
+      "id": 49161,
+      "name": "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+      "rank": 0,
+      "ianaRecommended": "N",
+      "kx": "ECDHE",
+      "auth": "ECDSA",
+      "cipher": "AES",
+      "keyBits": 128,
+      "mode": "CBC",
+      "blockBits": 128,
+      "mac": "SHA1",
+      "aead": false,
+      "ephemeral": true
+    },
+    {
+      "version": "TLSv1.2",
+      "id": 49162,
+      "name": "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+      "rank": 0,
+      "ianaRecommended": "N",
+      "kx": "ECDHE",
+      "auth": "ECDSA",
+      "cipher": "AES",
+      "keyBits": 256,
+      "mode": "CBC",
+      "blockBits": 128,
+      "mac": "SHA1",
+      "aead": false,
+      "ephemeral": true
+    },
+    {
+      "version": "TLSv1.2",
+      "id": 49195,
+      "name": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+      "rank": 0,
+      "ianaRecommended": "Y",
+      "kx": "ECDHE",
+      "auth": "ECDSA",
+      "cipher": "AES",
+      "keyBits": 128,
+      "mode": "GCM",
+      "blockBits": 128,
+      "mac": "AEAD",
+      "aead": true,
+      "ephemeral": true
+    },
+    {
+      "version": "TLSv1.2",
+      "id": 49196,
+      "name": "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+      "rank": 0,
+      "ianaRecommended": "Y",
+      "kx": "ECDHE",
+      "auth": "ECDSA",
+      "cipher": "AES",
+      "keyBits": 256,
+      "mode": "GCM",
+      "blockBits": 128,
+      "mac": "AEAD",
+      "aead": true,
+      "ephemeral": true
+    },
+    {
+      "version": "TLSv1.2",
+      "id": 52393,
+      "name": "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+      "rank": 0,
+      "ianaRecommended": "Y",
+      "kx": "ECDHE",
+      "auth": "ECDSA",
+      "cipher": "CHACHA20",
+      "keyBits": 256,
+      "mode": "POLY1305",
+      "mac": "AEAD",
+      "aead": true,
+      "ephemeral": true
+    }
+  ],
+  "preference": [
+    {
+      "version": "TLSv1.3",
+      "subject": "suites",
+      "order": "mixed"
+    },
+    {
+      "version": "TLSv1.3",
+      "subject": "groups",
+      "order": "server"
+    },
+    {
+      "version": "TLSv1.2",
+      "subject": "suites",
+      "order": "mixed"
+    },
+    {
+      "version": "TLSv1.2",
+      "subject": "groups",
+      "order": "client"
+    }
+  ],
+  "groups": [
+    {
+      "version": "TLSv1.3",
+      "id": 4588,
+      "name": "X25519MLKEM768",
+      "rank": 1,
+      "ianaRecommended": "Y",
+      "pq": true,
+      "hybrid": true
+    },
+    {
+      "version": "TLSv1.3",
+      "id": 29,
+      "name": "x25519",
+      "rank": 2,
+      "ianaRecommended": "Y"
+    },
+    {
+      "version": "TLSv1.3",
+      "id": 23,
+      "name": "secp256r1",
+      "rank": 3,
+      "ianaRecommended": "Y"
+    },
+    {
+      "version": "TLSv1.2",
+      "id": 23,
+      "name": "secp256r1",
+      "rank": 0,
+      "ianaRecommended": "Y"
+    },
+    {
+      "version": "TLSv1.2",
+      "id": 29,
+      "name": "x25519",
+      "rank": 0,
+      "ianaRecommended": "Y"
+    }
+  ],
+  "features": {
+    "secureRenegotiation": true,
+    "extendedMasterSecret": true,
+    "sessionTickets": true,
+    "encryptThenMac": false,
+    "ocspStapling": false,
+    "compression": false
+  },
+  "certificates": [
+    {
+      "source": "tls-default, tls1.2-ecdsa",
+      "chain": [
+        {
+          "subject": "CN=localhost,O=cbom-scan test",
+          "issuer": "CN=localhost,O=cbom-scan test",
+          "serial": "18d76f870e310e1c",
+          "dnsNames": [
+            "localhost"
+          ],
+          "ipAddresses": [
+            "127.0.0.1",
+            "::1"
+          ],
+          "notBefore": "2026-09-21T19:20:02Z",
+          "notAfter": "2026-09-22T20:20:02Z",
+          "isCa": false,
+          "selfSigned": true,
+          "sha256": "5cd117b10ead374ab69777bbb6bfbecf6ed24597fda5b43b0d6d0a05f6763403",
+          "publicKey": {
+            "algorithm": "ECDSA",
+            "oid": "1.2.840.10045.2.1",
+            "bits": 256,
+            "curve": "P-256"
+          },
+          "signatureAlgorithm": {
+            "name": "ECDSA-SHA256",
+            "oid": "1.2.840.10045.4.3.2"
+          }
+        }
+      ],
+      "trusted": false,
+      "trustError": "x509: certificate signed by unknown authority",
+      "nameMatches": true
+    }
+  ],
+  "negotiated": {
+    "version": "TLSv1.3",
+    "suite": "TLS_AES_128_GCM_SHA256",
+    "suiteId": 4865,
+    "group": "X25519MLKEM768",
+    "groupId": 4588,
+    "pq": true,
+    "ocspStaple": false
+  },
+  "incomplete": false
+}

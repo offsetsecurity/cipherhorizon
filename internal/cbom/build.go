@@ -1,0 +1,216 @@
+// Package cbom assembles collector findings into a CycloneDX 1.6 CBOM.
+//
+// It builds on github.com/CycloneDX/cyclonedx-go rather than hand-rolling the
+// document model, and adds what the SDK does not provide: closed-vocabulary
+// enforcement, de-duplication and edge integrity, and deterministic output.
+package cbom
+
+import (
+	"fmt"
+	"io"
+	"reflect"
+	"sort"
+	"time"
+
+	cdx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/google/uuid"
+
+	"github.com/example/cbom-scan/internal/collector"
+)
+
+// SpecVersion is the CycloneDX version emitted. 1.7 is a later, opt-in step.
+const SpecVersion = cdx.SpecVersion1_6
+
+// PropertyNamespace prefixes every custom property this program adds, as the
+// CycloneDX property taxonomy asks of non-CycloneDX property names.
+const PropertyNamespace = "cbom-scan"
+
+// Property returns a namespaced custom property, e.g. Property("collector","apt").
+func Property(name, value string) cdx.Property {
+	return cdx.Property{Name: PropertyNamespace + ":" + name, Value: value}
+}
+
+// Tool identifies this program in the CBOM's metadata.
+type Tool struct {
+	Name    string
+	Version string
+}
+
+// Options configures Build. The zero value is usable.
+type Options struct {
+	Tool     Tool
+	HostName string // the CBOM's subject; omitted when empty
+
+	// Now and NewSerial exist so tests can make output byte-for-byte reproducible.
+	Now       func() time.Time
+	NewSerial func() string // must return a "urn:uuid:..." value
+}
+
+// Build assembles assets into a BOM. Problems with individual assets never fail
+// the build: the offending asset (or field, or edge) is omitted and reported in
+// the returned warnings, so one bad plugin cannot take down an inventory.
+//
+// Output is deterministic for a given input: components are sorted by bom-ref,
+// as are all edges.
+func Build(assets []collector.CryptoAsset, opts Options) (*cdx.BOM, []string) {
+	if opts.Now == nil {
+		opts.Now = time.Now
+	}
+	if opts.NewSerial == nil {
+		opts.NewSerial = func() string { return "urn:uuid:" + uuid.NewString() }
+	}
+
+	var warnings []string
+	components := map[string]cdx.Component{}
+	provides := map[string]map[string]struct{}{}
+	dependsOn := map[string]map[string]struct{}{}
+
+	for _, a := range assets {
+		if err := a.Validate(); err != nil {
+			warnings = append(warnings, err.Error()+"; asset skipped")
+			continue
+		}
+		c := a.Component
+		warnings = append(warnings, sanitize(&c)...)
+
+		ref := c.BOMRef
+		if prev, seen := components[ref]; seen {
+			if !reflect.DeepEqual(prev, c) {
+				warnings = append(warnings, fmt.Sprintf("%s: conflicting duplicate component; first one kept", ref))
+				continue
+			}
+		} else {
+			components[ref] = c
+		}
+		addEdges(provides, ref, a.Provides)
+		addEdges(dependsOn, ref, a.DependsOn)
+	}
+
+	provides, w := pruneDangling(provides, "provides", components)
+	warnings = append(warnings, w...)
+	dependsOn, w = pruneDangling(dependsOn, "dependsOn", components)
+	warnings = append(warnings, w...)
+
+	bom := cdx.NewBOM()
+	bom.SerialNumber = opts.NewSerial()
+	bom.Metadata = metadata(opts)
+
+	refs := sortedKeys(components)
+	if len(refs) > 0 {
+		cs := make([]cdx.Component, len(refs))
+		for i, r := range refs {
+			cs[i] = components[r]
+		}
+		bom.Components = &cs
+	}
+
+	var deps []cdx.Dependency
+	for _, ref := range sortedUnion(provides, dependsOn) {
+		d := cdx.Dependency{Ref: ref}
+		if s := sortedKeys(dependsOn[ref]); len(s) > 0 {
+			d.Dependencies = &s
+		}
+		if s := sortedKeys(provides[ref]); len(s) > 0 {
+			d.Provides = &s
+		}
+		deps = append(deps, d)
+	}
+	if len(deps) > 0 {
+		bom.Dependencies = &deps
+	}
+	return bom, warnings
+}
+
+// schemaURL is the JSON Schema id CycloneDX 1.6 documents declare in "$schema".
+const schemaURL = "http://cyclonedx.org/schema/bom-1.6.schema.json"
+
+// Encode writes bom as CycloneDX 1.6 JSON.
+//
+// It deliberately uses the SDK's plain Encode, not EncodeVersion. As of
+// cyclonedx-go v0.12.0, EncodeVersion's downgrade pass does not know the
+// "cryptographic-asset" component type in ANY spec version, and silently
+// rewrites every crypto component to "application": schema-valid, but no longer
+// a CBOM. Skipping the pass is safe here because Build targets 1.6 natively:
+// vocab.go already omits the 1.7-only crypto fields, and the schema-validation
+// tests would fail on any other 1.7-only field. TestEncodeKeepsCryptographicAssetType
+// guards this; revisit when the SDK is fixed.
+func Encode(w io.Writer, bom *cdx.BOM, pretty bool) error {
+	out := *bom // do not mutate the caller's BOM
+	out.SpecVersion = SpecVersion
+	out.JSONSchema = schemaURL
+	return cdx.NewBOMEncoder(w, cdx.BOMFileFormatJSON).SetPretty(pretty).SetEscapeHTML(false).Encode(&out)
+}
+
+func metadata(opts Options) *cdx.Metadata {
+	m := &cdx.Metadata{
+		Timestamp:  opts.Now().UTC().Format(time.RFC3339),
+		Lifecycles: &[]cdx.Lifecycle{{Phase: cdx.LifecyclePhaseOperations}},
+	}
+	if opts.Tool.Name != "" {
+		m.Tools = &cdx.ToolsChoice{Components: &[]cdx.Component{{
+			Type:    cdx.ComponentTypeApplication,
+			Name:    opts.Tool.Name,
+			Version: opts.Tool.Version,
+		}}}
+	}
+	if opts.HostName != "" {
+		m.Component = &cdx.Component{
+			BOMRef: "host:" + opts.HostName,
+			Type:   cdx.ComponentTypeDevice,
+			Name:   opts.HostName,
+		}
+	}
+	return m
+}
+
+func addEdges(dst map[string]map[string]struct{}, from string, to []string) {
+	if len(to) == 0 {
+		return
+	}
+	if dst[from] == nil {
+		dst[from] = map[string]struct{}{}
+	}
+	for _, t := range to {
+		dst[from][t] = struct{}{}
+	}
+}
+
+// pruneDangling drops edges whose target is not a component, so the emitted
+// dependency graph never references something absent from the document.
+func pruneDangling(edges map[string]map[string]struct{}, kind string, components map[string]cdx.Component) (map[string]map[string]struct{}, []string) {
+	var warnings []string
+	out := map[string]map[string]struct{}{}
+	for from, targets := range edges {
+		if _, ok := components[from]; !ok {
+			continue // its asset was skipped
+		}
+		for _, t := range sortedKeys(targets) {
+			if _, ok := components[t]; !ok {
+				warnings = append(warnings, fmt.Sprintf("%s: %s target %q is not in the CBOM; edge dropped", from, kind, t))
+				continue
+			}
+			addEdges(out, from, []string{t})
+		}
+	}
+	return out, warnings
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedUnion(a, b map[string]map[string]struct{}) []string {
+	seen := map[string]struct{}{}
+	for k := range a {
+		seen[k] = struct{}{}
+	}
+	for k := range b {
+		seen[k] = struct{}{}
+	}
+	return sortedKeys(seen)
+}

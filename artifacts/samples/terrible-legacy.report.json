@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "tls-report/1",
+  "target": {
+    "host": "127.0.0.1",
+    "port": 9443
+  },
+  "addresses": [
+    "127.0.0.1"
+  ],
+  "address": "127.0.0.1:9443",
+  "started": "2026-09-22T01:50:11.4089929+05:30",
+  "durationMs": 6,
+  "connections": 19,
+  "protocols": [
+    {
+      "version": "TLSv1.3",
+      "code": 772,
+      "supported": false,
+      "evidence": "alert",
+      "detail": "handshake_failure"
+    },
+    {
+      "version": "TLSv1.2",
+      "code": 771,
+      "supported": false,
+      "evidence": "server-hello",
+      "detail": "server chose SSLv3"
+    },
+    {
+      "version": "TLSv1.1",
+      "code": 770,
+      "supported": false,
+      "evidence": "server-hello",
+      "detail": "server chose SSLv3"
+    },
+    {
+      "version": "TLSv1.0",
+      "code": 769,
+      "supported": false,
+      "evidence": "server-hello",
+      "detail": "server chose SSLv3"
+    },
+    {
+      "version": "SSLv3",
+      "code": 768,
+      "supported": true,
+      "evidence": "server-hello"
+    },
+    {
+      "version": "SSLv2",
+      "code": 2,
+      "supported": false,
+      "evidence": "closed",
+      "detail": "not an SSLv2 server"
+    }
+  ],
+  "suites": [
+    {
+      "version": "SSLv3",
+      "id": 10,
+      "name": "TLS_RSA_WITH_3DES_EDE_CBC_SHA",
+      "rank": 1,
+      "ianaRecommended": "D",
+      "kx": "RSA",
+      "auth": "RSA",
+      "cipher": "3DES",
+      "keyBits": 168,
+      "mode": "CBC",
+      "blockBits": 64,
+      "mac": "SHA1",
+      "aead": false
+    },
+    {
+      "version": "SSLv3",
+      "id": 5,
+      "name": "TLS_RSA_WITH_RC4_128_SHA",
+      "rank": 2,
+      "ianaRecommended": "D",
+      "kx": "RSA",
+      "auth": "RSA",
+      "cipher": "RC4",
+      "keyBits": 128,
+      "mode": "STREAM",
+      "mac": "SHA1",
+      "aead": false
+    },
+    {
+      "version": "SSLv3",
+      "id": 3,
+      "name": "TLS_RSA_EXPORT_WITH_RC4_40_MD5",
+      "rank": 3,
+      "ianaRecommended": "D",
+      "kx": "RSA",
+      "auth": "RSA",
+      "cipher": "RC4",
+      "keyBits": 40,
+      "mode": "STREAM",
+      "mac": "MD5",
+      "aead": false,
+      "export": true
+    },
+    {
+      "version": "SSLv3",
+      "id": 1,
+      "name": "TLS_RSA_WITH_NULL_MD5",
+      "rank": 4,
+      "ianaRecommended": "D",
+      "kx": "RSA",
+      "auth": "RSA",
+      "cipher": "NULL",
+      "mode": "NONE",
+      "mac": "MD5",
+      "aead": false
+    },
+    {
+      "version": "SSLv3",
+      "id": 24,
+      "name": "TLS_DH_anon_WITH_RC4_128_MD5",
+      "rank": 5,
+      "ianaRecommended": "D",
+      "kx": "DHE",
+      "auth": "anon",
+      "cipher": "RC4",
+      "keyBits": 128,
+      "mode": "STREAM",
+      "mac": "MD5",
+      "aead": false,
+      "anon": true,
+      "ephemeral": true
+    }
+  ],
+  "preference": [
+    {
+      "version": "SSLv3",
+      "subject": "suites",
+      "order": "server"
+    }
+  ],
+  "features": {},
+  "negotiated": {
+    "version": "",
+    "suite": "",
+    "suiteId": 0,
+    "pq": false,
+    "ocspStaple": false,
+    "error": "remote error: tls: handshake failure"
+  },
+  "incomplete": false
+}

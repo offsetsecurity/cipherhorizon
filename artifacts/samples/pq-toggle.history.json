@@ -1,0 +1,30 @@
+[
+  {
+    "scanId": 2,
+    "at": "2026-09-21T20:20:11.4064999Z",
+    "status": "done",
+    "band": "Fair",
+    "score": 60,
+    "readinessLevel": 1,
+    "hndlExposed": true,
+    "critical": 0,
+    "high": 2,
+    "medium": 1,
+    "error": "",
+    "incomplete": false
+  },
+  {
+    "scanId": 8,
+    "at": "2026-09-21T20:20:34.039934Z",
+    "status": "done",
+    "band": "Fair",
+    "score": 60,
+    "readinessLevel": 3,
+    "hndlExposed": false,
+    "critical": 0,
+    "high": 2,
+    "medium": 0,
+    "error": "",
+    "incomplete": false
+  }
+]

@@ -1,0 +1,91 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Static, dependency-free binaries build for the supported targets
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
+            GOOS=${target%/*} GOARCH=${target#*/} go build -trimpath -o /dev/null ./cmd/cbom-scan
+          done
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  fuzz:
+    # Short smoke run of the parsers that read untrusted network bytes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Fuzz the wire parsers
+        run: |
+          for f in FuzzReadFlight FuzzParseServerKeyExchange FuzzReadSSLv2ServerHello; do
+            go test ./internal/tlsprobe/wire -run '^$' -fuzz "^${f}\$" -fuzztime 30s
+          done
+
+  e2e:
+    # The shipped UI, driven in a real browser against known demo targets (see testing/e2e).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the UI scripts parse
+        run: for f in $(find web/static -name '*.js'); do node --check "$f"; done
+      - name: Build
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 go build -trimpath -o dist/cbom-scan ./cmd/cbom-scan
+          go build -o dist/demo-targets ./cmd/demo-targets
+      - name: Start the demo targets and the server
+        run: |
+          ./dist/demo-targets > demo.log 2>&1 &
+          ./dist/cbom-scan serve --allow-loopback --db e2e.db --addr 127.0.0.1:8090 > serve.log 2>&1 &
+          for i in $(seq 1 50); do curl -sf http://127.0.0.1:8090/api/v1/health && break; sleep 0.2; done
+      - name: Run the browser journey
+        run: node testing/e2e/journey.mjs --base http://127.0.0.1:8090 --out artifacts/screenshots
+      - name: Live security checks
+        run: |
+          # the DNS-rebinding checks need a token-less server on :8080
+          ./dist/cbom-scan serve --db open.db --addr 127.0.0.1:8080 > open.log 2>&1 &
+          sleep 1
+          BIN=dist/cbom-scan bash testing/e2e/security.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: artifacts/screenshots

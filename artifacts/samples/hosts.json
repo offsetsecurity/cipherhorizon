@@ -1,0 +1,79 @@
+[
+  {
+    "id": 9,
+    "kind": "host",
+    "name": "web-01",
+    "host": "web-01",
+    "port": 0,
+    "tags": [],
+    "notes": "",
+    "intervalSeconds": 0,
+    "nextScanAt": null,
+    "createdAt": "2026-09-21T20:20:50.5551424Z",
+    "updatedAt": "2026-09-21T20:20:50.5551424Z",
+    "latest": null,
+    "lastDone": null,
+    "address": "web-01",
+    "summary": {
+      "name": "web-01",
+      "components": 3,
+      "packages": 1,
+      "vulnerable": 1,
+      "safe": 1,
+      "unclassified": [],
+      "algorithms": [
+        {
+          "name": "RSA",
+          "oid": "1.2.840.113549.1.1.1",
+          "class": "quantum-vulnerable",
+          "matchedBy": "OID 1.2.840.113549.1.1.1",
+          "rationale": "Relies on the hardness of integer factorization. Shor's algorithm factors integers in polynomial time on a sufficiently large quantum computer, so larger keys raise the quantum resources needed only polynomially and give no lasting protection.",
+          "basis": [
+            {
+              "title": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997",
+              "url": "https://arxiv.org/abs/quant-ph/9508027"
+            },
+            {
+              "title": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035",
+              "url": "https://csrc.nist.gov/pubs/ir/8547/ipd"
+            },
+            {
+              "title": "RFC 8017, PKCS #1 v2.2 (RSA); the 1.2.840.113549.1.1 arc is pkcs-1",
+              "url": "https://www.rfc-editor.org/rfc/rfc8017"
+            }
+          ],
+          "providedBy": [
+            "libgcrypt20 1.10.3"
+          ]
+        },
+        {
+          "name": "SHA-256",
+          "oid": "2.16.840.1.101.3.4.2.1",
+          "class": "quantum-safe",
+          "matchedBy": "OID 2.16.840.1.101.3.4.2.1",
+          "rationale": "Hash function. NIST defines post-quantum security categories 2 and 4 as the cost of collision search against 256-bit and 384-bit hash functions (SHA-256, SHA-384), i.e. it treats them as the benchmark of quantum-era strength; SHA-512 is larger still.",
+          "basis": [
+            {
+              "title": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search",
+              "url": "https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)"
+            },
+            {
+              "title": "FIPS 180-4, Secure Hash Standard (SHA-2)",
+              "url": "https://doi.org/10.6028/NIST.FIPS.180-4"
+            },
+            {
+              "title": "NIST CSOR algorithm registration (OIDs)",
+              "url": "https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration"
+            }
+          ],
+          "providedBy": [
+            "libgcrypt20 1.10.3"
+          ]
+        }
+      ],
+      "timestamp": "2026-09-21T10:00:00Z"
+    },
+    "snapshotAt": "2026-09-21T20:20:50.5565221Z",
+    "snapshots": 1
+  }
+]

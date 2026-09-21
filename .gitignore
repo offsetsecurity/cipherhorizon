@@ -1,0 +1,11 @@
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.txt
+.idea/
+.vscode/
+
+# collected release evidence; regenerate with testing/e2e
+/artifacts/binaries/

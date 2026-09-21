@@ -1,0 +1,4 @@
+ok  	github.com/example/cbom-scan/internal/server	43.158s
+ok  	github.com/example/cbom-scan/internal/tlsprobe	9.175s
+ok  	github.com/example/cbom-scan/internal/store	3.898s
+ok  	github.com/example/cbom-scan/internal/eval	1.266s

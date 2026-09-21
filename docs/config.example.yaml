@@ -1,0 +1,18 @@
+# cbom-scan configuration. Every key is optional; the values below are the defaults
+# except where a comment says otherwise. Unknown keys are an error.
+
+output:
+  path: ""      # file to write, atomically. Empty = standard output.
+  pretty: true  # indent the JSON
+
+host:
+  root: /       # where the host filesystem is visible. Use /host in a container that mounts it.
+  name: ""      # hostname recorded as the CBOM's subject. Empty = the OS hostname.
+
+plugins:
+  enabled: []   # run only these plugins. Empty = every registered plugin.
+  disabled: []  # never run these.
+  timeout: 60s  # per-plugin budget for detect + collect. 0 = unbounded.
+
+pqc:
+  enabled: true # annotate algorithms with cited quantum-vulnerable / quantum-safe verdicts

@@ -1,0 +1,100 @@
+Package: bash
+Status: install ok installed
+Priority: required
+Section: shells
+Architecture: amd64
+Version: 5.2.21-2ubuntu4
+Description: GNU Bourne Again SHell
+ Bash is an sh-compatible command language interpreter: with a colon.
+ .
+ More text.
+
+Package: coreutils
+Status: install ok installed
+Priority: required
+Section: utils
+Architecture: amd64
+Version: 9.4-3ubuntu6
+Description: GNU core utilities
+
+Package: libc6
+Status: install ok installed
+Priority: optional
+Section: libs
+Architecture: amd64
+Version: 2.39-0ubuntu8.3
+Description: GNU C Library: Shared libraries
+
+Package: libssl3t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Architecture: amd64
+Version: 3.0.13-0ubuntu3.4
+Description: Secure Sockets Layer toolkit - shared libraries
+ This package is part of the OpenSSL project's implementation of the SSL
+ and TLS cryptographic protocols.
+
+Package: openssl
+Status: install ok installed
+Priority: optional
+Section: utils
+Architecture: amd64
+Version: 3.0.13-0ubuntu3.4
+Description: Secure Sockets Layer toolkit - cryptographic utility
+
+Package: libssl-dev
+Status: install ok installed
+Priority: optional
+Section: libdevel
+Architecture: amd64
+Version: 3.0.13-0ubuntu3.4
+Description: Secure Sockets Layer toolkit - development files
+
+Package: libssl1.1
+Status: deinstall ok config-files
+Priority: optional
+Section: libs
+Architecture: amd64
+Version: 1.1.1w-0ubuntu1
+Description: Secure Sockets Layer toolkit - shared libraries (removed, config remains)
+
+Package: gpg
+Status: install ok installed
+Priority: optional
+Section: utils
+Architecture: amd64
+Version: 2.4.4-2ubuntu17
+Description: GNU Privacy Guard - OpenPGP signature and encryption tool
+
+Package: gnupg
+Status: install ok installed
+Priority: optional
+Section: utils
+Architecture: all
+Version: 2.4.4-2ubuntu17
+Description: GNU privacy guard - a free PGP replacement
+
+Package: libgcrypt20
+Status: install ok installed
+Priority: optional
+Section: libs
+Architecture: amd64
+Version: 1.10.3-2build1
+Description: LGPL Crypto library - runtime library
+
+Package: libgnutls30t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Architecture: amd64
+Version: 3.8.3-1.1ubuntu3.2
+Description: GNU TLS library - main runtime library
+
+Package: openssh-server
+Status: install ok installed
+Priority: optional
+Section: net
+Architecture: amd64
+Version: 1:9.6p1-3ubuntu13.5
+Description: secure shell (SSH) server, for secure access from remote machines

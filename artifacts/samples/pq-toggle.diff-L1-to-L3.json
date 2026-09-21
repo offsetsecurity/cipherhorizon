@@ -1,0 +1,75 @@
+{
+  "diff": {
+    "changes": [
+      {
+        "area": "readiness",
+        "kind": "changed",
+        "subject": "PQC readiness level",
+        "before": "L1 Exposed",
+        "after": "L3 Hybrid negotiated",
+        "impact": "better"
+      },
+      {
+        "area": "group",
+        "kind": "added",
+        "subject": "TLSv1.3 X25519MLKEM768",
+        "impact": "better"
+      },
+      {
+        "area": "finding",
+        "kind": "removed",
+        "subject": "PQC.HNDL-EXPOSED: Traffic is exposed to harvest-now-decrypt-later",
+        "before": "medium",
+        "impact": "better"
+      }
+    ],
+    "better": 3,
+    "worse": 0,
+    "neutral": 0,
+    "summary": "3 change(s): 3 better, 0 worse, 0 neutral."
+  },
+  "from": {
+    "id": 2,
+    "assetId": 6,
+    "status": "done",
+    "trigger": "bulk",
+    "stage": "done",
+    "progressPct": 100,
+    "connections": 21,
+    "queuedAt": "2026-09-21T20:20:11.3391147Z",
+    "startedAt": "2026-09-21T20:20:11.3398513Z",
+    "finishedAt": "2026-09-21T20:20:11.4064999Z",
+    "error": "",
+    "band": "Fair",
+    "score": 60,
+    "readinessLevel": 1,
+    "hndlExposed": true,
+    "critical": 0,
+    "high": 2,
+    "medium": 1,
+    "certNotAfter": "2026-09-22T20:20:02Z",
+    "incomplete": false
+  },
+  "to": {
+    "id": 8,
+    "assetId": 6,
+    "status": "done",
+    "trigger": "manual",
+    "stage": "done",
+    "progressPct": 100,
+    "connections": 23,
+    "queuedAt": "2026-09-21T20:20:34.0221733Z",
+    "startedAt": "2026-09-21T20:20:34.0233495Z",
+    "finishedAt": "2026-09-21T20:20:34.039934Z",
+    "error": "",
+    "band": "Fair",
+    "score": 60,
+    "readinessLevel": 3,
+    "hndlExposed": false,
+    "critical": 0,
+    "high": 2,
+    "medium": 0,
+    "certNotAfter": "2026-09-22T20:20:02Z",
+    "incomplete": false
+  }
+}
