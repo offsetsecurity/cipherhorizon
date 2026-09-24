@@ -1,18 +1,18 @@
 // Application shell: a hash router, the navigation state and the access-token prompt.
 import { h, clear } from './dom.js';
 import { api, ApiError, setAuthHandler, setToken } from './api.js';
-import { modal, button, empty, playEnter } from './ui.js';
+import { modal, button, empty, notice, playEnter } from './ui.js';
 
 const main = document.getElementById('main');
 const modalRoot = document.getElementById('modal-root');
 
 const routes = [
   [/^#\/?$/, 'dashboard', () => import('./views/dashboard.js')],
-  [/^#\/assets\/?$/, 'assets', () => import('./views/assets.js')],
-  [/^#\/assets\/(\d+)\/?$/, 'assets', () => import('./views/asset.js')],
+  [/^#\/(?:assets|endpoints)\/?$/, 'assets', () => import('./views/assets.js')],
+  [/^#\/(?:assets|endpoints)\/(\d+)\/?$/, 'assets', () => import('./views/asset.js')],
   [/^#\/scans\/?$/, 'scans', () => import('./views/scans.js')],
-  [/^#\/hosts\/?$/, 'hosts', () => import('./views/hosts.js')],
-  [/^#\/hosts\/(\d+)\/?$/, 'hosts', () => import('./views/host.js')],
+  [/^#\/hosts?\/?$/, 'hosts', () => import('./views/hosts.js')],
+  [/^#\/hosts?\/(\d+)\/?$/, 'hosts', () => import('./views/host.js')],
   [/^#\/findings\/?$/, 'findings', () => import('./views/findings.js')],
   [/^#\/cbom\/?$/, 'cbom', () => import('./views/cbom.js')],
   [/^#\/about\/?$/, 'about', () => import('./views/about.js')],
@@ -42,7 +42,7 @@ async function route() {
   }
   clear(main);
   if (!match) {
-    main.appendChild(empty('Page not found', 'That address does not exist.', button('Go to the dashboard', () => { location.hash = '#/'; }, 'primary')));
+    main.appendChild(notice('We could not find that page', 'The address may be mistyped, or the page may have moved. Everything is reachable from the menu.', button('Go to the dashboard', () => { location.hash = '#/'; }, 'primary')));
     return;
   }
   try {

@@ -83,6 +83,7 @@ func (s *Server) secureHeaders(next http.Handler) http.Handler {
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		h.Set("Cross-Origin-Resource-Policy", "same-origin")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			h.Set("Cache-Control", "no-store")
 		}
@@ -127,12 +128,22 @@ func (s *Server) hostCheck(next http.Handler) http.Handler {
 	})
 }
 
+// authFailDelay is how long a failed authentication is held before it is
+// answered, which makes guessing a token over the network slow.
+var authFailDelay = 250 * time.Millisecond
+
 func (s *Server) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.cfg.Token != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/v1/health" {
 			// The scheme is required: a bare token is not accepted.
 			got, hasScheme := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if !hasScheme || subtle.ConstantTimeCompare([]byte(got), []byte(s.cfg.Token)) != 1 {
+				// Record who tried (never what they sent) and slow the guessing down.
+				s.log.Warn("authentication failed", "method", r.Method, "path", r.URL.Path, "remote", r.RemoteAddr)
+				select {
+				case <-time.After(authFailDelay):
+				case <-r.Context().Done():
+				}
 				writeErr(w, http.StatusUnauthorized, "a valid bearer token is required")
 				return
 			}

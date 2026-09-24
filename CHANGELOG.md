@@ -10,6 +10,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-24
+
 ### Added
 
 - Host inventory: plugin registry and collector interface, an `apt` collector, a CycloneDX 1.6 CBOM builder
@@ -66,6 +68,31 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   platforms next to the full product. The TLS CBOM builder moved to `internal/tlscbom` and the UUID library was
   replaced by `crypto/rand`, which removed the scanner and the network package from the collector's dependency set.
 
+- **A guided first run.** The empty dashboard now offers two clear ways to begin (check a server's TLS, inventory
+  a machine); the Hosts page teaches the three-step collector loop with copyable Linux and Windows commands and an
+  upload command for automation; the dashboard states one **next step** chosen from the data; the servers' and the
+  collector's command-line output ends by saying what to do next.
+- **Inventory coverage on the host page.** The privilege tier, operating system, per-sensor result, unreadable
+  locations and blind spots the collector records are now shown (and on the Hosts list as *Full access* / *Limited
+  access* / *Not recorded*), with a plain route to re-run with full rights. A CBOM that records none of this is
+  shown as *Not recorded*, never as complete.
+- A design refinement in the spirit of calm, clear interfaces: softer surfaces and shadows, larger radii, quieter
+  navigation, six KPI cards as three by two (two per row on a phone), disclosure for long rationale, and
+  jargon explained where it first appears. Tokens and new components only; the strict CSP and every route are
+  unchanged, and `#/endpoints` now also opens the endpoints page.
+- The audit record: `docs/audit` (security audit, usability audit, gap analysis, UI direction, PM decision,
+  QA report, release gate).
+
+### Security
+
+- The SQLite database (and its `-wal`/`-shm` files) is created owner-only (`0600`) and an existing one is
+  tightened on start; the collector's CBOM file is written `0600` (POSIX).
+- Access tokens shorter than 16 characters are refused at start; failed authentication is logged (method, path,
+  remote address, never the value) and delayed 250 ms.
+- The SSRF guard also refuses `0.0.0.0/8` and NAT64 (`64:ff9b::/96`) spellings of blocked IPv4 addresses.
+- Host names on upload must be printable UTF-8 without control or bidirectional-override characters.
+- `Permissions-Policy` is sent on every response; workflow checkouts no longer persist the job token.
+
 ### Changed
 
 - Project renamed from the working name `cbom-scan` to **CipherHorizon**, to avoid any confusion with a
@@ -77,10 +104,17 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Known limitations
 
+- **Not yet validated:** the host collector has run on one Windows machine as a standard user only; it has not run
+  on a live Linux host or with Administrator/root rights (fixture and shim tests only). macOS is not supported.
+  The release workflows, container image and signing have never executed (nothing is pushed); the first tag is a
+  pre-release for that reason. The module owner and the security contact are placeholders until a repository exists.
+- Worst-case disk use per host is 50 snapshots of up to 32 MiB; there is no per-instance storage budget yet.
+
 See [docs/product/RELEASE-REPORT-001.md](docs/product/RELEASE-REPORT-001.md) for the full list, including
 deviations from the original plan and what has and hasn't been tested. In short: single shared bearer token
 (no multi-user auth), SQLite only, no OpenAPI spec yet, `tls scan`'s text/JSON output doesn't yet carry the
 evaluation (only `--cbom` and the web UI/API do), and testing so far has used hermetic test servers rather than
 real-world TLS implementations.
 
-[Unreleased]: https://github.com/OWNER-PLACEHOLDER/cipherhorizon/compare/main...HEAD
+[Unreleased]: https://github.com/OWNER-PLACEHOLDER/cipherhorizon/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/OWNER-PLACEHOLDER/cipherhorizon/releases/tag/v0.1.0

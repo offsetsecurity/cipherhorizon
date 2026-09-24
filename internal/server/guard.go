@@ -37,12 +37,35 @@ var extraBlocked = []net.IP{
 	net.ParseIP("169.254.169.253"), // AWS DNS resolver (also link-local)
 }
 
+var (
+	// thisNetwork is 0.0.0.0/8: "this host on this network"; on some systems
+	// an address in it reaches the local machine.
+	thisNetwork = mustCIDR("0.0.0.0/8")
+	// nat64 is the well-known NAT64 prefix; the last four bytes are an IPv4
+	// address that a translator would connect to.
+	nat64 = mustCIDR("64:ff9b::/96")
+)
+
+func mustCIDR(s string) *net.IPNet {
+	_, n, err := net.ParseCIDR(s)
+	if err != nil {
+		panic(err) // a constant
+	}
+	return n
+}
+
 // CheckIP returns nil if a scan may connect to ip.
 func (g Guard) CheckIP(ip net.IP) error {
+	// A NAT64 address is only a way of writing an IPv4 one: apply the IPv4 rules.
+	if ip != nil && ip.To4() == nil && nat64.Contains(ip) {
+		if err := g.CheckIP(ip.To16()[12:16]); err != nil {
+			return fmt.Errorf("%w (reached through the NAT64 address %s)", err, ip)
+		}
+	}
 	switch {
 	case ip == nil:
 		return fmt.Errorf("%w: not an IP address", ErrBlocked)
-	case ip.IsUnspecified():
+	case ip.IsUnspecified() || thisNetwork.Contains(ip):
 		return fmt.Errorf("%w: %s is the unspecified address", ErrBlocked, ip)
 	case ip.IsMulticast() || ip.IsInterfaceLocalMulticast() || ip.IsLinkLocalMulticast():
 		return fmt.Errorf("%w: %s is a multicast address", ErrBlocked, ip)

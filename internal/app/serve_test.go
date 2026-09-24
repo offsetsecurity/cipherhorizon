@@ -47,6 +47,21 @@ func TestServeRefusesNetworkBindWithoutToken(t *testing.T) {
 	}
 }
 
+// SEC-03: a token that can be guessed is worse than none, because it looks like protection.
+func TestServeRefusesAShortToken(t *testing.T) {
+	t.Setenv("CIPHERHORIZON_TOKEN", "")
+	for _, args := range [][]string{{"--token", "a"}, {"--token", "0123456789abcde"}} {
+		var errb bytes.Buffer
+		full := append([]string{"serve", "--addr", "127.0.0.1:0", "--db", filepath.Join(t.TempDir(), "x.db")}, args...)
+		if code := app.Main(context.Background(), full, app.Env{Stdout: io.Discard, Stderr: &errb}); code != app.ExitFatal {
+			t.Errorf("%v: exit %d, want fatal", args, code)
+		}
+		if !strings.Contains(errb.String(), "too short") || !strings.Contains(errb.String(), "openssl rand") {
+			t.Errorf("%v: the message should say why and how to make a token: %q", args, errb.String())
+		}
+	}
+}
+
 func TestServeRunsAndShutsDownGracefully(t *testing.T) {
 	t.Setenv("CIPHERHORIZON_TOKEN", "")
 	ctx, cancel := context.WithCancel(context.Background())

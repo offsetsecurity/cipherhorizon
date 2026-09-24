@@ -171,6 +171,9 @@ func TestAC11_SecurityHeaders(t *testing.T) {
 		if h.Get("X-Content-Type-Options") != "nosniff" || h.Get("Referrer-Policy") != "no-referrer" || h.Get("X-Frame-Options") != "DENY" {
 			t.Errorf("%s: headers = %v", p, h)
 		}
+		if !strings.Contains(h.Get("Permissions-Policy"), "camera=()") {
+			t.Errorf("%s: Permissions-Policy = %q", p, h.Get("Permissions-Policy"))
+		}
 	}
 	if _, _, h := e.req("GET", "/api/v1/about", nil, nil); h.Get("Cache-Control") != "no-store" {
 		t.Errorf("API responses must not be cached: %q", h.Get("Cache-Control"))
@@ -201,6 +204,9 @@ func TestGuardCheckIP(t *testing.T) {
 		"169.254.169.254": true, "169.254.1.1": true, "fe80::1": true,
 		"0.0.0.0": true, "::": true, "224.0.0.1": true, "ff02::1": true, "255.255.255.255": true,
 		"100.100.100.200": true, "192.0.0.192": true, "fd00:ec2::254": true, "168.63.129.16": true,
+		// SEC-04: "this network" and NAT64 spellings of blocked IPv4 addresses.
+		"0.1.2.3": true, "0.255.255.255": true,
+		"64:ff9b::a9fe:a9fe": true, "64:ff9b::7f00:1": true, "64:ff9b::808:808": false,
 	} {
 		err := strict.CheckIP(net.ParseIP(ip))
 		if (err != nil) != blocked {
@@ -214,8 +220,8 @@ func TestGuardCheckIP(t *testing.T) {
 	if lax.CheckIP(net.ParseIP("127.0.0.1")) != nil || lax.CheckIP(net.ParseIP("::1")) != nil {
 		t.Error("AllowLoopback did not allow loopback")
 	}
-	if lax.CheckIP(net.ParseIP("169.254.169.254")) == nil {
-		t.Error("AllowLoopback must never allow cloud metadata")
+	if lax.CheckIP(net.ParseIP("169.254.169.254")) == nil || lax.CheckIP(net.ParseIP("64:ff9b::a9fe:a9fe")) == nil {
+		t.Error("AllowLoopback must never allow cloud metadata, however it is written")
 	}
 	if strict.CheckIP(nil) == nil {
 		t.Error("nil IP accepted")

@@ -111,8 +111,18 @@ async function main() {
 
   // J1: first run shows an empty state that leads to adding endpoints (US-01).
   await go('#/');
-  const empty = await js(`return document.querySelector('.empty')?.innerText || ''`);
+  const empty = await js(`return document.querySelector('.start')?.innerText || ''`);
   check('E2E-01.0', 'first run: dashboard offers to add endpoints', /Add endpoints/.test(empty), empty.slice(0, 80));
+  const startText = await js(`return document.querySelector('main').innerText`);
+  check('E2E-12.1', 'first run shows two clear ways to begin: check a server, inventory a machine',
+    /Check a server/.test(startText) && /Inventory a machine/.test(startText) && /Show me how/.test(startText), startText.slice(0, 120));
+  await clickText('Show me how');
+  await sleep(300);
+  const howto = await js(`const m = document.querySelector('.modal'); return { text: m ? m.innerText : '', cmds: m ? m.querySelectorAll('.cmdblock').length : 0, copies: m ? m.querySelectorAll('.cmdblock .copybtn').length : 0 }`);
+  check('E2E-12.2', 'the how-to dialog gives copyable Linux and Windows collector commands', howto.cmds >= 2 && howto.copies === howto.cmds && /cipherhorizon-collector/.test(howto.text) && /Administrator PowerShell/.test(howto.text), JSON.stringify(howto).slice(0, 120));
+  await shot('how-to-collect-dialog', { full: false });
+  await clickText('Close', "document.querySelector('.modal')");
+  await sleep(300);
   await shot('dashboard-empty');
 
   // J2: add a single endpoint (AC-01.1) with a name and tags; a bad one shows a clear error (AC-01.3).
@@ -311,6 +321,8 @@ async function main() {
   await go('#/hosts');
   await sleep(500);
   await shot('hosts-empty');
+  const hostsEmpty = await js(`return document.querySelector('main').innerText`);
+  check('E2E-12.3', 'the empty Hosts page teaches the three steps with the exact command', /Inventory your first machine/.test(hostsEmpty) && /run -o host\.cbom\.json/.test(hostsEmpty) && /Automate the upload/.test(hostsEmpty), hostsEmpty.slice(0, 100));
   const bom = { bomFormat: 'CycloneDX', specVersion: '1.6', version: 1, metadata: { timestamp: '2026-09-21T10:00:00Z', component: { 'bom-ref': 'host:web-01', type: 'device', name: 'web-01' } },
     components: [
       { 'bom-ref': 'crypto/rsa', type: 'cryptographic-asset', name: 'RSA', cryptoProperties: { assetType: 'algorithm', algorithmProperties: { primitive: 'pke' }, oid: '1.2.840.113549.1.1.1' } },
@@ -327,12 +339,58 @@ async function main() {
   check('E2E-10.1', 'a CBOM uploads and opens the host page with verdicts', /#\/hosts\/\d+/.test(host.hash) && /quantum-vulnerable/.test(host.text) && /quantum-safe/.test(host.text), host.hash);
   check('E2E-10.2', 'the host page states capability is not use', /Capability, not use/.test(host.text));
   check('E2E-10.3', 'the package is shown as providing the algorithms', /libgcrypt20/.test(host.text));
+  check('E2E-12.4', 'a CBOM that records no coverage is shown as Not recorded, never as complete', /Inventory coverage/.test(host.text) && /Not recorded/.test(host.text) && !/Full access/.test(host.text), host.text.slice(0, 80));
   await shot('host-detail');
   const badUpload = await fetch(`${BASE}/api/v1/hosts/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cipherhorizon' }, body: '{"hello":"world"}' });
   check('E2E-10.4', 'a non-CBOM upload is refused with 400', badUpload.status === 400, badUpload.status);
   await go('#/hosts');
   await sleep(500);
   await shot('hosts-list');
+
+  // J9b: a collector-style CBOM that carries its coverage (privilege, sensors, blind spots).
+  const bom2 = JSON.parse(JSON.stringify(bom));
+  bom2.metadata.component = { 'bom-ref': 'host:db-02', type: 'device', name: 'db-02' };
+  bom2.metadata.properties = [
+    { name: 'cipherhorizon:privilege-tier', value: 'user' },
+    { name: 'cipherhorizon:host-os', value: 'windows 10.0.26200' },
+    { name: 'cipherhorizon:coverage-note', value: '129 location(s) could not be read for lack of permission, so results may be incomplete.' },
+    { name: 'cipherhorizon:coverage', value: 'sensor=pe-files status=partial reason=permission denied=129 scope=crypto-library files under Program Files' },
+    { name: 'cipherhorizon:not-seen', value: 'certificates, configuration and key material (not collected by this version)' }];
+  const up2 = await fetch(`${BASE}/api/v1/hosts/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cipherhorizon' }, body: JSON.stringify(bom2) });
+  const up2j = await up2.json();
+  await go(`#/hosts/${up2j.asset.id}`);
+  await sleep(700);
+  const cov = await js(`return document.querySelector('.coverage')?.innerText || ''`);
+  check('E2E-12.5', 'the host page shows privilege, system, what was not readable and what cannot be seen',
+    /Limited access/.test(cov) && /Standard user/.test(cov) && /Windows 10\.0\.26200/.test(cov) && /129 location/.test(cov) && /cannot see/.test(cov) && /full rights/.test(cov), cov.slice(0, 160));
+  await shot('host-coverage');
+  await js(`document.querySelector('.coverage details summary').click()`);
+  const unseen = await js(`return document.querySelector('.coverage details').innerText`);
+  check('E2E-12.6', 'the blind spots open on demand', /certificates, configuration and key material/.test(unseen), unseen.slice(0, 80));
+  const why = await js(`const d = document.querySelector('details.why'); const before = d.open; d.querySelector('summary').click(); return { before, after: d.open, text: d.innerText }`);
+  check('E2E-12.7', 'the reason for a verdict is one click away, with its sources', why.before === false && why.after === true && /Matched by/.test(why.text), JSON.stringify(why).slice(0, 100));
+  await go('#/hosts');
+  await sleep(600);
+  const hostsList = await js(`return document.querySelector('main').innerText`);
+  check('E2E-12.8', 'the Hosts list shows system and access for each machine', /Limited access/.test(hostsList) && /Not recorded/.test(hostsList) && /Windows 10\.0\.26200/.test(hostsList), hostsList.slice(0, 120));
+  await clickText('How do I collect?');
+  await sleep(300);
+  check('E2E-12.9', 'the collector how-to is reachable from a populated Hosts page', (await js(`return document.querySelectorAll('.modal .cmdblock').length`)) >= 2);
+  await clickText('Close', "document.querySelector('.modal')");
+  await sleep(300);
+
+  // J9c: the dashboard advises, lays out six cards as 3 x 2, and the old and new addresses both work.
+  await go('#/');
+  await sleep(900);
+  const dash = await js(`const k = [...document.querySelectorAll('.grid.kpis.six .kpi')]; return { banner: document.querySelector('.nextstep')?.innerText || '', cards: k.length, rows: new Set(k.map((e) => e.offsetTop)).size, cols: new Set(k.map((e) => e.offsetLeft)).size, hndl: document.querySelector('main').innerText.includes('Recorded today, readable later') }`);
+  check('E2E-12.10', 'the dashboard states a next step', /next step/i.test(dash.banner) && dash.banner.length > 30, dash.banner);
+  check('E2E-12.11', 'six KPI cards sit three by two, and the jargon card explains itself', dash.cards === 6 && dash.rows === 2 && dash.cols === 3 && dash.hndl, JSON.stringify(dash));
+  await go('#/endpoints');
+  await sleep(600);
+  check('E2E-12.12', '#/endpoints is an alias of the endpoints page', (await js(`return document.querySelector('h1')?.innerText`)) === 'Endpoints');
+  await go('#/nothing-here');
+  await sleep(400);
+  check('E2E-12.13', 'an unknown address gets a neutral explanation and a way back', /We could not find that page/.test(await js(`return document.querySelector('main').innerText`)));
 
   // J10: about page (readiness legend and methodology).
   await go('#/about');
@@ -355,6 +413,8 @@ async function main() {
   await sleep(900);
   const overflow = await js(`return document.documentElement.scrollWidth - document.documentElement.clientWidth`);
   check('NFR-a11y.1', 'no horizontal page scroll at 390 px wide (dashboard)', overflow <= 1, overflow);
+  const kp = await js(`const k = [...document.querySelectorAll('.grid.kpis .kpi')]; return { n: k.length, cols: new Set(k.map((e) => e.offsetLeft)).size }`);
+  check('E2E-12.14', 'KPI cards sit two per row on a phone', kp.n === 6 && kp.cols === 2, JSON.stringify(kp));
   await shot('dashboard-mobile');
   await go(`#/assets/${by[9440].id}`);
   await sleep(700);

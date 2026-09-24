@@ -679,3 +679,113 @@ select, input, textarea { transition: border-color var(--dur-fast) ease, box-sha
 @media (max-width: 860px) {
   #nav a[aria-current="page"]::before { left: 22%; right: 22%; top: auto; bottom: 0; width: auto; height: 3px; border-radius: 3px 3px 0 0; animation-name: grow-x; }
 }
+
+/* ==========================================================================
+   0.1.0 refinement: calm, clear, self-explaining (docs/audit/04-ui-direction.md)
+   Tokens and new components only; every existing rule above keeps working.
+   ========================================================================== */
+
+/* Softer canvas, quieter lines, larger radii, lighter shadows. Dark mode keeps its own ramp. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f5f7;
+    --border: #e7e8ec;
+    --border-strong: #d4d6dd;
+    --text: #1d1d22;
+    --text-2: #55586a;
+    --shadow-xs: 0 1px 2px rgba(16, 20, 34, .04);
+    --shadow-sm: 0 1px 2px rgba(16, 20, 34, .04), 0 6px 20px rgba(16, 20, 34, .05);
+    --shadow-md: 0 10px 30px rgba(16, 20, 34, .10), 0 2px 6px rgba(16, 20, 34, .04);
+  }
+}
+:root { --radius-sm: 9px; --radius: 14px; --radius-lg: 18px; }
+
+h1 { font-size: 2rem; font-weight: 700; letter-spacing: -.03em; }
+h2 { letter-spacing: -.018em; }
+.page-head { margin-bottom: var(--space-6); }
+.page-head .sub { font-size: 1rem; }
+.grid { gap: var(--space-5); }
+
+.card { padding: var(--space-5) var(--space-6); box-shadow: var(--shadow-sm); }
+.card h2 { font-size: 1.1rem; }
+.tablewrap { border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.btn { padding: .55rem 1.1rem; border-radius: 10px; }
+.btn-sm { padding: .34rem .75rem; }
+.btn:hover { text-decoration: none; }
+a.btn { display: inline-block; }
+
+/* Quieter navigation: the active page is a soft pill, not a coloured block. */
+#nav a[aria-current="page"] { background: rgba(255, 255, 255, .09); color: #fff; }
+
+/* -- KPI cards: six fit three by two; two per row on a phone ------------------------- */
+.grid.kpis.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpi .n { font-size: 2rem; font-weight: 650; }
+.kpi .note { color: var(--muted); font-size: .78rem; margin-top: .3rem; line-height: 1.35; }
+.kpi.warn .n { color: var(--warn); }
+@media (max-width: 720px) {
+  .grid.kpis, .grid.kpis.six { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .grid.two { grid-template-columns: minmax(0, 1fr); }
+  .kpi { padding: var(--space-3) var(--space-4); }
+  .kpi .n { font-size: 1.55rem; }
+  .card { padding: var(--space-4); }
+}
+
+/* -- next step: one sentence and one button, chosen from the data --------------------- */
+.nextstep {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: var(--space-5);
+  padding: .85rem 1.1rem; border-radius: var(--radius); background: var(--primary-soft); border: 1px solid var(--primary-soft-border);
+}
+.nextstep-label { font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--primary); }
+.nextstep-text { flex: 1 1 320px; color: var(--text); }
+.nextstep.ns-warn { background: var(--warn-bg); border-color: var(--warn-border); } .ns-warn .nextstep-label { color: var(--warn); }
+.nextstep.ns-bad { background: var(--bad-bg); border-color: var(--bad-border); } .ns-bad .nextstep-label { color: var(--bad); }
+.nextstep.ns-good { background: var(--good-bg); border-color: var(--good-border); } .ns-good .nextstep-label { color: var(--good); }
+
+/* -- get started ------------------------------------------------------------------------ */
+.start { max-width: 900px; margin: var(--space-5) auto 0; }
+.start-head { text-align: center; margin-bottom: var(--space-6); }
+.start-head h2 { font-size: 1.65rem; letter-spacing: -.03em; margin-bottom: .5rem; }
+.start-head p { color: var(--text-2); max-width: 58ch; margin: 0 auto; }
+.start .grid.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.start-card { display: flex; flex-direction: column; padding: var(--space-6); }
+.start-card p { color: var(--text-2); flex: 1; }
+.start-card .row { margin-top: var(--space-3); }
+.start-foot { text-align: center; margin-top: var(--space-5); }
+
+/* -- numbered steps and command blocks ---------------------------------------------------- */
+.guide-card { max-width: 780px; }
+.steps { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-5); }
+.step { display: flex; gap: var(--space-4); align-items: flex-start; }
+.step-n { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: .85rem;
+  background: var(--primary-soft); color: var(--primary); border: 1px solid var(--primary-soft-border); }
+.step-body { min-width: 0; flex: 1; }
+.step-body h3 { margin: .1rem 0 .35rem; font-size: 1rem; }
+.step-body p { margin: 0 0 .5rem; color: var(--text-2); }
+.cmdblock { display: flex; align-items: center; gap: .5rem; margin: 0 0 .7rem; padding: .5rem .55rem .5rem .8rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.cmdblock code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-size: .82rem; color: var(--text); }
+.cmdblock .copybtn { opacity: 1; margin-top: 0; }
+
+/* -- disclosure ------------------------------------------------------------------------------ */
+details.more > summary, details.why > summary { cursor: pointer; color: var(--primary); font-size: .85rem; font-weight: 560; list-style: none; margin-top: .4rem; }
+details.more > summary::-webkit-details-marker, details.why > summary::-webkit-details-marker { display: none; }
+details.more > summary::before, details.why > summary::before { content: "▸"; display: inline-block; margin-right: .4rem; transition: transform var(--dur) var(--ease); }
+details[open].more > summary::before, details[open].why > summary::before { transform: rotate(90deg); }
+details.why > p { margin: .4rem 0; color: var(--text-2); font-size: .88rem; }
+details.more > ul { margin: .5rem 0 0; padding-left: 1.2rem; color: var(--text-2); font-size: .88rem; }
+details.more > .hint { margin-top: .4rem; }
+
+/* -- inventory coverage --------------------------------------------------------------------- */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3) var(--space-5); margin: .8rem 0; }
+.facts dt { font-size: .72rem; color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: .05em; }
+.facts dd { margin: .1rem 0 0; }
+.coverage .callout { margin-top: .8rem; }
+.coverage .tablewrap { margin-top: .8rem; box-shadow: none; }
+
+/* -- a neutral notice is not a success state ----------------------------------------------------- */
+.empty.plain .empty-icon { color: var(--muted); background: var(--surface-2); border-color: var(--border); animation: none; }
+
+/* Stacked sections on a page breathe: cards and grids that follow each other are spaced. */
+main > .card + .card, main > .grid + .card, main > .card + .grid, main > .grid + .grid, main > .nextstep + .grid { margin-top: var(--space-5); }
+main > .card + .callout, main > .callout + .card, main > .callout + .grid { margin-top: var(--space-5); }
+.namecell > a { white-space: nowrap; }

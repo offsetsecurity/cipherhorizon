@@ -65,7 +65,8 @@ export function trendBars(points, width = 460, height = 150) {
       root.appendChild(rect);
       acc += n;
     }
-    if (points.length <= 16 || i % 2 === 0) {
+    // Every third day, counted back from today, so labels never touch and the latest is always shown.
+    if ((points.length - 1 - i) % 3 === 0) {
       root.appendChild(svg('text', { x: pad.l + i * bw + bw / 2, y: height - 6, class: 'axis', 'text-anchor': 'middle' },
         p.date.slice(5)));
     }

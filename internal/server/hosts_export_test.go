@@ -130,6 +130,8 @@ func TestAC10_IngestRejectsBadInput(t *testing.T) {
 		"no host name":       {"/api/v1/hosts/ingest", `{"bomFormat":"CycloneDX","specVersion":"1.6","version":1}`, 400},
 		"control chars name": {"/api/v1/hosts/ingest?name=a%0Ab", `{"bomFormat":"CycloneDX","specVersion":"1.6","version":1}`, 400},
 		"name via query":     {"/api/v1/hosts/ingest?name=custom-host", `{"bomFormat":"CycloneDX","specVersion":"1.6","version":1}`, 201},
+		"bidi override name": {"/api/v1/hosts/ingest?name=a%E2%80%AEb", `{"bomFormat":"CycloneDX","specVersion":"1.6","version":1}`, 400},
+		"invalid utf-8 name": {"/api/v1/hosts/ingest?name=a%FFb", `{"bomFormat":"CycloneDX","specVersion":"1.6","version":1}`, 400},
 		"name too long":      {"/api/v1/hosts/ingest?name=" + strings.Repeat("a", 101), `{"bomFormat":"CycloneDX","specVersion":"1.6","version":1}`, 400},
 	} {
 		if s, b, _ := e.req("POST", tc.path, tc.body, nil); s != tc.want {

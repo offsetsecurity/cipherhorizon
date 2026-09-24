@@ -28,6 +28,10 @@ const serveNotice = `notice: the web UI lets its users make this machine connect
 // does not show up in the process list.
 const tokenEnv = "CIPHERHORIZON_TOKEN"
 
+// minTokenLen is the shortest access token accepted. It is a shared secret on a
+// network-facing API, so a guessable one defeats the point of having it.
+const minTokenLen = 16
+
 type stringList []string
 
 func (l *stringList) String() string { return strings.Join(*l, ",") }
@@ -75,6 +79,11 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	}
 	if *token == "" {
 		*token = os.Getenv(tokenEnv)
+	}
+	if *token != "" && len(*token) < minTokenLen {
+		return fatalf(env, "the access token is too short (%d characters; at least %d are required). "+
+			"Generate one with:  openssl rand -hex 24   (or, on Windows, in PowerShell:  -join ((1..24) | %% { '{0:x2}' -f (Get-Random -Max 256) }))",
+			len(*token), minTokenLen)
 	}
 	if !isLoopbackAddr(*addr) && *token == "" {
 		return fatalf(env, "refusing to listen on %q without an access token: it is reachable from the network. "+
@@ -130,6 +139,8 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		auth = "token required"
 	}
 	_, _ = fmt.Fprintf(env.Stderr, "cipherhorizon %s: UI and API on http://%s (%s), database %s\n", version.Version, ln.Addr(), auth, *dbPath)
+
+	_, _ = fmt.Fprintf(env.Stderr, "next: open http://%s in a browser; the first screen shows how to begin.\n", ln.Addr())
 
 	errc := make(chan error, 1)
 	go func() { errc <- httpSrv.Serve(ln) }()

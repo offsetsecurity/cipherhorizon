@@ -46,7 +46,15 @@ type Store struct {
 }
 
 // Open opens (creating if needed) the database at path and applies migrations.
+//
+// The file holds an organisation's scan results and host inventories, so it is
+// created owner-only (0600) and an existing one is tightened. SQLite gives its
+// -wal and -shm files the same mode as the database. On Windows the mode bits
+// are not enforced and the profile's ACL applies instead.
 func Open(path string) (*Store, error) {
+	if err := restrictFile(path); err != nil {
+		return nil, fmt.Errorf("store: securing %s: %w", path, err)
+	}
 	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {

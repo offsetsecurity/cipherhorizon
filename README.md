@@ -19,6 +19,17 @@ endpoints and hosts use, how well it is configured, and how exposed it is to a f
   1.6 **CBOM** with the same evidence-based post-quantum classifications. Upload either to the UI's **Hosts** page
   to see its per-algorithm verdicts (the page is named for the host case; an endpoint's CBOM works the same way).
 
+### Start here
+
+1. Run `cipherhorizon serve` and open <http://127.0.0.1:8080>. The first screen offers two ways to begin.
+2. **Check a server's TLS:** choose *Add endpoints*, enter `example.com:443`, and scan it. You get a readiness
+   level, a hygiene score and a ranked list of what to fix.
+3. **Inventory a machine:** copy the small `cipherhorizon-collector` to it, run
+   `cipherhorizon-collector run -o host.cbom.json` (as Administrator or root for a fuller result), and upload the
+   file on the *Hosts* page. The page shows how complete the inventory is and what it could not see.
+
+The dashboard always shows a single **next step**. More detail: [How to start](#how-to-start) below.
+
 **Status: pre-release, `0.x` (release R1 of the workbench).** Interfaces can still change between minor versions ([versioning policy](docs/engineering/RELEASING.md#versioning-policy)). See the [release report](docs/product/RELEASE-REPORT-001.md)
 for what is in, what is not, and what was found in testing.
 

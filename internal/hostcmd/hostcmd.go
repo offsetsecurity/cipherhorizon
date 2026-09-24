@@ -231,6 +231,10 @@ func Run(ctx context.Context, args []string, env Env) int {
 	} else if err := writeFileAtomic(cfg.Output.Path, buf.Bytes()); err != nil {
 		return fatalf(env, "writing CBOM: %v", err)
 	}
+	if cfg.Output.Path != "" {
+		// Say what happens next: people otherwise stop at a file and wonder what it is for.
+		_, _ = fmt.Fprintf(env.Stderr, "\nwrote %s\nnext: open the Hosts page of your CipherHorizon server and upload it there.\n", cfg.Output.Path)
+	}
 
 	if res.Run.Incomplete() {
 		return ExitIncomplete
@@ -286,7 +290,8 @@ func writeFileAtomic(path string, data []byte) (err error) {
 	if _, err = tmp.Write(data); err != nil {
 		return err
 	}
-	if err = tmp.Chmod(0o644); err != nil {
+	// Owner-only: a host inventory should not be readable by every local user.
+	if err = tmp.Chmod(0o600); err != nil {
 		return err
 	}
 	if err = tmp.Close(); err != nil {

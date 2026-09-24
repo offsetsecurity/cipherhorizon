@@ -12,6 +12,7 @@ function iconCheck(size = 20) { return svg('svg', { viewBox: '0 0 20 20', width:
 function iconWarn(size = 20) { return svg('svg', { viewBox: '0 0 20 20', width: size, height: size, fill: 'none', 'aria-hidden': 'true' }, svg('path', { d: 'M10 2.8l8.2 14.4H1.8L10 2.8z', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linejoin': 'round' }), svg('path', { d: 'M10 8v4M10 14.2v.1', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'round' })); }
 function iconX(size = 20) { return svg('svg', { viewBox: '0 0 20 20', width: size, height: size, fill: 'none', 'aria-hidden': 'true' }, svg('path', { d: 'M5 5l10 10M15 5L5 15', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round' })); }
 function iconShield() { return svg('svg', { viewBox: '0 0 24 24', width: 26, height: 26, fill: 'none', 'aria-hidden': 'true' }, svg('path', { d: 'M12 3l7.5 2.8v5.6c0 4.5-3.1 7.9-7.5 9.1-4.4-1.2-7.5-4.6-7.5-9.1V5.8L12 3z', stroke: 'currentColor', 'stroke-width': '1.6', 'stroke-linejoin': 'round' }), svg('path', { d: 'M8.6 12.2l2.3 2.3 4.5-4.7', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })); }
+function iconQuestion() { return svg('svg', { viewBox: '0 0 24 24', width: 26, height: 26, fill: 'none', 'aria-hidden': 'true' }, svg('circle', { cx: 12, cy: 12, r: 8.5, stroke: 'currentColor', 'stroke-width': '1.6' }), svg('path', { d: 'M9.6 9.6a2.5 2.5 0 014.8.9c0 1.6-2.4 2-2.4 3.5M12 16.6v.1', stroke: 'currentColor', 'stroke-width': '1.7', 'stroke-linecap': 'round' })); }
 function iconCopy() { return svg('svg', { viewBox: '0 0 20 20', width: 14, height: 14, fill: 'none', 'aria-hidden': 'true' }, svg('rect', { x: 7, y: 7, width: 9.5, height: 9.5, rx: 2, stroke: 'currentColor', 'stroke-width': '1.6' }), svg('path', { d: 'M13 7V5.5A1.5 1.5 0 0011.5 4h-6A1.5 1.5 0 004 5.5v6A1.5 1.5 0 005.5 13H7', stroke: 'currentColor', 'stroke-width': '1.6' })); }
 function iconChevron() { return svg('svg', { class: 'certcard-chevron', viewBox: '0 0 20 20', fill: 'none', 'aria-hidden': 'true', width: '18', height: '18' }, svg('path', { d: 'M7 4l6 6-6 6', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })); }
 
@@ -203,6 +204,11 @@ export function skeleton(lines = 3) {
 
 export function empty(title, text, ...actions) {
   return h('div', { class: 'empty' }, h('div', { class: 'empty-icon', 'aria-hidden': 'true' }, iconShield()), h('h3', null, title), text ? h('p', null, text) : null, actions.length ? h('div', { class: 'row' }, actions) : null);
+}
+
+/** A neutral notice (a page that does not exist, for example): the empty-state layout without the success shield. */
+export function notice(title, text, ...actions) {
+  return h('div', { class: 'empty plain' }, h('div', { class: 'empty-icon', 'aria-hidden': 'true' }, iconQuestion()), h('h3', null, title), text ? h('p', null, text) : null, actions.length ? h('div', { class: 'row' }, actions) : null);
 }
 
 export function button(label, onclick, kind = 'secondary', extra = {}) {

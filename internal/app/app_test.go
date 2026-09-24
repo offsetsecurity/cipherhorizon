@@ -8,6 +8,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -202,6 +203,13 @@ func TestOutputFile(t *testing.T) {
 		if code != app.ExitOK || stdout != "" {
 			t.Fatalf("pass %d: exit %d, stdout %q, stderr %s", i, code, stdout, stderr)
 		}
+		// UX-14: the run ends by saying what to do with the file.
+		if !strings.Contains(stderr, "wrote "+out) || !strings.Contains(stderr, "Hosts page") {
+			t.Errorf("pass %d: no next-step line: %s", i, stderr)
+		}
+	}
+	if fi, err := os.Stat(out); err == nil && runtime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0 {
+		t.Errorf("SEC-02: CBOM file has mode %o, want owner-only", fi.Mode().Perm())
 	}
 	data, err := os.ReadFile(out)
 	if err != nil {

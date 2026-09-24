@@ -4,17 +4,36 @@ import { api } from '../api.js';
 import { donut, trendBars, barList, sizeBars, LEVELS, levelClass, levelName } from '../charts.js';
 import { levelBadge, bandBadge, BAND_ORDER, bandTone, statusPill, progressBar, button, empty, toast, badge, sevBadge, skeleton, countUp } from '../ui.js';
 import { openAddDialog } from './assets.js';
+import { uploadDialog } from './hosts.js';
+import { getStarted, collectDialog, nextStep } from '../guide.js';
 
-function kpi(label, value, kind = '', hint) {
+function kpi(label, value, kind = '', hint, note) {
   const n = h('div', { class: 'n' }, String(value));
   countUp(n, label, value);
-  return h('div', { class: `card kpi ${kind}`, title: hint }, n, h('div', { class: 'l' }, label));
+  return h('div', { class: `card kpi ${kind}`, title: hint }, n, h('div', { class: 'l' }, label),
+    note ? h('div', { class: 'note' }, note) : null);
+}
+
+function nextStepBanner(step) {
+  const act = step.action && (step.action.href
+    ? h('a', { class: 'btn btn-secondary btn-sm', href: step.action.href }, step.action.label)
+    : button(step.action.label, step.action.onClick, 'secondary', { class: 'btn btn-secondary btn-sm' }));
+  return h('div', { class: `nextstep ns-${step.tone}`, role: 'status' },
+    h('span', { class: 'nextstep-label' }, 'Next step'), h('span', { class: 'nextstep-text' }, step.text), act);
 }
 
 export async function render(root) {
   let timer = null;
   let stopped = false;
   root.appendChild(skeleton(5));
+
+  const scanAll = async () => {
+    try {
+      const r = await api.scanMany({ all: true });
+      toast(`${r.queued} scan(s) queued${r.alreadyActive ? `, ${r.alreadyActive} already running` : ''}.`, 'success');
+      draw();
+    } catch (e) { toast(e.message, 'error'); }
+  };
 
   const paint = (f, hosts, priority) => {
     clear(root);
@@ -23,30 +42,29 @@ export async function render(root) {
         h('div', { class: 'sub' }, 'Crypto posture across your TLS endpoints and hosts')),
       h('div', { class: 'row' },
         button('Add endpoints', () => openAddDialog(() => draw()), 'primary'),
-        f.assets ? button('Scan all', async () => {
-          try {
-            const r = await api.scanMany({ all: true });
-            toast(`${r.queued} scan(s) queued${r.alreadyActive ? `, ${r.alreadyActive} already running` : ''}.`, 'success');
-            draw();
-          } catch (e) { toast(e.message, 'error'); }
-        }) : null)));
+        f.assets ? button('Scan all', scanAll) : null)));
 
     if (!f.assets && !hosts.length) {
-      root.appendChild(empty('Start by adding the endpoints you want to assess',
-        'Add one or many TLS endpoints (host or host:port). Scan them to see how ready each is for post-quantum cryptography, how well it is configured, and what to fix first.',
-        button('Add endpoints', () => openAddDialog(() => draw()), 'primary')));
+      // Nothing yet: the page's only job is to show the two ways to begin.
+      clear(root);
+      root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Dashboard'),
+        h('div', { class: 'sub' }, 'Crypto posture across your TLS endpoints and hosts'))));
+      root.appendChild(getStarted({ onAddEndpoints: () => openAddDialog(() => draw()), onUpload: () => uploadDialog(() => draw()) }));
       return;
     }
+    root.appendChild(nextStepBanner(nextStep(f, hosts, priority, { scanAll, collect: () => collectDialog(() => uploadDialog(() => draw())) })));
 
     const hostsVulnerable = hosts.reduce((n, h2) => n + (h2.summary ? h2.summary.vulnerable : 0), 0);
-    root.appendChild(h('div', { class: 'grid kpis' },
-      kpi('Endpoints', f.assets),
-      kpi('Scanned', `${f.scanned} / ${f.assets}`),
+    root.appendChild(h('div', { class: 'grid kpis six' },
+      kpi('Endpoints', f.assets, '', null, 'TLS services you monitor'),
+      kpi('Scanned', `${f.scanned} / ${f.assets}`, '', null, 'with a finished scan'),
       kpi('Exposed to harvest-now-decrypt-later', f.hndlExposed, f.hndlExposed ? 'alert' : 'good',
-        'Endpoints whose recorded traffic a future quantum computer could read'),
-      kpi('Critical / high findings', `${f.critical} / ${f.high}`, f.critical ? 'alert' : ''),
-      kpi('Certificates expiring ≤ 30 days', f.certsExpiring, f.certsExpiring ? 'alert' : 'good'),
-      kpi('Hosts (package inventory)', hosts.length, hostsVulnerable ? 'alert' : '', 'Machines reporting a CBOM, separate from the TLS endpoints above')));
+        'Endpoints whose recorded traffic a future quantum computer could read',
+        'Recorded today, readable later'),
+      kpi('Critical / high findings', `${f.critical} / ${f.high}`, f.critical ? 'alert' : '', null, 'across all endpoints'),
+      kpi('Certificates expiring ≤ 30 days', f.certsExpiring, f.certsExpiring ? 'alert' : 'good', null, 'renew before they lapse'),
+      kpi('Machines inventoried', hosts.length, hostsVulnerable ? 'warn' : '', 'Machines reporting a CBOM, separate from the TLS endpoints above',
+        hosts.length ? 'from uploaded CBOMs' : 'none yet: see Hosts')));
 
     if (priority.length) root.appendChild(priorityCard(priority));
 

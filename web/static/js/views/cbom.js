@@ -122,7 +122,7 @@ export async function render(root) {
       h('div', { class: 'row' },
         h('span', { class: 'kind-badge' }, a.kind === 'host' ? 'Host' : 'Endpoint'),
         h('strong', null, a.name),
-        h('span', { class: 'muted' }, a.address),
+        a.address !== a.name ? h('span', { class: 'muted' }, a.address) : null,
         hasResult ? toggle : h('span', { class: 'muted' }, 'Not scanned yet')));
   });
 

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
@@ -40,6 +42,8 @@ type HostSummary struct {
 	Unclassified []string        `json:"unclassified"`
 	Algorithms   []HostAlgorithm `json:"algorithms"`
 	Timestamp    string          `json:"timestamp,omitempty"`
+	// Coverage is how complete the inventory is; nil when the CBOM does not say.
+	Coverage *HostCoverage `json:"coverage,omitempty"`
 }
 
 // summarizeCBOM analyses a CBOM with the same cited PQC rules used everywhere.
@@ -78,6 +82,7 @@ func summarizeCBOM(bom *cdx.BOM, name string) HostSummary {
 		}
 		sum.Unclassified = append(sum.Unclassified, n)
 	}
+	sum.Coverage = coverageFromBOM(bom)
 	if bom.Metadata != nil {
 		sum.Timestamp = bom.Metadata.Timestamp
 		if bom.Metadata.Tools != nil && bom.Metadata.Tools.Components != nil && len(*bom.Metadata.Tools.Components) > 0 {
@@ -86,6 +91,23 @@ func summarizeCBOM(bom *cdx.BOM, name string) HostSummary {
 		}
 	}
 	return sum
+}
+
+// validHostName accepts 1 to 100 printable characters of valid UTF-8. Control
+// characters (line breaks included), format characters (which cover the
+// bidirectional overrides and zero-width characters) and line or paragraph
+// separators are refused, so the name is safe in logs, headers and file names
+// and cannot be made to read differently from what it is.
+func validHostName(name string) bool {
+	if name == "" || len(name) > 100 || !utf8.ValidString(name) {
+		return false
+	}
+	for _, r := range name {
+		if unicode.In(r, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
@@ -114,8 +136,8 @@ func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
 	if name == "" && bom.Metadata != nil && bom.Metadata.Component != nil {
 		name = strings.TrimSpace(bom.Metadata.Component.Name)
 	}
-	if name == "" || len(name) > 100 || strings.ContainsAny(name, "\r\n\t") {
-		writeErr(w, http.StatusBadRequest, "the CBOM names no host: set metadata.component.name, or pass ?name= (1 to 100 characters)")
+	if !validHostName(name) {
+		writeErr(w, http.StatusBadRequest, "the CBOM names no host: set metadata.component.name, or pass ?name= (1 to 100 printable characters)")
 		return
 	}
 

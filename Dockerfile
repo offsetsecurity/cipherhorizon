@@ -4,7 +4,7 @@
 # base (no shell, no package manager, no libc), running as a non-root user.
 #
 #   docker build -t cipherhorizon --build-arg VERSION=0.1.0 .
-#   docker run --rm -p 8080:8080 -e CIPHERHORIZON_TOKEN=change-me -v ch-data:/data cipherhorizon
+#   docker run --rm -p 8080:8080 -e CIPHERHORIZON_TOKEN="$(openssl rand -hex 24)" -v ch-data:/data cipherhorizon
 #
 # The build stage always runs on the builder's native platform and cross-compiles, so a
 # multi-arch image needs no emulation.

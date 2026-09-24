@@ -17,6 +17,10 @@ echo "== refusing to expose the server without a token =="
 check "serve --addr 0.0.0.0:8082 without token exits non-zero" 1 "$rc"
 grep -q "without an access token" "$WORK/refuse.out" && echo "PASS  message explains why" && pass=$((pass+1)) || { echo "FAIL  message"; fail=$((fail+1)); }
 
+"$BIN" serve --addr 127.0.0.1:8083 --token a --db "$WORK/sec-short.db" > "$WORK/short.out" 2>&1; rc=$?
+check "a one-character token is refused (SEC-03)" 1 "$rc"
+grep -q "too short" "$WORK/short.out" && echo "PASS  message says the token is too short" && pass=$((pass+1)) || { echo "FAIL  short-token message"; fail=$((fail+1)); }
+
 rm -f "$WORK/sec.db"*
 CIPHERHORIZON_TOKEN=$TOKEN "$BIN" serve --addr 127.0.0.1:8081 --db "$WORK/sec.db" > "$WORK/sec-serve.log" 2>&1 &
 SRV=$!
@@ -41,6 +45,9 @@ check "PUT is not routed -> 405"              405 "$(code -X PUT "${AUTH[@]}" -H
 echo "== SSRF guard =="
 check "cloud metadata address refused -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"169.254.169.254"}' $B/api/v1/assets)"
 check "0.0.0.0 refused -> 400"                400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"0.0.0.0:443"}' $B/api/v1/assets)"
+check "0.0.0.0/8 refused -> 400 (SEC-04)"     400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"0.1.2.3:443"}' $B/api/v1/assets)"
+check "NAT64 form of the metadata address refused -> 400 (SEC-04)" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"[64:ff9b::a9fe:a9fe]:443"}' $B/api/v1/assets)"
+check "host name with a control character refused on upload -> 400 (SEC-05)" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"bomFormat":"CycloneDX","specVersion":"1.6","version":1}' "$B/api/v1/hosts/ingest?name=a%01b")"
 check "loopback literal refused at add time -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"127.0.0.1:9440"}' $B/api/v1/assets)"
 # A host NAME that resolves to loopback passes add-time checks; the dialer's Control hook must still refuse it.
 LB=$(curl -s -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"localhost:9440","name":"loopback-by-name"}' $B/api/v1/assets)
@@ -53,10 +60,19 @@ case "$ST" in failed*"not allowed"*) echo "PASS  loopback refused at connect tim
 
 echo "== response headers =="
 H=$(curl -s -D - -o /dev/null "${AUTH[@]}" $B/api/v1/about)
-for want in "content-security-policy: default-src 'none'" "x-content-type-options: nosniff" "x-frame-options" "referrer-policy" "cache-control: no-store"; do
+for want in "content-security-policy: default-src 'none'" "x-content-type-options: nosniff" "x-frame-options" "referrer-policy" "cache-control: no-store" "permissions-policy: camera=()"; do
   echo "$H" | tr 'A-Z' 'a-z' | grep -q "$want" && { echo "PASS  header $want"; pass=$((pass+1)); } || { echo "FAIL  header $want"; fail=$((fail+1)); }
 done
 echo "$H" | tr 'A-Z' 'a-z' | grep -q "content-security-policy" && echo "      $(echo "$H" | grep -i content-security-policy | tr -d '\r')"
+
+echo "== failed logins are recorded, without the secret (SEC-03) =="
+grep -q "authentication failed" "$WORK/sec-serve.log" && { echo "PASS  failed authentication is logged"; pass=$((pass+1)); } || { echo "FAIL  no log line for failed authentication"; fail=$((fail+1)); }
+grep -q "nope" "$WORK/sec-serve.log" && { echo "FAIL  the log contains the submitted token"; fail=$((fail+1)); } || { echo "PASS  the submitted token is not logged"; pass=$((pass+1)); }
+
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) echo "      (database file mode is not checked on Windows: the profile ACL applies)";;
+  *) check "database file is owner-only (SEC-01)" 600 "$(stat -c %a "$WORK/sec.db" 2>/dev/null || stat -f %Lp "$WORK/sec.db")";;
+esac
 
 kill $SRV 2>/dev/null; taskkill //F //PID $SRV >/dev/null 2>&1
 

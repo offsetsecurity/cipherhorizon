@@ -32,7 +32,9 @@ the report is confirmed; 90 days from confirmation is the default if we don't ag
 In scope: the `cipherhorizon` binary and the packages under `internal/` and `web/` in this repository —
 in particular the HTTP API and web UI (`internal/server`), the TLS scan engine and its own wire-protocol
 parsers (`internal/tlsprobe`), the SSRF/target-safety guard (`internal/server/guard.go`), and the CBOM/PQC
-classification logic (`internal/cbom`, `internal/pqc`).
+classification logic (`internal/cbom`, `internal/pqc`), and the endpoint collector
+(`cmd/cipherhorizon-collector`, `internal/sense`, `internal/discover`) — a file it should never open, a value it
+should have tokenised, or a hostile file name that changes its behaviour is in scope.
 
 Out of scope: vulnerabilities that require the attacker to already have the API's access token or shell
 access to the machine running it; findings from automated scanners with no working proof of concept; a target
@@ -41,6 +43,24 @@ server's own TLS misconfiguration (that is what this tool is *for* reporting, no
 **Never test against a target you do not own or are not authorised to test.** `cmd/demo-targets` (see
 [testing/README.md](testing/README.md)) starts servers of known posture on loopback for exactly this purpose;
 use it, or your own infrastructure, instead of a third party's.
+
+## Known limits of the security model (0.x)
+
+These are deliberate for a self-hosted, single-team tool, and are stated so nobody has to discover them:
+
+- **One shared bearer token, no user accounts, roles or audit log.** Anyone who holds the token can do
+  everything. The token must be at least 16 characters; failed attempts are logged (never the value) and
+  delayed. Treat it like a password and put a TLS-terminating reverse proxy in front if the server is shared:
+  the server itself speaks plain HTTP.
+- **The database holds reconnaissance data** (every scanned endpoint, every host inventory, the raw uploaded
+  CBOMs). It is created owner-only on Linux and macOS; on Windows the profile's ACL applies. Back it up and
+  protect the backup as you would the inventory itself.
+- **Storage is bounded per asset, not per instance:** 200 scans per endpoint and 50 uploads per host (each upload
+  up to 32 MiB). Anyone who can reach the upload endpoint can fill the disk; keep it behind the token.
+- **The endpoint collector** (`cipherhorizon-collector`) reads files and makes no network connection or child
+  process; its output names installed software and paths (user names are tokenised, `--redact-host` withholds the
+  host name). The CBOM file it writes is owner-only. It reports what a file *claims* (a version string); it does
+  not verify signatures.
 
 ## What "security" means for this project specifically
 
