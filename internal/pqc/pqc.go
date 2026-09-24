@@ -158,7 +158,7 @@ func (r Report) Summary() string {
 		}
 		fmt.Fprintf(&b, "  quantum-vulnerable: %s", f.Name)
 		if len(f.ProvidedBy) > 0 {
-			fmt.Fprintf(&b, " (available via %d package(s))", len(f.ProvidedBy))
+			fmt.Fprintf(&b, " (available via %d component(s))", len(f.ProvidedBy))
 		}
 		b.WriteByte('\n')
 	}

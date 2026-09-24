@@ -17,15 +17,21 @@ LDFLAGS  := -s -w \
 EXE      := $(if $(filter Windows_NT,$(OS)),.exe,)
 
 .DEFAULT_GOAL := help
-.PHONY: help build demo test race vet fmt fmt-check lint vuln ui-check check e2e snapshot docker release-notes clean
+.PHONY: help clean-stale collector build demo test race vet fmt fmt-check lint vuln ui-check check e2e snapshot docker release-notes clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*## "}{printf "  %-14s %s\n", $$1, $$2}'
 
-build: ## Build a stamped, static binary into dist/
+clean-stale: ## Remove leftovers in dist/ that no current target builds (runs before every build)
+	@scripts/clean-stale.sh
+
+build: clean-stale ## Build a stamped, static binary into dist/
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/cipherhorizon$(EXE) ./cmd/cipherhorizon
 
-demo: ## Build the development-only demo targets into dist/
+collector: clean-stale ## Build the small endpoint collector (no server, database or scanner) into dist/
+	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/cipherhorizon-collector$(EXE) ./cmd/cipherhorizon-collector
+
+demo: clean-stale ## Build the development-only demo targets into dist/
 	go build -o dist/demo-targets$(EXE) ./cmd/demo-targets
 
 test: ## Run the Go tests

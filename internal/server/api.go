@@ -14,6 +14,7 @@ import (
 	"github.com/example/cipherhorizon/internal/eval"
 	"github.com/example/cipherhorizon/internal/pqc"
 	"github.com/example/cipherhorizon/internal/store"
+	"github.com/example/cipherhorizon/internal/tlscbom"
 	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
@@ -468,7 +469,7 @@ func (s *Server) scanCBOM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bom, _ := cbom.Build(cbom.FromTLSReport(&rep), cbom.Options{
+	bom, _ := cbom.Build(tlscbom.FromTLSReport(&rep), cbom.Options{
 		Tool:     cbom.Tool{Name: "cipherhorizon", Version: s.cfg.Version},
 		Endpoint: fmt.Sprintf("%s:%d", rep.Target.Host, rep.Target.Port),
 	})

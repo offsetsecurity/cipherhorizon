@@ -1,62 +1,85 @@
 # Architecture
 
+## Host inventory (`cipherhorizon run`): an evidence pipeline
+
 ```
- host filesystem ──► collector plugins ──► scan.Run ──► cbom.Build ──► pqc ──► cbom.Encode ──► stdout / file
- (os.DirFS(root))    (self-registered)     timeout,      vocabulary,    cited     CycloneDX
-                                           panic-safe,   dedupe, edges  verdicts  1.6 JSON
-                                           partial results
+ host filesystem ─► sensors ─► evidence graph ─► derive ─► cbom projection ─► pqc ─► CycloneDX 1.6
+ (os.DirFS(root))   observe     one node per      cited     fail-closed,      cited     JSON
+                    only        thing, every      capabil-  deterministic     verdicts
+                                observation kept  ity
 ```
 
-The core knows only the `collector.Collector` interface. One-shot mode and the future daemon
-mode call `scan.Run` identically; only the trigger differs.
+Design record: [docs/decisions](decisions) (ADR-0001 to ADR-0010) and the program in
+[host-discovery-program.md](host-discovery-program.md). The rules, in short:
 
-## The collector contract (`internal/collector`)
+- **Sensors observe; they never infer.** A sensor (`internal/sense`) returns `evidence.Batch`:
+  observations (a package is installed, a file exists) and *coverage* (what it looked at and what it could
+  not see). It does not say what software can do, and it never says a fact is stronger than the method that
+  found it.
+- **Capability is knowledge, applied afterwards.** `internal/knowledge` holds the cited tables (which
+  families provide which algorithms, from which version); `internal/derive` applies them to artefacts whose
+  presence was established by an authoritative or parsed method. A name match alone (a file called
+  `libcrypto-3-x64.dll`) is listed as present and is never credited with capability.
+- **No claim is stronger than its weakest evidence.** Every derived fact names the observations it rests on;
+  `evidence.Graph.Add` rejects one that claims more than they support, and the CBOM projection re-checks the
+  whole graph before writing anything. See [evidence model](../artifacts/evidence-model.md).
+- **Absence is earned.** A sensor that could not read something reports it (`Coverage`, `unknown(reason)`);
+  the CBOM lists what was not seen (`cipherhorizon:not-seen`), and a run below Administrator/root says so
+  ([ADR-0009](decisions/ADR-0009-privilege-disclosure-and-redaction.md)).
+- **Operating-system code stops at the sensor.** `evidence`, `knowledge` and `derive` import no platform
+  package and no CycloneDX; sensors import neither `cbom` nor `derive`, run no subprocess and use no
+  network. `internal/archtest` enforces it.
+
+Built-in sensors: `apt` (Debian, Ubuntu, Kali: the dpkg database) and `pe-files` (loose crypto libraries on
+Windows: a bounded walk of install locations plus a hand-written, fuzzed PE version-resource reader).
+
+### The sensor contract (`internal/sense`)
 
 ```go
-type Collector interface {
-    Metadata() PluginInfo                                  // name, version, source type
-    Detect(ctx context.Context) (bool, error)              // is this ecosystem present?
-    Collect(ctx context.Context) ([]CryptoAsset, error)    // findings, CycloneDX-shaped
+type Sensor interface {
+    Info() Info                                            // name, version, the methods it uses
+    Detect(ctx context.Context) (bool, error)              // is this kind of thing present?
+    Collect(ctx context.Context) (evidence.Batch, error)   // observations + coverage
 }
 ```
 
-Deliberate refinements over the bare three-method sketch:
-
-- **`context.Context`** on `Detect` and `Collect`, so a daemon can bound a scan and cancel a hung read.
-- **`Detect` has three outcomes**: `(true,nil)` present; `(false,nil)` absent, which is normal (the apt
-  plugin on an RPM host) and skips silently; `(false,err)` could not tell, which is recorded as a failure.
-- **Partial results are kept.** A non-nil error from `Collect` means the inventory is *incomplete*; any
-  assets returned with it are still used. The runner reports `ok | skipped | partial | failed` per
-  plugin, and the CLI exits `2` when anything was partial or failed.
-- **Plugins read the host only through `Host.FS` (an `fs.FS`).** Natively that is `os.DirFS("/")`; in a
+- **`context.Context`** on `Detect` and `Collect`, so a run can be bounded and cancelled.
+- **`Detect` has three outcomes**: `(true,nil)` present; `(false,nil)` absent, which is normal and skips
+  silently; `(false,err)` could not tell, which is recorded as a failure.
+- **Partial results are kept.** A non-nil error from `Collect` means the result is *incomplete*; the batch
+  returned with it is still used. The runner reports `ok | skipped | partial | failed` per sensor and the CLI
+  exits `2` when a sensor failed or a budget was hit. Unreadable locations alone are a privilege *warning*,
+  not an error.
+- **Sensors read the host only through `Env.FS` (an `fs.FS`).** Natively that is `os.DirFS` of the root; in a
   container with the host mounted it is `os.DirFS("/host")`; in tests it is `fstest.MapFS`.
-- **Registration is by explicit name**, and the registry checks `Metadata().Name` matches it.
-- **Sequential, not concurrent.** Simple and deterministic; collectors need not be goroutine-safe.
+- **Registration is by explicit name**, and the registry checks `Info().Name` matches it and that every
+  method the sensor uses is declared.
+- **Sequential, not concurrent.** Simple and deterministic; sensors need not be goroutine-safe.
 
-A `CryptoAsset` is a `cyclonedx.Component` plus `Provides` / `DependsOn` edges (bom-refs). The same
-component may be emitted by several plugins; the builder merges identical duplicates and rejects
-conflicting ones.
+`collector.CryptoAsset` (a `cyclonedx.Component` plus `Provides` / `DependsOn` edges) survives as the type
+the CBOM builders exchange; it is produced by the projection, never by a sensor.
 
 ## Evidence, not heuristics
 
 **A package proves capability, not use.** `libssl3 3.0.13` installed means the host *can* do RSA; it does
-not mean anything on the host *does*. The apt collector therefore works in two tiers:
+not mean anything on the host *does*. The pipeline keeps the two apart:
 
-1. **Inventory** (a fact from dpkg): every recognised crypto package appears as a `library` or
-   `application` component with its version and Package URL.
-2. **Capability** (a curated claim): only families with a citable mapping get `provides` edges to
-   algorithm assets, gated by upstream version where the standard says so (for example OpenSSL ≥ 3.5 for
-   ML-KEM / ML-DSA / SLH-DSA). The citations travel with the component as `cipherhorizon:capability-basis`
-   properties, and the component is marked `cipherhorizon:evidence = installed-package-capability`.
+1. **Presence** (a fact a sensor read): every recognised crypto package or file appears as a `library` or
+   `application` component with its version and, for packages, Package URL. It carries
+   `cipherhorizon:claim = present`, the method that found it and that method's quality.
+2. **Capability** (a cited claim): only families with a citable mapping get `provides` edges to algorithm
+   assets, gated by version where the standard says so (for example OpenSSL >= 3.5 for ML-KEM / ML-DSA /
+   SLH-DSA). The citations travel with the component as `cipherhorizon:capability-basis` properties, the
+   component is marked `cipherhorizon:evidence` and `cipherhorizon:provides-claim = capable-mapped`.
 
 Families with no citable mapping are inventoried and nothing more. Under-claiming is the rule; an unparseable
-package version drops the gated capabilities rather than assuming them.
+version drops the gated capabilities rather than assuming them.
 
 ## The algorithm catalogue and the vocabulary layer (`internal/algo`, `internal/cbom`)
 
 CycloneDX enumerations are closed: one out-of-vocabulary value invalidates the whole document. So:
 
-- Plugins mint algorithm components only through `algo.MustGet(id)`, a total lookup table. Every field
+- The CBOM projection mints algorithm components only through `algo.MustGet(id)`, a total lookup table. Every field
   without an authoritative source (a generic OID for ECDSA or AES, a security category for RSA) is left
   unset, and therefore omitted.
 - `cbom.Build` re-checks every closed-vocabulary field on every component, whoever built it, and *omits*

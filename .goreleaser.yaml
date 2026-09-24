@@ -28,7 +28,38 @@ builds:
     # Reproducible: file times come from the commit, not the clock.
     mod_timestamp: "{{ .CommitTimestamp }}"
 
+  # The collector: the small program to deploy on endpoints (no web server, no database, no
+  # TLS scanner). See docs/decisions/ADR-0011 and docs/engineering/DISTRIBUTION.md.
+  - id: collector
+    main: ./cmd/cipherhorizon-collector
+    binary: cipherhorizon-collector
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/example/cipherhorizon/internal/version.Version={{ .Version }}
+      - -X github.com/example/cipherhorizon/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/example/cipherhorizon/internal/version.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
 archives:
+  - id: collector
+    ids: [collector]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "cipherhorizon-collector_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - SECURITY.md
+      - docs/config.example.yaml
+
   - id: default
     ids: [cipherhorizon]
     formats: [tar.gz]

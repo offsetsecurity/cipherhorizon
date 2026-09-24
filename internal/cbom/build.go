@@ -6,6 +6,7 @@
 package cbom
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
 	"reflect"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
-	"github.com/google/uuid"
 
 	"github.com/example/cipherhorizon/internal/collector"
 )
@@ -48,6 +48,10 @@ type Options struct {
 	HostName string
 	Endpoint string
 
+	// MetadataProperties are extra namespaced properties written on metadata: what
+	// the run was allowed to see, the privilege it ran with, and what it could not see.
+	MetadataProperties []cdx.Property
+
 	// Now and NewSerial exist so tests can make output byte-for-byte reproducible.
 	Now       func() time.Time
 	NewSerial func() string // must return a "urn:uuid:..." value
@@ -64,7 +68,7 @@ func Build(assets []collector.CryptoAsset, opts Options) (*cdx.BOM, []string) {
 		opts.Now = time.Now
 	}
 	if opts.NewSerial == nil {
-		opts.NewSerial = func() string { return "urn:uuid:" + uuid.NewString() }
+		opts.NewSerial = randomSerial
 	}
 
 	var warnings []string
@@ -123,6 +127,13 @@ func Build(assets []collector.CryptoAsset, opts Options) (*cdx.BOM, []string) {
 	bom := cdx.NewBOM()
 	bom.SerialNumber = opts.NewSerial()
 	bom.Metadata = metadata(opts)
+	if len(opts.MetadataProperties) > 0 {
+		props := append([]cdx.Property(nil), opts.MetadataProperties...)
+		if bom.Metadata.Properties != nil {
+			props = append(*bom.Metadata.Properties, props...)
+		}
+		bom.Metadata.Properties = &props
+	}
 
 	refs := sortedKeys(components)
 	if len(refs) > 0 {
@@ -256,4 +267,17 @@ func sortedUnion(a, b map[string]map[string]struct{}) []string {
 		seen[k] = struct{}{}
 	}
 	return sortedKeys(seen)
+}
+
+// randomSerial returns a random (version 4) UUID as a "urn:uuid:..." value: the CycloneDX
+// serial number. It uses crypto/rand directly rather than a UUID library, because the usual
+// one links the network package (to read MAC addresses) into a program that must not have it.
+func randomSerial() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic("cbom: no randomness available: " + err.Error()) // crypto/rand does not fail on supported platforms
+	}
+	b[6] = b[6]&0x0f | 0x40 // version 4
+	b[8] = b[8]&0x3f | 0x80 // RFC 4122 variant
+	return fmt.Sprintf("urn:uuid:%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }

@@ -26,7 +26,8 @@ suite:
   [testing/README.md](testing/README.md)); the UI itself has no build step and no npm dependency.
 - A C toolchain — only to run `go test -race` locally; CI runs it on Linux regardless.
 
-`make check` (build, vet, gofmt, tests, UI script syntax) runs everything a PR needs locally; `make help` lists the
+`make build` and `make demo` first delete anything in `dist/` that no current target produces (`scripts/clean-stale.sh`),
+so a stale binary or old test database is never mistaken for current output. `make check` (build, vet, gofmt, tests, UI script syntax) runs everything a PR needs locally; `make help` lists the
 rest. `go vet ./...` and `gofmt -l .` (expect no output) should be clean before you open a PR.
 
 ## Making a change

@@ -4,30 +4,24 @@
 package app
 
 import (
-	"bytes"
 	"context"
-	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"text/tabwriter"
+	"runtime"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/collector"
-	"github.com/example/cipherhorizon/internal/config"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/scan"
+	"github.com/example/cipherhorizon/internal/hostcmd"
+	"github.com/example/cipherhorizon/internal/hostinfo"
+	"github.com/example/cipherhorizon/internal/sense"
 	"github.com/example/cipherhorizon/internal/version"
 )
 
 // Exit codes.
 const (
-	ExitOK         = 0 // success
-	ExitFatal      = 1 // nothing was produced: bad usage, bad config, I/O error, interrupted
-	ExitIncomplete = 2 // a CBOM was written, but a plugin failed or was cut short
+	ExitOK         = hostcmd.ExitOK         // success
+	ExitFatal      = hostcmd.ExitFatal      // nothing was produced: bad usage, bad config, I/O error, interrupted
+	ExitIncomplete = hostcmd.ExitIncomplete // a CBOM was written, but a sensor failed or a budget was hit
 )
 
 // Env carries everything Main needs from the outside world.
@@ -35,16 +29,29 @@ type Env struct {
 	Stdout io.Writer // the CBOM goes here unless an output file is configured
 	Stderr io.Writer // progress, warnings and the PQC summary
 
-	Registry  *collector.Registry // nil means collector.Default
-	Now       func() time.Time    // nil means time.Now
-	NewSerial func() string       // nil means a random UUID
+	Registry  *sense.Registry  // nil means sense.Default
+	Now       func() time.Time // nil means time.Now
+	NewSerial func() string    // nil means a random UUID
 	Hostname  func() (string, error)
+
+	// OS is the host's operating system family, "linux" or "windows"; empty means
+	// this process's own. Tier reports the privilege of the run ("user" or
+	// "admin"); nil means the process's real privilege. Both exist so tests are
+	// deterministic on any machine.
+	OS   string
+	Tier func() string
 }
 
 // Main runs the CLI and returns the process exit code.
 func Main(ctx context.Context, args []string, env Env) int {
 	if env.Registry == nil {
-		env.Registry = collector.Default
+		env.Registry = sense.Default
+	}
+	if env.OS == "" {
+		env.OS = runtime.GOOS
+	}
+	if env.Tier == nil {
+		env.Tier = hostinfo.CurrentTier
 	}
 	if env.Hostname == nil {
 		env.Hostname = os.Hostname
@@ -56,9 +63,9 @@ func Main(ctx context.Context, args []string, env Env) int {
 	}
 	switch args[0] {
 	case "run":
-		return runCmd(ctx, args[1:], env)
+		return hostcmd.Run(ctx, args[1:], hostEnv(env))
 	case "plugins":
-		return pluginsCmd(env)
+		return hostcmd.Plugins(hostEnv(env))
 	case "tls":
 		return tlsCmd(ctx, args[1:], env)
 	case "serve":
@@ -76,20 +83,34 @@ func Main(ctx context.Context, args []string, env Env) int {
 	}
 }
 
+// hostEnv hands the host-inventory commands what they need from the full program's Env.
+func hostEnv(e Env) hostcmd.Env {
+	return hostcmd.Env{
+		Stdout: e.Stdout, Stderr: e.Stderr, Prog: "cipherhorizon",
+		Registry: e.Registry, Now: e.Now, NewSerial: e.NewSerial, Hostname: e.Hostname, OS: e.OS, Tier: e.Tier,
+	}
+}
+
 func usage(w io.Writer) {
 	_, _ = fmt.Fprint(w, `cipherhorizon: cryptographic inventory (CycloneDX CBOM), TLS posture and post-quantum readiness.
 
 Usage:
-  cipherhorizon run [--config FILE] [-o FILE] [--root DIR]
+  cipherhorizon run [--config FILE] [-o FILE] [--root DIR] [--redact-host]
   cipherhorizon tls scan [flags] HOST[:PORT]...
   cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--token TOKEN]
-  cipherhorizon plugins
+  cipherhorizon plugins       list the built-in sensors
   cipherhorizon version
 
 run flags:
   --config FILE   YAML configuration (default: built-in defaults)
   -o, --output FILE  write the CBOM here, atomically (default: stdout)
   --root DIR      the host filesystem's location, e.g. /host inside a container
+  --redact-host   record a stable label derived from the machine id instead of the host name
+
+run inventories the cryptographic software on this machine and reports what is present
+and what it can do, never what it is used for. Running without elevated privileges is
+allowed and may leave results incomplete; run as Administrator (Windows) or root (Linux)
+for a fuller result. It never reads keys or secrets.
 
 tls scan probes each target's TLS/SSL support: protocol versions, every cipher suite,
 key-exchange groups (including post-quantum hybrids) and certificates. Flags go before
@@ -104,148 +125,6 @@ address unless --token (or CIPHERHORIZON_TOKEN) is set. Data is kept in --db (SQ
 
 Exit codes: 0 success; 1 fatal error; 2 result produced, but incomplete or a target failed.
 `)
-}
-
-func runCmd(ctx context.Context, args []string, env Env) int {
-	fl := flag.NewFlagSet("run", flag.ContinueOnError)
-	fl.SetOutput(env.Stderr)
-	cfgPath := fl.String("config", "", "")
-	var outPath string
-	fl.StringVar(&outPath, "output", "", "")
-	fl.StringVar(&outPath, "o", "", "")
-	root := fl.String("root", "", "")
-	if err := fl.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return ExitOK
-		}
-		return ExitFatal
-	}
-	if fl.NArg() > 0 {
-		return fatalf(env, "unexpected argument %q", fl.Arg(0))
-	}
-
-	cfg, err := config.Load(*cfgPath)
-	if err != nil {
-		return fatalf(env, "%v", err)
-	}
-	if outPath != "" {
-		cfg.Output.Path = outPath
-	}
-	if *root != "" {
-		cfg.Host.Root = *root
-	}
-	if err := cfg.Validate(); err != nil {
-		return fatalf(env, "%v", err)
-	}
-
-	hostName := cfg.Host.Name
-	if hostName == "" {
-		if hostName, err = env.Hostname(); err != nil {
-			warnf(env, "cannot determine hostname (%v); CBOM will have no subject component", err)
-		}
-	}
-
-	res, err := scan.Run(ctx, env.Registry, scan.Options{
-		Host:     collector.Host{FS: os.DirFS(cfg.Host.Root)},
-		Enabled:  cfg.Plugins.Enabled,
-		Disabled: cfg.Plugins.Disabled,
-		Timeout:  cfg.Plugins.Timeout,
-	})
-	if err != nil {
-		return fatalf(env, "%v", err)
-	}
-	if ctx.Err() != nil {
-		return fatalf(env, "interrupted")
-	}
-	report(env, res)
-
-	bom, warnings := cbom.Build(res.Assets, cbom.Options{
-		Tool:      cbom.Tool{Name: "cipherhorizon", Version: version.Version},
-		HostName:  hostName,
-		Now:       env.Now,
-		NewSerial: env.NewSerial,
-	})
-	for _, w := range warnings {
-		warnf(env, "%s", w)
-	}
-
-	if cfg.PQC.Enabled {
-		rep := pqc.Analyze(bom)
-		pqc.Annotate(bom, rep)
-		_, _ = fmt.Fprint(env.Stderr, rep.Summary())
-	}
-
-	var buf bytes.Buffer
-	if err := cbom.Encode(&buf, bom, cfg.Output.Pretty); err != nil {
-		return fatalf(env, "encoding CBOM: %v", err)
-	}
-	if cfg.Output.Path == "" {
-		if _, err := env.Stdout.Write(buf.Bytes()); err != nil {
-			return fatalf(env, "writing CBOM: %v", err)
-		}
-	} else if err := writeFileAtomic(cfg.Output.Path, buf.Bytes()); err != nil {
-		return fatalf(env, "writing CBOM: %v", err)
-	}
-
-	if res.Incomplete() {
-		return ExitIncomplete
-	}
-	return ExitOK
-}
-
-func report(env Env, res scan.Result) {
-	for _, r := range res.Runs {
-		switch r.Status {
-		case scan.StatusOK:
-			_, _ = fmt.Fprintf(env.Stderr, "plugin %s: ok, %d assets\n", r.Name, r.Assets)
-		case scan.StatusSkipped:
-			_, _ = fmt.Fprintf(env.Stderr, "plugin %s: skipped (not detected on this host)\n", r.Name)
-		default:
-			_, _ = fmt.Fprintf(env.Stderr, "plugin %s: %s, %d assets: %v\n", r.Name, r.Status, r.Assets, r.Err)
-		}
-	}
-}
-
-func pluginsCmd(env Env) int {
-	tw := tabwriter.NewWriter(env.Stdout, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "NAME\tVERSION\tSOURCE TYPE")
-	for _, name := range env.Registry.Names() {
-		c, err := env.Registry.New(name, collector.Host{FS: os.DirFS("/")})
-		if err != nil {
-			return fatalf(env, "%v", err)
-		}
-		info := c.Metadata()
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", info.Name, info.Version, info.SourceType)
-	}
-	if err := tw.Flush(); err != nil {
-		return fatalf(env, "%v", err)
-	}
-	return ExitOK
-}
-
-// writeFileAtomic writes data to path via a temporary file in the same
-// directory and a rename, so a reader (or a crash) never sees a half-written CBOM.
-func writeFileAtomic(path string, data []byte) (err error) {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".cbom-*.tmp")
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = tmp.Close()
-			_ = os.Remove(tmp.Name())
-		}
-	}()
-	if _, err = tmp.Write(data); err != nil {
-		return err
-	}
-	if err = tmp.Chmod(0o644); err != nil {
-		return err
-	}
-	if err = tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
 }
 
 func fatalf(env Env, format string, args ...any) int {

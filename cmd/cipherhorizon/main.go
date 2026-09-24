@@ -1,7 +1,8 @@
 // Command cipherhorizon is a cryptographic posture tool: it inventories the
 // cryptography installed on a host as a CycloneDX CBOM, actively scans TLS/SSL
 // endpoints, and serves a web UI over both. All behaviour lives in internal/app;
-// this file only wires the process to it and links in the built-in plugins.
+// this file only wires the process to it. (The built-in sensors are linked in by
+// internal/app.)
 package main
 
 import (
@@ -11,7 +12,6 @@ import (
 	"syscall"
 
 	"github.com/example/cipherhorizon/internal/app"
-	_ "github.com/example/cipherhorizon/internal/plugins/all" // register built-in collectors
 )
 
 func main() {

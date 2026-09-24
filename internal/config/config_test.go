@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ func TestEmptyInputYieldsDefaults(t *testing.T) {
 		}
 	}
 	d := config.Default()
-	if d.Host.Root != "/" || !d.PQC.Enabled || !d.Output.Pretty || d.Plugins.Timeout != time.Minute {
+	if d.Host.Root != config.DefaultRoot() || !d.PQC.Enabled || !d.Output.Pretty || d.Plugins.Timeout != time.Minute {
 		t.Errorf("unexpected defaults: %+v", d)
 	}
 }
@@ -96,7 +97,23 @@ func TestExampleConfigIsValidAndMatchesDefaults(t *testing.T) {
 	if len(cfg.Plugins.Disabled) == 0 {
 		cfg.Plugins.Disabled = nil
 	}
-	if !reflect.DeepEqual(cfg, config.Default()) {
-		t.Errorf("docs/config.example.yaml = %+v, differs from Default() = %+v", cfg, config.Default())
+	// The example documents the Unix default root; on Windows the default is the system drive.
+	want := config.Default()
+	want.Host.Root = "/"
+	if !reflect.DeepEqual(cfg, want) {
+		t.Errorf("docs/config.example.yaml = %+v, differs from Default() = %+v", cfg, want)
+	}
+}
+
+func TestDefaultRoot(t *testing.T) {
+	got := config.DefaultRoot()
+	if runtime.GOOS == "windows" {
+		if len(got) < 3 || got[1] != ':' || got[2] != '\\' {
+			t.Errorf("DefaultRoot() = %q, want a drive root such as C:\\", got)
+		}
+		return
+	}
+	if got != "/" {
+		t.Errorf("DefaultRoot() = %q, want /", got)
 	}
 }

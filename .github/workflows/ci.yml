@@ -59,6 +59,7 @@ jobs:
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             echo "== $target"
             GOOS=${target%/*} GOARCH=${target#*/} go build -trimpath -o /dev/null ./cmd/cipherhorizon
+            GOOS=${target%/*} GOARCH=${target#*/} go build -trimpath -o /dev/null ./cmd/cipherhorizon-collector
           done
 
   lint:
@@ -98,6 +99,8 @@ jobs:
           for f in FuzzReadFlight FuzzParseServerKeyExchange FuzzReadSSLv2ServerHello; do
             go test ./internal/tlsprobe/wire -run '^$' -fuzz "^${f}\$" -fuzztime 30s
           done
+      - name: Fuzz the PE version-resource parser (reads untrusted files from the host)
+        run: go test ./internal/sense/pefiles -run '^$' -fuzz '^FuzzReadVersion$' -fuzztime 30s
 
   e2e:
     # The shipped UI, driven in a real browser against known demo targets (see testing/e2e).

@@ -51,6 +51,21 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   certificates carry their chain role; the negotiated flag now covers the negotiated suite's cipher, key exchange
   and authentication; and the document states what its edges mean.
 
+- Host discovery rebuilt as an **evidence pipeline** (`docs/host-discovery-program.md`, ADR-0001 to ADR-0010):
+  sensors observe and never infer; capability is applied afterwards from cited knowledge; no claim is stronger than
+  the weakest evidence it rests on; the document states its coverage, blind spots and privilege. `cipherhorizon run`
+  now also works on **Windows** (`pe-files` sensor: loose crypto libraries such as a bundled OpenSSL, read from
+  their version resource by a hand-written, fuzzed PE reader; no key or credential file is ever opened), warns when
+  it runs without Administrator/root (results may be incomplete), and has `--redact-host`. Debian/Ubuntu output is
+  unchanged (proven against the frozen pre-refactor output).
+- `docs/decisions` (architecture decision records), `testing/hostdiscovery` (ground-truth scripts) and
+  `artifacts/agent-*`, `gate-decision-level-1.md` (the research, review and test record).
+
+- **`cipherhorizon-collector`**: a separate ~4 MB program for endpoints (`run`, `plugins`, `version` only) that links no
+  web server, database, TLS scanner or HTTP/TLS client, enforced by a test (ADR-0011). Published for the same six
+  platforms next to the full product. The TLS CBOM builder moved to `internal/tlscbom` and the UUID library was
+  replaced by `crypto/rand`, which removed the scanner and the network package from the collector's dependency set.
+
 ### Changed
 
 - Project renamed from the working name `cbom-scan` to **CipherHorizon**, to avoid any confusion with a

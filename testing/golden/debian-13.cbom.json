@@ -24,7 +24,45 @@
       "bom-ref": "host:fixture-host",
       "type": "device",
       "name": "fixture-host"
-    }
+    },
+    "properties": [
+      {
+        "name": "cipherhorizon:privilege-tier",
+        "value": "user"
+      },
+      {
+        "name": "cipherhorizon:host-os",
+        "value": "linux debian 13"
+      },
+      {
+        "name": "cipherhorizon:coverage-note",
+        "value": "Running without elevated privileges: some evidence may be unavailable, so results may be incomplete. Running as Administrator (Windows) or root (Linux) may reveal more."
+      },
+      {
+        "name": "cipherhorizon:coverage",
+        "value": "sensor=apt status=complete scope=installed packages (dpkg status database)"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "configuration, certificates, key material and application association (not collected by this version)"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "cryptography statically linked into applications or embedded in custom software"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "libraries bundled inside applications, containers and language-runtime environments"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "software not installed through dpkg"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "what any installed software actually does: a package being installed says nothing about use"
+      }
+    ]
   },
   "components": [
     {
@@ -1015,9 +1053,41 @@
         {
           "name": "cipherhorizon:package-family",
           "value": "libgcrypt"
+        },
+        {
+          "name": "cipherhorizon:version-source",
+          "value": "package-database"
+        },
+        {
+          "name": "cipherhorizon:claim",
+          "value": "present"
+        },
+        {
+          "name": "cipherhorizon:method",
+          "value": "debian.dpkg.status@1"
+        },
+        {
+          "name": "cipherhorizon:method-quality",
+          "value": "authoritative"
+        },
+        {
+          "name": "cipherhorizon:privilege",
+          "value": "user"
         }
       ],
       "evidence": {
+        "identity": [
+          {
+            "field": "purl",
+            "methods": [
+              {
+                "technique": "manifest-analysis",
+                "confidence": 1,
+                "value": "debian.dpkg.status@1"
+              }
+            ]
+          }
+        ],
         "occurrences": [
           {
             "location": "/var/lib/dpkg/status"
@@ -1051,9 +1121,45 @@
         {
           "name": "cipherhorizon:capability-basis",
           "value": "OpenSSL 3.5.0 (2025-04-08) CHANGES.md: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), 'added in OpenSSL 3.5' (https://docs.openssl.org/3.5/man7/EVP_PKEY-ML-KEM/)"
+        },
+        {
+          "name": "cipherhorizon:version-source",
+          "value": "package-database"
+        },
+        {
+          "name": "cipherhorizon:claim",
+          "value": "present"
+        },
+        {
+          "name": "cipherhorizon:method",
+          "value": "debian.dpkg.status@1"
+        },
+        {
+          "name": "cipherhorizon:method-quality",
+          "value": "authoritative"
+        },
+        {
+          "name": "cipherhorizon:privilege",
+          "value": "user"
+        },
+        {
+          "name": "cipherhorizon:provides-claim",
+          "value": "capable-mapped"
         }
       ],
       "evidence": {
+        "identity": [
+          {
+            "field": "purl",
+            "methods": [
+              {
+                "technique": "manifest-analysis",
+                "confidence": 1,
+                "value": "debian.dpkg.status@1"
+              }
+            ]
+          }
+        ],
         "occurrences": [
           {
             "location": "/var/lib/dpkg/status"
@@ -1087,9 +1193,45 @@
         {
           "name": "cipherhorizon:capability-basis",
           "value": "OpenSSL 3.5.0 (2025-04-08) CHANGES.md: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), 'added in OpenSSL 3.5' (https://docs.openssl.org/3.5/man7/EVP_PKEY-ML-KEM/)"
+        },
+        {
+          "name": "cipherhorizon:version-source",
+          "value": "package-database"
+        },
+        {
+          "name": "cipherhorizon:claim",
+          "value": "present"
+        },
+        {
+          "name": "cipherhorizon:method",
+          "value": "debian.dpkg.status@1"
+        },
+        {
+          "name": "cipherhorizon:method-quality",
+          "value": "authoritative"
+        },
+        {
+          "name": "cipherhorizon:privilege",
+          "value": "user"
+        },
+        {
+          "name": "cipherhorizon:provides-claim",
+          "value": "capable-mapped"
         }
       ],
       "evidence": {
+        "identity": [
+          {
+            "field": "purl",
+            "methods": [
+              {
+                "technique": "manifest-analysis",
+                "confidence": 1,
+                "value": "debian.dpkg.status@1"
+              }
+            ]
+          }
+        ],
         "occurrences": [
           {
             "location": "/var/lib/dpkg/status"

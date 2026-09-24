@@ -213,7 +213,7 @@ func TestAnalyze(t *testing.T) {
 		}
 	}
 	if s := rep.Summary(); !strings.Contains(s, "1 quantum-vulnerable, 2 quantum-safe") || !strings.Contains(s, "1 unclassified") ||
-		!strings.Contains(s, "RSA (available via 2 package(s))") {
+		!strings.Contains(s, "RSA (available via 2 component(s))") {
 		t.Errorf("summary:\n%s", s)
 	}
 }

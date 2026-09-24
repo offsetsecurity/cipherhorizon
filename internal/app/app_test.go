@@ -12,13 +12,11 @@ import (
 	"testing"
 	"time"
 
-	cdx "github.com/CycloneDX/cyclonedx-go"
-
 	"github.com/example/cipherhorizon/internal/app"
-	"github.com/example/cipherhorizon/internal/collector"
-	"github.com/example/cipherhorizon/internal/collector/collectortest"
-	_ "github.com/example/cipherhorizon/internal/plugins/all" // registers "apt" in collector.Default
+	"github.com/example/cipherhorizon/internal/evidence"
 	"github.com/example/cipherhorizon/internal/schematest"
+	"github.com/example/cipherhorizon/internal/sense"
+	"github.com/example/cipherhorizon/internal/sense/sensetest"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden CBOMs in testing/golden")
@@ -35,13 +33,28 @@ func run(t *testing.T, args ...string) (code int, stdout, stderr string) {
 	return runWith(t, context.Background(), nil, args...)
 }
 
-func runWith(t *testing.T, ctx context.Context, reg *collector.Registry, args ...string) (int, string, string) {
+func runWith(t *testing.T, ctx context.Context, reg *sense.Registry, args ...string) (int, string, string) {
+	t.Helper()
+	return runTier(t, ctx, reg, "user", args...)
+}
+
+// runTier is runWith at a chosen privilege tier. The OS and tier are pinned so the
+// output is the same on any machine the tests run on.
+func runTier(t *testing.T, ctx context.Context, reg *sense.Registry, tier string, args ...string) (int, string, string) {
+	t.Helper()
+	return runOS(t, ctx, reg, "linux", tier, args...)
+}
+
+// runOS is runTier for a chosen host OS family.
+func runOS(t *testing.T, ctx context.Context, reg *sense.Registry, hostOS, tier string, args ...string) (int, string, string) {
 	t.Helper()
 	var out, errOut bytes.Buffer
 	code := app.Main(ctx, args, app.Env{
 		Stdout:    &out,
 		Stderr:    &errOut,
 		Registry:  reg,
+		OS:        hostOS,
+		Tier:      func() string { return tier },
 		Now:       func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) },
 		NewSerial: func() string { return "urn:uuid:00000000-0000-4000-8000-000000000000" },
 		Hostname:  func() (string, error) { return "fixture-host", nil },
@@ -247,20 +260,31 @@ func TestHostWithoutDpkgIsNotAnError(t *testing.T) {
 
 // Exit 2 means: a CBOM was written, but it is incomplete.
 func TestIncompleteScanExitsTwoButStillWritesTheCBOM(t *testing.T) {
-	reg := collector.NewRegistry()
+	reg := sense.NewRegistry()
+	pkg := func(name string) evidence.Observation {
+		o := evidence.Observation{
+			Stream: evidence.StreamHost, Origin: evidence.OriginObserved,
+			Subject: evidence.Subject{Kind: evidence.KindPackage, Key: "apt/" + name, Name: name,
+				Attrs: map[string]string{"name": name, "version": "1", "family": "libgcrypt", "kind": "library"}},
+			Claim: evidence.Claim{Rung: evidence.RungPresent}, Outcome: evidence.OutcomeObserved,
+			Method: evidence.MethodDpkgStatus, Source: evidence.Source{Kind: "database", Location: "var/lib/dpkg/status"}, Privilege: "user",
+		}
+		evidence.Finish(&o)
+		return o
+	}
 	must := func(err error) {
 		t.Helper()
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	must(reg.Register("good", collectortest.Factory(&collectortest.Fake{Info: collectortest.Info("good"),
-		CollectFn: func(context.Context) ([]collector.CryptoAsset, error) {
-			return []collector.CryptoAsset{{Component: cdx.Component{BOMRef: "g", Name: "g", Type: cdx.ComponentTypeLibrary}}}, nil
+	must(reg.Register("good", sensetest.Factory(&sensetest.Fake{SensorInfo: sensetest.Info("good"),
+		CollectFn: func(context.Context) (evidence.Batch, error) {
+			return evidence.Batch{Observations: []evidence.Observation{pkg("g")}}, nil
 		}})))
-	must(reg.Register("flaky", collectortest.Factory(&collectortest.Fake{Info: collectortest.Info("flaky"),
-		CollectFn: func(context.Context) ([]collector.CryptoAsset, error) {
-			return []collector.CryptoAsset{{Component: cdx.Component{BOMRef: "f", Name: "f", Type: cdx.ComponentTypeLibrary}}}, errors.New("read error half way")
+	must(reg.Register("flaky", sensetest.Factory(&sensetest.Fake{SensorInfo: sensetest.Info("flaky"),
+		CollectFn: func(context.Context) (evidence.Batch, error) {
+			return evidence.Batch{Observations: []evidence.Observation{pkg("f")}}, errors.New("read error half way")
 		}})))
 
 	code, stdout, stderr := runWith(t, context.Background(), reg, "run")
@@ -326,7 +350,7 @@ func TestVersionHelpAndPlugins(t *testing.T) {
 		t.Errorf("run -h: exit %d\n%s", code, errOut)
 	}
 	code, out, _ := run(t, "plugins")
-	if code != 0 || !strings.Contains(out, "apt") || !strings.Contains(out, "os-package") {
+	if code != 0 || !strings.Contains(out, "apt") || !strings.Contains(out, "debian.dpkg.status@1") || !strings.Contains(out, "pe-files") {
 		t.Errorf("plugins: %d\n%s", code, out)
 	}
 }

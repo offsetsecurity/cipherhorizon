@@ -11,6 +11,7 @@ import (
 
 	"github.com/example/cipherhorizon/internal/cbom"
 	"github.com/example/cipherhorizon/internal/pqc"
+	"github.com/example/cipherhorizon/internal/tlscbom"
 	"github.com/example/cipherhorizon/internal/tlsprobe"
 	"github.com/example/cipherhorizon/internal/version"
 )
@@ -132,7 +133,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 // about who found it; the readiness level and TLS hygiene score stay out of it,
 // the same way a host CBOM carries no verdict beyond the algorithm's own.
 func writeTLSCBOM(env Env, rep *tlsprobe.Report, t tlsprobe.Target) error {
-	bom, warnings := cbom.Build(cbom.FromTLSReport(rep), cbom.Options{
+	bom, warnings := cbom.Build(tlscbom.FromTLSReport(rep), cbom.Options{
 		Tool:      cbom.Tool{Name: "cipherhorizon", Version: version.Version},
 		Endpoint:  fmt.Sprintf("%s:%d", t.Host, t.Port),
 		Now:       env.Now,

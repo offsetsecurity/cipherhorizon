@@ -46,6 +46,14 @@ sends a strict Content-Security-Policy and renders everything it received from a
 - **Go 1.25 or newer** to build. Nothing else: no C compiler, no Node, no database server.
 - A modern browser to use the UI. (Node 22+ is needed only to run the browser end-to-end test.)
 
+### Collecting from a machine (the small program)
+
+To inventory a machine you do **not** need the whole product: copy the ~4 MB **`cipherhorizon-collector`** to it and run
+`cipherhorizon-collector run -o host.cbom.json`, then upload that file on the **Hosts** page of the machine that runs
+`cipherhorizon serve`. The collector is read-only, runs no subprocess and makes no network connection; it contains no
+web server, database or TLS scanner ([ADR-0011](docs/decisions/ADR-0011-separate-endpoint-collector.md)). Run it as
+Administrator (Windows) or root (Linux) for a fuller result.
+
 ### Install
 
 Download an archive for Linux, macOS or Windows (amd64/arm64) from the
@@ -172,9 +180,10 @@ their sources (FIPS 203/204, RFC 9325, IANA registries, NIST IR 8547 draft, ...)
 | `internal/store` | SQLite storage, history, fleet summaries |
 | `internal/eval` | findings, PQC readiness, TLS hygiene, scan-to-scan diff |
 | `internal/tlsprobe` | the TLS scanner, its wire protocol code, registries, and test servers |
-| `internal/collector`, `internal/plugins`, `internal/scan`, `internal/cbom`, `internal/pqc`, `internal/algo` | host inventory and CBOM |
+| `internal/evidence`, `internal/knowledge`, `internal/derive`, `internal/sense`, `internal/discover`, `internal/hostinfo` | host discovery: sensors, evidence graph, cited capability |
+| `internal/cbom`, `internal/pqc`, `internal/algo`, `internal/collector` | CBOM projection, post-quantum verdicts, algorithm catalogue |
 | `web/static` | the UI (embedded into the binary) |
-| `docs` | architecture, TLS scanning, methodology, plugin guide, product documents |
+| `docs` | architecture, TLS scanning, methodology, sensor guide, product documents |
 | `testing` | golden CBOMs, fixtures, schemas, and the browser end-to-end scripts |
 
 ## Design principles
@@ -191,7 +200,7 @@ their sources (FIPS 203/204, RFC 9325, IANA registries, NIST IR 8547 draft, ...)
 7. **Safe by default.** Loopback bind, token for anything else, SSRF guard on scan targets, strict CSP.
 
 See [docs/architecture.md](docs/architecture.md), [docs/tls-scanning.md](docs/tls-scanning.md),
-[docs/methodology.md](docs/methodology.md) and [docs/writing-a-plugin.md](docs/writing-a-plugin.md). The product
+[docs/methodology.md](docs/methodology.md) and [docs/writing-a-sensor.md](docs/writing-a-sensor.md). The product
 documents are in [docs/product](docs/product): PRD, engineering handoff, QA plan, QA report and release report.
 
 ## Testing

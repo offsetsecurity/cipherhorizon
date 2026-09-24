@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -38,15 +39,19 @@ type Host struct {
 	Root string `yaml:"root"`
 	// Name overrides the hostname recorded as the CBOM's subject.
 	Name string `yaml:"name"`
+	// Redact replaces the host name with a stable label derived from the machine
+	// id, so the CBOM does not carry the name. See docs/decisions/ADR-0009.
+	Redact bool `yaml:"redact"`
 }
 
-// Plugins selects and bounds collectors.
+// Plugins selects and bounds sensors. (The section keeps its historical name so
+// existing configuration files keep working.)
 type Plugins struct {
-	// Enabled restricts the run to these plugins; empty means every registered one.
+	// Enabled restricts the run to these sensors; empty means every registered one.
 	Enabled []string `yaml:"enabled"`
-	// Disabled removes plugins from the run.
+	// Disabled removes sensors from the run.
 	Disabled []string `yaml:"disabled"`
-	// Timeout bounds each plugin (Detect plus Collect); 0 disables the bound.
+	// Timeout bounds each sensor (Detect plus Collect); 0 disables the bound.
 	Timeout time.Duration `yaml:"timeout"`
 }
 
@@ -55,11 +60,24 @@ type PQC struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// DefaultRoot is where the host's filesystem is visible by default: "/" on Unix,
+// and the system drive on Windows (a bare "/" there would mean whichever drive the
+// working directory happens to be on).
+func DefaultRoot() string {
+	if runtime.GOOS == "windows" {
+		if d := os.Getenv("SystemDrive"); d != "" {
+			return d + `\`
+		}
+		return `C:\`
+	}
+	return "/"
+}
+
 // Default returns the configuration used when nothing is specified.
 func Default() Config {
 	return Config{
 		Output:  Output{Pretty: true},
-		Host:    Host{Root: "/"},
+		Host:    Host{Root: DefaultRoot()},
 		Plugins: Plugins{Timeout: 60 * time.Second},
 		PQC:     PQC{Enabled: true},
 	}

@@ -3,6 +3,7 @@ package cbom_test
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -200,4 +201,20 @@ func TestBuildEmptyInput(t *testing.T) {
 		t.Errorf("empty build: components=%v warnings=%v", bom.Components, warnings)
 	}
 	schematest.Validate(t, encode(t, bom))
+}
+
+// The default serial number is a random RFC 4122 version-4 UUID as a urn:uuid: value.
+func TestDefaultSerialIsAVersion4UUID(t *testing.T) {
+	re := regexp.MustCompile(`^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	seen := map[string]bool{}
+	for i := 0; i < 50; i++ {
+		bom, _ := cbom.Build(nil, cbom.Options{Tool: cbom.Tool{Name: "t"}})
+		if !re.MatchString(bom.SerialNumber) {
+			t.Fatalf("serial %q is not a version 4 urn:uuid", bom.SerialNumber)
+		}
+		seen[bom.SerialNumber] = true
+	}
+	if len(seen) != 50 {
+		t.Errorf("only %d distinct serials in 50 builds", len(seen))
+	}
 }
