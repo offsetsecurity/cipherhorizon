@@ -15,7 +15,7 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/uuid"
 
-	"github.com/example/cbom-scan/internal/collector"
+	"github.com/example/cipherhorizon/internal/collector"
 )
 
 // SpecVersion is the CycloneDX version emitted. 1.7 is a later, opt-in step.
@@ -23,7 +23,7 @@ const SpecVersion = cdx.SpecVersion1_6
 
 // PropertyNamespace prefixes every custom property this program adds, as the
 // CycloneDX property taxonomy asks of non-CycloneDX property names.
-const PropertyNamespace = "cbom-scan"
+const PropertyNamespace = "cipherhorizon"
 
 // Property returns a namespaced custom property, e.g. Property("collector","apt").
 func Property(name, value string) cdx.Property {
@@ -38,8 +38,15 @@ type Tool struct {
 
 // Options configures Build. The zero value is usable.
 type Options struct {
-	Tool     Tool
-	HostName string // the CBOM's subject; omitted when empty
+	Tool Tool
+
+	// The CBOM's subject: set exactly one, or neither for a document with no
+	// metadata.component. HostName is a host inventory's subject (bom-ref
+	// "host:<name>", type device). Endpoint is a TLS scan's subject, "host:port"
+	// (bom-ref "endpoint:<host:port>", type device: a network endpoint, not
+	// necessarily the machine running this program).
+	HostName string
+	Endpoint string
 
 	// Now and NewSerial exist so tests can make output byte-for-byte reproducible.
 	Now       func() time.Time
@@ -90,6 +97,28 @@ func Build(assets []collector.CryptoAsset, opts Options) (*cdx.BOM, []string) {
 	warnings = append(warnings, w...)
 	dependsOn, w = pruneDangling(dependsOn, "dependsOn", components)
 	warnings = append(warnings, w...)
+
+	// An endpoint CBOM says where the cryptography is used: the endpoint itself
+	// depends on the protocols it serves and the certificates it presents, and
+	// everything else hangs below those.
+	if opts.Endpoint != "" {
+		used := map[string]bool{}
+		for _, targets := range dependsOn {
+			for t := range targets {
+				used[t] = true
+			}
+		}
+		var roots []string
+		for ref, c := range components {
+			if used[ref] || c.CryptoProperties == nil {
+				continue
+			}
+			if at := c.CryptoProperties.AssetType; at == cdx.CryptoAssetTypeProtocol || at == cdx.CryptoAssetTypeCertificate {
+				roots = append(roots, ref)
+			}
+		}
+		addEdges(dependsOn, "endpoint:"+opts.Endpoint, roots)
+	}
 
 	bom := cdx.NewBOM()
 	bom.SerialNumber = opts.NewSerial()
@@ -153,12 +182,26 @@ func metadata(opts Options) *cdx.Metadata {
 			Version: opts.Tool.Version,
 		}}}
 	}
-	if opts.HostName != "" {
+	switch {
+	case opts.HostName != "":
 		m.Component = &cdx.Component{
 			BOMRef: "host:" + opts.HostName,
 			Type:   cdx.ComponentTypeDevice,
 			Name:   opts.HostName,
 		}
+	case opts.Endpoint != "":
+		m.Component = &cdx.Component{
+			BOMRef: "endpoint:" + opts.Endpoint,
+			Type:   cdx.ComponentTypeDevice,
+			Name:   opts.Endpoint,
+		}
+		// State once, in the document, what the graph's edges and flags mean, since
+		// a reader cannot tell from the edges alone whether the endpoint uses a
+		// thing or merely accepts it.
+		m.Properties = &[]cdx.Property{Property("tls-graph",
+			"Edges below a protocol list what the endpoint accepts, as observed by enumerating it. "+
+				"Components flagged cipherhorizon:negotiated=true are what a current Go TLS client actually "+
+				"negotiated in one handshake: nothing else is claimed to be in use.")}
 	}
 	return m
 }

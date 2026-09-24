@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/store"
+	"github.com/example/cipherhorizon/internal/store"
 )
 
 type clock struct{ t time.Time }

@@ -104,7 +104,7 @@ Add asset(s) ─► Scan (now / all / scheduled) ─► Live progress ─► Res
 - AC-09.1 Asset list as CSV; any scan's report and evaluation as JSON.
 
 **US-10 Host CBOM ingest (P1).**
-- AC-10.1 A CBOM produced by `cbom-scan run` can be uploaded (API and UI); it creates/updates a *host* asset showing algorithm verdicts (quantum-vulnerable / safe / unclassified) and the packages that provide them.
+- AC-10.1 A CBOM produced by `cipherhorizon run` can be uploaded (API and UI); it creates/updates a *host* asset showing algorithm verdicts (quantum-vulnerable / safe / unclassified) and the packages that provide them.
 
 **US-11 Safe by default (P0).**
 - AC-11.1 Binds to `127.0.0.1` by default; a non-loopback bind is refused unless a token is set.

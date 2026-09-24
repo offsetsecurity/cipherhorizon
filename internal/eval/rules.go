@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cbom-scan/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
 // hit is one place a rule fired.
@@ -317,6 +317,28 @@ var rules = []rule{
 		check: func(c *ctx) []hit {
 			if f := c.rep.Features.FallbackSCSV; f != nil && !*f {
 				return one("a downgraded hello carrying the SCSV was answered with a ServerHello, not inappropriate_fallback")
+			}
+			return nil
+		},
+	},
+	{
+		id: "FEAT.CLIENT-CERT-REQUESTED", title: "Server requests a client certificate (mTLS)", category: "feature", severity: Info, evidence: Observed,
+		citations:   []Citation{citRFC8446},
+		remediation: "Informational: no action needed. Automated scanning without a client certificate may otherwise be mistaken for an outage.",
+		check: func(c *ctx) []hit {
+			if f := c.rep.Features.ClientCertRequested; f != nil && *f {
+				return one("the server sent a CertificateRequest during the handshake (RFC 8446 section 4.3.2)")
+			}
+			return nil
+		},
+	},
+	{
+		id: "HTTP.NO-HSTS", title: "HTTP Strict Transport Security is not set", category: "feature", severity: Low, evidence: Observed,
+		citations:   []Citation{citRFC6797},
+		remediation: "Send a Strict-Transport-Security response header (RFC 6797) with a meaningful max-age, so browsers refuse to fall back to plain HTTP.",
+		check: func(c *ctx) []hit {
+			if c.rep.HSTS != nil && !*c.rep.HSTS {
+				return one("an HTTP response was received (--http-checks) without a Strict-Transport-Security header")
 			}
 			return nil
 		},

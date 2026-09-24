@@ -1,4 +1,4 @@
-module github.com/example/cbom-scan
+module github.com/example/cipherhorizon
 
 go 1.25.0
 

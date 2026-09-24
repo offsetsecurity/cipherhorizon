@@ -8,9 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cbom-scan/internal/app"
-	"github.com/example/cbom-scan/internal/tlsprobe"
-	"github.com/example/cbom-scan/internal/tlsprobe/testserver"
+	"github.com/example/cipherhorizon/internal/app"
+	"github.com/example/cipherhorizon/internal/schematest"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 func hybridServer(t *testing.T) string {
@@ -78,6 +79,102 @@ func TestTLSScanSeveralTargetsAndFailures(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "no response") {
 		t.Errorf("stderr should say why the dead target failed:\n%s", stderr)
+	}
+}
+
+func TestTLSScanCBOM(t *testing.T) {
+	code, stdout, stderr := run(t, "tls", "scan", "--cbom", hybridServer(t))
+	if code != app.ExitOK {
+		t.Fatalf("exit %d\nstderr: %s", code, stderr)
+	}
+	schematest.Validate(t, []byte(stdout))
+
+	var bom struct {
+		Metadata struct {
+			Component struct{ Name, Type string }
+			Tools     struct {
+				Components []struct{ Name, Version string }
+			}
+			Timestamp string
+		}
+		Components []struct {
+			BOMRef           string `json:"bom-ref"`
+			Name             string
+			CryptoProperties struct {
+				AssetType          string `json:"assetType"`
+				ProtocolProperties struct {
+					Type         string
+					Version      string
+					CipherSuites []struct {
+						Name       string
+						Algorithms []string
+					} `json:"cipherSuites"`
+				} `json:"protocolProperties"`
+				AlgorithmProperties struct {
+					Primitive string
+				} `json:"algorithmProperties"`
+			} `json:"cryptoProperties"`
+			Properties []struct{ Name, Value string }
+		}
+	}
+	if err := json.Unmarshal([]byte(stdout), &bom); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, stdout)
+	}
+	if bom.Metadata.Component.Type != "device" || !strings.Contains(bom.Metadata.Component.Name, ":") {
+		t.Errorf("metadata.component = %+v", bom.Metadata.Component)
+	}
+	if len(bom.Metadata.Tools.Components) != 1 || bom.Metadata.Tools.Components[0].Name != "cipherhorizon" {
+		t.Errorf("metadata.tools = %+v", bom.Metadata.Tools)
+	}
+
+	var sawTLS13Protocol, sawHybridGroup, sawPQCVerdict bool
+	for _, c := range bom.Components {
+		if c.CryptoProperties.AssetType == "protocol" && c.CryptoProperties.ProtocolProperties.Version == "1.3" {
+			sawTLS13Protocol = true
+			if len(c.CryptoProperties.ProtocolProperties.CipherSuites) == 0 {
+				t.Error("TLS 1.3 protocol component has no cipher suites")
+			}
+		}
+		if c.Name == "X25519MLKEM768" && c.CryptoProperties.AlgorithmProperties.Primitive == "combiner" {
+			sawHybridGroup = true
+		}
+		for _, p := range c.Properties {
+			if strings.HasSuffix(p.Name, ":pqc:status") {
+				sawPQCVerdict = true
+			}
+		}
+	}
+	if !sawTLS13Protocol {
+		t.Error("no TLSv1.3 protocol component in the CBOM")
+	}
+	if !sawHybridGroup {
+		t.Error("no X25519MLKEM768 combiner component in the CBOM")
+	}
+	if !sawPQCVerdict {
+		t.Error("no algorithm was PQC-annotated (expected the same annotation a host inventory gets)")
+	}
+	if !strings.Contains(stderr, "quantum-vulnerable") && !strings.Contains(stderr, "quantum-safe") {
+		t.Errorf("the PQC summary should still print to stderr: %s", stderr)
+	}
+}
+
+func TestTLSScanCBOMRejectsMultipleTargets(t *testing.T) {
+	code, stdout, stderr := run(t, "tls", "scan", "--cbom", "a.example", "b.example")
+	if code != app.ExitFatal || stdout != "" {
+		t.Errorf("exit %d stdout %q", code, stdout)
+	}
+	if !strings.Contains(stderr, "one target") {
+		t.Errorf("stderr should explain why: %s", stderr)
+	}
+}
+
+func TestTLSScanCBOMAndJSONAreMutuallyExclusive(t *testing.T) {
+	code, stdout, stderr := run(t, "tls", "scan", "--cbom", "--json", "a.example")
+	if code != app.ExitFatal || stdout != "" {
+		t.Errorf("exit %d stdout %q", code, stdout)
+	}
+	if !strings.Contains(stderr, "mutually exclusive") {
+		t.Errorf("stderr should explain why: %s", stderr)
 	}
 }
 

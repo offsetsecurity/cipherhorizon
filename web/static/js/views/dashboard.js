@@ -2,22 +2,25 @@
 import { h, clear, relTime, fmtDate } from '../dom.js';
 import { api } from '../api.js';
 import { donut, trendBars, barList, sizeBars, LEVELS, levelClass, levelName } from '../charts.js';
-import { levelBadge, bandBadge, BAND_ORDER, bandTone, statusPill, progressBar, button, empty, toast, badge } from '../ui.js';
+import { levelBadge, bandBadge, BAND_ORDER, bandTone, statusPill, progressBar, button, empty, toast, badge, sevBadge, skeleton, countUp } from '../ui.js';
 import { openAddDialog } from './assets.js';
 
 function kpi(label, value, kind = '', hint) {
-  return h('div', { class: `card kpi ${kind}`, title: hint }, h('div', { class: 'n' }, String(value)), h('div', { class: 'l' }, label));
+  const n = h('div', { class: 'n' }, String(value));
+  countUp(n, label, value);
+  return h('div', { class: `card kpi ${kind}`, title: hint }, n, h('div', { class: 'l' }, label));
 }
 
 export async function render(root) {
   let timer = null;
   let stopped = false;
+  root.appendChild(skeleton(5));
 
-  const paint = (f) => {
+  const paint = (f, hosts, priority) => {
     clear(root);
     root.appendChild(h('div', { class: 'page-head' },
       h('div', null, h('h1', null, 'Dashboard'),
-        h('div', { class: 'sub' }, 'Post-quantum readiness and TLS posture across your endpoints')),
+        h('div', { class: 'sub' }, 'Crypto posture across your TLS endpoints and hosts')),
       h('div', { class: 'row' },
         button('Add endpoints', () => openAddDialog(() => draw()), 'primary'),
         f.assets ? button('Scan all', async () => {
@@ -28,20 +31,24 @@ export async function render(root) {
           } catch (e) { toast(e.message, 'error'); }
         }) : null)));
 
-    if (!f.assets) {
+    if (!f.assets && !hosts.length) {
       root.appendChild(empty('Start by adding the endpoints you want to assess',
         'Add one or many TLS endpoints (host or host:port). Scan them to see how ready each is for post-quantum cryptography, how well it is configured, and what to fix first.',
         button('Add endpoints', () => openAddDialog(() => draw()), 'primary')));
       return;
     }
 
+    const hostsVulnerable = hosts.reduce((n, h2) => n + (h2.summary ? h2.summary.vulnerable : 0), 0);
     root.appendChild(h('div', { class: 'grid kpis' },
       kpi('Endpoints', f.assets),
       kpi('Scanned', `${f.scanned} / ${f.assets}`),
       kpi('Exposed to harvest-now-decrypt-later', f.hndlExposed, f.hndlExposed ? 'alert' : 'good',
         'Endpoints whose recorded traffic a future quantum computer could read'),
       kpi('Critical / high findings', `${f.critical} / ${f.high}`, f.critical ? 'alert' : ''),
-      kpi('Certificates expiring ≤ 30 days', f.certsExpiring, f.certsExpiring ? 'alert' : 'good')));
+      kpi('Certificates expiring ≤ 30 days', f.certsExpiring, f.certsExpiring ? 'alert' : 'good'),
+      kpi('Hosts (package inventory)', hosts.length, hostsVulnerable ? 'alert' : '', 'Machines reporting a CBOM, separate from the TLS endpoints above')));
+
+    if (priority.length) root.appendChild(priorityCard(priority));
 
     root.appendChild(h('div', { class: 'grid two' },
       readinessCard(f), trendCard(f)));
@@ -53,9 +60,13 @@ export async function render(root) {
   const draw = async () => {
     if (stopped) return;
     try {
-      const f = await api.summary(14);
+      const [f, hosts, priority] = await Promise.all([
+        api.summary(14),
+        api.hosts().catch(() => []),
+        api.fleetFindings('?status=new').catch(() => []),
+      ]);
       if (!stopped) {
-        paint(f);
+        paint(f, hosts, priority.slice(0, 5));
         const active = (f.recent || []).some((s) => s.status === 'queued' || s.status === 'running');
         timer = setTimeout(draw, active ? 1500 : 6000);
       }
@@ -96,6 +107,16 @@ function hygieneCard(f) {
     entries.length ? barList(entries, (b) => `tone-${bandTone(b)}`) : h('p', { class: 'muted' }, 'No rated endpoints yet.'),
     h('p', { class: 'hint' }, 'A 0 to 100 score of how well an endpoint is configured, worked out from its cited findings. ',
       h('a', { href: '#/about' }, 'How is it worked out?')));
+}
+
+function priorityCard(priority) {
+  return h('section', { class: 'card' },
+    h('div', { class: 'row' }, h('h2', null, 'Top priority findings'), h('a', { href: '#/findings' }, 'All findings')),
+    h('p', { class: 'hint' }, 'Ranked across every TLS endpoint and host, worst first — not yet acknowledged or accepted.'),
+    h('ul', { class: 'priority-list' }, priority.map((pfind) => h('li', null,
+      pfind.severity ? sevBadge(pfind.severity) : badge('quantum-vulnerable', 'warn'),
+      h('span', { class: 'pf-title' }, pfind.title),
+      h('a', { href: `#/${pfind.assetKind === 'host' ? 'hosts' : 'assets'}/${pfind.assetId}`, class: 'pf-asset' }, pfind.assetName)))));
 }
 
 function attentionCard(f) {

@@ -41,11 +41,18 @@ export async function render(root) {
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'What is not measured'),
     h('ul', null, [
-      'HTTP-layer headers such as HSTS, and certificate revocation status.',
+      'Certificate revocation status.',
       'Behavioural vulnerabilities (for example Heartbleed or ROBOT): the scanner sends no exploit traffic. Findings such as POODLE or Sweet32 are inferred from what the endpoint offers.',
       'Anything reachable only with client certificates, or only from another network.',
       'STARTTLS protocols: only direct TLS endpoints are scanned.',
     ].map((t) => h('li', null, t)))));
+
+  root.appendChild(h('section', { class: 'card' }, h('h2', null, 'HTTP-layer check (HSTS)'),
+    h('p', null, 'Every other check in this tool exchanges only TLS handshake messages: no application data is sent. This one is the exception. ',
+      h('b', null, 'When enabled it sends a real HTTP request'), ' — a plain ', h('code', null, 'GET /'), ' — to each scanned target after the handshake, and reads only the ',
+      h('code', null, 'Strict-Transport-Security'), ' response header (no body, no redirect is followed).'),
+    h('p', null, 'This installation has it ', a.httpChecks ? h('b', null, 'enabled') : 'disabled', ' for every scan (server-wide ', h('code', null, '--http-checks'), ' flag). ',
+      'The CLI\'s ', h('code', null, 'tls scan'), ' has its own ', h('code', null, '--http-checks'), ' flag, off by default.')));
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'This installation'),
     h('dl', { class: 'kv' },

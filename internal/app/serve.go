@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cbom-scan/internal/eval"
-	"github.com/example/cbom-scan/internal/server"
-	"github.com/example/cbom-scan/internal/store"
-	"github.com/example/cbom-scan/internal/tlsprobe"
-	"github.com/example/cbom-scan/internal/tlsprobe/registry"
-	"github.com/example/cbom-scan/internal/version"
+	"github.com/example/cipherhorizon/internal/eval"
+	"github.com/example/cipherhorizon/internal/server"
+	"github.com/example/cipherhorizon/internal/store"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
+	"github.com/example/cipherhorizon/internal/version"
 )
 
 const serveNotice = `notice: the web UI lets its users make this machine connect to the endpoints they add,
@@ -26,7 +26,7 @@ const serveNotice = `notice: the web UI lets its users make this machine connect
 
 // tokenEnv is where the access token may be supplied instead of a flag, so it
 // does not show up in the process list.
-const tokenEnv = "CBOM_SCAN_TOKEN" //nolint:gosec // the name of an environment variable, not a credential
+const tokenEnv = "CIPHERHORIZON_TOKEN"
 
 type stringList []string
 
@@ -49,17 +49,19 @@ func isLoopbackAddr(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// serveCmd implements "cbom-scan serve": the web UI, the API and the scan runner.
+// serveCmd implements "cipherhorizon serve": the web UI, the API and the scan runner.
 func serveCmd(ctx context.Context, args []string, env Env) int {
 	fl := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
 	addr := fl.String("addr", "127.0.0.1:8080", "address to listen on")
-	dbPath := fl.String("db", "cbom-scan.db", "SQLite database file (created if missing)")
+	dbPath := fl.String("db", "cipherhorizon.db", "SQLite database file (created if missing)")
 	token := fl.String("token", "", "require this bearer token on every API call (or set "+tokenEnv+")")
 	allowLoopback := fl.Bool("allow-loopback", false, "let scans target loopback addresses (for testing)")
 	workers := fl.Int("max-concurrent-scans", 2, "scans that may run at once")
 	timeout := fl.Duration("timeout", 8*time.Second, "per-connection timeout during a scan")
 	concurrency := fl.Int("concurrency", 4, "connections in flight to one target at once")
+	httpChecks := fl.Bool("http-checks", false, "after each scan's handshake, send one plain HTTP GET / and read the Strict-Transport-Security header. "+
+		"This is the only check that sends anything beyond a TLS handshake: it makes a real HTTP request to every scanned target. Off by default, server-wide.")
 	var allowedHosts stringList
 	fl.Var(&allowedHosts, "allowed-host", "extra Host header accepted when no token is set (repeatable)")
 	if err := fl.Parse(args); err != nil {
@@ -95,7 +97,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	guard := server.Guard{AllowLoopback: *allowLoopback}
 	runner := server.NewRunner(st, guard, server.RunnerOptions{
 		Workers: *workers,
-		Scan:    tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency},
+		Scan:    tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
 	})
 	srv := server.New(server.Config{
 		Store: st, Runner: runner, Guard: guard,
@@ -127,7 +129,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	if *token != "" {
 		auth = "token required"
 	}
-	_, _ = fmt.Fprintf(env.Stderr, "cbom-scan %s: UI and API on http://%s (%s), database %s\n", version.Version, ln.Addr(), auth, *dbPath)
+	_, _ = fmt.Fprintf(env.Stderr, "cipherhorizon %s: UI and API on http://%s (%s), database %s\n", version.Version, ln.Addr(), auth, *dbPath)
 
 	errc := make(chan error, 1)
 	go func() { errc <- httpSrv.Serve(ln) }()

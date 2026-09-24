@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/eval"
-	"github.com/example/cbom-scan/internal/store"
-	"github.com/example/cbom-scan/internal/tlsprobe"
-	"github.com/example/cbom-scan/internal/tlsprobe/testserver"
+	"github.com/example/cipherhorizon/internal/eval"
+	"github.com/example/cipherhorizon/internal/schematest"
+	"github.com/example/cipherhorizon/internal/store"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // ---- US-01: add assets -------------------------------------------------------------------------
@@ -461,6 +462,15 @@ func TestAC04_ReadinessOfRealEndpoints(t *testing.T) {
 	if s, b, h := e.req("GET", "/api/v1/scans/"+itoa(scans["hybrid"])+"/report?download=1", nil, nil); s != 200 ||
 		!strings.Contains(h.Get("Content-Disposition"), "attachment") || !json.Valid(b) {
 		t.Errorf("download: %d %q", s, h.Get("Content-Disposition"))
+	}
+
+	// The CBOM export (UI "Download CBOM" button) rebuilds a schema-valid CBOM
+	// from the same stored report, with the same downloadable-attachment shape.
+	if s, b, h := e.req("GET", "/api/v1/scans/"+itoa(scans["hybrid"])+"/cbom?download=1", nil, nil); s != 200 ||
+		!strings.Contains(h.Get("Content-Disposition"), "attachment") {
+		t.Errorf("cbom download: %d %q", s, h.Get("Content-Disposition"))
+	} else {
+		schematest.Validate(t, b)
 	}
 
 	// AC-04.2 / AC-06.x: the fleet view.

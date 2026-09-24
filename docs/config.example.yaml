@@ -1,4 +1,4 @@
-# cbom-scan configuration. Every key is optional; the values below are the defaults
+# cipherhorizon configuration. Every key is optional; the values below are the defaults
 # except where a comment says otherwise. Unknown keys are an error.
 
 output:

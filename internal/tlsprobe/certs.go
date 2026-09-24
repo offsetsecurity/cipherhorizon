@@ -14,9 +14,9 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/example/cbom-scan/internal/algo"
-	"github.com/example/cbom-scan/internal/tlsprobe/registry"
-	"github.com/example/cbom-scan/internal/tlsprobe/wire"
+	"github.com/example/cipherhorizon/internal/algo"
+	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
+	"github.com/example/cipherhorizon/internal/tlsprobe/wire"
 )
 
 // Suite lists for the restricted TLS 1.2-and-earlier handshakes that coax a
@@ -41,7 +41,22 @@ var (
 // what a current client negotiates. Verification is done separately, after the
 // handshake, so an untrusted or expired certificate is reported rather than
 // refused.
-func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*legacyEnum) ([]CertResult, *Negotiated) {
+//
+// The returned *bool is whether the server asked for a client certificate
+// (mTLS) during the first (tls-default) attempt: crypto/tls only calls
+// GetClientCertificate when the server sends a CertificateRequest, so setting
+// it turns "did the server ask" into something observable independent of
+// whether the handshake goes on to succeed or fail for lack of one. An empty
+// certificate is returned from the callback so the handshake proceeds as far
+// as the server allows; no real client certificate is ever presented.
+//
+// true is returned the moment the server asks, even if the handshake then
+// fails (an mTLS-required server correctly rejecting an empty certificate is
+// itself the observation). false is returned only when the handshake
+// succeeded outright — a complete handshake with no request is proof none was
+// sent. Anything else (the handshake failed for some other reason before or
+// without a request) is nil: unknown, not "no."
+func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*legacyEnum) ([]CertResult, *Negotiated, *bool) {
 	type attempt struct {
 		source string
 		cfg    *tls.Config
@@ -51,7 +66,13 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 			MinVersion: tls.VersionTLS10, NextProtos: []string{"h2", "http/1.1"}}
 	}
 
-	attempts := []attempt{{"tls-default", base()}}
+	var clientCertRequested bool
+	first := base()
+	first.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		clientCertRequested = true
+		return &tls.Certificate{}, nil
+	}
+	attempts := []attempt{{"tls-default", first}}
 	if len(legacy) > 0 {
 		ec, rs := base(), base()
 		ec.MaxVersion, ec.CipherSuites = tls.VersionTLS12, ecdsaSuites
@@ -62,6 +83,8 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 	var (
 		results    []CertResult
 		negotiated *Negotiated
+		firstErr   error
+		firstDone  bool
 		byLeaf     = map[string]int{}
 	)
 	for i, a := range attempts {
@@ -71,6 +94,7 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		state, err := p.handshake(ctx, a.cfg)
 		if i == 0 {
 			negotiated = negotiatedFrom(state, err)
+			firstErr, firstDone = err, true
 		}
 		if state == nil || len(state.PeerCertificates) == 0 {
 			continue
@@ -84,7 +108,16 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		byLeaf[key] = len(results)
 		results = append(results, p.describeChain(a.source, state.PeerCertificates))
 	}
-	return results, negotiated
+
+	var requested *bool
+	switch {
+	case clientCertRequested:
+		requested = &clientCertRequested
+	case firstDone && firstErr == nil:
+		notRequested := false
+		requested = &notRequested
+	}
+	return results, negotiated, requested
 }
 
 // handshake completes one TLS handshake and returns the connection state.

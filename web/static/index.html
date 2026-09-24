@@ -4,22 +4,65 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>cbom-scan · PQC readiness &amp; TLS posture</title>
+  <title>CipherHorizon · PQC readiness &amp; TLS posture</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
-  <header class="topbar">
-    <a class="brand" href="#/" aria-label="cbom-scan home"><span class="logo" aria-hidden="true">◈</span> cbom-scan</a>
-    <nav aria-label="Main" id="nav">
-      <a href="#/" data-route="dashboard">Dashboard</a>
-      <a href="#/assets" data-route="assets">Endpoints</a>
-      <a href="#/scans" data-route="scans">Scans</a>
-      <a href="#/hosts" data-route="hosts">Hosts</a>
-      <a href="#/about" data-route="about">About</a>
-    </nav>
-  </header>
-  <main id="main" tabindex="-1"></main>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brandblock">
+        <a class="brandlink" href="#/" aria-label="CipherHorizon home">
+          <span class="brandmark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M16 2 L28 9 V23 L16 30 L4 23 V9 Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M16 9 L22 12.5 V19.5 L16 23 L10 19.5 V12.5 Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <span class="brandtext">
+            <span class="brandname">CipherHorizon</span>
+            <span class="brandsub">by Offset Security</span>
+          </span>
+        </a>
+      </div>
+      <nav aria-label="Main" id="nav">
+        <a href="#/" data-route="dashboard">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 11h4v6H3zM8 5h4v12H8zM13 8h4v9h-4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span>Dashboard</span>
+        </a>
+        <a href="#/assets" data-route="assets">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M3 10h14M10 3a11 11 0 010 14 11 11 0 010-14z" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span>Endpoints</span>
+        </a>
+        <a href="#/hosts" data-route="hosts">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3.5" width="14" height="5" rx="1.2" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="11.5" width="14" height="5" rx="1.2" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="6" r=".9" fill="currentColor"/><circle cx="6" cy="14" r=".9" fill="currentColor"/></svg>
+          <span>Hosts</span>
+        </a>
+        <a href="#/findings" data-route="findings">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5l6.5 2.4v4.8c0 4-2.7 6.9-6.5 8-3.8-1.1-6.5-4-6.5-8V4.9L10 2.5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8.2v3.6M10 13.6v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span>Findings</span>
+        </a>
+        <a href="#/cbom" data-route="cbom">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="4" r="2" stroke="currentColor" stroke-width="1.6"/><circle cx="4.5" cy="16" r="2" stroke="currentColor" stroke-width="1.6"/><circle cx="15.5" cy="16" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M10 6v4M10 10L4.5 14M10 10l5.5 4" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span>CBOM</span>
+        </a>
+        <a href="#/about" data-route="about">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.6"/><path d="M10 9.2v4.3M10 6.6v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>About</span>
+        </a>
+      </nav>
+      <div class="sidefoot">
+        <span class="sidefoot-label">Developed by</span>
+        <a class="offset-credit" href="https://offsetsecurity.net/" target="_blank" rel="noopener" aria-label="Offset Security">
+          <img class="offset-logo" src="/img/offset-logo-mono.svg" alt="Offset Security">
+        </a>
+        <span class="sidefoot-version" id="sidebar-version"></span>
+      </div>
+    </aside>
+    <div class="workarea">
+      <main id="main" tabindex="-1"></main>
+    </div>
+  </div>
   <div id="modal-root"></div>
   <div id="toasts" aria-live="polite"></div>
   <noscript><p class="noscript">This application needs JavaScript.</p></noscript>

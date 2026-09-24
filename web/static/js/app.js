@@ -1,9 +1,10 @@
 // Application shell: a hash router, the navigation state and the access-token prompt.
 import { h, clear } from './dom.js';
 import { api, ApiError, setAuthHandler, setToken } from './api.js';
-import { modal, button, empty } from './ui.js';
+import { modal, button, empty, playEnter } from './ui.js';
 
 const main = document.getElementById('main');
+const modalRoot = document.getElementById('modal-root');
 
 const routes = [
   [/^#\/?$/, 'dashboard', () => import('./views/dashboard.js')],
@@ -12,6 +13,8 @@ const routes = [
   [/^#\/scans\/?$/, 'scans', () => import('./views/scans.js')],
   [/^#\/hosts\/?$/, 'hosts', () => import('./views/hosts.js')],
   [/^#\/hosts\/(\d+)\/?$/, 'hosts', () => import('./views/host.js')],
+  [/^#\/findings\/?$/, 'findings', () => import('./views/findings.js')],
+  [/^#\/cbom\/?$/, 'cbom', () => import('./views/cbom.js')],
   [/^#\/about\/?$/, 'about', () => import('./views/about.js')],
 ];
 
@@ -21,6 +24,10 @@ let generation = 0;
 async function route() {
   const gen = ++generation;
   if (cleanup) { try { cleanup(); } catch { /* ignore */ } cleanup = null; }
+  // A modal left open across a route change (e.g. the browser's Back button while a
+  // dialog is up — clicking a nav link can't do this, the overlay covers it) would
+  // otherwise be stranded on top of the new page.
+  clear(modalRoot);
   const [hashPath, query = ''] = (location.hash || '#/').split('?');
   const params = new URLSearchParams(query);
 
@@ -44,6 +51,7 @@ async function route() {
     const fn = await mod.render(main, { args: match.args, query: params });
     if (gen !== generation) { if (typeof fn === 'function') fn(); return; }
     cleanup = typeof fn === 'function' ? fn : null;
+    playEnter(main);
   } catch (err) {
     if (gen !== generation) return;
     if (err instanceof ApiError && err.status === 401) return; // the token prompt is showing
@@ -67,5 +75,9 @@ setAuthHandler(() => {
 });
 
 window.addEventListener('hashchange', route);
+api.about().then((a) => {
+  const el = document.getElementById('sidebar-version');
+  if (el) el.textContent = /^\d/.test(a.version) ? `v${a.version}` : a.version;
+}).catch(() => { /* the version label is decoration: never block on it */ });
 route();
 export { api };

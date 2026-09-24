@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/config"
+	"github.com/example/cipherhorizon/internal/config"
 )
 
 func TestEmptyInputYieldsDefaults(t *testing.T) {

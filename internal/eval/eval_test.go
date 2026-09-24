@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/eval"
-	"github.com/example/cbom-scan/internal/tlsprobe"
-	"github.com/example/cbom-scan/internal/tlsprobe/testserver"
+	"github.com/example/cipherhorizon/internal/eval"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 var now = time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
@@ -148,11 +148,15 @@ func terrible() *tlsprobe.Report {
 	tinyEC := cert("ECDSA", 192, func(c *tlsprobe.CertResult) { c.Chain[0].SHA256 = "tinyec" })
 
 	return &tlsprobe.Report{
-		Protocols:    protocols("TLSv1.1", "TLSv1.0", "SSLv3", "SSLv2"),
-		Suites:       []tlsprobe.SuiteResult{null, exp, anon, rc4, des, tdes, cbc10, cbc3, oddD},
-		DH:           &tlsprobe.DHResult{PrimeBits: 768},
-		Features:     tlsprobe.Features{SecureRenegotiation: ptr(false), Compression: ptr(true), FallbackSCSV: ptr(false)},
+		Protocols: protocols("TLSv1.1", "TLSv1.0", "SSLv3", "SSLv2"),
+		Suites:    []tlsprobe.SuiteResult{null, exp, anon, rc4, des, tdes, cbc10, cbc3, oddD},
+		DH:        &tlsprobe.DHResult{PrimeBits: 768},
+		Features: tlsprobe.Features{
+			SecureRenegotiation: ptr(false), Compression: ptr(true), FallbackSCSV: ptr(false),
+			ClientCertRequested: ptr(true),
+		},
 		Certificates: []tlsprobe.CertResult{expired, soon, untrusted, future, small, tinyEC},
+		HSTS:         ptr(false),
 	}
 }
 

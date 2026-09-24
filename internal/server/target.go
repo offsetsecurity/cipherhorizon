@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/example/cbom-scan/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
 var labelRE = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?$`)

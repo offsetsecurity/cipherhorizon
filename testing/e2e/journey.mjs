@@ -1,7 +1,7 @@
 // End-to-end user journey, driven through a real browser (Edge/Chrome over the
 // DevTools protocol), with screenshots and assertions. No dependencies: Node 22+.
 //
-//   cbom-scan serve --allow-loopback --db e2e.db --addr 127.0.0.1:8090     (fresh database)
+//   cipherhorizon serve --allow-loopback --db e2e.db --addr 127.0.0.1:8090     (fresh database)
 //   demo-targets                                                            (fresh process)
 //   node testing/e2e/journey.mjs [--base http://127.0.0.1:8090] [--out DIR] [--browser PATH]
 //
@@ -151,7 +151,7 @@ async function main() {
   const names = { 9441: 'classical-tls13', 9442: 'legacy-tls12', 9443: 'terrible-legacy', 9444: 'dead-port', 9445: 'pq-toggle', 9446: 'slow-hybrid' };
   for (const a of assets) {
     if (!names[a.port]) continue;
-    await fetch(`${BASE}/api/v1/assets/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cbom-scan' }, body: JSON.stringify({ name: names[a.port] }) });
+    await fetch(`${BASE}/api/v1/assets/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cipherhorizon' }, body: JSON.stringify({ name: names[a.port] }) });
   }
   const byPort = Object.fromEntries((await api('/api/v1/assets?kind=tls-endpoint')).map((a) => [a.port, a]));
   await go('#/assets');
@@ -328,7 +328,7 @@ async function main() {
   check('E2E-10.2', 'the host page states capability is not use', /Capability, not use/.test(host.text));
   check('E2E-10.3', 'the package is shown as providing the algorithms', /libgcrypt20/.test(host.text));
   await shot('host-detail');
-  const badUpload = await fetch(`${BASE}/api/v1/hosts/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cbom-scan' }, body: '{"hello":"world"}' });
+  const badUpload = await fetch(`${BASE}/api/v1/hosts/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cipherhorizon' }, body: '{"hello":"world"}' });
   check('E2E-10.4', 'a non-CBOM upload is refused with 400', badUpload.status === 400, badUpload.status);
   await go('#/hosts');
   await sleep(500);

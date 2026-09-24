@@ -3,7 +3,7 @@
 // and groups are configurable, and a scripted raw-TCP server for replies the
 // standard library cannot produce (SSLv2/SSLv3, garbage, stalls).
 //
-// Test and demo support only: nothing in the shipped cbom-scan binary imports it
+// Test and demo support only: nothing in the shipped cipherhorizon binary imports it
 // (cmd/demo-targets, a development tool, does).
 package testserver
 
@@ -40,6 +40,14 @@ type Config struct {
 	Curves                 []tls.CurveID
 	Cert                   CertKind
 	ALPN                   []string
+	// ClientAuth configures whether the server asks for (or requires) a client
+	// certificate. Zero value (tls.NoClientCert) asks for none.
+	ClientAuth tls.ClientAuthType
+	// HTTPResponse, when set, makes the server read one request after the TLS
+	// handshake completes and write back this function's result (nil closes
+	// without answering), mirroring StartScript. Used to test the optional
+	// post-handshake HTTP check.
+	HTTPResponse func(request []byte) []byte
 	// Addr is the listen address; empty means 127.0.0.1:0. Restarting a server on
 	// the same address with a different Config simulates an endpoint being changed.
 	Addr string
@@ -72,7 +80,7 @@ func makeCerts() {
 	mk := func(pub, priv any) (tls.Certificate, error) {
 		tmpl := &x509.Certificate{
 			SerialNumber: big.NewInt(time.Now().UnixNano()),
-			Subject:      pkix.Name{CommonName: "localhost", Organization: []string{"cbom-scan test"}},
+			Subject:      pkix.Name{CommonName: "localhost", Organization: []string{"cipherhorizon test"}},
 			NotBefore:    time.Now().Add(-time.Hour),
 			NotAfter:     time.Now().Add(24 * time.Hour),
 			KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
@@ -149,6 +157,7 @@ func Listen(cfg Config) (*Server, error) {
 		CipherSuites:     cfg.Suites,
 		CurvePreferences: cfg.Curves,
 		NextProtos:       cfg.ALPN,
+		ClientAuth:       cfg.ClientAuth,
 	}
 	switch cfg.Cert {
 	case CertRSA:
@@ -167,7 +176,7 @@ func Listen(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	go serve(l)
+	go serve(l, cfg.HTTPResponse)
 	srv, err := addrOf(l)
 	if err != nil {
 		_ = l.Close()
@@ -177,7 +186,7 @@ func Listen(cfg Config) (*Server, error) {
 	return srv, nil
 }
 
-func serve(l net.Listener) {
+func serve(l net.Listener, httpResponse func([]byte) []byte) {
 	for {
 		c, err := l.Accept()
 		if err != nil {
@@ -186,8 +195,17 @@ func serve(l net.Listener) {
 		go func() {
 			defer c.Close() //nolint:errcheck // test server
 			_ = c.SetDeadline(time.Now().Add(5 * time.Second))
-			if tc, ok := c.(*tls.Conn); ok {
-				_ = tc.Handshake()
+			tc, ok := c.(*tls.Conn)
+			if !ok {
+				return
+			}
+			if err := tc.Handshake(); err != nil || httpResponse == nil {
+				return
+			}
+			buf := make([]byte, 1<<16)
+			n, _ := tc.Read(buf)
+			if out := httpResponse(buf[:n]); out != nil {
+				_, _ = tc.Write(out)
 			}
 		}()
 	}

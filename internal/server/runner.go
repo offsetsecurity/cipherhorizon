@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/example/cbom-scan/internal/eval"
-	"github.com/example/cbom-scan/internal/store"
-	"github.com/example/cbom-scan/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/eval"
+	"github.com/example/cipherhorizon/internal/store"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
 // RunnerOptions configures the scan runner.
@@ -67,6 +67,10 @@ func (r *Runner) Start(ctx context.Context) {
 
 // Wait blocks until every worker has stopped.
 func (r *Runner) Wait() { r.wg.Wait() }
+
+// HTTPChecks reports whether this runner's scans send the opt-in HTTP-layer
+// check (HSTS), so the API can tell callers about a server-wide setting.
+func (r *Runner) HTTPChecks() bool { return r.opts.Scan.HTTPChecks }
 
 // Notify tells idle workers there is queued work.
 func (r *Runner) Notify() {

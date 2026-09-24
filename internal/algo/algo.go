@@ -16,7 +16,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/collector"
+	"github.com/example/cipherhorizon/internal/collector"
 )
 
 // Algorithm is one catalogue entry.
@@ -30,6 +30,14 @@ type Algorithm struct {
 	// OID is the dotted object identifier, or "" when no single authoritative
 	// OID identifies this algorithm (e.g. ECDSA and AES have none of their own).
 	OID string
+
+	// ParameterSet is the CycloneDX parameterSetIdentifier: the key or parameter
+	// size that distinguishes one variant of a family from another ("128" for
+	// AES-128-GCM). Empty for an entry that is a whole family.
+	ParameterSet string
+
+	// Mode is the block-cipher / AEAD mode of operation, when the entry names one.
+	Mode cdx.CryptoAlgorithmMode
 
 	// QuantumLevel is the NIST PQC security category (1-5) that the algorithm's
 	// defining standard assigns to it, or 0 when no standard asserts one. It is
@@ -49,7 +57,7 @@ func (a Algorithm) BOMRef() string {
 
 // Component renders the algorithm as a CycloneDX cryptographic-asset component.
 func (a Algorithm) Component() cdx.Component {
-	props := &cdx.CryptoAlgorithmProperties{Primitive: a.Primitive}
+	props := &cdx.CryptoAlgorithmProperties{Primitive: a.Primitive, ParameterSetIdentifier: a.ParameterSet, Mode: a.Mode}
 	if a.QuantumLevel != 0 {
 		lvl := a.QuantumLevel
 		props.NistQuantumSecurityLevel = &lvl

@@ -5,7 +5,7 @@ package collectortest
 import (
 	"context"
 
-	"github.com/example/cbom-scan/internal/collector"
+	"github.com/example/cipherhorizon/internal/collector"
 )
 
 // Fake is a collector whose behaviour is set by its fields. Nil funcs behave as

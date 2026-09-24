@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/example/cbom-scan/internal/tlsprobe/registry"
+	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
 )
 
 // WriteText renders the report for a person. It states what was observed and the
@@ -220,6 +220,7 @@ func (r *Report) writeFeatures(o *out) {
 		{"OCSP stapling", f.OCSPStapling, "supported", "not offered"},
 		{"TLS compression", f.Compression, "ACCEPTED", "refused"},
 		{"TLS_FALLBACK_SCSV (RFC 7507)", f.FallbackSCSV, "enforced", "NOT enforced"},
+		{"client certificate requested (mTLS, RFC 8446 4.3.2)", f.ClientCertRequested, "yes", "no"},
 	}
 	var any bool
 	for _, it := range items {

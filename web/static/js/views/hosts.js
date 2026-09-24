@@ -1,7 +1,7 @@
 // Hosts: machines described by an uploaded CBOM (the inventory side of the product).
-import { h, relTime, fmtDate } from '../dom.js';
+import { h, clear, relTime, fmtDate } from '../dom.js';
 import { api } from '../api.js';
-import { badge, button, empty, toast, modal } from '../ui.js';
+import { badge, button, empty, toast, modal, skeleton } from '../ui.js';
 
 const MAX_BYTES = 32 * 1024 * 1024;
 
@@ -25,7 +25,7 @@ export function uploadDialog(onDone) {
       } catch (ex) { err.textContent = ex.message; err.hidden = false; }
     } },
     err,
-    h('p', null, 'Upload a CycloneDX 1.x JSON CBOM, such as one produced by ', h('code', null, 'cbom-scan run'),
+    h('p', null, 'Upload a CycloneDX 1.x JSON CBOM, such as one produced by ', h('code', null, 'cipherhorizon run'),
       '. Each algorithm in it gets a post-quantum verdict with its source.'),
     h('label', { for: 'cbom-file' }, 'CBOM file'), file,
     h('label', { for: 'cbom-name' }, 'Host name'), name,
@@ -34,14 +34,16 @@ export function uploadDialog(onDone) {
 }
 
 export async function render(root) {
+  root.appendChild(skeleton(4));
   const hosts = await api.hosts();
+  clear(root);
   root.appendChild(h('div', { class: 'page-head' },
     h('div', null, h('h1', null, 'Hosts'), h('div', { class: 'sub' }, 'Cryptography found inside machines, from uploaded CBOMs')),
     h('div', { class: 'row' }, button('Upload CBOM', () => uploadDialog((a) => { location.hash = `#/hosts/${a.id}`; }), 'primary'))));
 
   if (!hosts.length) {
     root.appendChild(empty('No hosts yet',
-      'Run “cbom-scan run” on a machine to produce a CBOM, then upload it here to see which of its algorithms a quantum computer would break.',
+      'Run “cipherhorizon run” on a machine to produce a CBOM, then upload it here to see which of its algorithms a quantum computer would break.',
       button('Upload CBOM', () => uploadDialog((a) => { location.hash = `#/hosts/${a.id}`; }), 'primary')));
     return null;
   }

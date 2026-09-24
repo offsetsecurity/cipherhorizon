@@ -5,7 +5,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/collector"
+	"github.com/example/cipherhorizon/internal/collector"
 )
 
 func TestPluginInfoValidate(t *testing.T) {

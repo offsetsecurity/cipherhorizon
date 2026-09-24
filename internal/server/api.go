@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -9,18 +10,27 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/cbom-scan/internal/eval"
-	"github.com/example/cbom-scan/internal/store"
-	"github.com/example/cbom-scan/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/cbom"
+	"github.com/example/cipherhorizon/internal/eval"
+	"github.com/example/cipherhorizon/internal/pqc"
+	"github.com/example/cipherhorizon/internal/store"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
-// assetView adds the address the UI shows to a stored asset.
+// assetView adds the address the UI shows to a stored asset, plus any assets
+// a person has explicitly linked to it as the same machine (never inferred).
 type assetView struct {
 	store.Asset
-	Address string `json:"address"`
+	Address        string  `json:"address"`
+	LinkedAssetIDs []int64 `json:"linkedAssetIds,omitempty"`
 }
 
-func view(a store.Asset) assetView { return assetView{Asset: a, Address: a.Address()} }
+// view renders one asset. links may be nil (a freshly created/edited asset
+// has nothing to show yet); pass a pre-fetched map from store.AllLinks for a
+// list so linked IDs don't cost one query per row.
+func view(a store.Asset, links map[int64][]int64) assetView {
+	return assetView{Asset: a, Address: a.Address(), LinkedAssetIDs: links[a.ID]}
+}
 
 func idParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -46,11 +56,12 @@ func storeErr(w http.ResponseWriter, err error) {
 
 func (s *Server) about(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{
-		"name": "cbom-scan", "version": s.cfg.Version,
+		"name": "CipherHorizon", "version": s.cfg.Version,
 		"registryRetrieved": s.cfg.RegistryRetrieved, "evalVersion": s.cfg.EvalVersion,
 		"retentionPerAsset": store.Retention, "maxConcurrentScans": s.cfg.MaxConcurrentScans,
 		"allowLoopback": s.cfg.Guard.AllowLoopback, "authRequired": s.cfg.Token != "",
-		"intervals": []int{0, 3600, 21600, 86400, 604800},
+		"httpChecks": s.cfg.Runner.HTTPChecks(),
+		"intervals":  []int{0, 3600, 21600, 86400, 604800},
 		"notice": "This tool connects to the endpoints you add and makes a few hundred short TLS handshakes to each. " +
 			"Scan only systems you own or are authorised to test.",
 	})
@@ -74,9 +85,14 @@ func (s *Server) listAssets(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
+	links, err := s.cfg.Store.AllLinks()
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
 	out := make([]assetView, len(as))
 	for i, a := range as {
-		out[i] = view(a)
+		out[i] = view(a, links)
 	}
 	writeJSON(w, 200, out)
 }
@@ -127,7 +143,7 @@ func (s *Server) createAsset(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, status, msg)
 		return
 	}
-	writeJSON(w, http.StatusCreated, view(a))
+	writeJSON(w, http.StatusCreated, view(a, nil))
 }
 
 // BulkResult is the outcome for one line of a bulk add (AC-01.2).
@@ -164,7 +180,7 @@ func (s *Server) bulkAssets(w http.ResponseWriter, r *http.Request) {
 		switch status {
 		case 0:
 			res.Status = "added"
-			v := view(a)
+			v := view(a, nil)
 			res.Asset = &v
 		case http.StatusConflict:
 			res.Status, res.Reason = "duplicate", msg
@@ -187,7 +203,12 @@ func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
-	writeJSON(w, 200, view(a))
+	linked, err := s.cfg.Store.LinkedAssetIDs(id)
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, view(a, map[int64][]int64{id: linked}))
 }
 
 func (s *Server) patchAsset(w http.ResponseWriter, r *http.Request) {
@@ -234,7 +255,7 @@ func (s *Server) patchAsset(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
-	writeJSON(w, 200, view(a))
+	writeJSON(w, 200, view(a, nil))
 }
 
 func (s *Server) deleteAsset(w http.ResponseWriter, r *http.Request) {
@@ -427,6 +448,43 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) evaluation(w http.ResponseWriter, r *http.Request) {
 	s.blob(w, r, "evaluation", s.cfg.Store.Evaluation)
+}
+
+// scanCBOM rebuilds a CycloneDX CBOM from an already-completed scan's stored
+// report — the same builder `tls scan --cbom` uses, so the two never diverge.
+func (s *Server) scanCBOM(w http.ResponseWriter, r *http.Request) {
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+	rb, err := s.cfg.Store.Report(id)
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
+	var rep tlsprobe.Report
+	if err := json.Unmarshal(rb, &rep); err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	bom, _ := cbom.Build(cbom.FromTLSReport(&rep), cbom.Options{
+		Tool:     cbom.Tool{Name: "cipherhorizon", Version: s.cfg.Version},
+		Endpoint: fmt.Sprintf("%s:%d", rep.Target.Host, rep.Target.Port),
+	})
+	pqcRep := pqc.Analyze(bom)
+	pqc.Annotate(bom, pqcRep)
+
+	var buf bytes.Buffer
+	if err := cbom.Encode(&buf, bom, true); err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if r.URL.Query().Get("download") == "1" {
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="scan-%d-cbom.json"`, id))
+	}
+	_, _ = w.Write(buf.Bytes())
 }
 
 // ---- history and diff ------------------------------------------------------------------------------

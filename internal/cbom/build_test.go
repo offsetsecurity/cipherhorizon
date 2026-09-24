@@ -9,15 +9,15 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/algo"
-	"github.com/example/cbom-scan/internal/cbom"
-	"github.com/example/cbom-scan/internal/collector"
-	"github.com/example/cbom-scan/internal/schematest"
+	"github.com/example/cipherhorizon/internal/algo"
+	"github.com/example/cipherhorizon/internal/cbom"
+	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/example/cipherhorizon/internal/schematest"
 )
 
 func fixed() cbom.Options {
 	return cbom.Options{
-		Tool:      cbom.Tool{Name: "cbom-scan", Version: "test"},
+		Tool:      cbom.Tool{Name: "cipherhorizon", Version: "test"},
 		HostName:  "testhost",
 		Now:       func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) },
 		NewSerial: func() string { return "urn:uuid:00000000-0000-4000-8000-000000000000" },

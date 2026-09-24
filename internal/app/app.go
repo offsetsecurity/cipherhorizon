@@ -1,4 +1,4 @@
-// Package app implements the command-line interface. cmd/cbom-scan/main.go is a
+// Package app implements the command-line interface. cmd/cipherhorizon/main.go is a
 // thin shim over Main so that everything here is testable in-process, with the
 // clock, serial number, hostname and output streams injected.
 package app
@@ -15,12 +15,12 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/example/cbom-scan/internal/cbom"
-	"github.com/example/cbom-scan/internal/collector"
-	"github.com/example/cbom-scan/internal/config"
-	"github.com/example/cbom-scan/internal/pqc"
-	"github.com/example/cbom-scan/internal/scan"
-	"github.com/example/cbom-scan/internal/version"
+	"github.com/example/cipherhorizon/internal/cbom"
+	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/example/cipherhorizon/internal/config"
+	"github.com/example/cipherhorizon/internal/pqc"
+	"github.com/example/cipherhorizon/internal/scan"
+	"github.com/example/cipherhorizon/internal/version"
 )
 
 // Exit codes.
@@ -64,27 +64,27 @@ func Main(ctx context.Context, args []string, env Env) int {
 	case "serve":
 		return serveCmd(ctx, args[1:], env)
 	case "version", "-version", "--version":
-		_, _ = fmt.Fprintln(env.Stdout, "cbom-scan", version.Version)
+		_, _ = fmt.Fprintln(env.Stdout, "cipherhorizon", version.Get())
 		return ExitOK
 	case "help", "-h", "-help", "--help":
 		usage(env.Stdout)
 		return ExitOK
 	default:
-		_, _ = fmt.Fprintf(env.Stderr, "cbom-scan: unknown command %q\n\n", args[0])
+		_, _ = fmt.Fprintf(env.Stderr, "cipherhorizon: unknown command %q\n\n", args[0])
 		usage(env.Stderr)
 		return ExitFatal
 	}
 }
 
 func usage(w io.Writer) {
-	_, _ = fmt.Fprint(w, `cbom-scan: cryptographic inventory (CycloneDX CBOM), TLS posture and post-quantum readiness.
+	_, _ = fmt.Fprint(w, `cipherhorizon: cryptographic inventory (CycloneDX CBOM), TLS posture and post-quantum readiness.
 
 Usage:
-  cbom-scan run [--config FILE] [-o FILE] [--root DIR]
-  cbom-scan tls scan [flags] HOST[:PORT]...
-  cbom-scan serve [--addr HOST:PORT] [--db FILE] [--token TOKEN]
-  cbom-scan plugins
-  cbom-scan version
+  cipherhorizon run [--config FILE] [-o FILE] [--root DIR]
+  cipherhorizon tls scan [flags] HOST[:PORT]...
+  cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--token TOKEN]
+  cipherhorizon plugins
+  cipherhorizon version
 
 run flags:
   --config FILE   YAML configuration (default: built-in defaults)
@@ -93,12 +93,14 @@ run flags:
 
 tls scan probes each target's TLS/SSL support: protocol versions, every cipher suite,
 key-exchange groups (including post-quantum hybrids) and certificates. Flags go before
-targets: --json, --timeout, --concurrency, --max-connections, --min-interval, --no-certs.
-Scan only systems you are authorised to test.
+targets: --json, --cbom, --timeout, --concurrency, --max-connections, --min-interval,
+--no-certs. --cbom prints what was observed (protocols, suites, groups, certificates) as a
+CycloneDX CBOM instead of text, for exactly one target; PQC verdicts are annotated onto it
+the same way a host inventory's are. Scan only systems you are authorised to test.
 
 serve runs the web UI and API: add endpoints, scan them, watch progress, see history and
 post-quantum readiness. It listens on 127.0.0.1:8080 by default and refuses any other
-address unless --token (or CBOM_SCAN_TOKEN) is set. Data is kept in --db (SQLite).
+address unless --token (or CIPHERHORIZON_TOKEN) is set. Data is kept in --db (SQLite).
 
 Exit codes: 0 success; 1 fatal error; 2 result produced, but incomplete or a target failed.
 `)
@@ -158,7 +160,7 @@ func runCmd(ctx context.Context, args []string, env Env) int {
 	report(env, res)
 
 	bom, warnings := cbom.Build(res.Assets, cbom.Options{
-		Tool:      cbom.Tool{Name: "cbom-scan", Version: version.Version},
+		Tool:      cbom.Tool{Name: "cipherhorizon", Version: version.Version},
 		HostName:  hostName,
 		Now:       env.Now,
 		NewSerial: env.NewSerial,
@@ -247,7 +249,7 @@ func writeFileAtomic(path string, data []byte) (err error) {
 }
 
 func fatalf(env Env, format string, args ...any) int {
-	_, _ = fmt.Fprintf(env.Stderr, "cbom-scan: "+format+"\n", args...)
+	_, _ = fmt.Fprintf(env.Stderr, "cipherhorizon: "+format+"\n", args...)
 	return ExitFatal
 }
 

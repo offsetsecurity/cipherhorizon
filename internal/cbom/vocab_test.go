@@ -9,7 +9,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/schematest"
+	"github.com/example/cipherhorizon/internal/schematest"
 )
 
 // schemaEnum reads an enumeration out of the vendored bom-1.6 schema.
@@ -66,22 +66,30 @@ func equal(a, b []string) bool {
 }
 
 // The vocabulary sets in vocab.go must be exactly the enumerations of the 1.6
-// schema (assetType is deliberately a strict subset: only algorithm assets are
-// supported so far).
+// schema (assetType is deliberately a strict subset: only algorithm, protocol, certificate
+// and related-crypto-material assets are supported so far).
 func TestVocabularyMatchesSchema(t *testing.T) {
 	algo := []string{"definitions", "cryptoProperties", "properties", "algorithmProperties", "properties"}
 	at := func(name string, more ...string) []string {
 		return schemaEnum(t, append(append(append([]string{}, algo...), name), more...)...)
 	}
 
+	protocol := []string{"definitions", "cryptoProperties", "properties", "protocolProperties", "properties"}
+	pt := func(name string, more ...string) []string {
+		return schemaEnum(t, append(append(append([]string{}, protocol...), name), more...)...)
+	}
+
 	for name, tc := range map[string]struct{ got, want []string }{
 		"primitive":              {keys(primitives), at("primitive", "enum")},
+		"protocolType":           {keys(protocolTypes), pt("type", "enum")},
 		"mode":                   {keys(modes), at("mode", "enum")},
 		"padding":                {keys(paddings), at("padding", "enum")},
 		"executionEnvironment":   {keys(execEnvironments), at("executionEnvironment", "enum")},
 		"implementationPlatform": {keys(platforms), at("implementationPlatform", "enum")},
 		"certificationLevel":     {keys(certLevels), at("certificationLevel", "items", "enum")},
 		"cryptoFunctions":        {keys(functions), at("cryptoFunctions", "items", "enum")},
+		"relatedMaterialType": {keys(relatedMaterialTypes), schemaEnum(t, "definitions", "cryptoProperties", "properties",
+			"relatedCryptoMaterialProperties", "properties", "type", "enum")},
 	} {
 		if !equal(tc.got, tc.want) {
 			t.Errorf("%s vocabulary drifted from the 1.6 schema\n code:   %v\n schema: %v", name, tc.got, tc.want)
@@ -142,11 +150,72 @@ func TestSanitizeOmitsOutOfVocabulary(t *testing.T) {
 }
 
 func TestSanitizeFailsClosedOnUnsupportedAssetTypes(t *testing.T) {
+	// An asset type outside the vocabulary (here one that does not exist at all)
+	// must have its cryptoProperties dropped rather than let unchecked values through.
 	c := cdx.Component{
-		BOMRef: "cert", Name: "cert", Type: cdx.ComponentTypeCryptographicAsset,
-		CryptoProperties: &cdx.CryptoProperties{AssetType: cdx.CryptoAssetTypeCertificate},
+		BOMRef: "key", Name: "key", Type: cdx.ComponentTypeCryptographicAsset,
+		CryptoProperties: &cdx.CryptoProperties{AssetType: cdx.CryptoAssetType("quantum-widget")},
 	}
 	if w := sanitize(&c); len(w) != 1 || c.CryptoProperties != nil {
-		t.Errorf("certificate asset not rejected: warnings=%v cryptoProperties=%v", w, c.CryptoProperties)
+		t.Errorf("unknown asset type not rejected: warnings=%v cryptoProperties=%v", w, c.CryptoProperties)
+	}
+}
+
+// Related crypto material: a public key survives; an unknown type is omitted; and
+// neither key state (never observed) nor a key value (never written) gets through.
+func TestSanitizeRelatedCryptoMaterial(t *testing.T) {
+	size := 2048
+	good := cdx.Component{
+		BOMRef: "k1", Name: "k1", Type: cdx.ComponentTypeCryptographicAsset,
+		CryptoProperties: &cdx.CryptoProperties{
+			AssetType: cdx.CryptoAssetTypeRelatedCryptoMaterial,
+			RelatedCryptoMaterialProperties: &cdx.RelatedCryptoMaterialProperties{
+				Type: cdx.RelatedCryptoMaterialTypePublicKey, AlgorithmRef: "crypto/algorithm/rsa-2048", Size: &size,
+			},
+		},
+	}
+	if w := sanitize(&good); len(w) != 0 || good.CryptoProperties.RelatedCryptoMaterialProperties.Type != cdx.RelatedCryptoMaterialTypePublicKey {
+		t.Errorf("valid public key altered: warnings=%v", w)
+	}
+
+	bad := cdx.Component{
+		BOMRef: "k2", Name: "k2", Type: cdx.ComponentTypeCryptographicAsset,
+		CryptoProperties: &cdx.CryptoProperties{
+			AssetType: cdx.CryptoAssetTypeRelatedCryptoMaterial,
+			RelatedCryptoMaterialProperties: &cdx.RelatedCryptoMaterialProperties{
+				Type: "magic-bean", State: cdx.CryptoKeyStateActive, Value: "MIIB...",
+			},
+		},
+	}
+	w := sanitize(&bad)
+	rp := bad.CryptoProperties.RelatedCryptoMaterialProperties
+	if rp.Type != "" || rp.State != "" || rp.Value != "" || len(w) != 3 {
+		t.Errorf("unsafe related-material fields kept: %+v warnings=%v", rp, w)
+	}
+}
+
+// Protocol and certificate assets are supported; a bad protocol type within one
+// is omitted the same way a bad algorithm primitive is.
+func TestSanitizeAllowsProtocolAndCertificateAssets(t *testing.T) {
+	proto := cdx.Component{
+		BOMRef: "proto", Name: "TLSv1.3", Type: cdx.ComponentTypeCryptographicAsset,
+		CryptoProperties: &cdx.CryptoProperties{
+			AssetType:          cdx.CryptoAssetTypeProtocol,
+			ProtocolProperties: &cdx.CryptoProtocolProperties{Type: cdx.CryptoProtocolType("carrier-pigeon"), Version: "1.3"},
+		},
+	}
+	if w := sanitize(&proto); len(w) != 1 || proto.CryptoProperties == nil || proto.CryptoProperties.ProtocolProperties.Type != "" {
+		t.Errorf("bad protocol type not omitted: warnings=%v properties=%+v", w, proto.CryptoProperties)
+	}
+
+	cert := cdx.Component{
+		BOMRef: "cert", Name: "example.com", Type: cdx.ComponentTypeCryptographicAsset,
+		CryptoProperties: &cdx.CryptoProperties{
+			AssetType:             cdx.CryptoAssetTypeCertificate,
+			CertificateProperties: &cdx.CertificateProperties{SubjectName: "example.com", CertificateFormat: "X.509"},
+		},
+	}
+	if w := sanitize(&cert); len(w) != 0 || cert.CryptoProperties == nil {
+		t.Errorf("valid certificate asset rejected: warnings=%v", w)
 	}
 }

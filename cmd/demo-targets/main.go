@@ -5,7 +5,7 @@
 //
 //	demo-targets [-base-port 9440]
 //
-// Start "cbom-scan serve --allow-loopback" and add the addresses it prints.
+// Start "cipherhorizon serve --allow-loopback" and add the addresses it prints.
 // Scans of loopback addresses are refused unless --allow-loopback is set.
 package main
 
@@ -23,7 +23,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/example/cbom-scan/internal/tlsprobe/testserver"
+	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // The suites a deliberately terrible SSLv3 server prefers, in its order.
@@ -183,7 +183,7 @@ func main() {
   %s   slow-hybrid        hybrid, ~2 s per connection (a scan takes about 20 s:
                           use it to watch progress and to cancel)
 
-Start the product with:  cbom-scan serve --allow-loopback
+Start the product with:  cipherhorizon serve --allow-loopback
 Ctrl+C stops everything.
 `, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6))
 

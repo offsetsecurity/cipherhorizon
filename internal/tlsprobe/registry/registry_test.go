@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cbom-scan/internal/tlsprobe/registry"
+	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
 )
 
 // Go's crypto/tls is an independent oracle: it names suites and groups from the

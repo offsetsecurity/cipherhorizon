@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cbom-scan/internal/collector"
-	"github.com/example/cbom-scan/internal/collector/collectortest"
+	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/example/cipherhorizon/internal/collector/collectortest"
 )
 
 func TestRegisterAndNew(t *testing.T) {

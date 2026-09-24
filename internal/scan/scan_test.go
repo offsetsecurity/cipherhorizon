@@ -9,9 +9,9 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/collector"
-	"github.com/example/cbom-scan/internal/collector/collectortest"
-	"github.com/example/cbom-scan/internal/scan"
+	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/example/cipherhorizon/internal/collector/collectortest"
+	"github.com/example/cipherhorizon/internal/scan"
 )
 
 func asset(ref string) collector.CryptoAsset {

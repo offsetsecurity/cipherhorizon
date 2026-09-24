@@ -1,7 +1,7 @@
 // Endpoints: add, list, filter, select and scan.
 import { h, clear, relTime, fmtDate } from '../dom.js';
 import { api } from '../api.js';
-import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, modal, certExpiry, badge } from '../ui.js';
+import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, modal, certExpiry, badge, skeleton } from '../ui.js';
 
 const NOTICE = 'Only add systems you own or are authorised to test. A scan makes a few hundred short TLS handshakes to each endpoint.';
 
@@ -110,6 +110,7 @@ export async function render(root) {
   const bar = h('div');
   const table = h('div');
   root.append(header, bar, table);
+  table.appendChild(skeleton(4));
 
   // While scans are running their results arrive and would re-sort the list under the
   // cursor. Keep the order the user was looking at until the scans finish or they re-sort.

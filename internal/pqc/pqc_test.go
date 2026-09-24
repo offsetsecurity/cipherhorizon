@@ -7,10 +7,10 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/algo"
-	"github.com/example/cbom-scan/internal/cbom"
-	"github.com/example/cbom-scan/internal/collector"
-	"github.com/example/cbom-scan/internal/schematest"
+	"github.com/example/cipherhorizon/internal/algo"
+	"github.com/example/cipherhorizon/internal/cbom"
+	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/example/cipherhorizon/internal/schematest"
 )
 
 // Principle 7: no citation, no verdict.
@@ -129,7 +129,8 @@ func TestVerdicts(t *testing.T) {
 		{"ecdsa-with-SHA256", "1.2.840.10045.4.3.2", Vulnerable, "OID under arc 1.2.840.10045"},
 		{"secp256r1", "1.2.840.10045.3.1.7", Vulnerable, "OID under arc 1.2.840.10045"},
 		{"Ed448", "1.3.101.113", Vulnerable, "OID 1.3.101.113"},
-		{"AES-256-GCM", "2.16.840.1.101.3.4.1.46", Safe, "OID under arc 2.16.840.1.101.3.4.1"},
+		{"AES-256-GCM", "2.16.840.1.101.3.4.1.46", Safe, "OID 2.16.840.1.101.3.4.1.46"},        // catalogued variant: exact OID
+		{"AES-192-GCM", "2.16.840.1.101.3.4.1.26", Safe, "OID under arc 2.16.840.1.101.3.4.1"}, // not catalogued: the arc still classifies it
 		{"x", "2.16.840.1.101.3.4.4.2", Safe, "OID 2.16.840.1.101.3.4.4.2"},
 		{"x", "2.16.840.1.101.3.4.3.18", Safe, "OID 2.16.840.1.101.3.4.3.18"},
 
@@ -150,7 +151,7 @@ func TestUnknownIsUnclassified(t *testing.T) {
 		{"SHA256withRSA", ""}, // looks like RSA; no OID, not an exact catalogue name
 		{"RSA-2048", ""},
 		{"rsa-ish", ""},
-		{"ChaCha20-Poly1305", ""},
+		{"Twofish", ""},
 		{"Blowfish", "1.3.6.1.4.1.3029.1.2"},
 		{"Kyber768", ""},          // pre-standard name; deliberately not guessed
 		{"x", "1.2.840.100451.1"}, // shares a string prefix with the EC arc but is not under it
@@ -259,23 +260,23 @@ func TestAnnotate(t *testing.T) {
 	}
 
 	r := props(rsa.BOMRef())
-	if r["cbom-scan:pqc:status"][0] != "quantum-vulnerable" || len(r["cbom-scan:pqc:status"]) != 1 {
-		t.Errorf("status = %v (want exactly one after two Annotate calls)", r["cbom-scan:pqc:status"])
+	if r["cipherhorizon:pqc:status"][0] != "quantum-vulnerable" || len(r["cipherhorizon:pqc:status"]) != 1 {
+		t.Errorf("status = %v (want exactly one after two Annotate calls)", r["cipherhorizon:pqc:status"])
 	}
-	if len(r["cbom-scan:pqc:rationale"]) != 1 || len(r["cbom-scan:pqc:matched-by"]) != 1 {
+	if len(r["cipherhorizon:pqc:rationale"]) != 1 || len(r["cipherhorizon:pqc:matched-by"]) != 1 {
 		t.Errorf("duplicated annotations: %v", r)
 	}
-	if n := len(r["cbom-scan:pqc:basis"]); n != len(rep.Findings[0].Basis) || n < 2 {
+	if n := len(r["cipherhorizon:pqc:basis"]); n != len(rep.Findings[0].Basis) || n < 2 {
 		t.Errorf("basis entries = %d; want one per citation (%d)", n, len(rep.Findings[0].Basis))
 	}
-	if !strings.Contains(r["cbom-scan:pqc:basis"][0], "https://") {
-		t.Errorf("basis lacks a URL: %v", r["cbom-scan:pqc:basis"])
+	if !strings.Contains(r["cipherhorizon:pqc:basis"][0], "https://") {
+		t.Errorf("basis lacks a URL: %v", r["cipherhorizon:pqc:basis"])
 	}
 
 	if p := props("ref:Blowfish"); len(p) != 1 || p["keep"][0] != "me" {
 		t.Errorf("unclassified component altered: %v", p)
 	}
-	if p := props("lib"); len(p) != 1 || p["cbom-scan:collector"][0] != "apt" {
+	if p := props("lib"); len(p) != 1 || p["cipherhorizon:collector"][0] != "apt" {
 		t.Errorf("non-algorithm component altered: %v", p)
 	}
 

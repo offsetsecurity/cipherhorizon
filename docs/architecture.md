@@ -46,8 +46,8 @@ not mean anything on the host *does*. The apt collector therefore works in two t
    `application` component with its version and Package URL.
 2. **Capability** (a curated claim): only families with a citable mapping get `provides` edges to
    algorithm assets, gated by upstream version where the standard says so (for example OpenSSL ≥ 3.5 for
-   ML-KEM / ML-DSA / SLH-DSA). The citations travel with the component as `cbom-scan:capability-basis`
-   properties, and the component is marked `cbom-scan:evidence = installed-package-capability`.
+   ML-KEM / ML-DSA / SLH-DSA). The citations travel with the component as `cipherhorizon:capability-basis`
+   properties, and the component is marked `cipherhorizon:evidence = installed-package-capability`.
 
 Families with no citable mapping are inventoried and nothing more. Under-claiming is the rule; an unparseable
 package version drops the gated capabilities rather than assuming them.
@@ -82,7 +82,7 @@ name. Nothing is matched by pattern, so `SHA256withRSA` with no OID stays **uncl
 guessed. `TestEveryCatalogueAlgorithmIsClassified` makes it impossible to add a catalogue algorithm
 without its evidence.
 
-Verdicts are written to each algorithm component as `cbom-scan:pqc:*` properties (status, rationale,
+Verdicts are written to each algorithm component as `cipherhorizon:pqc:*` properties (status, rationale,
 matched-by, one `basis` per citation). A verdict is about the *algorithm*; the finding's `ProvidedBy`
 shows which packages make it available, which is capability, not use.
 

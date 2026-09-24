@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/example/cbom-scan/internal/tlsprobe/registry"
-	"github.com/example/cbom-scan/internal/tlsprobe/wire"
+	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
+	"github.com/example/cipherhorizon/internal/tlsprobe/wire"
 )
 
 // Scan probes one endpoint. It returns a non-nil Report whenever it learned
@@ -154,7 +154,14 @@ func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
 	// Stage 5: certificates and what a current client negotiates.
 	if !opts.SkipCertificates {
 		p.progress("fetching certificates")
-		rep.Certificates, rep.Negotiated = p.certificates(ctx, legacy)
+		rep.Certificates, rep.Negotiated, rep.Features.ClientCertRequested = p.certificates(ctx, legacy)
+	}
+
+	// Stage 6: optional HTTP-layer check (HSTS). Off by default and only
+	// attempted when the handshake it would ride on actually succeeded.
+	if opts.HTTPChecks && rep.Negotiated != nil && rep.Negotiated.Error == "" {
+		p.progress("checking HSTS")
+		rep.HSTS = p.hstsCheck(ctx)
 	}
 
 	sortReport(rep)

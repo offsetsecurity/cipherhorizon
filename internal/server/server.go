@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cbom-scan/internal/store"
-	"github.com/example/cbom-scan/web"
+	"github.com/example/cipherhorizon/internal/store"
+	"github.com/example/cipherhorizon/web"
 )
 
 // Config configures the HTTP server.
@@ -151,8 +151,8 @@ func (s *Server) mutationGuard(next http.Handler) http.Handler {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
 			if strings.HasPrefix(r.URL.Path, "/api/") {
-				if r.Header.Get("X-Requested-With") != "cbom-scan" {
-					writeErr(w, http.StatusForbidden, "missing X-Requested-With: cbom-scan header")
+				if r.Header.Get("X-Requested-With") != "cipherhorizon" {
+					writeErr(w, http.StatusForbidden, "missing X-Requested-With: cipherhorizon header")
 					return
 				}
 				if origin := r.Header.Get("Origin"); origin != "" {
@@ -224,6 +224,13 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/v1/assets/{id}/scan", s.scanAsset)
 	m.HandleFunc("GET /api/v1/assets/{id}/history", s.history)
 	m.HandleFunc("GET /api/v1/assets/{id}/diff", s.diff)
+	m.HandleFunc("GET /api/v1/assets/{id}/findings", s.listAssetFindings)
+	m.HandleFunc("PUT /api/v1/assets/{id}/findings/{key}/status", s.setFindingStatus)
+	m.HandleFunc("DELETE /api/v1/assets/{id}/findings/{key}/status", s.clearFindingStatus)
+	m.HandleFunc("PUT /api/v1/assets/{id}/links/{otherId}", s.linkAssets)
+	m.HandleFunc("DELETE /api/v1/assets/{id}/links/{otherId}", s.unlinkAssets)
+
+	m.HandleFunc("GET /api/v1/findings", s.fleetFindings)
 
 	m.HandleFunc("POST /api/v1/scans", s.scanMany)
 	m.HandleFunc("GET /api/v1/scans", s.listScans)
@@ -231,12 +238,14 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/v1/scans/{id}/cancel", s.cancelScan)
 	m.HandleFunc("GET /api/v1/scans/{id}/report", s.report)
 	m.HandleFunc("GET /api/v1/scans/{id}/evaluation", s.evaluation)
+	m.HandleFunc("GET /api/v1/scans/{id}/cbom", s.scanCBOM)
 
 	m.HandleFunc("GET /api/v1/export/assets.csv", s.exportCSV)
 
 	m.HandleFunc("POST /api/v1/hosts/ingest", s.ingestHost)
 	m.HandleFunc("GET /api/v1/hosts", s.listHosts)
 	m.HandleFunc("GET /api/v1/hosts/{id}", s.getHost)
+	m.HandleFunc("GET /api/v1/hosts/{id}/snapshots/{snapshotId}/cbom", s.hostSnapshotCBOM)
 
 	// Unknown API paths get a JSON 404. Registered for GET only so that a wrong
 	// method on a real path is answered 405 by the mux rather than swallowed here.

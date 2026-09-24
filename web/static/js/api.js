@@ -1,7 +1,7 @@
 // The API client. Every mutating call carries the header the server requires to
 // refuse cross-site forgery, and a bearer token is sent when one was entered.
 
-const TOKEN_KEY = 'cbom-scan-token';
+const TOKEN_KEY = 'cipherhorizon-token';
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -26,7 +26,7 @@ async function request(method, path, body, raw) {
   const t = token();
   if (t) headers['Authorization'] = `Bearer ${t}`;
   let payload;
-  if (method !== 'GET') headers['X-Requested-With'] = 'cbom-scan';
+  if (method !== 'GET') headers['X-Requested-With'] = 'cipherhorizon';
   if (body !== undefined && body !== null) {
     if (typeof body === 'string') {
       payload = body;
@@ -86,17 +86,36 @@ export const api = {
   host: (id) => request('GET', `/api/v1/hosts/${id}`),
   ingest: (json, name) => request('POST', `/api/v1/hosts/ingest${name ? `?name=${encodeURIComponent(name)}` : ''}`, json),
 
+  assetFindings: (assetId) => request('GET', `/api/v1/assets/${assetId}/findings`),
+  fleetFindings: (query = '') => request('GET', `/api/v1/findings${query}`),
+  setFindingStatus: (assetId, key, status, note) =>
+    request('PUT', `/api/v1/assets/${assetId}/findings/${encodeURIComponent(key)}/status`, { status, note: note || '' }),
+  clearFindingStatus: (assetId, key) => request('DELETE', `/api/v1/assets/${assetId}/findings/${encodeURIComponent(key)}/status`),
+
+  linkAsset: (assetId, otherId) => request('PUT', `/api/v1/assets/${assetId}/links/${otherId}`),
+  unlinkAsset: (assetId, otherId) => request('DELETE', `/api/v1/assets/${assetId}/links/${otherId}`),
+
   // Downloads need the token too, so they are fetched and saved rather than linked.
   async download(path, filename) {
     const res = await request('GET', path, null, true);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    saveBlob(await res.blob(), filename);
+  },
+
+  // A client-side export of data already held in the page (no round trip):
+  // used for report formats this product assembles in the browser (CSV rows,
+  // a combined JSON bundle) rather than ones the server serves as a file.
+  downloadBlob(filename, content, mime) {
+    saveBlob(new Blob([content], { type: mime }), filename);
   },
 };
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}

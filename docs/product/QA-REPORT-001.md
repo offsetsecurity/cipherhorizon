@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Build under test** | `cbom-scan 0.1.0`, `CGO_ENABLED=0`, built from the final source (`artifacts/binaries/`) |
+| **Build under test** | `cipherhorizon 0.1.0`, `CGO_ENABLED=0`, built from the final source (`artifacts/binaries/`) |
 | **Plan** | [QA-PLAN-001](QA-PLAN-001.md) |
 | **Requirements** | [PRD-001](PRD-001-posture-workbench.md) |
 | **Environment** | Windows 11; Go 1.27.0 (module targets Go 1.25); Microsoft Edge (Chromium) driven headless over the DevTools protocol, plus exploratory sessions in the desktop app's built-in browser; pure-Go SQLite |

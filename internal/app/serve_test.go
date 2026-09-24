@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/app"
+	"github.com/example/cipherhorizon/internal/app"
 )
 
 type lockedBuf struct {
@@ -33,7 +33,7 @@ func (l *lockedBuf) String() string {
 }
 
 func TestServeRefusesNetworkBindWithoutToken(t *testing.T) {
-	t.Setenv("CBOM_SCAN_TOKEN", "")
+	t.Setenv("CIPHERHORIZON_TOKEN", "")
 	for _, addr := range []string{":0", "0.0.0.0:0", "192.0.2.1:0", "[::]:0"} {
 		var errb bytes.Buffer
 		code := app.Main(context.Background(), []string{"serve", "--addr", addr, "--db", filepath.Join(t.TempDir(), "x.db")},
@@ -48,7 +48,7 @@ func TestServeRefusesNetworkBindWithoutToken(t *testing.T) {
 }
 
 func TestServeRunsAndShutsDownGracefully(t *testing.T) {
-	t.Setenv("CBOM_SCAN_TOKEN", "")
+	t.Setenv("CIPHERHORIZON_TOKEN", "")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	errb := &lockedBuf{}

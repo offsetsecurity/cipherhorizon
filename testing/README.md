@@ -23,9 +23,9 @@ bulk), scan, watch progress, cancel, read readiness, change a target and compare
 hostile-input, dark mode and phone-width layout. It asserts as it goes and saves screenshots and `results.json`.
 
 ```sh
-go build -o dist/cbom-scan ./cmd/cbom-scan && go build -o dist/demo-targets ./cmd/demo-targets
+go build -o dist/cipherhorizon ./cmd/cipherhorizon && go build -o dist/demo-targets ./cmd/demo-targets
 ./dist/demo-targets &                                                          # servers of known posture
-./dist/cbom-scan serve --allow-loopback --db e2e.db --addr 127.0.0.1:8090 &    # a FRESH database
+./dist/cipherhorizon serve --allow-loopback --db e2e.db --addr 127.0.0.1:8090 &    # a FRESH database
 node testing/e2e/journey.mjs --base http://127.0.0.1:8090 --out artifacts/screenshots
 ```
 

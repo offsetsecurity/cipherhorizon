@@ -21,8 +21,8 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/algo"
-	"github.com/example/cbom-scan/internal/cbom"
+	"github.com/example/cipherhorizon/internal/algo"
+	"github.com/example/cipherhorizon/internal/cbom"
 )
 
 // Finding is the verdict on one algorithm component.

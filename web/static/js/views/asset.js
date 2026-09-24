@@ -1,9 +1,9 @@
 // One endpoint: readiness, TLS hygiene, TLS detail, findings and history.
-import { h, clear, fmtDate, fmtDay, INTERVALS, intervalLabel } from '../dom.js';
+import { h, clear, fmtDate, fmtDay, daysUntil, INTERVALS, intervalLabel, toCSV } from '../dom.js';
 import { api, ApiError } from '../api.js';
 import { historyChart, levelClass, levelName } from '../charts.js';
 import { levelBadge, bandBadge, bandTone, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog,
-  scanProgress, badge, certExpiry } from '../ui.js';
+  scanProgress, badge, certExpiry, certChain, playEnter } from '../ui.js';
 
 export async function render(root, { args, query }) {
   const id = Number(args[0]);
@@ -16,11 +16,18 @@ export async function render(root, { args, query }) {
   root.append(head, body);
 
   // The data we render from.
-  let asset = null, ev = null, rep = null, history = [], shown = null;
+  let asset = null, ev = null, rep = null, history = [], shown = null, triage = {}, linkedAssets = [];
 
   const loadResult = async (scan) => {
-    if (!scan) { ev = rep = null; return; }
+    if (!scan) { ev = rep = null; triage = {}; return; }
     [ev, rep] = await Promise.all([api.evaluation(scan.id), api.report(scan.id)]);
+    // Triage reflects the asset's current open findings, so it's only meaningful (and only fetched) on the live result, not a historical one.
+    triage = {};
+    if (!viewScanId) {
+      try {
+        for (const f of await api.assetFindings(id)) if (f.status) triage[f.key] = f.status;
+      } catch { /* non-fatal: findings just render without a triage badge */ }
+    }
   };
 
   const refresh = async () => {
@@ -29,6 +36,7 @@ export async function render(root, { args, query }) {
     try {
       asset = await api.asset(id);
       history = await api.history(id);
+      linkedAssets = (await Promise.all((asset.linkedAssetIds || []).map((lid) => api.asset(lid).catch(() => null)))).filter(Boolean);
       const wanted = viewScanId ? { id: viewScanId } : asset.lastDone;
       if (!shown || !wanted || shown.id !== wanted.id) {
         shown = wanted;
@@ -73,6 +81,15 @@ export async function render(root, { args, query }) {
     }));
   };
 
+  const goToFinding = (findingId) => {
+    tab = 'findings';
+    paint();
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`finding-${findingId}`);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('highlight'); setTimeout(() => el.classList.remove('highlight'), 1500); }
+    });
+  };
+
   const startScan = async () => {
     try {
       const r = await api.scanAsset(id);
@@ -80,6 +97,86 @@ export async function render(root, { args, query }) {
       shown = null;
       await refresh();
     } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const EXPORT_TYPES = [
+    ['full', 'Full Security Report', 'Readiness, TLS hygiene, findings and the certificate chain in one document.', ['pdf', 'json', 'csv']],
+    ['tls', 'TLS Report', 'Protocol, cipher suite and key-exchange detail as observed on the wire.', ['pdf', 'json']],
+    ['cert', 'Certificate Report', 'The certificate chain and every field inspected, one row per certificate.', ['pdf', 'json', 'csv']],
+    ['pqc', 'PQC Assessment', 'Post-quantum readiness level, dimensions and their evidence.', ['json']],
+    ['cbom', 'CBOM', 'The CycloneDX cryptographic bill of materials for this scan.', ['json']],
+  ];
+
+  const runExport = async (type, format) => {
+    const stem = asset.name.replace(/[^a-z0-9._-]+/gi, '_');
+    if (format === 'pdf') {
+      if (type === 'tls' || type === 'cert') { tab = 'tls'; } else if (type === 'full') { tab = 'overview'; }
+      paint();
+      await new Promise((r) => setTimeout(r, 60));
+      window.print();
+      return;
+    }
+    if (type === 'cbom') {
+      await api.download(`/api/v1/scans/${shown.id}/cbom?download=1`, `${stem}-cbom.json`);
+      return;
+    }
+    if (type === 'pqc') {
+      api.downloadBlob(`${stem}-pqc-assessment.json`, JSON.stringify(ev.readiness, null, 2), 'application/json');
+      return;
+    }
+    if (type === 'tls') {
+      api.downloadBlob(`${stem}-tls-report.json`, JSON.stringify(rep, null, 2), 'application/json');
+      return;
+    }
+    if (type === 'cert') {
+      if (format === 'csv') {
+        const rows = (rep.certificates || []).flatMap((c) => c.chain.map((cert, i) => [
+          c.source, i === 0 ? 'leaf' : i === c.chain.length - 1 ? 'root/intermediate' : 'intermediate',
+          cert.subject, cert.issuer, keyDesc(cert.publicKey), cert.signatureAlgorithm.name, cert.serial,
+          fmtDay(cert.notBefore), fmtDay(cert.notAfter), cert.selfSigned ? 'yes' : 'no', cert.sha256]));
+        api.downloadBlob(`${stem}-certificates.csv`,
+          toCSV(['Source', 'Role', 'Subject', 'Issuer', 'Public key', 'Signature algorithm', 'Serial', 'Valid from', 'Valid until', 'Self-signed', 'SHA-256'], rows),
+          'text/csv');
+      } else {
+        api.downloadBlob(`${stem}-certificates.json`, JSON.stringify(rep.certificates, null, 2), 'application/json');
+      }
+      return;
+    }
+    // full
+    if (format === 'csv') {
+      const rows = (ev.findings || []).map((f) => [f.severity, f.category, f.title, f.detail, f.remediation, f.evidence, f.id]);
+      api.downloadBlob(`${stem}-findings.csv`, toCSV(['Severity', 'Category', 'Title', 'Detail', 'Fix', 'Evidence', 'Rule ID'], rows), 'text/csv');
+    } else {
+      api.downloadBlob(`${stem}-security-report.json`,
+        JSON.stringify({ asset: { name: asset.name, address: asset.address }, generatedAt: new Date().toISOString(), report: rep, evaluation: ev }, null, 2),
+        'application/json');
+    }
+  };
+  const keyDesc = (k) => k ? `${k.algorithm}${k.bits ? ` ${k.bits}-bit` : ''}${k.curve ? ` (${k.curve})` : ''}` : '';
+
+  const exportDialog = () => {
+    let type = 'full', format = 'pdf';
+    modal('Export report', (close) => {
+      const box = h('div', { class: 'modal-body' });
+      const draw = () => {
+        clear(box);
+        const current = EXPORT_TYPES.find(([v]) => v === type);
+        if (!current[3].includes(format)) format = current[3][0];
+        box.append(...[
+          h('div', { class: 'exportgrid' }, EXPORT_TYPES.map(([v, label, desc]) => h('label', { class: 'exportopt' },
+            h('input', { type: 'radio', name: 'export-type', value: v, checked: type === v, onchange: () => { type = v; draw(); } }),
+            h('div', null, h('div', { class: 'exportopt-label' }, label), h('div', { class: 'exportopt-desc' }, desc))))),
+          h('label', { for: 'export-format' }, 'Format'),
+          h('select', { id: 'export-format', 'aria-label': 'Export format', onchange: (e) => { format = e.target.value; } },
+            current[3].map((f) => h('option', { value: f, selected: f === format }, f.toUpperCase()))),
+          format === 'pdf' ? h('p', { class: 'hint' }, 'Opens your browser’s print dialog; choose “Save as PDF” as the destination.') : null,
+          h('div', { class: 'row end' }, button('Cancel', close),
+            h('button', { type: 'button', class: 'btn btn-primary', onclick: async () => { try { await runExport(type, format); close(); } catch (e) { toast(e.message, 'error'); } } }, 'Export')),
+        ].filter(Boolean));
+      };
+      draw();
+      return box;
+    });
   };
 
   const paint = () => {
@@ -94,6 +191,7 @@ export async function render(root, { args, query }) {
       h('div', { class: 'row' },
         button(active ? 'Scanning…' : 'Scan now', startScan, 'primary', { class: 'btn btn-primary', disabled: active }),
         scheduleSelect(a),
+        shown ? button('Export report', exportDialog, 'secondary', { class: 'btn btn-secondary' }) : null,
         button('Edit', () => editDialog(a, refresh)),
         button('Delete', async () => {
           if (await confirmDialog('Delete this endpoint?', `“${a.name}” and its whole scan history will be permanently deleted.`)) {
@@ -131,9 +229,43 @@ export async function render(root, { args, query }) {
     const tabs = [['overview', 'Overview'], ['tls', 'TLS details'], ['findings', `Findings (${ev.findings.length})`], ['history', `History (${history.length})`]];
     body.appendChild(h('div', { class: 'tabs', role: 'tablist' }, tabs.map(([k, label]) =>
       h('button', { type: 'button', class: 'tab', role: 'tab', id: `tab-${k}`, 'aria-selected': String(tab === k),
-        onclick: () => { tab = k; paint(); } }, label))));
+        onclick: () => { tab = k; paint(); playEnter(body, 700); } }, label))));
     body.appendChild(tab === 'tls' ? tlsTab() : tab === 'findings' ? findingsTab() : tab === 'history' ? historySection() : overviewTab());
+    if (!viewScanId) body.appendChild(linkedAssetsCard());
   };
+
+  const linkDialog = () => {
+    modal('Link to a host', (close) => {
+      const body2 = h('div', { class: 'modal-body' });
+      api.hosts().then((hosts) => {
+        const linked = new Set(asset.linkedAssetIds || []);
+        const choices = hosts.filter((hh) => !linked.has(hh.id));
+        clear(body2);
+        if (!choices.length) {
+          body2.append(h('p', { class: 'muted' }, 'No unlinked hosts exist to link to.'), h('div', { class: 'row end' }, button('Close', close)));
+          return;
+        }
+        const sel = h('select', { 'aria-label': 'Host to link' }, choices.map((hh) => h('option', { value: hh.id }, hh.name)));
+        body2.append(
+          h('p', { class: 'muted' }, 'Record that this endpoint and a host are the same machine. This is never guessed — only what you confirm here.'),
+          h('label', { for: 'link-host' }, 'Host'), sel,
+          h('div', { class: 'row end' }, button('Cancel', close), button('Link', async () => {
+            try { await api.linkAsset(id, Number(sel.value)); toast('Linked'); close(); await refresh(); } catch (e) { toast(e.message, 'error'); }
+          }, 'primary')));
+      }).catch((e) => { clear(body2); body2.appendChild(h('p', { class: 'callout bad' }, e.message)); });
+      return body2;
+    });
+  };
+
+  const linkedAssetsCard = () => h('section', { class: 'card' },
+    h('div', { class: 'row' }, h('h2', null, 'Linked assets'), button('Link a host', linkDialog, 'secondary', { class: 'btn btn-sm' })),
+    h('p', { class: 'hint' }, 'Assets a person has confirmed are the same machine as this endpoint.'),
+    linkedAssets.length
+      ? h('ul', { class: 'stack' }, linkedAssets.map((a) => h('li', { class: 'row' },
+          h('span', { class: 'kind-badge' }, a.kind === 'host' ? 'Host' : 'Endpoint'),
+          h('a', { href: `#/${a.kind === 'host' ? 'hosts' : 'assets'}/${a.id}` }, a.name),
+          button('Unlink', async () => { try { await api.unlinkAsset(id, a.id); toast('Unlinked'); await refresh(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' }))))
+      : h('p', { class: 'muted' }, 'Not linked to any host yet.'));
 
   // ---- overview -------------------------------------------------------------------------------
 
@@ -183,7 +315,9 @@ export async function render(root, { args, query }) {
           h('div', { class: 'muted' }, 'how well the endpoint is configured; this product’s own score'))),
       h('h3', null, 'How it was scored'),
       g.deductions.length ? h('ul', { class: 'deductions' }, g.deductions.map((d) =>
-        h('li', null, sevBadge(d.severity), ' ', d.title, h('span', { class: 'muted' }, ` (${d.finding})`), h('b', { class: 'pts' }, ` −${d.points}`))))
+        h('li', null, sevBadge(d.severity), ' ',
+          h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); goToFinding(d.finding); } }, d.title),
+          h('span', { class: 'muted' }, ` (${d.finding})`), h('b', { class: 'pts' }, ` −${d.points}`))))
         : h('p', { class: 'muted' }, 'No points were taken off.'),
       g.ceiling ? h('p', null, h('b', null, `Limited to ${g.ceiling.score}: `), g.ceiling.reason, '.') : null,
       h('h3', null, 'Not measured'),
@@ -250,11 +384,14 @@ export async function render(root, { args, query }) {
       feat('OCSP stapling', f.ocspStapling, badge('supported', 'good'), badge('not offered', 'neutral')),
       feat('TLS compression', f.compression, badge('accepted', 'bad'), badge('refused', 'good')),
       feat('TLS_FALLBACK_SCSV (RFC 7507)', f.fallbackScsv, badge('enforced', 'good'), badge('not enforced', 'warn')),
+      feat('Client certificate requested (mTLS, RFC 8446 4.3.2)', f.clientCertRequested, badge('requested', 'neutral'), badge('not requested', 'neutral')),
     ].filter(Boolean);
     if (rows.length) wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'Server features'), h('table', { class: 'compact' }, h('tbody', null, rows))));
 
     if (rep.certificates && rep.certificates.length) {
-      wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'Certificates'), rep.certificates.map(certBlock)));
+      wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'Certificate chain'),
+        h('p', { class: 'hint' }, 'Presented during the handshake, leaf first. Click a certificate to inspect it.'),
+        rep.certificates.map((c) => certChain(c, { host: asset ? asset.host : '' }))));
     }
     if (rep.negotiated) {
       const n = rep.negotiated;
@@ -271,37 +408,58 @@ export async function render(root, { args, query }) {
     return wrap;
   };
 
-  const certBlock = (c) => {
-    const leaf = c.chain[0];
-    return h('div', { class: 'chain' },
-      h('h3', null, leaf.subject, ' ', h('span', { class: 'muted' }, `(${c.source})`)),
-      h('dl', { class: 'kv' },
-        h('dt', null, 'Issuer'), h('dd', null, leaf.issuer),
-        h('dt', null, 'Public key'), h('dd', null, `${leaf.publicKey.algorithm}${leaf.publicKey.bits ? ` ${leaf.publicKey.bits}-bit` : ''}${leaf.publicKey.curve ? ` ${leaf.publicKey.curve}` : ''}`,
-          h('span', { class: 'muted' }, ` · OID ${leaf.publicKey.oid}`)),
-        h('dt', null, 'Signature'), h('dd', null, leaf.signatureAlgorithm.name, h('span', { class: 'muted' }, ` · OID ${leaf.signatureAlgorithm.oid}`)),
-        h('dt', null, 'Valid'), h('dd', null, `${fmtDay(leaf.notBefore)} to ${fmtDay(leaf.notAfter)} `, certExpiry(leaf.notAfter)),
-        h('dt', null, 'Trust'), h('dd', null, c.trusted ? badge('chain builds to a trusted root', 'good') : badge('not trusted', 'bad'),
-          c.trustError ? h('div', { class: 'muted' }, c.trustError) : null),
-        h('dt', null, 'Name'), h('dd', null, c.nameMatches ? badge('matches this host', 'good') : badge('does not match', 'bad'),
-          c.nameError ? h('div', { class: 'muted' }, c.nameError) : null),
-        h('dt', null, 'Names'), h('dd', null, [...(leaf.dnsNames || []), ...(leaf.ipAddresses || [])].join(', ') || '–'),
-        c.chain.length > 1 ? [h('dt', null, 'Chain'), h('dd', null, `${c.chain.length} certificates: ${c.chain.map((x) => x.subject).join(' → ')}`)] : null,
-        h('dt', null, 'SHA-256'), h('dd', null, h('code', null, leaf.sha256))));
-  };
-
   // ---- findings -------------------------------------------------------------------------------
+
+  const triageAction = async (key, status, note) => {
+    try {
+      await api.setFindingStatus(id, key, status, note);
+      toast(status === 'accepted-risk' ? 'Marked as accepted risk' : 'Acknowledged');
+      await refresh();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  const clearTriage = async (key) => {
+    try { await api.clearFindingStatus(id, key); toast('Triage cleared'); await refresh(); } catch (e) { toast(e.message, 'error'); }
+  };
+  const acceptRiskDialog = (key) => {
+    modal('Accept risk', (close) => {
+      const note = h('textarea', { id: 'triage-note', placeholder: 'Optional: why, and any ticket reference' });
+      return h('form', { class: 'modal-body', onsubmit: async (e) => {
+        e.preventDefault();
+        close();
+        await triageAction(key, 'accepted-risk', note.value.trim());
+      } },
+      h('p', { class: 'muted' }, 'This finding will keep appearing, marked as an accepted risk, until it stops being detected.'),
+      h('label', { for: 'triage-note' }, 'Note'), note,
+      h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Accept risk')));
+    });
+  };
+  const triageControls = (key) => {
+    const st = triage[key];
+    if (!viewScanId) {
+      if (st) {
+        return h('div', { class: 'row mt-sm' },
+          h('span', { class: `badge triage-${st.status}` }, st.status === 'accepted-risk' ? 'accepted risk' : 'acknowledged'),
+          st.note ? h('span', { class: 'muted' }, st.note) : null,
+          button('Clear', () => clearTriage(key), 'secondary', { class: 'btn btn-sm' }));
+      }
+      return h('div', { class: 'row mt-sm' },
+        button('Acknowledge', () => triageAction(key, 'acknowledged', ''), 'secondary', { class: 'btn btn-sm' }),
+        button('Accept risk', () => acceptRiskDialog(key), 'secondary', { class: 'btn btn-sm' }));
+    }
+    return null;
+  };
 
   const findingsTab = () => {
     if (!ev.findings.length) return h('div', { class: 'card' }, h('p', null, 'No findings. 🎉'));
     const counts = ev.counts || {};
     return h('div', null,
       h('div', { class: 'row', 'aria-label': 'Finding counts' }, ['critical', 'high', 'medium', 'low', 'info'].filter((s) => counts[s]).map((s) => h('span', null, sevBadge(s), ` ${counts[s]}`))),
-      h('div', { class: 'findings mt' }, ev.findings.map((f) => h('article', { class: `finding s-${f.severity}` },
+      h('div', { class: 'findings mt' }, ev.findings.map((f) => h('article', { class: `finding s-${f.severity}`, id: `finding-${f.id}` },
         h('div', { class: 'finding-head' }, sevBadge(f.severity), h('strong', null, f.title), evidenceBadge(f.evidence), badge(f.category, 'neutral')),
         h('div', { class: 'detail' }, f.detail),
         h('div', { class: 'fix' }, h('b', null, 'Fix: '), f.remediation),
-        citations(f.citations)))));
+        citations(f.citations),
+        triageControls(f.id)))));
   };
 
   // ---- history --------------------------------------------------------------------------------
@@ -340,12 +498,20 @@ export async function render(root, { args, query }) {
     return wrap;
   };
 
+  // A change doesn't carry a stable finding/detail id to deep-link to (only free
+  // text), so this takes the user to the tab that shows it rather than
+  // guessing at a specific row — honest partial credit, not a fabricated link.
+  const AREA_TAB = { finding: 'findings', protocol: 'tls', suite: 'tls', group: 'tls', certificate: 'tls', readiness: 'overview', hygiene: 'overview' };
   const diffView = (d) => {
     const x = d.diff;
     return h('div', null, h('p', null, h('b', null, x.summary)),
       x.changes.length ? h('div', null, x.changes.map((c) => h('div', { class: 'change' },
         h('span', { class: `impact imp-${c.impact}` }, c.impact),
-        h('span', null, h('b', null, `${c.area}: `), c.subject,
+        h('span', null,
+          h('b', null, AREA_TAB[c.area]
+            ? h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); tab = AREA_TAB[c.area]; paint(); } }, `${c.area}: `)
+            : `${c.area}: `),
+          c.subject,
           c.before || c.after ? h('span', { class: 'muted' }, ` · ${c.before || ''}${c.before && c.after ? ' → ' : ''}${c.after || ''}`) : null)))) : null);
   };
 

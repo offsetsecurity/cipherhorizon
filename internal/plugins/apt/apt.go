@@ -14,9 +14,9 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/package-url/packageurl-go"
 
-	"github.com/example/cbom-scan/internal/algo"
-	"github.com/example/cbom-scan/internal/cbom"
-	"github.com/example/cbom-scan/internal/collector"
+	"github.com/example/cipherhorizon/internal/algo"
+	"github.com/example/cipherhorizon/internal/cbom"
+	"github.com/example/cipherhorizon/internal/collector"
 )
 
 const (

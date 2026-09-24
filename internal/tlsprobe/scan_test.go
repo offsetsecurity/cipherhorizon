@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/tlsprobe"
-	"github.com/example/cbom-scan/internal/tlsprobe/testserver"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 func target(t testing.TB, s *testserver.Server) tlsprobe.Target {
@@ -254,6 +254,83 @@ func TestCertificatesAndTrust(t *testing.T) {
 	}
 	if !algs["RSA"] || !algs["ECDSA"] {
 		t.Errorf("a dual-certificate server must yield both; got %v from %d results", algs, len(rep.Certificates))
+	}
+}
+
+func TestClientCertRequested(t *testing.T) {
+	srv := testserver.Start(t, testserver.Config{MinVersion: tls.VersionTLS12, ClientAuth: tls.RequireAnyClientCert})
+	got := scan(t, srv, opts()).Features.ClientCertRequested
+	if got == nil || !*got {
+		t.Errorf("ClientCertRequested = %v, want true: the server sent a CertificateRequest", got)
+	}
+}
+
+func TestClientCertNotRequested(t *testing.T) {
+	srv := testserver.Start(t, testserver.Config{MinVersion: tls.VersionTLS12})
+	got := scan(t, srv, opts()).Features.ClientCertRequested
+	if got == nil || *got {
+		t.Errorf("ClientCertRequested = %v, want false: a full handshake completed without a request", got)
+	}
+}
+
+func TestHSTSNotCheckedByDefault(t *testing.T) {
+	called := false
+	cfg := testserver.Config{MinVersion: tls.VersionTLS12, HTTPResponse: func(req []byte) []byte {
+		if len(req) > 0 { // a plain handshake-then-close also reaches this callback, with an empty read
+			called = true
+		}
+		return []byte("HTTP/1.1 200 OK\r\nStrict-Transport-Security: max-age=31536000\r\n\r\n")
+	}}
+
+	without := scan(t, testserver.Start(t, cfg), opts())
+	if without.HSTS != nil {
+		t.Errorf("HSTS = %v, want nil: --http-checks was not set", without.HSTS)
+	}
+	if called {
+		t.Error("an HTTP request was sent although HTTPChecks was not set")
+	}
+
+	o := opts()
+	o.HTTPChecks = true
+	with := scan(t, testserver.Start(t, cfg), o)
+	if with.Connections != without.Connections+1 {
+		t.Errorf("HTTPChecks should add exactly one connection: without=%d with=%d", without.Connections, with.Connections)
+	}
+}
+
+func TestHSTSPresent(t *testing.T) {
+	srv := testserver.Start(t, testserver.Config{MinVersion: tls.VersionTLS12, HTTPResponse: func([]byte) []byte {
+		return []byte("HTTP/1.1 200 OK\r\nStrict-Transport-Security: max-age=31536000\r\nContent-Length: 0\r\n\r\n")
+	}})
+	o := opts()
+	o.HTTPChecks = true
+	rep := scan(t, srv, o)
+	if rep.HSTS == nil || !*rep.HSTS {
+		t.Errorf("HSTS = %v, want true", rep.HSTS)
+	}
+}
+
+func TestHSTSAbsent(t *testing.T) {
+	srv := testserver.Start(t, testserver.Config{MinVersion: tls.VersionTLS12, HTTPResponse: func([]byte) []byte {
+		return []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+	}})
+	o := opts()
+	o.HTTPChecks = true
+	rep := scan(t, srv, o)
+	if rep.HSTS == nil || *rep.HSTS {
+		t.Errorf("HSTS = %v, want false", rep.HSTS)
+	}
+}
+
+func TestHSTSNilWhenNotSpeakingHTTP(t *testing.T) {
+	srv := testserver.Start(t, testserver.Config{MinVersion: tls.VersionTLS12, HTTPResponse: func([]byte) []byte {
+		return []byte("\x02\x01\x00garbage, not HTTP at all\r\n")
+	}})
+	o := opts()
+	o.HTTPChecks = true
+	rep := scan(t, srv, o)
+	if rep.HSTS != nil {
+		t.Errorf("HSTS = %v, want nil: the response was not HTTP", rep.HSTS)
 	}
 }
 

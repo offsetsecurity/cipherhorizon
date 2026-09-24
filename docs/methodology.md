@@ -79,8 +79,10 @@ endpoint that has not yet adopted post-quantum key exchange scores Strong on hyg
 not marked down twice.
 
 The result lists each deduction (rule ID, title, severity, points), any ceiling that changed the outcome, and what is
-**not measured**: HTTP-layer settings such as Strict Transport Security (the scanner makes no HTTP requests) and
-active exploit probes (Heartbleed, ROBOT, CCS injection). Weaknesses inferable from what a server offers (POODLE,
+**not measured**: certificate revocation status, and active exploit probes (Heartbleed, ROBOT, CCS injection). HTTP
+Strict Transport Security is measured only when `--http-checks` is explicitly enabled (off by default): every other
+check in this tool exchanges only TLS handshake messages, and this is the one exception, so it is opt-in and never
+silent. Weaknesses inferable from what a server offers (POODLE,
 Sweet32, FREAK, Logjam, CRIME, BEAST, RC4) appear as `inferred` findings and are scored like any other.
 
 The weights are a judgement call made for this project. If your policy weighs things differently, the findings

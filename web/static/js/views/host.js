@@ -1,8 +1,44 @@
 // One host: what its CBOM says, algorithm by algorithm, with sources.
-import { h, fmtDate } from '../dom.js';
+import { h, clear, fmtDate } from '../dom.js';
 import { api } from '../api.js';
-import { badge, citations, button, empty } from '../ui.js';
+import { badge, citations, button, empty, toast, modal } from '../ui.js';
 import { uploadDialog } from './hosts.js';
+
+function linkDialog(hostId, alreadyLinked, onDone) {
+  modal('Link to a TLS endpoint', (close) => {
+    const body = h('div', { class: 'modal-body' });
+    api.assets().then((endpoints) => {
+      const choices = endpoints.filter((e) => !alreadyLinked.includes(e.id));
+      clear(body);
+      if (!choices.length) {
+        body.appendChild(h('p', { class: 'muted' }, 'No unlinked TLS endpoints exist to link to.'));
+        body.appendChild(h('div', { class: 'row end' }, button('Close', close)));
+        return;
+      }
+      const sel = h('select', { 'aria-label': 'Endpoint to link' }, choices.map((e) => h('option', { value: e.id }, `${e.name} (${e.address})`)));
+      body.append(
+        h('p', { class: 'muted' }, 'Record that this host and a TLS endpoint are the same machine. This is never guessed — only what you confirm here.'),
+        h('label', { for: 'link-target' }, 'TLS endpoint'), sel,
+        h('div', { class: 'row end' }, button('Cancel', close), button('Link', async () => {
+          try { await api.linkAsset(hostId, Number(sel.value)); toast('Linked'); close(); onDone(); } catch (e) { toast(e.message, 'error'); }
+        }, 'primary')));
+    }).catch((e) => { clear(body); body.appendChild(h('p', { class: 'callout bad' }, e.message)); });
+    return body;
+  });
+}
+
+async function linkedAssetsCard(linkedIds, hostId, onDone) {
+  const rows = await Promise.all(linkedIds.map((lid) => api.asset(lid).catch(() => null)));
+  return h('section', { class: 'card' },
+    h('div', { class: 'row' }, h('h2', null, 'Linked assets'), button('Link an endpoint', () => linkDialog(hostId, linkedIds, onDone), 'secondary', { class: 'btn btn-sm' })),
+    h('p', { class: 'hint' }, 'Assets a person has confirmed are the same machine as this host.'),
+    rows.filter(Boolean).length
+      ? h('ul', { class: 'stack' }, rows.filter(Boolean).map((a) => h('li', { class: 'row' },
+          h('span', { class: 'kind-badge' }, 'Endpoint'),
+          h('a', { href: `#/assets/${a.id}` }, a.name),
+          button('Unlink', async () => { try { await api.unlinkAsset(hostId, a.id); toast('Unlinked'); onDone(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' }))))
+      : h('p', { class: 'muted' }, 'Not linked to any TLS endpoint yet.'));
+}
 
 export async function render(root, { args }) {
   const id = Number(args[0]);
@@ -16,14 +52,23 @@ export async function render(root, { args }) {
   }
   const { host, history } = data;
   const s = host.summary;
+  const reload = () => window.dispatchEvent(new HashChangeEvent('hashchange'));
 
   root.appendChild(h('p', null, h('a', { href: '#/hosts' }, '← Hosts')));
   root.appendChild(h('div', { class: 'page-head' },
     h('div', null, h('h1', null, host.name),
       h('div', { class: 'sub' }, s ? `${s.producer || 'unknown producer'} · uploaded ${fmtDate(host.snapshotAt)}` : 'No CBOM uploaded')),
-    h('div', { class: 'row' }, button('Upload a newer CBOM', () => uploadDialog(() => window.dispatchEvent(new HashChangeEvent('hashchange'))), 'primary'))));
+    h('div', { class: 'row' },
+      history.length ? button('Download CBOM', () => api.download(`/api/v1/hosts/${id}/snapshots/${history[0].id}/cbom?download=1`, `host-${id}-cbom.json`)
+        .catch((e) => toast(e.message, 'error'))) : null,
+      button('Upload a newer CBOM', () => uploadDialog(reload), 'primary'))));
 
-  if (!s) { root.appendChild(empty('No CBOM for this host yet')); return null; }
+  if (!s) {
+    root.appendChild(empty('No CBOM for this host yet', 'Upload a CycloneDX CBOM to see this host’s algorithms and post-quantum verdicts.',
+      button('Upload a CBOM', () => uploadDialog(reload), 'primary')));
+    root.appendChild(await linkedAssetsCard(host.linkedAssetIds || [], id, reload));
+    return null;
+  }
 
   root.appendChild(h('div', { class: 'grid kpis' },
     h('div', { class: `card kpi ${s.vulnerable ? 'alert' : 'good'}` }, h('div', { class: 'n' }, String(s.vulnerable)), h('div', { class: 'l' }, 'Quantum-vulnerable algorithms')),
@@ -40,8 +85,12 @@ export async function render(root, { args }) {
       h('tbody', null, s.algorithms.map((a) => h('tr', null,
         h('td', null, h('b', null, a.name), a.oid ? h('div', { class: 'hint' }, `OID ${a.oid}`) : null),
         h('td', null, a.class === 'quantum-vulnerable' ? badge('▲ quantum-vulnerable', 'bad') : badge('✓ quantum-safe', 'good')),
-        h('td', null, h('div', null, a.rationale), citations(a.basis), h('div', { class: 'hint' }, `Matched by ${a.matchedBy}`)),
+        h('td', null, h('div', null, a.rationale), citations(a.basis),
+          h('div', { class: 'hint', title: 'The rule that identified this algorithm: an exact OID match, an OID family match, or an exact catalogue name match — never a guess from a similar-looking name.' },
+            `Matched by ${a.matchedBy}`)),
         h('td', { class: 'muted' }, (a.providedBy || []).join(', ') || '–')))))) : h('p', { class: 'muted' }, 'No algorithms were found in this CBOM.')));
+
+  root.appendChild(await linkedAssetsCard(host.linkedAssetIds || [], id, reload));
 
   if (s.unclassified.length) {
     root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Not classified'),

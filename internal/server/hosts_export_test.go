@@ -16,7 +16,7 @@ func golden(t *testing.T, name string) string {
 	return string(b)
 }
 
-// AC-10.1: a CBOM produced by `cbom-scan run` becomes a host asset with cited verdicts.
+// AC-10.1: a CBOM produced by `cipherhorizon run` becomes a host asset with cited verdicts.
 func TestAC10_HostCBOMIngest(t *testing.T) {
 	e := newEnv(t)
 	cbom := golden(t, "ubuntu-24.04.cbom.json")
@@ -52,7 +52,7 @@ func TestAC10_HostCBOMIngest(t *testing.T) {
 		t.Errorf("ingest result = created %v name %q vulnerable %d safe %d packages %d",
 			out.Created, out.Asset.Name, out.Summary.Vulnerable, out.Summary.Safe, out.Summary.Packages)
 	}
-	if !strings.Contains(out.Summary.Producer, "cbom-scan") {
+	if !strings.Contains(out.Summary.Producer, "cipherhorizon") {
 		t.Errorf("producer = %q", out.Summary.Producer)
 	}
 	var rsa bool

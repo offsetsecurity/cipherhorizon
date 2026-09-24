@@ -2,7 +2,7 @@
 # Live security checks against the built binary (QA-PLAN-001, "Security"). Needs a
 # server WITHOUT a token already running on 127.0.0.1:8080 for the DNS-rebinding checks
 # (override with OPEN=http://host:port); run from the repository root after building dist/.
-BIN=${BIN:-dist/cbom-scan.exe}
+BIN=${BIN:-dist/cipherhorizon.exe}
 WORK=$(mktemp -d)
 TOKEN=qa-secret-token-0123456789
 B=http://127.0.0.1:8081
@@ -18,7 +18,7 @@ check "serve --addr 0.0.0.0:8082 without token exits non-zero" 1 "$rc"
 grep -q "without an access token" "$WORK/refuse.out" && echo "PASS  message explains why" && pass=$((pass+1)) || { echo "FAIL  message"; fail=$((fail+1)); }
 
 rm -f "$WORK/sec.db"*
-CBOM_SCAN_TOKEN=$TOKEN "$BIN" serve --addr 127.0.0.1:8081 --db "$WORK/sec.db" > "$WORK/sec-serve.log" 2>&1 &
+CIPHERHORIZON_TOKEN=$TOKEN "$BIN" serve --addr 127.0.0.1:8081 --db "$WORK/sec.db" > "$WORK/sec-serve.log" 2>&1 &
 SRV=$!
 sleep 2
 
@@ -32,20 +32,20 @@ check "UI shell loads without token"       200 "$(code $B/)"
 AUTH=(-H "Authorization: Bearer $TOKEN")
 echo "== cross-site request forgery =="
 check "POST without X-Requested-With -> 403"  403 "$(code -X POST "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
-check "POST with foreign Origin -> 403"       403 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' -H 'Origin: http://evil.example' -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
-check "POST with Sec-Fetch-Site: cross-site -> 403" 403 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' -H 'Sec-Fetch-Site: cross-site' -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
-check "POST with text/plain body -> 415"      415 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' -H 'Content-Type: text/plain' -d '{"target":"example.com"}' $B/api/v1/assets)"
-check "POST from same origin -> 201"          201 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' -H "Origin: $B" -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
-check "PUT is not routed -> 405"              405 "$(code -X PUT "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' $B/api/v1/assets)"
+check "POST with foreign Origin -> 403"       403 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Origin: http://evil.example' -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
+check "POST with Sec-Fetch-Site: cross-site -> 403" 403 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Sec-Fetch-Site: cross-site' -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
+check "POST with text/plain body -> 415"      415 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: text/plain' -d '{"target":"example.com"}' $B/api/v1/assets)"
+check "POST from same origin -> 201"          201 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H "Origin: $B" -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
+check "PUT is not routed -> 405"              405 "$(code -X PUT "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' $B/api/v1/assets)"
 
 echo "== SSRF guard =="
-check "cloud metadata address refused -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' -H 'Content-Type: application/json' -d '{"target":"169.254.169.254"}' $B/api/v1/assets)"
-check "0.0.0.0 refused -> 400"                400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' -H 'Content-Type: application/json' -d '{"target":"0.0.0.0:443"}' $B/api/v1/assets)"
-check "loopback literal refused at add time -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' -H 'Content-Type: application/json' -d '{"target":"127.0.0.1:9440"}' $B/api/v1/assets)"
+check "cloud metadata address refused -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"169.254.169.254"}' $B/api/v1/assets)"
+check "0.0.0.0 refused -> 400"                400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"0.0.0.0:443"}' $B/api/v1/assets)"
+check "loopback literal refused at add time -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"127.0.0.1:9440"}' $B/api/v1/assets)"
 # A host NAME that resolves to loopback passes add-time checks; the dialer's Control hook must still refuse it.
-LB=$(curl -s -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' -H 'Content-Type: application/json' -d '{"target":"localhost:9440","name":"loopback-by-name"}' $B/api/v1/assets)
+LB=$(curl -s -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"localhost:9440","name":"loopback-by-name"}' $B/api/v1/assets)
 LBID=$(echo "$LB" | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
-curl -s -o /dev/null -X POST "${AUTH[@]}" -H 'X-Requested-With: cbom-scan' $B/api/v1/assets/$LBID/scan
+curl -s -o /dev/null -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' $B/api/v1/assets/$LBID/scan
 sleep 3
 ST=$(curl -s "${AUTH[@]}" $B/api/v1/assets/$LBID | python -c 'import sys,json; d=json.load(sys.stdin); print(d["latest"]["status"], "|", d["latest"]["error"])')
 echo "      scan of a name resolving to loopback, without --allow-loopback: $ST"

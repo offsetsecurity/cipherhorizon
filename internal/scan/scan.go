@@ -10,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/example/cbom-scan/internal/collector"
+	"github.com/example/cipherhorizon/internal/collector"
 )
 
 // Status is the outcome of one plugin in one scan.

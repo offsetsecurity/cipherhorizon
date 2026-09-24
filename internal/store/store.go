@@ -133,7 +133,36 @@ var migrations = []string{
 	`ALTER TABLE scans RENAME COLUMN grade TO band;
 	ALTER TABLE scans ADD COLUMN score INTEGER NOT NULL DEFAULT -1;
 	UPDATE scans SET band = '';`,
+	// 3: finding triage (a decision persists across rescans instead of being
+	// silently recomputed away) and user-asserted links between a TLS endpoint
+	// asset and a host asset that are known to be the same machine. A link is
+	// never inferred by the product itself, only recorded when a person says so.
+	`CREATE TABLE finding_status (
+		asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+		finding_key TEXT NOT NULL,
+		status TEXT NOT NULL,
+		note TEXT NOT NULL DEFAULT '',
+		set_at TEXT NOT NULL,
+		PRIMARY KEY (asset_id, finding_key)
+	);
+	CREATE TABLE asset_links (
+		asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+		linked_asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+		created_at TEXT NOT NULL,
+		PRIMARY KEY (asset_id, linked_asset_id),
+		CHECK (asset_id != linked_asset_id)
+	);`,
 }
+
+// Finding triage statuses. "Resolved" is never one of these: it is not a
+// decision to persist, it is what a finding_status row becomes, unprompted,
+// the moment its finding stops appearing in an asset's latest result — the
+// product will not let a user assert "fixed" while it still observes the
+// problem.
+const (
+	FindingAcknowledged = "acknowledged"
+	FindingAcceptedRisk = "accepted-risk"
+)
 
 func (s *Store) migrate() error {
 	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {

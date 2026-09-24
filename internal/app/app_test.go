@@ -14,11 +14,11 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/app"
-	"github.com/example/cbom-scan/internal/collector"
-	"github.com/example/cbom-scan/internal/collector/collectortest"
-	_ "github.com/example/cbom-scan/internal/plugins/all" // registers "apt" in collector.Default
-	"github.com/example/cbom-scan/internal/schematest"
+	"github.com/example/cipherhorizon/internal/app"
+	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/example/cipherhorizon/internal/collector/collectortest"
+	_ "github.com/example/cipherhorizon/internal/plugins/all" // registers "apt" in collector.Default
+	"github.com/example/cipherhorizon/internal/schematest"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden CBOMs in testing/golden")
@@ -105,7 +105,7 @@ func TestGoldenContent(t *testing.T) {
 	status := func(cs []component, name string) string {
 		for _, c := range cs {
 			if c.Name == name && c.Type == "cryptographic-asset" {
-				return c.prop("cbom-scan:pqc:status")
+				return c.prop("cipherhorizon:pqc:status")
 			}
 		}
 		return "<absent>"
@@ -211,7 +211,7 @@ func TestPQCCanBeDisabled(t *testing.T) {
 	if code != app.ExitOK {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	if strings.Contains(stdout, "cbom-scan:pqc") || strings.Contains(stderr, "PQC:") {
+	if strings.Contains(stdout, "cipherhorizon:pqc") || strings.Contains(stderr, "PQC:") {
 		t.Error("PQC output present although disabled")
 	}
 	if strings.Contains(stdout, "\n  ") {
@@ -316,7 +316,7 @@ func TestFatalErrors(t *testing.T) {
 }
 
 func TestVersionHelpAndPlugins(t *testing.T) {
-	if code, out, _ := run(t, "version"); code != 0 || !strings.HasPrefix(out, "cbom-scan ") {
+	if code, out, _ := run(t, "version"); code != 0 || !strings.HasPrefix(out, "cipherhorizon ") {
 		t.Errorf("version: %d %q", code, out)
 	}
 	if code, out, _ := run(t, "help"); code != 0 || !strings.Contains(out, "Usage:") {

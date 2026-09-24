@@ -14,7 +14,28 @@ import (
 // values a plugin sets by hand. vocab_test.go pins every one of them to the
 // enumerations in the vendored bom-1.6.schema.json, so they cannot drift.
 var (
-	assetTypes = setOf(cdx.CryptoAssetTypeAlgorithm)
+	assetTypes = setOf(cdx.CryptoAssetTypeAlgorithm, cdx.CryptoAssetTypeProtocol, cdx.CryptoAssetTypeCertificate,
+		cdx.CryptoAssetTypeRelatedCryptoMaterial)
+
+	relatedMaterialTypes = setOf(
+		cdx.RelatedCryptoMaterialTypePrivateKey, cdx.RelatedCryptoMaterialTypePublicKey,
+		cdx.RelatedCryptoMaterialTypeSecretKey, cdx.RelatedCryptoMaterialTypeKey,
+		cdx.RelatedCryptoMaterialTypeCiphertext, cdx.RelatedCryptoMaterialTypeSignature,
+		cdx.RelatedCryptoMaterialTypeDigest, cdx.RelatedCryptoMaterialTypeInitializationVector,
+		cdx.RelatedCryptoMaterialTypeNonce, cdx.RelatedCryptoMaterialTypeSeed,
+		cdx.RelatedCryptoMaterialTypeSalt, cdx.RelatedCryptoMaterialTypeSharedSecret,
+		cdx.RelatedCryptoMaterialTypeTag, cdx.RelatedCryptoMaterialTypeAdditionalData,
+		cdx.RelatedCryptoMaterialTypePassword, cdx.RelatedCryptoMaterialTypeCredential,
+		cdx.RelatedCryptoMaterialTypeToken, cdx.RelatedCryptoMaterialTypeOther, cdx.RelatedCryptoMaterialTypeUnknown,
+	)
+
+	protocolTypes = setOf(
+		cdx.CryptoProtocolTypeTLS, cdx.CryptoProtocolTypeSSH, cdx.CryptoProtocolTypeIPSec,
+		cdx.CryptoProtocolTypeIKE, cdx.CryptoProtocolTypeSSTP, cdx.CryptoProtocolTypeWPA,
+		cdx.CryptoProtocolTypeOther, cdx.CryptoProtocolTypeUnknown,
+	) // note: the Go SDK's enum also has dtls/quic/eap-aka/5g-aka/... — those are
+	// 1.7 additions absent from the vendored 1.6 schema (TestVocabularyMatchesSchema
+	// pins this set against it), so they are deliberately not allowlisted here yet.
 
 	primitives = setOf(
 		cdx.CryptoPrimitiveDRBG, cdx.CryptoPrimitiveMAC, cdx.CryptoPrimitiveBlockCipher,
@@ -87,8 +108,9 @@ func sanitize(c *cdx.Component) []string {
 		return fmt.Sprintf("%s: %s", c.BOMRef, fmt.Sprintf(format, args...))
 	}
 
-	// Only algorithm assets have vocabulary tables so far. Fail closed rather than
-	// let unchecked certificate/protocol/key-material values through.
+	// Fail closed on any asset type without a vocabulary table (e.g.
+	// related-crypto-material, still unsupported) rather than let unchecked values
+	// through.
 	if !has(assetTypes, cp.AssetType) {
 		c.CryptoProperties = nil
 		return []string{warn("crypto assetType %q is not supported yet; cryptoProperties omitted", cp.AssetType)}
@@ -98,6 +120,26 @@ func sanitize(c *cdx.Component) []string {
 	if cp.OID != "" && !oidRE.MatchString(cp.OID) {
 		w = append(w, warn("malformed OID %q omitted", cp.OID))
 		cp.OID = ""
+	}
+	if pp := cp.ProtocolProperties; pp != nil && pp.Type != "" && !has(protocolTypes, pp.Type) {
+		w = append(w, warn("protocol type %q is not in CycloneDX 1.6; omitted", pp.Type))
+		pp.Type = ""
+	}
+	if rp := cp.RelatedCryptoMaterialProperties; rp != nil {
+		if rp.Type != "" && !has(relatedMaterialTypes, rp.Type) {
+			w = append(w, warn("related-crypto-material type %q is not in CycloneDX 1.6; omitted", rp.Type))
+			rp.Type = ""
+		}
+		if rp.State != "" {
+			w = append(w, warn("related-crypto-material state %q omitted: this program never observes key state", rp.State))
+			rp.State = ""
+		}
+		// A value would be the key material itself. Only public material is ever
+		// published by a scan, but a plugin must not smuggle a secret through either.
+		if rp.Value != "" {
+			w = append(w, warn("related-crypto-material value omitted: key material is never written to a CBOM"))
+			rp.Value = ""
+		}
 	}
 	ap := cp.AlgorithmProperties
 	if ap == nil {

@@ -3,5 +3,5 @@
 package all
 
 import (
-	_ "github.com/example/cbom-scan/internal/plugins/apt" // registers "apt"
+	_ "github.com/example/cipherhorizon/internal/plugins/apt" // registers "apt"
 )

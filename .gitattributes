@@ -1,3 +1,16 @@
-# Golden files and fixtures are compared byte-for-byte; never let git rewrite line endings.
+# Line endings: LF everywhere in the repository, whatever the contributor's OS. Golden files, shell
+# scripts and embedded UI assets are compared byte-for-byte, so CRLF from a Windows checkout breaks them.
 * text=auto eol=lf
-*.json text eol=lf
+
+*.png binary
+*.ico binary
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.zip binary
+*.gz binary
+
+# GitHub language statistics and diffs: vendored/generated files are not "the code".
+testing/schema/*.json linguist-vendored
+web/static/fonts/** linguist-vendored
+internal/tlsprobe/registry/*_gen.go linguist-generated

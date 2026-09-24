@@ -56,6 +56,11 @@ func TestNoExternalRequests(t *testing.T) {
 				if !ok && strings.HasSuffix(name, "about.js") {
 					ok = true
 				}
+				// The footer's credit link to the project's origin (Offset Security) is the same
+				// kind of thing: a plain href the user may click, never fetched by the page.
+				if !ok && strings.Contains(m, "offsetsecurity.net") {
+					ok = true
+				}
 				if !ok {
 					t.Errorf("%s references %q; the UI must make no external requests", name, m)
 				}

@@ -52,6 +52,11 @@ type Report struct {
 	// Negotiated is what a current client (Go's crypto/tls, which offers the
 	// X25519MLKEM768 hybrid) actually negotiates with this server.
 	Negotiated *Negotiated `json:"negotiated,omitempty"`
+	// HSTS is whether the server sends Strict-Transport-Security, read from one
+	// plain HTTP GET / made only when Options.HTTPChecks is set. nil when the
+	// check was not attempted (the default) or the connection did not answer
+	// with an HTTP response; true/false only when a response was observed.
+	HSTS *bool `json:"hsts,omitempty"`
 
 	// Notes are non-fatal observations about the probing itself.
 	Notes []string `json:"notes,omitempty"`
@@ -157,6 +162,13 @@ type Features struct {
 	// FallbackSCSV: the server enforces TLS_FALLBACK_SCSV (RFC 7507); nil when it
 	// could not be tested (fewer than two supported versions).
 	FallbackSCSV *bool `json:"fallbackScsv,omitempty"`
+	// ClientCertRequested: the server sent a CertificateRequest (RFC 8446 section
+	// 4.3.2) during the handshake, i.e. it wants (or requires) a client
+	// certificate (mTLS). true is set the moment the server asks, even if the
+	// handshake then fails for lack of one. false is set only when a full
+	// handshake succeeded without ever asking. Anything else (the handshake
+	// failed before or without a request) leaves this nil: unknown, not "no."
+	ClientCertRequested *bool `json:"clientCertRequested,omitempty"`
 }
 
 // CertResult is one certificate the server presented.

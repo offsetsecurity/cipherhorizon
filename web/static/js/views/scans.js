@@ -1,7 +1,7 @@
 // All scans across every endpoint, with live progress and cancel.
 import { h, clear, relTime, fmtDate, duration } from '../dom.js';
 import { api } from '../api.js';
-import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast } from '../ui.js';
+import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, skeleton } from '../ui.js';
 
 const FILTERS = [['', 'All'], ['running', 'Running'], ['queued', 'Queued'], ['done', 'Done'], ['failed', 'Failed'], ['canceled', 'Canceled']];
 
@@ -11,6 +11,7 @@ export async function render(root) {
   const bar = h('div', { class: 'toolbar' });
   const list = h('div');
   root.append(head, bar, list);
+  list.appendChild(skeleton(4));
 
   const drawBar = () => {
     clear(bar).appendChild(h('div', { class: 'tabs', role: 'tablist' }, FILTERS.map(([k, label]) =>

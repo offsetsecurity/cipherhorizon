@@ -57,10 +57,12 @@ export function trendBars(points, width = 460, height = 150) {
       const n = p.levels[level] || 0;
       if (!n) continue;
       const y0 = y(acc + n), y1 = y(acc);
-      root.appendChild(svg('rect', {
+      const rect = svg('rect', {
         x: pad.l + i * bw + bw * 0.14, width: bw * 0.72, y: y0, height: Math.max(0, y1 - y0),
         class: `bar ${levelClass(level)}`,
-      }, svg('title', null, `${p.date}: ${n} × ${levelName(level)}`)));
+      }, svg('title', null, `${p.date}: ${n} × ${levelName(level)}`));
+      rect.style.setProperty('--i', String(i));
+      root.appendChild(rect);
       acc += n;
     }
     if (points.length <= 16 || i % 2 === 0) {
@@ -113,7 +115,7 @@ export function historyChart(points, width = 640, height = 170) {
     const px = x(p.at), py = y(p.readinessLevel);
     d += i === 0 ? `M ${px} ${py}` : ` H ${px} V ${py}`;
   });
-  root.appendChild(svg('path', { d, class: 'stepline', fill: 'none' }));
+  root.appendChild(svg('path', { d, class: 'stepline', fill: 'none', pathLength: '1' }));
   pts.forEach((p) => {
     root.appendChild(svg('circle', { cx: x(p.at), cy: y(p.readinessLevel), r: 5, class: `dot ${levelClass(p.readinessLevel)}` },
       svg('title', null, `${new Date(p.at).toLocaleString()}: L${p.readinessLevel} ${levelName(p.readinessLevel)}, TLS hygiene ${p.band} ${p.score}`)));

@@ -22,6 +22,7 @@ var (
 	citRFC5280  = rfc("5280", "Internet X.509 Public Key Infrastructure Certificate and CRL Profile")
 	citRFC9525  = rfc("9525", "Service Identity in TLS")
 	citRFC8446  = rfc("8446", "The Transport Layer Security (TLS) Protocol Version 1.3")
+	citRFC6797  = rfc("6797", "HTTP Strict Transport Security (HSTS)")
 	citRFC10024 = Citation{
 		Title: "RFC 10024: Post-Quantum Traditional (PQ/T) Hybrid Key Agreement Mechanisms for TLS 1.3",
 		URL:   "https://www.rfc-editor.org/rfc/rfc10024",

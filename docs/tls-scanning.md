@@ -1,8 +1,9 @@
-# Active TLS/SSL assessment (`cbom-scan tls scan`)
+# Active TLS/SSL assessment (`cipherhorizon tls scan`)
 
 ```sh
-cbom-scan tls scan example.internal:443            # readable report
-cbom-scan tls scan --json host1 host2:8443         # JSON array, one report per target
+cipherhorizon tls scan example.internal:443            # readable report
+cipherhorizon tls scan --json host1 host2:8443         # JSON array, one report per target
+cipherhorizon tls scan --cbom example.internal:443     # CycloneDX CBOM, one target at a time
 ```
 
 Scan only systems you own or are authorised to test. A scan makes a few hundred short handshakes.
@@ -31,15 +32,42 @@ report says `incomplete` and a missing finding is not evidence of absence.
 ## Observations, not verdicts
 
 The report states facts and the IANA registry's own flags (`Recommended: Y/N/D`), export/anonymous/NULL
-properties, block size. It does **not** say "weak" or "vulnerable" or "quantum-safe"; the evaluation layer
-(next milestone) does, and cites its sources.
+properties, block size. It does **not** say "weak" or "vulnerable" or "quantum-safe"; `internal/eval` does
+that (readiness level, TLS hygiene score, findings), from the same facts, and cites its sources.
+
+## CBOM export (`--cbom`)
+
+`cipherhorizon tls scan --cbom HOST[:PORT]` turns one scan into a CycloneDX 1.6 CBOM instead of a text or JSON
+report. The subject (`metadata.component`, a `device` named `host:port`) depends on one `protocol` component per
+supported TLS version, each with its accepted cipher suites, and on one `certificate` component per certificate the
+server presented. Below those hang the `algorithm` components they reference: each bulk cipher as a key-size-and-mode
+variant (`AES-128-GCM`, not just `AES`), each key-exchange group, and the post-quantum hybrids (`X25519MLKEM768` and
+the two other RFC 10024 groups get a `combiner`-primitive component and a cited PQC verdict). A certificate points at
+its public key, a `related-crypto-material` component with its size, which points at `RSA-2048` or `ECDSA-P256`. It
+takes exactly one target, since a CBOM has one subject.
+
+An edge below a protocol means the endpoint *accepts* that suite or group; what a current client actually
+negotiated is flagged `cipherhorizon:negotiated`. The full model, and which parts are CycloneDX and which are ours,
+is in [cbom-model.md](cbom-model.md).
+
+This is the same builder (`internal/cbom.FromTLSReport`) and the same PQC annotation pass
+(`internal/pqc.Analyze`/`Annotate`) a host inventory's CBOM gets, so an algorithm's quantum-vulnerable /
+quantum-safe verdict is the identical, cited classification either way — it is a fact about the algorithm, not
+about which side of the wire found it. What is *not* in the CBOM: the readiness level, the TLS hygiene score,
+and findings. Those are the evaluation's job and stay in `internal/eval`'s output (`--json`), the same
+CBOM-carries-facts-only line a host inventory already draws. A cipher or curve with no catalogue entry (a
+legacy cipher such as RC4, a named curve this program does not carry an OID for, a hybrid group backed only by
+an internet-draft) is still named in the suite text or certificate; it simply gets no algorithm reference
+rather than an invented one.
 
 ## Safety
 
 - Every connection goes through one gate: a concurrency cap (default 4), an optional minimum spacing
   (`--min-interval`), a per-connection timeout, and a **hard connection budget** (`--max-connections`,
   default 2000). When the budget runs out the scan stops and is marked incomplete.
-- Only handshake messages are exchanged: no application data, no exploit payloads.
+- Only handshake messages are exchanged: no application data, no exploit payloads. The one exception is the
+  optional `--http-checks` flag (off by default), which sends a single plain HTTP `GET /` after the handshake to
+  read the `Strict-Transport-Security` header — nothing else acts on the response, and no redirect is followed.
 - The wire parsers treat the peer as hostile: every length is bounds-checked and capped, and they are fuzzed
   (`go test ./internal/tlsprobe/wire -fuzz FuzzReadFlight`). Oversized fields when *building* a hello are
   errors, never silently truncated lengths.

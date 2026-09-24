@@ -1,6 +1,10 @@
-# cbom-scan
+# CipherHorizon
 
-> **Working name.** `cbom-scan` and the module path `github.com/example/cbom-scan` are placeholders.
+<!-- placeholder-owner -->
+> **Before the first push:** the module path `github.com/example/cipherhorizon` uses a placeholder owner. Run
+> `scripts/set-owner.sh <your-github-username>` (rewrites the module path, release config and links, and removes
+> this notice). See [docs/engineering/BRANCHING.md](docs/engineering/BRANCHING.md#first-push).
+<!-- /placeholder-owner -->
 
 A vendor-neutral, open-source tool for **cryptographic posture**: one place to see what cryptography your
 endpoints and hosts use, how well it is configured, and how exposed it is to a future quantum computer.
@@ -9,10 +13,13 @@ endpoints and hosts use, how well it is configured, and how exposed it is to a f
   **TLS hygiene** score, and see how it changed since the last scan.
 - **Active TLS/SSL scanner**: protocol versions (SSLv2 to TLS 1.3), every cipher suite, key-exchange groups
   including post-quantum hybrids such as `X25519MLKEM768`, certificates, with a cited finding for every problem.
-- **CBOM inventory**: what cryptography is installed on a host, as a [CycloneDX](https://cyclonedx.org/capabilities/cbom/)
-  1.6 **CBOM** with evidence-based post-quantum classifications. Upload one to the UI to see its verdicts.
+- **CBOM, both directions**: `cipherhorizon run` inventories what cryptography is installed on a host, and
+  `cipherhorizon tls scan --cbom` exports what an active scan observed on a remote endpoint (protocols, cipher
+  suites, key-exchange groups, certificates) — both as a [CycloneDX](https://cyclonedx.org/capabilities/cbom/)
+  1.6 **CBOM** with the same evidence-based post-quantum classifications. Upload either to the UI's **Hosts** page
+  to see its per-algorithm verdicts (the page is named for the host case; an endpoint's CBOM works the same way).
 
-**Status: pre-alpha (release R1 of the workbench).** See the [release report](docs/product/RELEASE-REPORT-001.md)
+**Status: pre-release, `0.x` (release R1 of the workbench).** Interfaces can still change between minor versions ([versioning policy](docs/engineering/RELEASING.md#versioning-policy)). See the [release report](docs/product/RELEASE-REPORT-001.md)
 for what is in, what is not, and what was found in testing.
 
 ## Tech stack
@@ -39,16 +46,25 @@ sends a strict Content-Security-Policy and renders everything it received from a
 - **Go 1.25 or newer** to build. Nothing else: no C compiler, no Node, no database server.
 - A modern browser to use the UI. (Node 22+ is needed only to run the browser end-to-end test.)
 
+### Install
+
+Download an archive for Linux, macOS or Windows (amd64/arm64) from the
+[Releases](../../releases) page, verify it ([how](docs/engineering/DISTRIBUTION.md#verifying-a-download)),
+extract it and run `cipherhorizon serve`. Or use the container image
+(`docker run -p 8080:8080 -e CIPHERHORIZON_TOKEN=... -v data:/data ghcr.io/<owner>/cipherhorizon:<version>`),
+or `go install github.com/<owner>/cipherhorizon/cmd/cipherhorizon@<version>`. What each release contains and how
+it is built and signed: [docs/engineering/DISTRIBUTION.md](docs/engineering/DISTRIBUTION.md).
+
 ### Build and run
 
 ```sh
 git clone <this repository> && cd <it>
-go build -o cbom-scan ./cmd/cbom-scan       # on Windows: go build -o cbom-scan.exe ./cmd/cbom-scan
-./cbom-scan serve                            # on Windows: .\cbom-scan.exe serve
+go build -o cipherhorizon ./cmd/cipherhorizon       # on Windows: go build -o cipherhorizon.exe ./cmd/cipherhorizon
+./cipherhorizon serve                            # on Windows: .\cipherhorizon.exe serve
 ```
 
 Then open **http://127.0.0.1:8080**. Stop it with Ctrl+C (running scans are cancelled cleanly).
-The data is kept in `./cbom-scan.db` in the directory you started it from (SQLite also creates `-wal` and `-shm`
+The data is kept in `./cipherhorizon.db` in the directory you started it from (SQLite also creates `-wal` and `-shm`
 files next to it). Delete those to start over.
 
 ### First use
@@ -59,7 +75,7 @@ files next to it). Delete those to start over.
    log, and **Cancel** if you need to.
 3. Read the result: **PQC readiness**, **TLS hygiene**, the TLS details, and the findings with their sources.
 4. Scan again later (or set an automatic rescan) and open the **History** tab to compare two scans.
-5. **Hosts** takes a CBOM made by `cbom-scan run` and shows a quantum verdict for each algorithm in it.
+5. **Hosts** takes a CBOM made by `cipherhorizon run` and shows a quantum verdict for each algorithm in it.
 
 Scan only systems you own or are authorised to test: a scan makes a few dozen to a few hundred short TLS
 handshakes per endpoint.
@@ -68,7 +84,7 @@ handshakes per endpoint.
 
 ```sh
 go run ./cmd/demo-targets                    # servers of known posture on 127.0.0.1:9440-9447; prints what to expect
-./cbom-scan serve --allow-loopback           # scans of loopback addresses are refused unless you say so
+./cipherhorizon serve --allow-loopback           # scans of loopback addresses are refused unless you say so
 ```
 
 Add the addresses `demo-targets` prints. They cover a hybrid post-quantum server (L3), a classical TLS 1.3 server
@@ -82,8 +98,8 @@ certificates, so their TLS hygiene scores include the untrusted-certificate find
 | Flag | Default | Meaning |
 |---|---|---|
 | `--addr` | `127.0.0.1:8080` | Address to listen on. Any address other than loopback needs a token. |
-| `--db` | `cbom-scan.db` | SQLite file (created if missing). |
-| `--token`, env `CBOM_SCAN_TOKEN` | none | Require `Authorization: Bearer <token>` on every API call; the UI asks for it once per browser tab. |
+| `--db` | `cipherhorizon.db` | SQLite file (created if missing). |
+| `--token`, env `CIPHERHORIZON_TOKEN` | none | Require `Authorization: Bearer <token>` on every API call; the UI asks for it once per browser tab. |
 | `--allow-loopback` | off | Let scans target loopback addresses (for testing). |
 | `--allowed-host` | none | Extra `Host` header accepted when no token is set (repeatable). |
 | `--max-concurrent-scans` | 2 | Scans that may run at once. |
@@ -94,17 +110,18 @@ To use it from other machines, set a token and put it behind a TLS-terminating r
 speaks plain HTTP.
 
 ```sh
-CBOM_SCAN_TOKEN='a-long-random-secret' ./cbom-scan serve --addr 0.0.0.0:8080
+CIPHERHORIZON_TOKEN='a-long-random-secret' ./cipherhorizon serve --addr 0.0.0.0:8080
 ```
 
 ### Command line
 
 ```sh
-./cbom-scan tls scan example.internal:443    # probe one endpoint, print the raw probe report (see docs/tls-scanning.md)
-./cbom-scan run                              # inventory this host, CBOM JSON to stdout
-./cbom-scan run --config config.yaml -o host.cbom.json
-./cbom-scan plugins                          # list built-in collectors
-./cbom-scan version
+./cipherhorizon tls scan example.internal:443    # probe one endpoint, print the raw probe report (see docs/tls-scanning.md)
+./cipherhorizon tls scan --cbom example.internal:443   # ...or as a CycloneDX CBOM of what the scan observed
+./cipherhorizon run                              # inventory this host, CBOM JSON to stdout
+./cipherhorizon run --config config.yaml -o host.cbom.json
+./cipherhorizon plugins                          # list built-in collectors
+./cipherhorizon version
 ```
 
 Example [`config.yaml`](docs/config.example.yaml) for `run`:
@@ -149,7 +166,7 @@ their sources (FIPS 203/204, RFC 9325, IANA registries, NIST IR 8547 draft, ...)
 
 | Path | What |
 |---|---|
-| `cmd/cbom-scan` | the program; `cmd/demo-targets` is a development-only set of demo servers |
+| `cmd/cipherhorizon` | the program; `cmd/demo-targets` is a development-only set of demo servers |
 | `internal/app` | command-line entry points (`run`, `tls scan`, `serve`) |
 | `internal/server` | HTTP API, scan runner and scheduler, target safety checks |
 | `internal/store` | SQLite storage, history, fleet summaries |
@@ -192,8 +209,16 @@ described in [testing/README.md](testing/README.md).
 ## Not in scope for R1
 
 Alerts and webhooks, HTTP-layer checks (HSTS), STARTTLS, multi-user auth, an agent daemon that pushes to the
-server, CBOM export for TLS endpoints, custom CA bundles, PDF reports, SSH probing. Source-code analysis belongs to
-CBOMkit / sonar-cryptography and image scanning to Trivy.
+server, custom CA bundles, PDF reports, SSH probing. Source-code analysis belongs to CBOMkit / sonar-cryptography
+and image scanning to Trivy.
+
+## Contributing
+
+Bug reports, corrections to a finding or citation, and pull requests are welcome — see
+[CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, coding conventions, and the evidence/citation
+rule every PQC verdict or TLS finding has to follow. Please report security vulnerabilities privately, per
+[SECURITY.md](SECURITY.md), rather than as a public issue. Everyone participating is expected to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

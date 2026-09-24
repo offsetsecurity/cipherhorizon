@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/tlsprobe/testserver"
-	"github.com/example/cbom-scan/internal/tlsprobe/wire"
+	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/example/cipherhorizon/internal/tlsprobe/wire"
 )
 
 const (

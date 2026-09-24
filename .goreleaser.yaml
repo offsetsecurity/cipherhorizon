@@ -1,0 +1,86 @@
+# GoReleaser configuration: how a tagged commit becomes the files people download.
+# Run by .github/workflows/release.yml on a v* tag. See docs/engineering/RELEASING.md.
+#
+# Try it locally without publishing anything:  make snapshot   (needs goreleaser installed)
+version: 2
+
+project_name: cipherhorizon
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - id: cipherhorizon
+    main: ./cmd/cipherhorizon
+    binary: cipherhorizon
+    env:
+      - CGO_ENABLED=0 # one static binary with no libc (SQLite is the pure-Go modernc.org/sqlite)
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/example/cipherhorizon/internal/version.Version={{ .Version }}
+      - -X github.com/example/cipherhorizon/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/example/cipherhorizon/internal/version.Date={{ .CommitDate }}
+    # Reproducible: file times come from the commit, not the clock.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    ids: [cipherhorizon]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - SECURITY.md
+      - docs/config.example.yaml
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# A software bill of materials for every archive (Syft; the workflow installs it).
+sboms:
+  - artifacts: archive
+
+# Sign the checksum file with the workflow's own OIDC identity (Sigstore keyless: no key to
+# store or leak). Signing checksums.txt covers every archive listed in it.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--yes", "--bundle=${signature}", "${artifact}"]
+    artifacts: checksum
+    output: true
+
+# Release notes come from CHANGELOG.md (scripts/release-notes.sh), not from commit messages.
+changelog:
+  disable: true
+
+release:
+  # Created as a draft; the release workflow publishes it only after the container image and the
+  # provenance attestations are also in place. 0.x releases are flagged pre-release there.
+  draft: true
+  replace_existing_draft: true
+  name_template: "CipherHorizon v{{ .Version }}"
+  footer: |
+    ### Verify what you downloaded
+
+    ```sh
+    sha256sum --check --ignore-missing checksums.txt
+    cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+      --certificate-identity-regexp '^https://github.com/{{ .Env.GITHUB_REPOSITORY }}/\.github/workflows/release\.yml@refs/tags/v' \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com
+    ```
+
+    Full instructions, including the container image and build provenance: docs/engineering/DISTRIBUTION.md.
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"

@@ -96,6 +96,23 @@ export const INTERVALS = [
   [0, 'Off'], [3600, 'Every hour'], [21600, 'Every 6 hours'], [86400, 'Every day'], [604800, 'Every week'],
 ];
 
+/** Builds a CSV string from rows of plain values, quoting as needed and
+ * defusing formula injection (a leading =+-@ or tab/CR gets a leading quote)
+ * — the same rule the server's own CSV export uses, since these cells can
+ * hold attacker-influenced text from a scanned server (a certificate subject,
+ * a finding detail). */
+export function toCSV(headers, rows) {
+  const safe = (v) => {
+    let s = v === null || v === undefined ? '' : String(v);
+    if (s !== '' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    if (/[",\n\r]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  const lines = [headers.map(safe).join(',')];
+  for (const row of rows) lines.push(row.map(safe).join(','));
+  return lines.join('\r\n');
+}
+
 export function intervalLabel(sec) {
   const f = INTERVALS.find(([s]) => s === sec);
   return f ? f[1] : `${sec}s`;

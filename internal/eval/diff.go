@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/example/cbom-scan/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
 // Impact says whether a change moved the endpoint's posture the right way.

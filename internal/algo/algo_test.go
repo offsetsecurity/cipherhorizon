@@ -7,7 +7,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/algo"
+	"github.com/example/cipherhorizon/internal/algo"
 )
 
 var oidRE = regexp.MustCompile(`^[0-2](\.(0|[1-9][0-9]*))+$`)

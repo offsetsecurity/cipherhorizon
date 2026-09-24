@@ -6,7 +6,7 @@ Implements `PRD-001`. Read that first; acceptance criteria are referenced as AC-
 
 | # | Decision | Reason |
 |---|---|---|
-| D1 | `cbom-scan serve`: one process = HTTP API + embedded UI + job runner + scheduler | Single static binary, air-gapped (PRD §9) |
+| D1 | `cipherhorizon serve`: one process = HTTP API + embedded UI + job runner + scheduler | Single static binary, air-gapped (PRD §9) |
 | D2 | SQLite via pure-Go `modernc.org/sqlite` | `CGO_ENABLED=0` must keep working (`mattn/go-sqlite3` needs cgo) |
 | D3 | UI: vanilla ES modules, hand-written SVG charts, **no build step**, `go:embed` | `go build` stays self-sufficient; no Node in CI; nothing to supply-chain. **Deviation** from the earlier Svelte plan; revisit if UI complexity outgrows it |
 | D4 | UI builds DOM with `createElement`/`textContent` only, never `innerHTML` with data | AC-11.6: a hostile cert subject cannot execute |
@@ -56,7 +56,7 @@ hndl_exposed, crit, high, cert_not_after, incomplete)`; `scan_events(scan_id, at
 `schema_migrations(version)`. WAL mode, foreign keys on.
 
 ### Security controls (AC-11.x)
-Loopback default bind; token required for non-loopback (`--token` / `CBOM_SCAN_TOKEN`, constant-time compare);
+Loopback default bind; token required for non-loopback (`--token` / `CIPHERHORIZON_TOKEN`, constant-time compare);
 Host allowlist (`127.0.0.1`, `localhost`, `[::1]`, plus `--allowed-host`); Origin must equal Host on mutations;
 CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self';
 frame-ancestors 'none'; base-uri 'none'; form-action 'none'`, `nosniff`, `no-referrer`; SSRF guard blocks
@@ -80,3 +80,8 @@ no-build vanilla UI instead of Svelte, SQLite only, no OpenAPI file, polling rat
 Two additions beyond the handoff: `cmd/demo-targets` (known-posture servers for QA and demos) and
 `testing/e2e` (browser journey and live security script, also run in CI). Verification is in
 [QA-REPORT-001](QA-REPORT-001.md); how to read the results is in [../methodology.md](../methodology.md).
+
+**Added after release** (product renamed to CipherHorizon; not covered by QA-REPORT-001, which predates it):
+`tls scan --cbom` exports a TLS scan as a CycloneDX 1.6 CBOM (`internal/cbom/tlsbuild.go`), PQC-annotated by the
+same pass a host inventory gets. See [RELEASE-REPORT-001](RELEASE-REPORT-001.md) deviation 7b and
+[../tls-scanning.md](../tls-scanning.md).

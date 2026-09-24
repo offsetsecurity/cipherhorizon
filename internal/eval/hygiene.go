@@ -87,8 +87,12 @@ const hygieneMethodology = "TLS hygiene score: start at 100 and take off points 
 func computeHygiene(c *ctx, findings []Finding) Hygiene {
 	h := Hygiene{Deductions: []Deduction{}, Methodology: hygieneMethodology}
 	h.NotMeasured = []string{
-		"HTTP-layer settings such as Strict Transport Security: the scanner makes no HTTP requests.",
+		"Certificate revocation status.",
 		"Active exploit probes (Heartbleed, ROBOT, CCS injection, ...): not implemented; only weaknesses inferable from what is enabled are counted.",
+	}
+	if c.rep.HSTS == nil {
+		h.NotMeasured = append(h.NotMeasured,
+			"HTTP Strict Transport Security: not checked on this scan (the opt-in --http-checks flag was off).")
 	}
 
 	anyProtocol := false

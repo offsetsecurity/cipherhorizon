@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/server"
-	"github.com/example/cbom-scan/internal/store"
-	"github.com/example/cbom-scan/internal/tlsprobe/testserver"
+	"github.com/example/cipherhorizon/internal/server"
+	"github.com/example/cipherhorizon/internal/store"
+	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // rawReq sends a request with full control over Host and headers.
@@ -108,7 +108,7 @@ func TestAC11_MutationsAreProtectedFromForgery(t *testing.T) {
 	body := `{"target":"forged.example"}`
 	js := map[string]string{"Content-Type": "application/json"}
 	with := func(extra map[string]string) map[string]string {
-		h := map[string]string{"Content-Type": "application/json", "X-Requested-With": "cbom-scan"}
+		h := map[string]string{"Content-Type": "application/json", "X-Requested-With": "cipherhorizon"}
 		for k, v := range extra {
 			h[k] = v
 		}
@@ -136,7 +136,7 @@ func TestAC11_MutationsAreProtectedFromForgery(t *testing.T) {
 		t.Errorf("cross-site fetch metadata: %d, want 403", s)
 	}
 	// A non-JSON body is refused.
-	if s, _ := e.rawReq("POST", "/api/v1/assets", "", map[string]string{"X-Requested-With": "cbom-scan", "Content-Type": "text/plain"}, body); s != 415 {
+	if s, _ := e.rawReq("POST", "/api/v1/assets", "", map[string]string{"X-Requested-With": "cipherhorizon", "Content-Type": "text/plain"}, body); s != 415 {
 		t.Errorf("non-JSON body: %d, want 415", s)
 	}
 	// None of that created anything.
@@ -286,6 +286,7 @@ func TestAPIRobustness(t *testing.T) {
 		"missing asset":        {"GET", "/api/v1/assets/9999", nil, 404},
 		"missing scan":         {"GET", "/api/v1/scans/9999", nil, 404},
 		"missing report":       {"GET", "/api/v1/scans/9999/report", nil, 404},
+		"missing cbom":         {"GET", "/api/v1/scans/9999/cbom", nil, 404},
 		"unknown api path":     {"GET", "/api/v1/nope", nil, 404},
 		"wrong method":         {"PUT", "/api/v1/assets", map[string]any{}, 405},
 		"malformed json":       {"POST", "/api/v1/assets", `{"target":`, 400},

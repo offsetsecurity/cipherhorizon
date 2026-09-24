@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cbom-scan/internal/eval"
-	"github.com/example/cbom-scan/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/eval"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
 func hygiene(rep *tlsprobe.Report) eval.Hygiene { return eval.Evaluate(rep, now).Hygiene }

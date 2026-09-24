@@ -12,7 +12,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/example/cbom-scan/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations

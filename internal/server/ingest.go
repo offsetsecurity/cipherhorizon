@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -11,8 +12,8 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cbom-scan/internal/pqc"
-	"github.com/example/cbom-scan/internal/store"
+	"github.com/example/cipherhorizon/internal/pqc"
+	"github.com/example/cipherhorizon/internal/store"
 )
 
 const maxCBOM = 32 << 20
@@ -134,7 +135,7 @@ func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
 	if created {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, map[string]any{"asset": view(asset), "snapshotId": id, "created": created, "summary": sum})
+	writeJSON(w, status, map[string]any{"asset": view(asset, nil), "snapshotId": id, "created": created, "summary": sum})
 }
 
 type hostView struct {
@@ -144,8 +145,8 @@ type hostView struct {
 	Snapshots int          `json:"snapshots"`
 }
 
-func (s *Server) hostFor(a store.Asset) hostView {
-	hv := hostView{assetView: view(a)}
+func (s *Server) hostFor(a store.Asset, links map[int64][]int64) hostView {
+	hv := hostView{assetView: view(a, links)}
 	snaps, err := s.cfg.Store.HostSnapshots(a.ID, 50)
 	if err != nil || len(snaps) == 0 {
 		return hv
@@ -166,9 +167,14 @@ func (s *Server) listHosts(w http.ResponseWriter, _ *http.Request) {
 		storeErr(w, err)
 		return
 	}
+	links, err := s.cfg.Store.AllLinks()
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
 	out := make([]hostView, 0, len(as))
 	for _, a := range as {
-		out = append(out, s.hostFor(a))
+		out = append(out, s.hostFor(a, links))
 	}
 	writeJSON(w, 200, out)
 }
@@ -184,7 +190,12 @@ func (s *Server) getHost(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "not found")
 		return
 	}
-	hv := s.hostFor(a)
+	linked, err := s.cfg.Store.LinkedAssetIDs(id)
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
+	hv := s.hostFor(a, map[int64][]int64{id: linked})
 	snaps, _ := s.cfg.Store.HostSnapshots(id, 50)
 	history := make([]map[string]any, 0, len(snaps))
 	for _, sn := range snaps {
@@ -193,4 +204,45 @@ func (s *Server) getHost(w http.ResponseWriter, r *http.Request) {
 		history = append(history, map[string]any{"id": sn.ID, "at": sn.At, "vulnerable": sum.Vulnerable, "safe": sum.Safe, "packages": sum.Packages})
 	}
 	writeJSON(w, 200, map[string]any{"host": hv, "history": history})
+}
+
+// hostSnapshotCBOM downloads one of a host's raw uploaded CBOMs, closing the
+// asymmetry with TLS endpoints (which can already export a CBOM on demand).
+func (s *Server) hostSnapshotCBOM(w http.ResponseWriter, r *http.Request) {
+	hostID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	snapID, err := strconv.ParseInt(r.PathValue("snapshotId"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid snapshot id")
+		return
+	}
+	snaps, err := s.cfg.Store.HostSnapshots(hostID, 50)
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
+	found := false
+	for _, sn := range snaps {
+		if sn.ID == snapID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	b, err := s.cfg.Store.HostCBOM(snapID)
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if r.URL.Query().Get("download") == "1" {
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="host-%d-snapshot-%d-cbom.json"`, hostID, snapID))
+	}
+	_, _ = w.Write(b)
 }

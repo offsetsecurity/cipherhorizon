@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cbom-scan/internal/server"
-	"github.com/example/cbom-scan/internal/store"
-	"github.com/example/cbom-scan/internal/tlsprobe"
-	"github.com/example/cbom-scan/internal/tlsprobe/testserver"
+	"github.com/example/cipherhorizon/internal/server"
+	"github.com/example/cipherhorizon/internal/store"
+	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 type fakeClock struct {
@@ -115,7 +115,7 @@ func (e *env) req(method, path string, body any, hdr map[string]string) (int, []
 		e.t.Fatal(err)
 	}
 	if method != http.MethodGet {
-		req.Header.Set("X-Requested-With", "cbom-scan")
+		req.Header.Set("X-Requested-With", "cipherhorizon")
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -157,17 +157,18 @@ func (e *env) call(method, path string, body, out any) int {
 }
 
 type assetJSON struct {
-	ID       int64     `json:"id"`
-	Name     string    `json:"name"`
-	Host     string    `json:"host"`
-	Port     int       `json:"port"`
-	Address  string    `json:"address"`
-	Tags     []string  `json:"tags"`
-	Notes    string    `json:"notes"`
-	Interval int       `json:"intervalSeconds"`
-	Next     *string   `json:"nextScanAt"`
-	Latest   *scanJSON `json:"latest"`
-	LastDone *scanJSON `json:"lastDone"`
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	Host           string    `json:"host"`
+	Port           int       `json:"port"`
+	Address        string    `json:"address"`
+	Tags           []string  `json:"tags"`
+	Notes          string    `json:"notes"`
+	Interval       int       `json:"intervalSeconds"`
+	Next           *string   `json:"nextScanAt"`
+	Latest         *scanJSON `json:"latest"`
+	LastDone       *scanJSON `json:"lastDone"`
+	LinkedAssetIDs []int64   `json:"linkedAssetIds"`
 }
 
 type scanJSON struct {

@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/example/cbom-scan/internal/tlsprobe/wire"
+	"github.com/example/cipherhorizon/internal/tlsprobe/wire"
 )
 
 // Options bound and shape a scan. The zero value is usable and conservative.
@@ -30,6 +30,10 @@ type Options struct {
 	MinInterval time.Duration
 	// SkipCertificates omits the crypto/tls-based certificate and negotiation steps.
 	SkipCertificates bool
+	// HTTPChecks, when set, sends one plain HTTP GET / after the handshake and
+	// reads the Strict-Transport-Security header. Off by default: this is the
+	// only check in the package that sends anything beyond a TLS handshake.
+	HTTPChecks bool
 
 	// Dial opens a connection. Default: net.Dialer. Tests and the future
 	// STARTTLS/SSRF-guard layers replace it.
