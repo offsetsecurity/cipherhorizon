@@ -10,6 +10,23 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Windows collector, stage 1** (`docs/host-discovery/stage-1-report.md`, ADR-0012): OpenSSL's files now have
+  roles. Only `libcrypto` provides the algorithms; `libssl` and `openssl.exe` are consumers, linked to their provider
+  by a **static import** proven from the file's import table (same directory only, "could use", never "uses").
+  Every recognised, well-formed file carries a **SHA-256** (bounded: 128 MiB a file, 2 GiB a run, reported in the
+  coverage) and a generic package URL that is honestly a *file identity*, not an upstream product identifier. The
+  import reader is hand-written, bounds-checked and fuzzed; its first fuzz run found a bug in the new code, now fixed.
+- `testing/hostdiscovery/compare-hashes.ps1` (SHA-256 oracle) and a real-binary import cross-check against Go's
+  `debug/pe`; `testing/hostdiscovery/authenticode-probe` and `docs/host-discovery/authenticode-investigation.md`:
+  a measured investigation of offline signature verification (not shipped).
+
+### Changed
+
+- Knowledge table revision 2: a file that only uses a family's implementation is no longer credited with the
+  family's algorithms (Windows loose files only; Debian output is unchanged and tested against the frozen goldens).
+
 ## [0.1.0] - 2026-09-24
 
 ### Added

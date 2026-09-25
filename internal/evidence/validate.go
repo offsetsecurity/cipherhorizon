@@ -22,7 +22,7 @@ const (
 // secrets and hostile strings would travel.
 var AllowedAttrs = map[string]map[string]bool{
 	KindPackage:   set("name", "version", "arch", "distro", "family", "kind"),
-	KindArtefact:  set("path", "size", "fileVersion", "productName", "family", "kind", "arch", "peValid"),
+	KindArtefact:  set("path", "size", "fileVersion", "productName", "family", "kind", "arch", "peValid", "sha256", "imports"),
 	KindAlgorithm: set(),
 }
 
@@ -112,6 +112,9 @@ func Validate(o Observation) error {
 		if len(v) > maxAttrLen || !utf8.ValidString(v) {
 			fail("attribute %q is over %d bytes or not UTF-8", k, maxAttrLen)
 		}
+		if err := validateAttrFormat(k, v); err != nil {
+			fail("%v", err)
+		}
 	}
 
 	// Claim.
@@ -197,4 +200,35 @@ func validateClaim(c Claim) error {
 		return errors.New("binding kind is set exactly when the rung is bound")
 	}
 	return nil
+}
+
+// validateAttrFormat holds the attributes that must have one exact shape. A
+// digest is 64 lower-case hex digits and an import list is library names only:
+// nothing else can travel in those fields, whatever the file said.
+func validateAttrFormat(k, v string) error {
+	switch k {
+	case "sha256":
+		if len(v) != 64 {
+			return fmt.Errorf("attribute sha256 must be 64 hex digits")
+		}
+		for i := 0; i < len(v); i++ {
+			if !isLowerHex(v[i]) {
+				return fmt.Errorf("attribute sha256 must be lower-case hex")
+			}
+		}
+	case "imports":
+		for i := 0; i < len(v); i++ {
+			if c := v[i]; c != ',' && !isLibNameByte(c) {
+				return fmt.Errorf("attribute imports must be a comma-separated list of library names")
+			}
+		}
+	}
+	return nil
+}
+
+func isLowerHex(c byte) bool { return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' }
+
+// isLibNameByte is a byte a library file name may contain here.
+func isLibNameByte(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '-' || c == '_' || c == '+'
 }

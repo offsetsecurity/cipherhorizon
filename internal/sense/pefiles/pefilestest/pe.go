@@ -91,6 +91,10 @@ type Opts struct {
 	DataSize  uint32 // override the resource data-entry size (0 = real size)
 	PE32      bool
 	BlockOnly []byte // override the version block bytes
+	// Imports are library names for a static import table in an .idata section.
+	Imports []string
+	// RawImportBytes replaces the whole import section content (hostile-table tests).
+	RawImportBytes []byte
 }
 
 // Build returns a minimal PE image whose .rsrc section holds a version resource.
@@ -140,27 +144,61 @@ func Build(o Opts, fixedMS, fixedLS uint32, fileVersion, product string) []byte 
 		optSize, dirOff, magic = 224, 96, 0x10b
 	}
 
+	// Import table, RVA 0x2000: descriptors, a zero terminator, then the names.
+	var idata []byte
+	if o.RawImportBytes != nil {
+		idata = o.RawImportBytes
+	} else if len(o.Imports) > 0 {
+		nameOff := (len(o.Imports) + 1) * 20
+		var names []byte
+		for i, n := range o.Imports {
+			var d [20]byte
+			binary.LittleEndian.PutUint32(d[12:], u32(0x2000+nameOff+len(names)))
+			idata = append(idata, d[:]...)
+			_ = i
+			names = append(names, n...)
+			names = append(names, 0)
+		}
+		idata = append(idata, make([]byte, 20)...) // terminator
+		idata = append(idata, names...)
+	}
+
 	img := make([]byte, 0x200)
 	copy(img, "MZ")
 	binary.LittleEndian.PutUint32(img[0x3c:], 0x80)
 	copy(img[0x80:], "PE\x00\x00")
 	binary.LittleEndian.PutUint16(img[0x84:], o.Machine)
-	binary.LittleEndian.PutUint16(img[0x86:], 1) // sections
+	nsec := 1
+	if len(idata) > 0 {
+		nsec = 2
+	}
+	binary.LittleEndian.PutUint16(img[0x86:], u16(nsec)) // sections
 	binary.LittleEndian.PutUint16(img[0x94:], u16(optSize))
 	opt := img[0x98:]
 	binary.LittleEndian.PutUint16(opt, magic)
 	nrva := uint32(16)
-	if o.NoResDir {
+	if o.NoResDir && len(idata) == 0 {
 		nrva = 0
 	}
 	binary.LittleEndian.PutUint32(opt[dirOff-4:], nrva)
 	binary.LittleEndian.PutUint32(opt[dirOff+2*8:], 0x1000)
 	binary.LittleEndian.PutUint32(opt[dirOff+2*8+4:], u32(len(rsrc)))
+	if len(idata) > 0 {
+		binary.LittleEndian.PutUint32(opt[dirOff+1*8:], 0x2000)
+		binary.LittleEndian.PutUint32(opt[dirOff+1*8+4:], u32(len(idata)))
+		sec2 := img[0x98+optSize+40:]
+		copy(sec2, ".idata")
+		binary.LittleEndian.PutUint32(sec2[8:], u32(len(idata)))  // virtual size
+		binary.LittleEndian.PutUint32(sec2[12:], 0x2000)          // VA
+		binary.LittleEndian.PutUint32(sec2[16:], u32(len(idata))) // raw size
+		binary.LittleEndian.PutUint32(sec2[20:], u32(0x200+len(rsrc)))
+	}
 	sec := img[0x98+optSize:]
 	copy(sec, ".rsrc")
 	binary.LittleEndian.PutUint32(sec[8:], u32(len(rsrc)))  // virtual size
 	binary.LittleEndian.PutUint32(sec[12:], 0x1000)         // VA
 	binary.LittleEndian.PutUint32(sec[16:], u32(len(rsrc))) // raw size
 	binary.LittleEndian.PutUint32(sec[20:], 0x200)          // raw pointer
-	return append(img, rsrc...)
+	img = append(img, rsrc...)
+	return append(img, idata...)
 }

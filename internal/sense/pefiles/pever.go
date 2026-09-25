@@ -38,6 +38,8 @@ const (
 	maxDirEntries  = 256      // entries examined per resource directory
 	maxString      = 128      // characters copied out of a version string
 	rtVersion      = 16       // RT_VERSION resource type
+	maxImports     = 256      // import descriptors examined
+	maxImportName  = 64       // bytes read for one imported library name
 )
 
 type section struct {
@@ -51,6 +53,8 @@ type image struct {
 	secs    []section
 	resRVA  uint32
 	resSize uint32
+	impRVA  uint32 // import directory table (data directory entry 1)
+	impSize uint32
 }
 
 func (im *image) readAt(off int64, n int) ([]byte, error) {
@@ -134,12 +138,23 @@ func parseImage(r io.ReaderAt, size int64) (*image, error) {
 	default:
 		return nil, ErrNotPE
 	}
-	// Data directory entry 2 is the resource table; the header must be long enough to hold it.
-	if dirOff+3*8 > len(opt) || int(binary.LittleEndian.Uint32(opt[dirOff-4:])) < 3 {
-		return im, nil // a valid image with no resource directory: no version info
+	// Data directory entries: 1 is the import table, 2 the resource table. Each is
+	// present only if the header declares that many and is long enough to hold it.
+	if dirOff > len(opt) {
+		return im, nil // header too short to hold even the directory count: no directories
 	}
-	im.resRVA = binary.LittleEndian.Uint32(opt[dirOff+2*8:])
-	im.resSize = binary.LittleEndian.Uint32(opt[dirOff+2*8+4:])
+	count := int(binary.LittleEndian.Uint32(opt[dirOff-4:]))
+	if count >= 2 && dirOff+2*8 <= len(opt) {
+		im.impRVA = binary.LittleEndian.Uint32(opt[dirOff+1*8:])
+		im.impSize = binary.LittleEndian.Uint32(opt[dirOff+1*8+4:])
+	}
+	if count >= 3 && dirOff+3*8 <= len(opt) {
+		im.resRVA = binary.LittleEndian.Uint32(opt[dirOff+2*8:])
+		im.resSize = binary.LittleEndian.Uint32(opt[dirOff+2*8+4:])
+	}
+	if im.impRVA == 0 && im.resRVA == 0 {
+		return im, nil // a valid image with neither: nothing to read
+	}
 
 	table, err := im.readAt(lfanew+24+int64(optSize), nsec*40)
 	if err != nil {
@@ -379,4 +394,93 @@ func clean(s string) string {
 		}
 	}
 	return strings.TrimSpace(sb.String())
+}
+
+// readRVAUpTo reads up to n bytes at rva, stopping at the end of the section that
+// holds it. It is for strings, whose length is not known in advance.
+func (im *image) readRVAUpTo(rva uint32, n int) ([]byte, error) {
+	if n <= 0 || n > maxReadRVA {
+		return nil, ErrNotPE
+	}
+	for _, s := range im.secs {
+		span := s.virtualSize
+		if s.rawSize > span {
+			span = s.rawSize
+		}
+		if rva < s.va || rva-s.va >= span {
+			continue
+		}
+		rel := rva - s.va
+		if rel >= s.rawSize {
+			return nil, ErrNotPE
+		}
+		if avail := int64(s.rawSize) - int64(rel); int64(n) > avail {
+			n = int(avail)
+		}
+		return im.readAt(int64(s.rawPtr)+int64(rel), n)
+	}
+	return nil, ErrNotPE
+}
+
+// ReadImports returns the library names in the image's static import table
+// (lower-cased, without duplicates, in file order). Delay-loaded and dynamically
+// loaded libraries are not in this table, so an absent name proves nothing.
+//
+// The names are chosen by whoever built the file: each is capped, must be printable
+// ASCII, and anything else is skipped rather than reported. It returns ErrNotPE for
+// a file that is not a well-formed PE image, and no names (and no error) for a valid
+// image with no import table.
+func ReadImports(r io.ReaderAt, size int64) ([]string, error) {
+	im, err := parseImage(r, size)
+	if err != nil {
+		return nil, err
+	}
+	if im.impRVA == 0 || im.impSize == 0 {
+		return nil, nil
+	}
+	var names []string
+	seen := map[string]bool{}
+	for i := 0; i < maxImports; i++ {
+		d, err := im.readRVA(im.impRVA+uint32(i)*20, 20)
+		if err != nil {
+			break // ran off the table: what was read so far stands
+		}
+		nameRVA := binary.LittleEndian.Uint32(d[12:])
+		if nameRVA == 0 && binary.LittleEndian.Uint32(d[0:]) == 0 && binary.LittleEndian.Uint32(d[16:]) == 0 {
+			break // the all-zero terminator
+		}
+		if nameRVA == 0 {
+			continue
+		}
+		raw, err := im.readRVAUpTo(nameRVA, maxImportName)
+		if err != nil {
+			continue
+		}
+		end := 0
+		for end < len(raw) && raw[end] != 0 {
+			end++
+		}
+		if end == len(raw) || end == 0 { // unterminated within the cap, or empty
+			continue
+		}
+		n := strings.ToLower(string(raw[:end]))
+		if !printableLibName(n) || seen[n] {
+			continue
+		}
+		seen[n] = true
+		names = append(names, n)
+	}
+	return names, nil
+}
+
+// printableLibName accepts only what a real library file name looks like.
+func printableLibName(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		ok := c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '-' || c == '_' || c == '+'
+		if !ok {
+			return false
+		}
+	}
+	return true
 }

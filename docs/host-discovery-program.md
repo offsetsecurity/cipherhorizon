@@ -41,6 +41,7 @@ fixtures only.** Levels 2-7 have not been started.
 | [0009](decisions/ADR-0009-privilege-disclosure-and-redaction.md) | Privilege warning; minimise-by-default redaction |
 | [0010](decisions/ADR-0010-sensor-replaces-collector.md) | `Sensor` replaces `collector.Collector`; no adapter |
 | [0011](decisions/ADR-0011-separate-endpoint-collector.md) | A separate ~4 MB collector program for endpoints; enforced by a test |
+| [0012](decisions/ADR-0012-file-roles-imports-hashes-identifiers.md) | File roles (provider/consumer), static-import links, SHA-256 and file-identity `purl` (Windows stage 1) |
 
 ADR-0001 to ADR-0008 were proposed by Agent 3 and stand after Agent 4's challenge (ADR-0002 amended). ADR-0009 to ADR-0011 were accepted at implementation (ADR-0011 on the user's challenge).
 

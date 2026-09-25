@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/package-url/packageurl-go"
 
 	"github.com/example/cipherhorizon/internal/algo"
 	"github.com/example/cipherhorizon/internal/collector"
@@ -119,6 +120,10 @@ func hostComponent(g *evidence.Graph, n *evidence.Node, algos []string, cites []
 		}
 	} else {
 		comp.Version = s.Attrs["fileVersion"]
+		if sha := s.Attrs["sha256"]; sha != "" {
+			comp.Hashes = &[]cdx.Hash{{Algorithm: cdx.HashAlgoSHA256, Value: sha}}
+		}
+		comp.PackageURL = filePURL(s)
 	}
 
 	// Where it was found, and by which methods (a closed technique list).
@@ -188,6 +193,28 @@ func hostComponent(g *evidence.Graph, n *evidence.Node, algos []string, cites []
 		if v := s.Attrs["peValid"]; v != "" {
 			props = append(props, Property("pe-valid", v))
 		}
+		if comp.PackageURL != "" {
+			// A file identity, not an upstream product identifier: it says which exact
+			// file this is, and must not be used to look the product up in a
+			// vulnerability database as if it were the upstream release.
+			props = append(props, Property("identifier-basis", "file identity (name, file version, SHA-256); not an upstream product identifier"))
+		}
+		if fam, ok := knowledge.ByID(s.Attrs["family"]); ok {
+			if role := fam.RoleForFile(strings.ToLower(s.Name)); role != "" {
+				props = append(props, Property("role", role))
+				if role == knowledge.RoleConsumer && fam.ConsumerBasis != "" {
+					props = append(props, Property("role-basis", fam.ConsumerBasis))
+				}
+			}
+		}
+		if v := s.Attrs["imports"]; v != "" {
+			props = append(props, Property("static-imports", v))
+		}
+	}
+	dependsOn := boundTargets(n)
+	if len(dependsOn) > 0 {
+		props = append(props, Property("dependency-basis",
+			"static import table (parsed); the target is the recognised library in the same directory, the Windows loader search order was not evaluated; could use, not observed use"))
 	}
 	comp.Properties = &props
 
@@ -200,7 +227,42 @@ func hostComponent(g *evidence.Graph, n *evidence.Node, algos []string, cites []
 		provRefs = append(provRefs, a.BOMRef())
 	}
 	sort.Strings(provRefs)
-	return collector.CryptoAsset{Component: comp, Provides: provRefs}, nil
+	return collector.CryptoAsset{Component: comp, Provides: provRefs, DependsOn: dependsOn}, nil
+}
+
+// boundTargets are the subjects this node is bound to by a static import, sorted.
+// They come from observed `bound` claims, so an edge here is a link a sensor
+// proved, and is never stronger than "could use".
+func boundTargets(n *evidence.Node) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, o := range n.Observations {
+		if o.Origin != evidence.OriginObserved || o.Claim.Rung != evidence.RungBound {
+			continue
+		}
+		for _, r := range o.Relations {
+			if r.Claim.Rung == evidence.RungBound && !seen[r.To] {
+				seen[r.To] = true
+				out = append(out, r.To)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// filePURL identifies a loose file by name, file version and (when known) SHA-256
+// as a generic package URL. It is empty when the version is unknown: a name alone
+// is not an identifier worth emitting.
+func filePURL(s evidence.Subject) string {
+	if s.Name == "" || s.Attrs["fileVersion"] == "" {
+		return ""
+	}
+	var q packageurl.Qualifiers
+	if sha := s.Attrs["sha256"]; sha != "" {
+		q = packageurl.Qualifiers{{Key: "checksum", Value: "sha256:" + sha}}
+	}
+	return packageurl.NewPackageURL("generic", "", s.Name, s.Attrs["fileVersion"], q, "").ToString()
 }
 
 func rankQuality(q evidence.Quality) int {

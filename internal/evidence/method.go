@@ -59,12 +59,14 @@ const (
 	MethodFSWalkName = "fs.walk.filename@1"
 	MethodPEVersion  = "pe.version-info@1"
 	MethodKnowledge  = "knowledge.mapping@1"
+	MethodPEImports  = "pe.imports@1"
 )
 
 var methods = map[string]Method{
 	MethodDpkgStatus: {ID: MethodDpkgStatus, Version: "1", Sensor: "apt", Technique: "manifest-analysis", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
 	MethodFSWalkName: {ID: MethodFSWalkName, Version: "1", Sensor: "pe-files", Technique: "filename", Quality: QualityHeuristic, MinPrivilege: "user", SecretProximity: "none"},
 	MethodPEVersion:  {ID: MethodPEVersion, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
+	MethodPEImports:  {ID: MethodPEImports, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
 	MethodKnowledge:  {ID: MethodKnowledge, Version: "1", Sensor: "knowledge", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
 }
 

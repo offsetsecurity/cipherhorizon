@@ -17,7 +17,7 @@ import "regexp"
 // KBVersion identifies this table's revision; it travels with every derived
 // capability so a report says which knowledge produced it. Bump it when a
 // mapping changes.
-const KBVersion = "1"
+const KBVersion = "2"
 
 // Component kinds a family's artefacts have.
 const (
@@ -57,6 +57,17 @@ type Family struct {
 	Files   []*regexp.Regexp
 	FileApp *regexp.Regexp
 
+	// FileConsumers match the loose files of this family that USE the family's
+	// implementation rather than provide algorithms themselves (for OpenSSL on
+	// Windows: libssl and the openssl command, which sit on top of libcrypto). Such
+	// a file is inventoried and never credited with the family's capabilities: it
+	// is linked to the file that provides them by what its import table proves.
+	// Empty for a family whose files each implement what the family provides, and
+	// for Debian packages, where one package holds the whole library.
+	FileConsumers []*regexp.Regexp
+	// ConsumerBasis cites the statement that the consumers depend on the provider.
+	ConsumerBasis string
+
 	Caps  []Capability
 	Basis []string // citations for every claim in Caps; required when Caps is non-empty
 }
@@ -78,6 +89,13 @@ var Families = []Family{
 			re(`^openssl\.exe$`),
 		},
 		FileApp: re(`\.exe$`),
+		FileConsumers: []*regexp.Regexp{
+			re(`^libssl-(1_1|3)(-x64|-x86|-arm64)?\.dll$`),
+			re(`^ssleay32\.dll$`),
+			re(`^(msys|cyg)-ssl-[0-9][0-9._-]*\.dll$`),
+			re(`^openssl\.exe$`),
+		},
+		ConsumerBasis: "OpenSSL guide, an introduction to the OpenSSL libraries: libcrypto provides general purpose cryptography and libssl depends on and uses libcrypto (https://docs.openssl.org/3.5/man7/ossl-guide-libraries-introduction/). The openssl command is treated as a consumer of both because it is the command-line program built on them; that page does not say so, and its import table is what links it to a specific file",
 		Caps: []Capability{
 			{Algos: []string{"RSA", "DSA", "DH", "ECDSA", "ECDH", "AES", "SHA-256", "SHA-384", "SHA-512"}},
 			{Min: Version{3, 5, 0}, Algos: []string{
@@ -196,4 +214,32 @@ func (f *Family) Capabilities(v Version, known bool) []string {
 // Mapping is the knowledge reference recorded on a derived capability.
 func (f *Family) Mapping() (id string, citations []string) {
 	return "capability/" + f.ID + "@" + KBVersion, f.Basis
+}
+
+// Roles of a loose file within its family.
+const (
+	RoleProvider = "provider" // implements the algorithms the family provides
+	RoleConsumer = "consumer" // uses a provider of the same family
+)
+
+// RoleForFile is the role of a lower-cased file base name in this family, or "" when
+// the family does not distinguish roles.
+func (f *Family) RoleForFile(lowerBase string) string {
+	if len(f.FileConsumers) == 0 {
+		return ""
+	}
+	if f.IsConsumerFile(lowerBase) {
+		return RoleConsumer
+	}
+	return RoleProvider
+}
+
+// IsConsumerFile reports whether the file only uses the family's implementation.
+func (f *Family) IsConsumerFile(lowerBase string) bool {
+	for _, r := range f.FileConsumers {
+		if r.MatchString(lowerBase) {
+			return true
+		}
+	}
+	return false
 }

@@ -10,6 +10,8 @@ package derive
 
 import (
 	"fmt"
+	"path"
+	"strings"
 
 	"github.com/example/cipherhorizon/internal/evidence"
 	"github.com/example/cipherhorizon/internal/knowledge"
@@ -40,6 +42,12 @@ func Capabilities(g *evidence.Graph) error {
 		}
 		fam, ok := knowledge.ByID(famID)
 		if !ok || len(fam.Caps) == 0 {
+			continue
+		}
+		if n.Subject.Kind == evidence.KindArtefact && fam.IsConsumerFile(strings.ToLower(path.Base(n.Subject.Attrs["path"]))) {
+			// A file that only uses the family's implementation (libssl, the openssl
+			// command) is present and linked to its provider; it is not credited with
+			// the provider's algorithms.
 			continue
 		}
 		base := strongestPresent(n)

@@ -3,6 +3,8 @@ package discover_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -295,5 +297,123 @@ func TestHostIDIsNotEmittedUnlessRedacting(t *testing.T) {
 		if p.Name == cbom.PropertyNamespace+":host-id" {
 			t.Errorf("the document carries a host-id without redaction: %q", p.Value)
 		}
+	}
+}
+
+func peImporting(fileVersion, product string, ms, ls uint32, imports ...string) *fstest.MapFile {
+	return &fstest.MapFile{Data: pefilestest.Build(pefilestest.Opts{Imports: imports}, ms, ls, fileVersion, product)}
+}
+
+func dependsOn(bom *cdx.BOM, ref string) []string {
+	if bom.Dependencies == nil {
+		return nil
+	}
+	for _, d := range *bom.Dependencies {
+		if d.Ref == ref && d.Dependencies != nil {
+			return *d.Dependencies
+		}
+	}
+	return nil
+}
+
+// OpenSSL on Windows is three files with three roles. Only libcrypto implements the
+// algorithms; libssl and the openssl command use it, and the document says so with
+// dependency edges proven from their import tables, not with duplicated capability.
+func TestOpenSSLRolesAreSeparatedAndLinkedByImports(t *testing.T) {
+	dir := "Program Files/Git/mingw64/bin/"
+	host := fstest.MapFS{
+		dir + "libcrypto-3-x64.dll": peImporting("3.5.7", "The OpenSSL Toolkit", 3<<16|5, 7<<16, "kernel32.dll"),
+		dir + "libssl-3-x64.dll":    peImporting("3.5.7", "The OpenSSL Toolkit", 3<<16|5, 7<<16, "libcrypto-3-x64.dll", "ws2_32.dll"),
+		dir + "openssl.exe":         peImporting("3.5.7", "The OpenSSL Toolkit", 3<<16|5, 7<<16, "libssl-3-x64.dll", "libcrypto-3-x64.dll"),
+	}
+	bom := project(t, run(t, host, "windows", "user"))
+	crypto, ssl, cli := component(bom, "libcrypto-3-x64.dll"), component(bom, "libssl-3-x64.dll"), component(bom, "openssl.exe")
+	if crypto == nil || ssl == nil || cli == nil {
+		t.Fatal("a file of the bundle was not inventoried")
+	}
+
+	if n := len(provided(bom, crypto.BOMRef)); n != 27 {
+		t.Errorf("libcrypto provides %d algorithms, want 27", n)
+	}
+	for _, c := range []*cdx.Component{ssl, cli} {
+		if n := len(provided(bom, c.BOMRef)); n != 0 {
+			t.Errorf("%s (a consumer) provides %d algorithms, want 0", c.Name, n)
+		}
+		if prop(c, "role") != "consumer" || prop(c, "role-basis") == "" || prop(c, "provides-claim") != "" {
+			t.Errorf("%s: role %q, basis %q, provides-claim %q", c.Name, prop(c, "role"), prop(c, "role-basis"), prop(c, "provides-claim"))
+		}
+	}
+	if prop(crypto, "role") != "provider" {
+		t.Errorf("libcrypto role = %q", prop(crypto, "role"))
+	}
+
+	if got := dependsOn(bom, ssl.BOMRef); len(got) != 1 || got[0] != crypto.BOMRef {
+		t.Errorf("libssl depends on %v, want libcrypto", got)
+	}
+	if got := dependsOn(bom, cli.BOMRef); len(got) != 2 {
+		t.Errorf("openssl.exe depends on %v, want libcrypto and libssl", got)
+	}
+	if len(dependsOn(bom, crypto.BOMRef)) != 0 {
+		t.Error("the provider must not depend on its consumers")
+	}
+	if b := prop(ssl, "dependency-basis"); !strings.Contains(b, "could use") || !strings.Contains(b, "same directory") {
+		t.Errorf("the edge must say what it rests on and that it is not use: %q", b)
+	}
+	if prop(ssl, "static-imports") != "libcrypto-3-x64.dll" {
+		t.Errorf("static-imports = %q: only recognised crypto libraries are recorded", prop(ssl, "static-imports"))
+	}
+}
+
+func TestAConsumerNextToNoProviderIsNotLinked(t *testing.T) {
+	host := fstest.MapFS{
+		"Program Files/App/libssl-3-x64.dll":          peImporting("3.5.7", "The OpenSSL Toolkit", 3<<16|5, 7<<16, "libcrypto-3-x64.dll"),
+		"Program Files/Elsewhere/libcrypto-3-x64.dll": pe("3.5.7", "The OpenSSL Toolkit", 3<<16|5, 7<<16),
+	}
+	bom := project(t, run(t, host, "windows", "user"))
+	ssl := component(bom, "libssl-3-x64.dll")
+	if got := dependsOn(bom, ssl.BOMRef); len(got) != 0 {
+		t.Errorf("linked across directories: %v", got)
+	}
+	if prop(ssl, "static-imports") != "libcrypto-3-x64.dll" || prop(ssl, "dependency-basis") != "" {
+		t.Errorf("the name should be reported without an edge: imports %q, basis %q", prop(ssl, "static-imports"), prop(ssl, "dependency-basis"))
+	}
+}
+
+// A file is identified by its SHA-256 and a generic package URL that says it is a
+// file identity. A decoy that is not a PE has neither.
+func TestFilesCarryAHashAndAFileIdentity(t *testing.T) {
+	img := pefilestest.Build(pefilestest.Opts{}, 3<<16|5, 7<<16, "3.5.7", "The OpenSSL Toolkit")
+	sum := sha256.Sum256(img)
+	host := fstest.MapFS{
+		"Program Files/Git/bin/libcrypto-3-x64.dll": {Data: img},
+		"Program Files/Evil/libcrypto-3-x64.dll":    {Data: []byte("MZ this is not really a PE")},
+	}
+	bom := project(t, run(t, host, "windows", "user"))
+	var real, decoy *cdx.Component
+	for i, c := range *bom.Components {
+		if c.Type == cdx.ComponentTypeCryptographicAsset {
+			continue
+		}
+		if c.Version != "" {
+			real = &(*bom.Components)[i]
+		} else {
+			decoy = &(*bom.Components)[i]
+		}
+	}
+	if real == nil || decoy == nil {
+		t.Fatal("expected one genuine file and one decoy")
+	}
+	if real.Hashes == nil || len(*real.Hashes) != 1 || (*real.Hashes)[0].Algorithm != cdx.HashAlgoSHA256 || (*real.Hashes)[0].Value != hex.EncodeToString(sum[:]) {
+		t.Errorf("hashes = %+v", real.Hashes)
+	}
+	want := "pkg:generic/libcrypto-3-x64.dll@3.5.7.0?checksum=sha256:" + hex.EncodeToString(sum[:])
+	if real.PackageURL != want {
+		t.Errorf("purl = %q, want %q", real.PackageURL, want)
+	}
+	if !strings.Contains(prop(real, "identifier-basis"), "not an upstream product identifier") {
+		t.Errorf("identifier-basis = %q", prop(real, "identifier-basis"))
+	}
+	if decoy.Hashes != nil || decoy.PackageURL != "" || prop(decoy, "identifier-basis") != "" {
+		t.Errorf("a decoy was given an identity: hashes %v, purl %q", decoy.Hashes, decoy.PackageURL)
 	}
 }

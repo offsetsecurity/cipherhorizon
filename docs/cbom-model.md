@@ -48,6 +48,7 @@ asserted as an error.
 
 | Fact | Modelled as |
 |---|---|
+| **Host files** (`cipherhorizon run` on Windows) | a `library` or `application` per recognised file: `hashes` (SHA-256), a `pkg:generic` file-identity `purl`, `cipherhorizon:role` (`provider` or `consumer`), and `dependencies[].dependsOn` for links proven from the file's static import table (same directory; "could use"). Only a provider has `provides` edges. See ADR-0012. |
 | Bulk cipher of a suite | a variant with key size and mode: `AES-128-GCM`, `AES-256-CBC`, `ChaCha20-Poly1305`; each has its own OID under the NIST AES arc and `parameterSetIdentifier` / `mode`. The whole-family `AES` entry exists only for host inventories that cannot see a key size, and for a suite variant the catalogue has no entry for. |
 | A certificate's public key | its own `related-crypto-material` component (`public-key`, `size`), referenced by the certificate's `subjectPublicKeyRef`, pointing at a key-algorithm variant: `RSA-2048`, `ECDSA-P256` (`curve` = `secp256r1`, RFC 5480), or the catalogue entry when there is no size to state (Ed25519, ML-DSA). |
 | A certificate's role | `cipherhorizon:chain-role` = `leaf`, `intermediate` or `root`, from its position in the chain the server sent. |
