@@ -26,7 +26,9 @@ endpoints and hosts use, how well it is configured, and how exposed it is to a f
    level, a hygiene score and a ranked list of what to fix.
 3. **Inventory a machine:** copy the small `cipherhorizon-collector` to it, run
    `cipherhorizon-collector run -o host.cbom.json` (as Administrator or root for a fuller result), and upload the
-   file on the *Hosts* page. The page shows how complete the inventory is and what it could not see.
+   file on the *Hosts* page. The page shows how complete the inventory is and what it could not see. On Windows it also
+   asks the operating system what cryptography it provides (CNG algorithms and providers, key storage providers and
+   the post-quantum parameter sets it accepts) and flags retired algorithms such as MD5 and RC4, with their sources.
 
 The dashboard always shows a single **next step**. More detail: [How to start](#how-to-start) below.
 

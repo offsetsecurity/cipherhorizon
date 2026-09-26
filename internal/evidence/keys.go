@@ -6,6 +6,15 @@ import "strings"
 // path with the user-profile segment tokenised (see RedactPath).
 func ArtefactKey(relPath string) string { return "file:" + strings.ToLower(relPath) }
 
+// ProviderKey is the canonical key of a cryptographic provider: the namespace it
+// lives in ("cng" for a CNG primitive or key storage provider, "csp" for a legacy
+// cryptographic service provider) and its registered name, lower-cased. Two
+// namespaces, because a CSP and a CNG provider are different things that could share
+// a name.
+func ProviderKey(namespace, name string) string {
+	return "provider:" + namespace + ":" + strings.ToLower(name)
+}
+
 // AlgorithmKey is the canonical key of a catalogue algorithm.
 func AlgorithmKey(id string) string { return "algo:" + id }
 

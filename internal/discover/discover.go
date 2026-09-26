@@ -26,6 +26,9 @@ type Options struct {
 	OS       string // the host's OS family: "linux" or "windows"
 	Tier     string // the privilege tier of this run: "user" or "admin"
 	HostName string // the host name to record
+	// Live says FS is this machine's own root, so sensors that ask the operating
+	// system may run. It must be false for any other root.
+	Live bool
 
 	// RedactHost replaces the host name with a stable label derived from the
 	// platform machine id (ADR-0009). The run fails if no machine id is available,
@@ -67,7 +70,7 @@ func Run(ctx context.Context, reg *sense.Registry, o Options) (*Result, error) {
 	}
 
 	res, err := sense.Sensors(ctx, reg, sense.Options{
-		Env:      sense.Env{FS: o.FS, OS: o.OS, Tier: o.Tier},
+		Env:      sense.Env{FS: o.FS, OS: o.OS, Tier: o.Tier, Live: o.Live},
 		Enabled:  o.Enabled,
 		Disabled: o.Disabled,
 		Timeout:  o.Timeout,

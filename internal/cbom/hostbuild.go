@@ -3,6 +3,7 @@ package cbom
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -34,28 +35,40 @@ func FromHostGraph(g *evidence.Graph, opts HostOptions) ([]collector.CryptoAsset
 		return nil, nil, fmt.Errorf("cbom: refusing to project an invalid evidence graph: %w", err)
 	}
 
-	// algorithm ID -> providers, and provider key -> algorithm IDs, from derived facts.
+	// provider key -> algorithm IDs. Two kinds of fact make a `provides` edge, and each
+	// keeps its own claim: a DERIVED, cited `capable (mapped)` (knowledge applied to a
+	// present file) and an OBSERVED `capable (probed)` (the operating system was asked).
 	provides := map[string][]string{}
 	citations := map[string][]string{} // in the knowledge table's order, which is the order readers see
+	probedBy := map[string]bool{}      // providers whose edges came from asking the system
 	algosUsed := map[string]bool{}
 	for _, n := range g.Nodes() {
 		if n.Subject.Kind != evidence.KindAlgorithm {
 			continue
 		}
-		for _, o := range n.Derived() {
+		for _, o := range n.Observations {
 			if o.Claim.Rung != evidence.RungCapable {
 				continue
 			}
-			if o.Knowledge == nil || len(o.Relations) == 0 {
-				return nil, nil, fmt.Errorf("cbom: derived capability %s has no knowledge reference or provider", o.ID)
+			switch o.Origin {
+			case evidence.OriginDerived:
+				if o.Knowledge == nil || len(o.Relations) == 0 {
+					return nil, nil, fmt.Errorf("cbom: derived capability %s has no knowledge reference or provider", o.ID)
+				}
+			case evidence.OriginObserved:
+				if o.Claim.Capable != evidence.CapableProbed || len(o.Relations) == 0 {
+					return nil, nil, fmt.Errorf("cbom: observed capability %s is not a probed capability with a provider", o.ID)
+				}
 			}
 			for _, r := range o.Relations {
 				if r.Kind != "provided-by" {
 					continue
 				}
-				provides[r.To] = append(provides[r.To], n.Subject.Name)
+				provides[r.To] = appendUnique(provides[r.To], n.Subject.Name)
 				algosUsed[n.Subject.Name] = true
-				if len(citations[r.To]) == 0 {
+				if o.Origin == evidence.OriginObserved {
+					probedBy[r.To] = true
+				} else if len(citations[r.To]) == 0 {
 					citations[r.To] = o.Knowledge.Citations
 				}
 			}
@@ -64,10 +77,18 @@ func FromHostGraph(g *evidence.Graph, opts HostOptions) ([]collector.CryptoAsset
 
 	var assets []collector.CryptoAsset
 	for _, n := range g.Nodes() {
-		if n.Subject.Kind != evidence.KindPackage && n.Subject.Kind != evidence.KindArtefact {
+		if n.Subject.Kind != evidence.KindPackage && n.Subject.Kind != evidence.KindArtefact && n.Subject.Kind != evidence.KindProvider {
 			continue
 		}
 		if len(n.Present()) == 0 {
+			continue
+		}
+		if n.Subject.Kind == evidence.KindProvider {
+			asset, err := providerComponent(n, provides[n.Subject.Key], probedBy[n.Subject.Key])
+			if err != nil {
+				return nil, nil, err
+			}
+			assets = append(assets, asset)
 			continue
 		}
 		asset, err := hostComponent(g, n, provides[n.Subject.Key], citations[n.Subject.Key])
@@ -352,4 +373,95 @@ func hostMetadata(g *evidence.Graph, opts HostOptions) []cdx.Property {
 		props = append(props, Property("not-seen", u))
 	}
 	return props
+}
+
+func appendUnique(list []string, v string) []string {
+	for _, x := range list {
+		if x == v {
+			return list
+		}
+	}
+	return append(list, v)
+}
+
+// providerComponent projects a cryptographic provider the operating system registers
+// (a CNG or key storage provider, or a legacy CSP). It is a library that PROVIDES
+// algorithms because the system was asked (`capable (probed)`): the component says so,
+// and that a provider offers an algorithm is not evidence that anything uses it.
+func providerComponent(n *evidence.Node, algos []string, probed bool) (collector.CryptoAsset, error) {
+	present := n.Present()
+	best, bestQuality := present[0], evidence.Quality("")
+	methodIDs := map[string]bool{}
+	seenLoc := map[string]bool{}
+	var locations []string
+	for _, o := range present {
+		q, err := evidence.QualityOf(*o)
+		if err != nil {
+			return collector.CryptoAsset{}, fmt.Errorf("cbom: %w", err)
+		}
+		if bestQuality == "" || rankQuality(q) > rankQuality(bestQuality) {
+			best, bestQuality = o, q
+		}
+		methodIDs[o.Method] = true
+		if !seenLoc[o.Source.Location] {
+			seenLoc[o.Source.Location] = true
+			locations = append(locations, o.Source.Location)
+		}
+	}
+	method, _ := evidence.LookupMethod(best.Method)
+	s := n.Subject
+	sort.Strings(locations)
+	occ := make([]cdx.EvidenceOccurrence, len(locations))
+	for i, l := range locations {
+		occ[i] = cdx.EvidenceOccurrence{Location: l}
+	}
+	comp := cdx.Component{
+		BOMRef: s.Key, Type: cdx.ComponentTypeLibrary, Name: s.Name,
+		Evidence: &cdx.Evidence{Occurrences: &occ, Identity: identityEvidence(s, methodIDs)},
+	}
+	props := []cdx.Property{
+		Property("collector", method.Sensor),
+		Property("provider-kind", s.Attrs["providerKind"]),
+		Property("evidence", "os-enumeration"),
+		Property("claim", string(evidence.RungPresent)),
+		Property("method", best.Method),
+		Property("method-quality", string(bestQuality)),
+		Property("privilege", best.Privilege),
+	}
+	if len(algos) > 0 && probed {
+		// The operating system was asked; this is a probed capability, not observed use.
+		props = append(props, Property("provides-claim", "capable-probed"))
+	}
+	if v := s.Attrs["cspType"]; v != "" {
+		props = append(props, Property("csp-type", v))
+		if num, err := strconv.ParseUint(v, 10, 32); err == nil {
+			if name, ok := knowledge.CSPTypeNames[uint32(num)]; ok {
+				props = append(props, Property("csp-type-name", name))
+			}
+		}
+	}
+	if v := s.Attrs["opened"]; v != "" {
+		props = append(props, Property("opened", v))
+		if v == "false" {
+			props = append(props, Property("opened-note", "listed by name only: opening a provider loads its code, so its algorithms were not enumerated"))
+		}
+	}
+	if v := s.Attrs["comment"]; v != "" {
+		props = append(props, Property("provider-comment", v))
+	}
+	if v := s.Attrs["algorithms"]; v != "" {
+		props = append(props, Property("native-algorithms", v))
+	}
+	comp.Properties = &props
+
+	provRefs := make([]string, 0, len(algos))
+	for _, id := range algos {
+		a, ok := algo.Lookup(id)
+		if !ok {
+			return collector.CryptoAsset{}, fmt.Errorf("cbom: %s provides %q, which is not in the algorithm catalogue", s.Key, id)
+		}
+		provRefs = append(provRefs, a.BOMRef())
+	}
+	sort.Strings(provRefs)
+	return collector.CryptoAsset{Component: comp, Provides: provRefs}, nil
 }

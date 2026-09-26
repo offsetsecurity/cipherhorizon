@@ -23,6 +23,12 @@ import cdx "github.com/CycloneDX/cyclonedx-go"
 // below exist: a TLS suite names its key size and mode, and a CBOM should too). QuantumLevel is unset for every classical
 // algorithm and for AES and SHA-2; the pqc package carries the reasoning for
 // those instead.
+// Reasons an algorithm has no post-quantum verdict (Algorithm.NoPQCVerdict).
+const (
+	legacyNoVerdict = "The open question for this algorithm is its classical strength (see classical-status); no post-quantum verdict is asserted."
+	noCitedCategory = "No cited post-quantum analysis covers this algorithm (the NIST PQC security categories cite SHA-256, SHA-384 and AES), so none is asserted."
+)
+
 var catalogue = []Algorithm{
 	// Classical public-key algorithms.
 	{ID: "RSA", Primitive: cdx.CryptoPrimitivePKE, OID: "1.2.840.113549.1.1.1"},
@@ -47,6 +53,42 @@ var catalogue = []Algorithm{
 	{ID: "SHA-256", Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.1"},
 	{ID: "SHA-384", Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.2"},
 	{ID: "SHA-512", Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.3"},
+
+	// Algorithms Windows CNG registers that the catalogue did not yet carry (ADR-0013).
+	// Every OID below was read from its source on 2026-09-26: MD5 and SHA-1 from RFC 3370
+	// section 2 (md5 1.2.840.113549.2.5, sha-1 1.3.14.3.2.26); SHA3-256/384/512 from the NIST
+	// CSOR hash registry (2.16.840.1.101.3.4.2.8, .9, .10). The others have no single
+	// authoritative OID (an OID names a cipher IN a mode, not the cipher), so it is left
+	// empty. Legacy statements say only what the cited source itself says.
+	{ID: "SHA-1", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveHash, OID: "1.3.14.3.2.26", Legacy: &Legacy{
+		Summary:  "published attacks show it is not prudent to use where collision resistance is required",
+		Citation: "RFC 6194, Security Considerations for the SHA-0 and SHA-1 Message-Digest Algorithms", URL: "https://www.rfc-editor.org/rfc/rfc6194"}},
+	{ID: "MD5", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveHash, OID: "1.2.840.113549.2.5", Legacy: &Legacy{
+		Summary:  "has updated security considerations because of weaknesses",
+		Citation: "RFC 6151, Updated Security Considerations for the MD5 Message-Digest and the HMAC-MD5 Algorithms", URL: "https://www.rfc-editor.org/rfc/rfc6151"}},
+	{ID: "MD4", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveHash, Legacy: &Legacy{
+		Summary:  "moved to Historic status because of practical attacks",
+		Citation: "RFC 6150, MD4 to Historic Status", URL: "https://www.rfc-editor.org/rfc/rfc6150"}},
+	{ID: "MD2", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveHash, Legacy: &Legacy{
+		Summary:  "moved to Historic status because it is cryptographically broken",
+		Citation: "RFC 6149, MD2 to Historic Status", URL: "https://www.rfc-editor.org/rfc/rfc6149"}},
+	{ID: "SHA3-256", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.8"},
+	{ID: "SHA3-384", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.9"},
+	{ID: "SHA3-512", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.10"},
+	{ID: "RC4", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveStreamCipher, Legacy: &Legacy{
+		Summary:  "TLS clients and servers must never negotiate RC4 cipher suites (a statement about TLS)",
+		Citation: "RFC 7465, Prohibiting RC4 Cipher Suites", URL: "https://www.rfc-editor.org/rfc/rfc7465"}},
+	{ID: "RC2", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveBlockCipher},
+	{ID: "DES", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveBlockCipher, Legacy: &Legacy{
+		Summary:  "its standard, FIPS 46-3, was withdrawn on May 19, 2005",
+		Citation: "NIST FIPS 46-3, Data Encryption Standard (withdrawn)", URL: "https://csrc.nist.gov/pubs/fips/46-3/final"}},
+	{ID: "3DES", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveBlockCipher, Legacy: &Legacy{
+		Summary:  "NIST urged migration to AES and announced plans to disallow it for TLS and IPsec (July 2017 announcement; no sunset date given there)",
+		Citation: "NIST, Update to Current Use and Deprecation of TDEA", URL: "https://csrc.nist.gov/news/2017/update-to-current-use-and-deprecation-of-tdea"}},
+	// Whole-family entries for the two post-quantum standards, used when an operating
+	// system reports the family but no parameter set could be confirmed.
+	{ID: "ML-KEM", Primitive: cdx.CryptoPrimitiveKEM},
+	{ID: "ML-DSA", Primitive: cdx.CryptoPrimitiveSignature},
 
 	// FIPS 203: ML-KEM.
 	{ID: "ML-KEM-512", Primitive: cdx.CryptoPrimitiveKEM, OID: "2.16.840.1.101.3.4.4.1", QuantumLevel: 1},

@@ -130,7 +130,7 @@ var rules = []rule{
 	{
 		class: Safe, rationale: whyPQCStd,
 		basis: []Reference{refFIPS203, refCSOR},
-		algos: []string{"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"},
+		algos: []string{"ML-KEM", "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"},
 	},
 	{
 		class:     Safe,
@@ -147,7 +147,7 @@ var rules = []rule{
 	{
 		class: Safe, rationale: whyPQCStd,
 		basis: []Reference{refFIPS204, refCSOR},
-		algos: []string{"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"},
+		algos: []string{"ML-DSA", "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"},
 	},
 	{
 		class: Safe, rationale: whyPQCStd,

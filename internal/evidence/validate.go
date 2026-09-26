@@ -15,6 +15,7 @@ const (
 	KindPackage   = "package"
 	KindArtefact  = "artefact"
 	KindAlgorithm = "algorithm"
+	KindProvider  = "provider" // a cryptographic provider the operating system registers
 )
 
 // AllowedAttrs is the allow-list of attributes per subject kind (ADR-0005).
@@ -24,6 +25,7 @@ var AllowedAttrs = map[string]map[string]bool{
 	KindPackage:   set("name", "version", "arch", "distro", "family", "kind"),
 	KindArtefact:  set("path", "size", "fileVersion", "productName", "family", "kind", "arch", "peValid", "sha256", "imports"),
 	KindAlgorithm: set(),
+	KindProvider:  set("providerKind", "cspType", "comment", "opened", "algorithms"),
 }
 
 func set(ss ...string) map[string]bool {
@@ -214,6 +216,28 @@ func validateAttrFormat(k, v string) error {
 		for i := 0; i < len(v); i++ {
 			if !isLowerHex(v[i]) {
 				return fmt.Errorf("attribute sha256 must be lower-case hex")
+			}
+		}
+	case "providerKind":
+		if v != "cng" && v != "ksp" && v != "cng+ksp" && v != "csp" {
+			return fmt.Errorf("attribute providerKind must be cng, ksp, cng+ksp or csp")
+		}
+	case "opened":
+		if v != "true" && v != "false" {
+			return fmt.Errorf("attribute opened must be true or false")
+		}
+	case "cspType":
+		for i := 0; i < len(v); i++ {
+			if v[i] < '0' || v[i] > '9' {
+				return fmt.Errorf("attribute cspType must be digits")
+			}
+		}
+	case "algorithms":
+		// registered algorithm identifiers: letters, digits and . _ + - only, comma separated
+		for i := 0; i < len(v); i++ {
+			c := v[i]
+			if c != ',' && !isLibNameByte(c) && (c < 'A' || c > 'Z') {
+				return fmt.Errorf("attribute algorithms must be a comma-separated list of identifiers")
 			}
 		}
 	case "imports":

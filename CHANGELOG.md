@@ -10,26 +10,27 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
-### Added
-
-- **Windows collector, stage 1** (`docs/host-discovery/stage-1-report.md`, ADR-0012): OpenSSL's files now have
-  roles. Only `libcrypto` provides the algorithms; `libssl` and `openssl.exe` are consumers, linked to their provider
-  by a **static import** proven from the file's import table (same directory only, "could use", never "uses").
-  Every recognised, well-formed file carries a **SHA-256** (bounded: 128 MiB a file, 2 GiB a run, reported in the
-  coverage) and a generic package URL that is honestly a *file identity*, not an upstream product identifier. The
-  import reader is hand-written, bounds-checked and fuzzed; its first fuzz run found a bug in the new code, now fixed.
-- `testing/hostdiscovery/compare-hashes.ps1` (SHA-256 oracle) and a real-binary import cross-check against Go's
-  `debug/pe`; `testing/hostdiscovery/authenticode-probe` and `docs/host-discovery/authenticode-investigation.md`:
-  a measured investigation of offline signature verification (not shipped).
-
-### Changed
-
-- Knowledge table revision 2: a file that only uses a family's implementation is no longer credited with the
-  family's algorithms (Windows loose files only; Debian output is unchanged and tested against the frozen goldens).
-
-## [0.1.0] - 2026-09-24
+## [0.1.0] - 2026-09-26
 
 ### Added
+
+- **Windows collector, stage 2: native cryptography** (`docs/host-discovery/stage-2-report.md`, ADR-0013): a new
+  `windows-cng` sensor **asks Windows** what it provides: the CNG algorithm registry and providers, key storage
+  providers and legacy CSPs, with each algorithm attributed to the provider that offers it (`capable`, `probed`).
+  Post-quantum parameter sets (ML-KEM 512/768/1024, ML-DSA 44/65/87) are confirmed by asking Windows to accept them,
+  which generates an ephemeral in-memory key pair per parameter set (never exported or stored), limited to those two
+  families. Only the in-box software key storage provider is ever opened; Platform/TPM, Smart Card, Passport, Pluton and
+  third-party providers are listed by name and never loaded. The sensor runs only for a live Windows host, never for a
+  `--root` override or an image.
+- A new platform package, `internal/winapi`, holds every Windows cryptography call (hand-written, bounded, reviewed:
+  `docs/host-discovery/stage-2-security-review.md`); the architecture test now allows only it and `hostinfo` to use
+  `unsafe` or `x/sys/windows`.
+- Catalogue: SHA-1, MD5, MD4, MD2, SHA3-256/384/512, RC4, RC2, DES, 3DES and the ML-KEM and ML-DSA families, with OIDs
+  read from their sources. Retired algorithms carry a **cited classical status** (RFCs 6149, 6150, 6151, 6194, 7465, FIPS
+  46-3 withdrawal, NIST's 2017 TDEA notice), kept apart from the post-quantum verdict; an algorithm with no verdict must
+  say why, and a test enforces it.
+- UI: a "Retired or broken algorithms" card on the host page, and the sensor named "Windows cryptography (CNG)".
+- `testing/hostdiscovery/compare-cng.ps1`: an independent oracle for the native inventory (C# P/Invoke, `certutil`).
 
 - Host inventory: plugin registry and collector interface, an `apt` collector, a CycloneDX 1.6 CBOM builder
   with closed-vocabulary enforcement, cited post-quantum algorithm verdicts (`internal/pqc`), a one-shot CLI
@@ -112,6 +113,11 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Changed
 
+- Host components now include providers (`library`, `cipherhorizon:provider-kind`); "software components" on a Windows
+  host therefore counts them.
+
+- Knowledge table revision 2: a file that only uses a family's implementation is no longer credited with the
+  family's algorithms (Windows loose files only; Debian output is unchanged and tested against the frozen goldens).
 - Project renamed from the working name `cbom-scan` to **CipherHorizon**, to avoid any confusion with a
   specific document type ("a CBOM") and to give the whole platform (inventory, TLS scanning, readiness,
   posture) one name.
@@ -126,6 +132,9 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   The release workflows, container image and signing have never executed (nothing is pushed); the first tag is a
   pre-release for that reason. The module owner and the security contact are placeholders until a repository exists.
 - Worst-case disk use per host is 50 snapshots of up to 32 MiB; there is no per-instance storage budget yet.
+- The native Windows inventory (`windows-cng`) has run on one Windows 11 machine as a standard user. Windows Server, ARM64,
+  builds before 24H2 (no post-quantum, so probes answer "no"), an elevated run and machines with third-party providers
+  (HSM or smart-card middleware) are untested. It states what Windows offers, not what is enabled or used.
 
 See [docs/product/RELEASE-REPORT-001.md](docs/product/RELEASE-REPORT-001.md) for the full list, including
 deviations from the original plan and what has and hasn't been tested. In short: single shared bearer token

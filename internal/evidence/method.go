@@ -60,14 +60,31 @@ const (
 	MethodPEVersion  = "pe.version-info@1"
 	MethodKnowledge  = "knowledge.mapping@1"
 	MethodPEImports  = "pe.imports@1"
+
+	// Windows native cryptography: the system is asked, not a file read (ADR-0013).
+	MethodCNGProviders  = "windows.cng.enum-providers@1"
+	MethodCNGAlgorithms = "windows.cng.enum-algorithms@1"
+	MethodKSPProviders  = "windows.ncrypt.enum-providers@1"
+	MethodKSPAlgorithms = "windows.ncrypt.enum-algorithms@1"
+	MethodCSPProviders  = "windows.csp.enum@1"
+	MethodCNGProbe      = "windows.cng.probe@1"
 )
 
 var methods = map[string]Method{
-	MethodDpkgStatus: {ID: MethodDpkgStatus, Version: "1", Sensor: "apt", Technique: "manifest-analysis", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
-	MethodFSWalkName: {ID: MethodFSWalkName, Version: "1", Sensor: "pe-files", Technique: "filename", Quality: QualityHeuristic, MinPrivilege: "user", SecretProximity: "none"},
-	MethodPEVersion:  {ID: MethodPEVersion, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
-	MethodPEImports:  {ID: MethodPEImports, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
-	MethodKnowledge:  {ID: MethodKnowledge, Version: "1", Sensor: "knowledge", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodDpkgStatus:    {ID: MethodDpkgStatus, Version: "1", Sensor: "apt", Technique: "manifest-analysis", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodFSWalkName:    {ID: MethodFSWalkName, Version: "1", Sensor: "pe-files", Technique: "filename", Quality: QualityHeuristic, MinPrivilege: "user", SecretProximity: "none"},
+	MethodPEVersion:     {ID: MethodPEVersion, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
+	MethodPEImports:     {ID: MethodPEImports, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
+	MethodCNGProviders:  {ID: MethodCNGProviders, Version: "1", Sensor: "windows-cng", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodCNGAlgorithms: {ID: MethodCNGAlgorithms, Version: "1", Sensor: "windows-cng", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodKSPProviders:  {ID: MethodKSPProviders, Version: "1", Sensor: "windows-cng", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodKSPAlgorithms: {ID: MethodKSPAlgorithms, Version: "1", Sensor: "windows-cng", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodCSPProviders:  {ID: MethodCSPProviders, Version: "1", Sensor: "windows-cng", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	// The probe generates an ephemeral in-memory key pair to ask for a parameter set,
+	// so it is the one method that performs a cryptographic operation ("adjacent" to key
+	// material by that definition, though it never reads, exports or stores one).
+	MethodCNGProbe:  {ID: MethodCNGProbe, Version: "1", Sensor: "windows-cng", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "adjacent"},
+	MethodKnowledge: {ID: MethodKnowledge, Version: "1", Sensor: "knowledge", Technique: "other", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
 }
 
 // LookupMethod returns the declared method.

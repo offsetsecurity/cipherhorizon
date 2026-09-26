@@ -97,3 +97,41 @@ func TestLookup(t *testing.T) {
 	}()
 	algo.MustGet("Rot13")
 }
+
+// A legacy statement is a citation, not an opinion: it must name its source.
+func TestLegacyStatementsAreCited(t *testing.T) {
+	var n int
+	for _, a := range algo.All() {
+		if a.Legacy == nil {
+			continue
+		}
+		n++
+		if a.Legacy.Summary == "" || a.Legacy.Citation == "" || !strings.HasPrefix(a.Legacy.URL, "https://") {
+			t.Errorf("%s: incomplete legacy statement %+v", a.ID, *a.Legacy)
+		}
+		if a.NoPQCVerdict == "" {
+			t.Errorf("%s: a legacy algorithm has a classical question, so it must record why it has no post-quantum verdict", a.ID)
+		}
+	}
+	if n == 0 {
+		t.Error("no legacy entries found")
+	}
+}
+
+func TestLegacyAndUnclassifiedShowUpAsProperties(t *testing.T) {
+	c := algo.MustGet("MD5").Component()
+	got := map[string]string{}
+	if c.Properties != nil {
+		for _, p := range *c.Properties {
+			got[p.Name] = p.Value
+		}
+	}
+	for _, name := range []string{"cipherhorizon:classical-status", "cipherhorizon:classical-basis", "cipherhorizon:pqc:unclassified-reason"} {
+		if got[name] == "" {
+			t.Errorf("MD5 component lacks %s: %v", name, got)
+		}
+	}
+	if p := algo.MustGet("AES").Component().Properties; p != nil {
+		t.Errorf("an ordinary algorithm gained properties: %v", *p)
+	}
+}

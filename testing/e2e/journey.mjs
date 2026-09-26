@@ -355,7 +355,14 @@ async function main() {
     { name: 'cipherhorizon:host-os', value: 'windows 10.0.26200' },
     { name: 'cipherhorizon:coverage-note', value: '129 location(s) could not be read for lack of permission, so results may be incomplete.' },
     { name: 'cipherhorizon:coverage', value: 'sensor=pe-files status=partial reason=permission denied=129 scope=crypto-library files under Program Files' },
+    { name: 'cipherhorizon:coverage', value: 'sensor=windows-cng status=complete scope=Windows CNG algorithm registry and providers' },
     { name: 'cipherhorizon:not-seen', value: 'certificates, configuration and key material (not collected by this version)' }];
+  // A legacy algorithm with its cited status, as the native Windows sensor writes it.
+  bom2.components.push({ 'bom-ref': 'crypto/md5', type: 'cryptographic-asset', name: 'MD5',
+    cryptoProperties: { assetType: 'algorithm', algorithmProperties: { primitive: 'hash' }, oid: '1.2.840.113549.2.5' },
+    properties: [{ name: 'cipherhorizon:classical-status', value: 'has updated security considerations because of weaknesses' },
+      { name: 'cipherhorizon:classical-basis', value: 'RFC 6151, Updated Security Considerations for the MD5 Message-Digest (https://www.rfc-editor.org/rfc/rfc6151)' }] });
+  bom2.dependencies[0].provides.push('crypto/md5');
   const up2 = await fetch(`${BASE}/api/v1/hosts/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cipherhorizon' }, body: JSON.stringify(bom2) });
   const up2j = await up2.json();
   await go(`#/hosts/${up2j.asset.id}`);
@@ -364,6 +371,11 @@ async function main() {
   check('E2E-12.5', 'the host page shows privilege, system, what was not readable and what cannot be seen',
     /Limited access/.test(cov) && /Standard user/.test(cov) && /Windows 10\.0\.26200/.test(cov) && /129 location/.test(cov) && /cannot see/.test(cov) && /full rights/.test(cov), cov.slice(0, 160));
   await shot('host-coverage');
+  const legacy = await js(`return document.querySelector('.legacy')?.innerText || ''`);
+  check('E2E-13.1', 'retired or broken algorithms are listed with what the cited source says, apart from the quantum verdicts',
+    /Retired or broken algorithms \(1\)/.test(legacy) && /MD5/.test(legacy) && /RFC 6151/.test(legacy) && /not quantum ones/.test(legacy), legacy.slice(0, 160));
+  check('E2E-13.2', 'the native Windows sensor is named in plain words in the coverage table', /Windows cryptography \(CNG\)/.test(cov), cov.slice(0, 200));
+  await shot('host-legacy-algorithms');
   await js(`document.querySelector('.coverage details summary').click()`);
   const unseen = await js(`return document.querySelector('.coverage details').innerText`);
   check('E2E-12.6', 'the blind spots open on demand', /certificates, configuration and key material/.test(unseen), unseen.slice(0, 80));

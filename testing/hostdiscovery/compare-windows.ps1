@@ -33,7 +33,9 @@ $isAdmin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.W
 $doc = Get-Content $Cbom -Raw | ConvertFrom-Json
 $ours = @{}
 foreach ($c in $doc.components) {
-  if ($c.type -ne 'cryptographic-asset') { $ours[$c.evidence.occurrences[0].location.ToLower()] = $c }
+  # Provider components (CNG, key storage, legacy CSP) come from the windows-cng sensor, checked by compare-cng.ps1; this script is about files.
+  $isProvider = @($c.properties | Where-Object { $_.name -eq 'cipherhorizon:provider-kind' }).Count -gt 0
+  if ($c.type -ne 'cryptographic-asset' -and -not $isProvider) { $ours[$c.evidence.occurrences[0].location.ToLower()] = $c }
 }
 "DETECTED by the collector: $($ours.Count) artefacts"
 ($doc.metadata.properties | Where-Object { $_.name -like '*:coverage' -or $_.name -like '*:privilege-tier' }).value | ForEach-Object { "  $_" }

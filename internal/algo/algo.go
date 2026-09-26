@@ -43,6 +43,25 @@ type Algorithm struct {
 	// defining standard assigns to it, or 0 when no standard asserts one. It is
 	// never inferred: 0 means "omit nistQuantumSecurityLevel".
 	QuantumLevel int
+
+	// NoPQCVerdict, when set, is the reason this algorithm is deliberately given no
+	// post-quantum verdict (the question is not a quantum one, or no citation supports
+	// one). Every other algorithm MUST match a rule in internal/pqc, and a test enforces
+	// both directions, so forgetting a verdict fails and choosing none is written down.
+	NoPQCVerdict string
+
+	// Legacy, when set, says the algorithm is retired or broken for CLASSICAL
+	// reasons, with the source. It is separate from the post-quantum verdict: a broken
+	// hash is not "quantum-vulnerable", it is unsafe against today's computers.
+	Legacy *Legacy
+}
+
+// Legacy is a cited statement that an algorithm is retired or broken, with the
+// citation. Only what the cited source itself says may be put in Summary.
+type Legacy struct {
+	Summary  string
+	Citation string // title of the source
+	URL      string
 }
 
 // BOMRef returns the stable bom-ref of the algorithm component. It follows the
@@ -62,7 +81,7 @@ func (a Algorithm) Component() cdx.Component {
 		lvl := a.QuantumLevel
 		props.NistQuantumSecurityLevel = &lvl
 	}
-	return cdx.Component{
+	c := cdx.Component{
 		BOMRef: a.BOMRef(),
 		Type:   cdx.ComponentTypeCryptographicAsset,
 		Name:   a.ID,
@@ -72,6 +91,20 @@ func (a Algorithm) Component() cdx.Component {
 			OID:                 a.OID,
 		},
 	}
+	// The namespace is written out because this package sits below cbom, which owns it.
+	var props2 []cdx.Property
+	if a.Legacy != nil {
+		props2 = append(props2,
+			cdx.Property{Name: "cipherhorizon:classical-status", Value: a.Legacy.Summary},
+			cdx.Property{Name: "cipherhorizon:classical-basis", Value: a.Legacy.Citation + " (" + a.Legacy.URL + ")"})
+	}
+	if a.NoPQCVerdict != "" {
+		props2 = append(props2, cdx.Property{Name: "cipherhorizon:pqc:unclassified-reason", Value: a.NoPQCVerdict})
+	}
+	if len(props2) > 0 {
+		c.Properties = &props2
+	}
+	return c
 }
 
 // Asset renders the algorithm as a finding a collector can return.

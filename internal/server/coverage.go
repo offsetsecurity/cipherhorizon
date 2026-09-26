@@ -2,6 +2,7 @@ package server
 
 import (
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -84,4 +85,63 @@ func clip(s string, n int) string {
 		return string(r[:n])
 	}
 	return s
+}
+
+// legacyFromBOM lists the algorithm components that carry a cited classical status,
+// with the components that provide them. Text is bounded: it came from a document.
+func legacyFromBOM(bom *cdx.BOM, names map[string]string) []HostLegacy {
+	out := []HostLegacy{}
+	if bom.Components == nil {
+		return out
+	}
+	providers := map[string][]string{} // algorithm bom-ref -> provider names
+	if bom.Dependencies != nil {
+		for _, d := range *bom.Dependencies {
+			if d.Provides == nil {
+				continue
+			}
+			for _, ref := range *d.Provides {
+				if n := names[d.Ref]; n != "" {
+					providers[ref] = append(providers[ref], n)
+				}
+			}
+		}
+	}
+	for _, c := range *bom.Components {
+		if c.Type != cdx.ComponentTypeCryptographicAsset || c.Properties == nil {
+			continue
+		}
+		var status, basis string
+		for _, p := range *c.Properties {
+			switch p.Name {
+			case propPrefix + "classical-status":
+				status = clip(strings.TrimSpace(p.Value), 300)
+			case propPrefix + "classical-basis":
+				basis = clip(strings.TrimSpace(p.Value), 400)
+			}
+		}
+		if status == "" {
+			continue
+		}
+		list := providers[c.BOMRef]
+		if len(list) > 30 {
+			list = list[:30]
+		}
+		out = append(out, HostLegacy{Name: clip(c.Name, 100), Status: status, Basis: basis, ProvidedBy: uniqueSorted(list)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func uniqueSorted(in []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, s := range in {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

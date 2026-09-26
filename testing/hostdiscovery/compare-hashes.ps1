@@ -18,6 +18,7 @@ $doc = Get-Content $Cbom -Raw | ConvertFrom-Json
 $agree = 0; $bad = @(); $noHash = 0; $missing = @()
 foreach ($c in $doc.components) {
   if ($c.type -eq 'cryptographic-asset') { continue }
+  if (@($c.properties | Where-Object { $_.name -eq 'cipherhorizon:provider-kind' }).Count -gt 0) { continue }  # a provider is not a file
   if (-not $c.hashes) { $noHash++; continue }
   $rel = $c.evidence.occurrences[0].location
   $path = Join-Path "$env:SystemDrive\" ($rel -replace '/', '\')

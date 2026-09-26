@@ -37,6 +37,11 @@ type Env struct {
 	// Tier is the privilege tier this run has: "user" or "admin". It is recorded on
 	// every observation; a sensor never escalates.
 	Tier string
+	// Live is true only when FS is the running machine's own root, so the operating
+	// system itself may be asked about it. It is false for a mounted disk, a container
+	// image, a `--root` override or a test fixture. A sensor that asks the OS (native
+	// APIs) must run only when Live: otherwise it would describe the wrong machine.
+	Live bool
 }
 
 // Info describes a sensor.

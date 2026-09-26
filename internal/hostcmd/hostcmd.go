@@ -183,6 +183,7 @@ func Run(ctx context.Context, args []string, env Env) int {
 		OS:         env.OS,
 		Tier:       env.Tier(),
 		HostName:   hostName,
+		Live:       cfg.Host.Root == config.DefaultRoot(), // any other root is not this machine
 		RedactHost: cfg.Host.Redact,
 		Enabled:    cfg.Plugins.Enabled,
 		Disabled:   cfg.Plugins.Disabled,

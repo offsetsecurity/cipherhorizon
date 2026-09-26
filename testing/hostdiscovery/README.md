@@ -7,6 +7,9 @@ net than the collector, so a shared mistake cannot hide.
 | Script | Platform | Status |
 |---|---|---|
 | `compare-windows.ps1` | Windows | **Run** on the development machine as a standard user (results in `artifacts/test-report-level-1.md`). Run it again from an *elevated* PowerShell to see what elevation reveals. |
+| `compare-hashes.ps1` | Windows | **Run**: SHA-256 of every hashed component against `Get-FileHash` (22 of 22 agree). |
+| `compare-cng.ps1` | Windows | **Run**: the native inventory against C# P/Invoke and `certutil -csplist`, with negative controls for the post-quantum probe. |
+| `authenticode-probe/` | Windows | An investigation tool, not shipped; results in `docs/host-discovery/authenticode-investigation.md`. |
 | `lab-debian.sh` | Debian, Ubuntu, Kali (WSL, VM or container) | **Written, not yet run**: no Linux host was available. |
 
 ## Linux via WSL (what has to happen first)

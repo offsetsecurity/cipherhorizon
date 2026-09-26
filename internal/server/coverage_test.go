@@ -60,3 +60,35 @@ func TestCoverageBoundsHostileText(t *testing.T) {
 		t.Errorf("unbounded: note %d, not-seen %d", len([]rune(cov.Note)), len(cov.NotSeen))
 	}
 }
+
+func TestLegacyAlgorithmsAreListedWithTheirSourceAndProviders(t *testing.T) {
+	md5 := cdx.Component{BOMRef: "crypto/algorithm/md5", Type: cdx.ComponentTypeCryptographicAsset, Name: "MD5", Properties: &[]cdx.Property{
+		{Name: "cipherhorizon:classical-status", Value: "has updated security considerations because of weaknesses"},
+		{Name: "cipherhorizon:classical-basis", Value: "RFC 6151 (https://www.rfc-editor.org/rfc/rfc6151)"},
+	}}
+	aes := cdx.Component{BOMRef: "crypto/algorithm/aes", Type: cdx.ComponentTypeCryptographicAsset, Name: "AES"}
+	prov := cdx.Component{BOMRef: "provider:cng:x", Type: cdx.ComponentTypeLibrary, Name: "Microsoft Primitive Provider"}
+	provides := []string{"crypto/algorithm/md5", "crypto/algorithm/aes"}
+	bom := &cdx.BOM{Components: &[]cdx.Component{md5, aes, prov}, Dependencies: &[]cdx.Dependency{{Ref: "provider:cng:x", Provides: &provides}}}
+	sum := summarizeCBOM(bom, "h")
+	if len(sum.Legacy) != 1 {
+		t.Fatalf("legacy = %+v", sum.Legacy)
+	}
+	l := sum.Legacy[0]
+	if l.Name != "MD5" || !strings.Contains(l.Basis, "rfc6151") || len(l.ProvidedBy) != 1 || l.ProvidedBy[0] != "Microsoft Primitive Provider" {
+		t.Errorf("legacy entry = %+v", l)
+	}
+	if got := summarizeCBOM(&cdx.BOM{}, "h").Legacy; got == nil || len(got) != 0 {
+		t.Errorf("a CBOM with no legacy algorithms must give an empty list, not null: %#v", got)
+	}
+}
+
+func TestLegacyTextFromADocumentIsBounded(t *testing.T) {
+	long := strings.Repeat("x", 5000)
+	c := cdx.Component{BOMRef: "a", Type: cdx.ComponentTypeCryptographicAsset, Name: "MD5", Properties: &[]cdx.Property{
+		{Name: "cipherhorizon:classical-status", Value: long}, {Name: "cipherhorizon:classical-basis", Value: long}}}
+	l := legacyFromBOM(&cdx.BOM{Components: &[]cdx.Component{c}}, map[string]string{})
+	if len(l) != 1 || len([]rune(l[0].Status)) > 300 || len([]rune(l[0].Basis)) > 400 {
+		t.Errorf("unbounded: %+v", l)
+	}
+}

@@ -20,6 +20,8 @@ import (
 	_ "github.com/example/cipherhorizon/internal/sense/all"
 	"github.com/example/cipherhorizon/internal/sense/pefiles/pefilestest"
 	"github.com/example/cipherhorizon/internal/sense/sensetest"
+	"github.com/example/cipherhorizon/internal/sense/wincng"
+	"github.com/example/cipherhorizon/internal/winapi"
 )
 
 func pe(fileVersion, product string, ms, ls uint32) *fstest.MapFile {
@@ -73,6 +75,9 @@ func project(t *testing.T, res *discover.Result) *cdx.BOM {
 }
 
 func component(bom *cdx.BOM, name string) *cdx.Component {
+	if bom.Components == nil {
+		return nil // a host on which nothing was found
+	}
 	for i, c := range *bom.Components {
 		if c.Name == name && c.Type != cdx.ComponentTypeCryptographicAsset {
 			return &(*bom.Components)[i]
@@ -274,9 +279,10 @@ func TestDeterministic(t *testing.T) {
 	}
 }
 
+// windows-cng asks the running operating system, so it is registered but runs only for a live host.
 func TestDebianAndWindowsSensorsAreBothRegistered(t *testing.T) {
 	names := sense.Default.Names()
-	if len(names) != 2 || names[0] != "apt" || names[1] != "pe-files" {
+	if len(names) != 3 || names[0] != "apt" || names[1] != "pe-files" || names[2] != "windows-cng" {
 		t.Errorf("registered sensors = %v", names)
 	}
 }
@@ -415,5 +421,124 @@ func TestFilesCarryAHashAndAFileIdentity(t *testing.T) {
 	}
 	if decoy.Hashes != nil || decoy.PackageURL != "" || prop(decoy, "identifier-basis") != "" {
 		t.Errorf("a decoy was given an identity: hashes %v, purl %q", decoy.Hashes, decoy.PackageURL)
+	}
+}
+
+// ---- native Windows cryptography (sensor windows-cng), through the whole pipeline ----
+
+// fakeWindows is a Windows that reports a small, realistic crypto footprint.
+type fakeWindows struct{ native bool }
+
+const primitiveProvider = "Microsoft Primitive Provider"
+
+func (f fakeWindows) Native() bool { return f.native }
+func (fakeWindows) Algorithms(op uint32) ([]winapi.Algorithm, int, error) {
+	all := map[uint32][]winapi.Algorithm{
+		winapi.OpCipher:    {{Name: "AES", Ops: winapi.OpCipher}, {Name: "RC4", Ops: winapi.OpCipher}},
+		winapi.OpHash:      {{Name: "SHA256", Ops: winapi.OpHash}, {Name: "MD5", Ops: winapi.OpHash}},
+		winapi.OpSignature: {{Name: "ECDSA_P256", Ops: winapi.OpSignature}, {Name: "ML-DSA", Ops: winapi.OpSignature}},
+	}
+	return all[op], 0, nil
+}
+func (fakeWindows) AlgorithmProviders(string) ([]string, int, error) {
+	return []string{primitiveProvider}, 0, nil
+}
+func (fakeWindows) RegisteredProviders() ([]string, int, error) {
+	return []string{primitiveProvider, "Microsoft Platform Crypto Provider"}, 0, nil
+}
+func (fakeWindows) StorageProviders() ([]winapi.StorageProvider, int, error) {
+	return []winapi.StorageProvider{{Name: "Microsoft Platform Crypto Provider"}}, 0, nil
+}
+func (fakeWindows) StorageProviderAlgorithms(string, uint32) ([]winapi.Algorithm, int, error) {
+	return nil, 0, nil
+}
+func (fakeWindows) CSPs() ([]winapi.CSP, int, error) {
+	return []winapi.CSP{{Name: "Microsoft Base Cryptographic Provider v1.0", Type: 1}}, 0, nil
+}
+func (fakeWindows) Probe(alg, set string) (bool, error) {
+	return alg == "ML-KEM" && (set == "" || set == "768"), nil
+}
+
+func liveWindows(t *testing.T, native bool, live bool) *cdx.BOM {
+	t.Helper()
+	reg := sense.NewRegistry()
+	if err := wincng.Register(reg, fakeWindows{native: native}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := discover.Run(context.Background(), reg, discover.Options{FS: fstest.MapFS{}, OS: "windows", Tier: "user", HostName: "live-host", Live: live})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return project(t, res)
+}
+
+func TestNativeCryptographyProjectsToProvidersAndCatalogueAlgorithms(t *testing.T) {
+	bom := liveWindows(t, true, true) // project() validates the document against the CycloneDX 1.6 schema
+
+	prim := component(bom, primitiveProvider)
+	if prim == nil || prim.Type != cdx.ComponentTypeLibrary {
+		t.Fatalf("the provider was not inventoried as a library: %+v", prim)
+	}
+	if prop(prim, "provider-kind") != "cng" || prop(prim, "evidence") != "os-enumeration" || prop(prim, "provides-claim") != "capable-probed" || prop(prim, "method-quality") != "authoritative" {
+		t.Errorf("provider properties: kind %q evidence %q provides-claim %q quality %q", prop(prim, "provider-kind"), prop(prim, "evidence"), prop(prim, "provides-claim"), prop(prim, "method-quality"))
+	}
+	got := map[string]bool{}
+	for _, ref := range provided(bom, prim.BOMRef) {
+		got[ref] = true
+	}
+	for _, id := range []string{"aes", "sha-256", "md5", "rc4", "ecdsa", "ml-kem-768"} {
+		found := false
+		for ref := range got {
+			if strings.HasPrefix(ref, "crypto/algorithm/"+id) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("the provider does not provide %s: %v", id, provided(bom, prim.BOMRef))
+		}
+	}
+	for ref := range got {
+		if strings.HasPrefix(ref, "crypto/algorithm/ml-kem-512") || strings.HasPrefix(ref, "crypto/algorithm/ml-kem-1024") {
+			t.Errorf("an unconfirmed parameter set was reported: %s", ref)
+		}
+	}
+	if prop(component(bom, "Microsoft Platform Crypto Provider"), "opened") != "false" {
+		t.Error("a hardware key storage provider must be listed and not opened")
+	}
+	if csp := component(bom, "Microsoft Base Cryptographic Provider v1.0"); prop(csp, "provider-kind") != "csp" || prop(csp, "csp-type-name") != "PROV_RSA_FULL" {
+		t.Errorf("legacy provider: %v", csp)
+	}
+}
+
+// Legacy algorithms are inventoried with their citation, and get no invented quantum verdict.
+func TestLegacyAlgorithmsCarryACitationAndNoQuantumVerdict(t *testing.T) {
+	bom := liveWindows(t, true, true)
+	var md5 *cdx.Component
+	for i, c := range *bom.Components {
+		if c.Type == cdx.ComponentTypeCryptographicAsset && c.Name == "MD5" {
+			md5 = &(*bom.Components)[i]
+		}
+	}
+	if md5 == nil {
+		t.Fatal("MD5 was not inventoried")
+	}
+	if prop(md5, "classical-status") == "" || !strings.Contains(prop(md5, "classical-basis"), "rfc6151") {
+		t.Errorf("MD5 legacy statement: %q / %q", prop(md5, "classical-status"), prop(md5, "classical-basis"))
+	}
+	if prop(md5, "pqc:status") != "" {
+		t.Errorf("MD5 was given a post-quantum verdict %q", prop(md5, "pqc:status"))
+	}
+	if prop(md5, "pqc:unclassified-reason") == "" {
+		t.Error("the reason for having no verdict must be recorded")
+	}
+}
+
+// The sensor asks the running OS, so it must not run for anything but a live Windows host.
+func TestNativeSensorDoesNotRunForAFixtureOrAStub(t *testing.T) {
+	for name, tc := range map[string]struct{ native, live bool }{"fixture root": {true, false}, "stub API": {false, true}} {
+		bom := liveWindows(t, tc.native, tc.live)
+		if component(bom, primitiveProvider) != nil {
+			t.Errorf("%s: providers were inventoried for a host that cannot be asked", name)
+		}
 	}
 }

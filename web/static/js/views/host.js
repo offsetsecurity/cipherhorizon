@@ -33,6 +33,19 @@ function coverageCard(cov, onUpload) {
       h('ul', null, cov.notSeen.map((n) => h('li', null, n)))) : null);
 }
 
+/** Algorithms the CBOM marks as retired or broken for classical reasons, each with its source. */
+function legacyCard(items) {
+  return h('section', { class: 'card legacy' },
+    h('h2', null, `Retired or broken algorithms (${items.length})`),
+    h('p', { class: 'hint' }, 'These are weaknesses against today’s computers, not quantum ones, so they carry no post-quantum verdict. Each statement is what the cited source says.'),
+    h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
+      h('thead', null, h('tr', null, ['Algorithm', 'What the source says', 'Provided by'].map((c) => h('th', { scope: 'col' }, c)))),
+      h('tbody', null, items.map((x) => h('tr', null,
+        h('td', null, h('b', null, x.name)),
+        h('td', null, h('div', null, x.status), h('div', { class: 'hint' }, x.basis)),
+        h('td', null, providers(x.providedBy))))))));
+}
+
 /** "a, b and 3 more", from a list that may repeat itself. */
 function providers(list) {
   const uniq = [...new Set(list || [])];
@@ -116,6 +129,8 @@ export async function render(root, { args }) {
   root.appendChild(coverageCard(s.coverage, () => uploadDialog(reload)));
   root.appendChild(h('div', { class: 'callout info' }, h('b', null, 'Capability, not use. '),
     'Software listed under an algorithm can provide it. This inventory shows what the software is able to do, not what it is doing at runtime.'));
+
+  if (s.legacy && s.legacy.length) root.appendChild(legacyCard(s.legacy));
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Algorithms'),
     s.algorithms.length ? h('div', { class: 'tablewrap' }, h('table', null,

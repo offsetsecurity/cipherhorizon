@@ -95,7 +95,7 @@ export const osLabel = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 const PRIVILEGE = { user: 'Standard user', admin: 'Administrator', root: 'root' };
 export const privilegeLabel = (p) => PRIVILEGE[p] || (p ? p : 'Not recorded');
 
-const SENSOR = { 'pe-files': 'Windows program files', apt: 'Debian and Ubuntu packages' };
+const SENSOR = { 'pe-files': 'Windows program files', 'windows-cng': 'Windows cryptography (CNG)', apt: 'Debian and Ubuntu packages' };
 export const sensorLabel = (s) => SENSOR[s] || s;
 
 /** How much of the machine the run could see: never "complete", because something is always unseen. */

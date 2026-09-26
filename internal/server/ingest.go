@@ -44,13 +44,25 @@ type HostSummary struct {
 	Timestamp    string          `json:"timestamp,omitempty"`
 	// Coverage is how complete the inventory is; nil when the CBOM does not say.
 	Coverage *HostCoverage `json:"coverage,omitempty"`
+	// Legacy lists algorithms the CBOM marks as retired or broken for classical
+	// reasons, each with the source it cites. This is separate from the post-quantum
+	// verdict: MD5 is not "quantum-vulnerable", it is unsafe against today's computers.
+	Legacy []HostLegacy `json:"legacy"`
+}
+
+// HostLegacy is one retired or broken algorithm found on a host.
+type HostLegacy struct {
+	Name       string   `json:"name"`
+	Status     string   `json:"status"`
+	Basis      string   `json:"basis"`
+	ProvidedBy []string `json:"providedBy"`
 }
 
 // summarizeCBOM analyses a CBOM with the same cited PQC rules used everywhere.
 func summarizeCBOM(bom *cdx.BOM, name string) HostSummary {
 	rep := pqc.Analyze(bom)
 	names := map[string]string{}
-	sum := HostSummary{Name: name, Unclassified: []string{}, Algorithms: []HostAlgorithm{}}
+	sum := HostSummary{Name: name, Unclassified: []string{}, Algorithms: []HostAlgorithm{}, Legacy: []HostLegacy{}}
 	if bom.Components != nil {
 		sum.Components = len(*bom.Components)
 		for _, c := range *bom.Components {
@@ -83,6 +95,7 @@ func summarizeCBOM(bom *cdx.BOM, name string) HostSummary {
 		sum.Unclassified = append(sum.Unclassified, n)
 	}
 	sum.Coverage = coverageFromBOM(bom)
+	sum.Legacy = legacyFromBOM(bom, names)
 	if bom.Metadata != nil {
 		sum.Timestamp = bom.Metadata.Timestamp
 		if bom.Metadata.Tools != nil && bom.Metadata.Tools.Components != nil && len(*bom.Metadata.Tools.Components) > 0 {

@@ -40,8 +40,15 @@ func TestEveryRuleIsCited(t *testing.T) {
 func TestEveryCatalogueAlgorithmIsClassified(t *testing.T) {
 	for _, a := range algo.All() {
 		byName, _ := classify(a.ID, "")
+		if a.NoPQCVerdict != "" {
+			// A deliberate, reasoned absence: it must really have no rule.
+			if byName != nil {
+				t.Errorf("%s: declared NoPQCVerdict but a rule matches it", a.ID)
+			}
+			continue
+		}
 		if byName == nil {
-			t.Errorf("%s: no rule matches its name", a.ID)
+			t.Errorf("%s: no rule matches its name (classify it, or set NoPQCVerdict with the reason)", a.ID)
 			continue
 		}
 		if a.OID != "" {
