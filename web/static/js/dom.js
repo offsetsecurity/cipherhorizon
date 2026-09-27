@@ -117,3 +117,18 @@ export function intervalLabel(sec) {
   const f = INTERVALS.find(([s]) => s === sec);
   return f ? f[1] : `${sec}s`;
 }
+
+/** "4.2 MB" from a byte count. */
+export function fmtBytes(n) {
+  if (!Number.isFinite(n) || n < 0) return '';
+  if (n < 1024) return `${n} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let v = n / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
+}
+
+/** "Linux" from "linux", "macOS" from "darwin". */
+const OS_LABEL = { linux: 'Linux', darwin: 'macOS', windows: 'Windows' };
+export function osPlatformLabel(goos) { return OS_LABEL[goos] || goos; }

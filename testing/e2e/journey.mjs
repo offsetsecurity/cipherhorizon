@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { estatePhase } from './estate-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -112,10 +113,10 @@ async function main() {
   // J1: first run shows an empty state that leads to adding endpoints (US-01).
   await go('#/');
   const empty = await js(`return document.querySelector('.start')?.innerText || ''`);
-  check('E2E-01.0', 'first run: dashboard offers to add endpoints', /Add endpoints/.test(empty), empty.slice(0, 80));
+  check('E2E-01.0', 'first run: the estate offers to add endpoints', /Add endpoints/.test(empty), empty.slice(0, 80));
   const startText = await js(`return document.querySelector('main').innerText`);
-  check('E2E-12.1', 'first run shows two clear ways to begin: check a server, inventory a machine',
-    /Check a server/.test(startText) && /Inventory a machine/.test(startText) && /Show me how/.test(startText), startText.slice(0, 120));
+  check('E2E-12.1', 'first run shows three equal ways to begin: scan a service, inventory a machine, import a CBOM',
+    /Scan a service/.test(startText) && /Inventory a machine/.test(startText) && /Show me how/.test(startText) && /Import a CBOM/.test(startText), startText.slice(0, 120));
   await clickText('Show me how');
   await sleep(300);
   const howto = await js(`const m = document.querySelector('.modal'); return { text: m ? m.innerText : '', cmds: m ? m.querySelectorAll('.cmdblock').length : 0, copies: m ? m.querySelectorAll('.cmdblock .copybtn').length : 0 }`);
@@ -216,7 +217,7 @@ async function main() {
   await go('#/assets');
   await sleep(600);
   await shot('endpoints-results');
-  await go('#/');
+  await go('#/overview');
   await sleep(900);
   await shot('dashboard');
 
@@ -256,10 +257,11 @@ async function main() {
   check('E2E-07.1', 'a rescan runs and records a second result', !!after && after.lastDone.readinessLevel === 3, after?.lastDone?.readinessLevel);
   await go(`#/assets/${t.id}?tab=history`);
   await sleep(500);
-  await clickText('History (2)');
+  // Adding from the estate scans at once (WP-8), so an endpoint may already have more than one result.
+  await js(`[...document.querySelectorAll('button, a')].find((x) => /^History \(\d+\)$/.test(x.textContent.trim()))?.click()`);
   await sleep(900);
   const hist = await js(`return { dots: document.querySelectorAll('svg.chart circle.dot').length, diff: document.body.innerText.match(/\\d+ change\\(s\\)[^\\n]*/)?.[0] || '', better: [...document.querySelectorAll('.impact')].map(x => x.textContent).join() }`);
-  check('E2E-07.3', 'history chart shows both scans and the diff shows the improvement', hist.dots === 2 && /better/.test(hist.diff) && /better/.test(hist.better), JSON.stringify(hist));
+  check('E2E-07.3', 'history chart shows the scans and the diff shows the improvement', hist.dots >= 2 && /better/.test(hist.diff) && /better/.test(hist.better), JSON.stringify(hist));
   await shot('asset-history-and-diff');
   // Open the older scan read-only (AC-07.4).
   const older = (await api(`/api/v1/assets/${t.id}/history`))[0];
@@ -391,8 +393,8 @@ async function main() {
   await clickText('Close', "document.querySelector('.modal')");
   await sleep(300);
 
-  // J9c: the dashboard advises, lays out six cards as 3 x 2, and the old and new addresses both work.
-  await go('#/');
+  // J9c: the TLS overview advises, lays out six cards as 3 x 2, and the old and new addresses both work.
+  await go('#/overview');
   await sleep(900);
   const dash = await js(`const k = [...document.querySelectorAll('.grid.kpis.six .kpi')]; return { banner: document.querySelector('.nextstep')?.innerText || '', cards: k.length, rows: new Set(k.map((e) => e.offsetTop)).size, cols: new Set(k.map((e) => e.offsetLeft)).size, hndl: document.querySelector('main').innerText.includes('Recorded today, readable later') }`);
   check('E2E-12.10', 'the dashboard states a next step', /next step/i.test(dash.banner) && dash.banner.length > 30, dash.banner);
@@ -412,16 +414,37 @@ async function main() {
     /L3/.test(about) && /own choice/.test(about) && /not a standard/.test(about) && !/grade|SSL Labs/i.test(about));
   await shot('about');
 
+  // J10b: the sidebar groups its links so the menu is not one flat list, and About is reachable
+  // both from the menu and from the Estate's collector card, not only from a "Sources" catch-all.
+  const navGroups = await js(`return [...document.querySelectorAll('.navgroup')].map((g) => g.textContent.trim())`);
+  check('E2E-14.1', 'the menu is organised into labelled groups', navGroups.length >= 2, JSON.stringify(navGroups));
+
+  // J10c: get the collector, from the About page and from the sidebar footer. The download works
+  // whether or not this server has a binary on disk to hand out; either way it says so honestly.
+  const dl = await js(`await new Promise((r) => setTimeout(r, 600));
+    return { hasBox: !!document.querySelector('.dlbox'), hasRow: !!document.querySelector('.dlrow'), text: document.querySelector('.dlbox')?.innerText || '' }`);
+  check('E2E-14.2', 'About offers to get the collector, one way or the other', dl.hasBox && (dl.hasRow || /none on disk|Build one/.test(dl.text)), JSON.stringify(dl));
+  if (dl.hasRow) {
+    await js(`document.querySelector('.dlrow .btn-primary')?.click()`);
+    await sleep(500);
+    check('E2E-14.3', 'downloading a collector binary succeeds with no server error', consoleErrors.every((e) => !/status of 5\d\d/.test(e)));
+  }
+  await clickText('Get the collector', "document.querySelector('.sidefoot')");
+  await sleep(400);
+  check('E2E-14.4', 'the sidebar footer opens the same collector dialog', (await js(`return document.querySelectorAll('.modal .steps .step').length`)) >= 3);
+  await clickText('Close', "document.querySelector('.modal')");
+  await sleep(300);
+
   // J11: dark mode and a phone-sized screen (AC-11.x, NFR accessibility).
   await viewport(1280, 900, true);
-  await go('#/');
+  await go('#/overview');
   await sleep(900);
   await shot('dashboard-dark');
   await go(`#/assets/${by[9440].id}`);
   await sleep(700);
   await shot('asset-overview-dark');
   await viewport(390, 844, false, true);
-  await go('#/');
+  await go('#/overview');
   await sleep(900);
   const overflow = await js(`return document.documentElement.scrollWidth - document.documentElement.clientWidth`);
   check('NFR-a11y.1', 'no horizontal page scroll at 390 px wide (dashboard)', overflow <= 1, overflow);
@@ -437,6 +460,9 @@ async function main() {
   await sleep(700);
   await shot('endpoints-mobile');
   await viewport(1280, 900);
+
+  // The estate views (PRD-003 WP-8).
+  await estatePhase({ check, js, go, sleep, shot, api, BASE, send, viewport, clickText });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');

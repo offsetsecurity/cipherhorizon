@@ -56,11 +56,13 @@ func withScheduler(d time.Duration) envOpt { return func(c *envCfg) { c.sched = 
 
 // env is a complete server: real store, real scanner, real HTTP.
 type env struct {
+	srv    *server.Server
 	t      *testing.T
 	st     *store.Store
 	ts     *httptest.Server
 	runner *server.Runner
 	token  string
+	dbPath string
 }
 
 func newEnv(t *testing.T, opts ...envOpt) *env {
@@ -69,7 +71,8 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	for _, o := range opts {
 		o(cfg)
 	}
-	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	dbPath := filepath.Join(t.TempDir(), "t.db")
+	st, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +96,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 		runner.Wait()
 		_ = st.Close()
 	})
-	return &env{t: t, st: st, ts: ts, runner: runner, token: cfg.token}
+	return &env{srv: srv, t: t, st: st, ts: ts, runner: runner, token: cfg.token, dbPath: dbPath}
 }
 
 func (e *env) req(method, path string, body any, hdr map[string]string) (int, []byte, http.Header) {

@@ -34,6 +34,16 @@ check "Bearer token -> 200"                200 "$(code -H "Authorization: Bearer
 check "UI shell loads without token"       200 "$(code $B/)"
 
 AUTH=(-H "Authorization: Bearer $TOKEN")
+echo "== the estate routes are guarded like the rest (SR-08, SR-12) =="
+for r in /api/v1/estate /api/v1/systems /api/v1/systems/1/m2302.json /api/v1/systems/1/m2302.csv /api/v1/certificates /api/v1/links /api/v1/imports /api/v1/openapi.json /api/v1/graph/stats; do
+  check "GET $r without a token -> 401"  401 "$(code $B$r)"
+  check "GET $r with the token is not 401" 1 "$([ "$(code "${AUTH[@]}" $B$r)" != 401 ] && echo 1 || echo 0)"
+done
+check "POST /imports without X-Requested-With -> 403" 403 "$(code -X POST "${AUTH[@]}" -H 'Content-Type: application/json' -d '{}' "$B/api/v1/imports?newSystem=x")"
+check "POST /imports from a foreign origin -> 403"    403 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Origin: http://evil.example' -H 'Content-Type: application/json' -d '{}' "$B/api/v1/imports?newSystem=x")"
+check "POST /imports naming no system -> 400"         400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{}' "$B/api/v1/imports")"
+check "POST /imports of a non-CBOM -> 400"            400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"hello":1}' "$B/api/v1/imports?newSystem=x")"
+check "PATCH a system without X-Requested-With -> 403" 403 "$(code -X PATCH "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"owner":"x"}' $B/api/v1/systems/1)"
 echo "== cross-site request forgery =="
 check "POST without X-Requested-With -> 403"  403 "$(code -X POST "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
 check "POST with foreign Origin -> 403"       403 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Origin: http://evil.example' -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"

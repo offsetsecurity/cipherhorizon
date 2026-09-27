@@ -267,8 +267,8 @@ func (s *Server) linkAssets(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := s.cfg.Store.LinkAssets(id, other); err != nil {
-		storeErr(w, err)
+	if err := s.cfg.Store.LinkAssetsAs(id, other, s.actor()); err != nil {
+		systemErr(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -284,7 +284,7 @@ func (s *Server) unlinkAssets(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := s.cfg.Store.UnlinkAssets(id, other); err != nil {
+	if err := s.cfg.Store.UnlinkAssetsAs(id, other, s.actor()); err != nil {
 		storeErr(w, err)
 		return
 	}

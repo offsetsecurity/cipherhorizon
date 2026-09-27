@@ -199,9 +199,16 @@ func (s *Store) Events(scanID int64) ([]Event, error) {
 	return out, rows.Err()
 }
 
-// FinishScan stores a completed scan's result.
+// FinishScan stores a completed scan's result. If the result carries a final event, it is
+// recorded in the same transaction, so a reader can never see a finished scan whose
+// summary line is still to come.
 func (s *Store) FinishScan(id int64, r Result) error {
-	res, err := s.db.Exec(`UPDATE scans SET status = 'done', finished_at = ?, stage = 'done', progress_pct = 100, error = '',
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.Exec(`UPDATE scans SET status = 'done', finished_at = ?, stage = 'done', progress_pct = 100, error = '',
 		report_json = ?, eval_json = ?, band = ?, score = ?, readiness_level = ?, hndl_exposed = ?, crit = ?, high = ?, medium = ?,
 		cert_not_after = ?, incomplete = ? WHERE id = ? AND status = 'running'`,
 		ts(s.now()), r.Report, r.Evaluation, r.Band, r.Score, r.ReadinessLevel, b2i(r.HNDLExposed), r.Critical, r.High, r.Medium,
@@ -211,6 +218,26 @@ func (s *Store) FinishScan(id int64, r Result) error {
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
+	}
+	if r.FinalEvent != "" {
+		if _, err := tx.Exec(`INSERT INTO scan_events (scan_id, at, message) VALUES (?, ?, ?)`, id, ts(s.now()), r.FinalEvent); err != nil {
+			return err
+		}
+	}
+	// The result is projected into the graph and correlated in the same transaction, so a scan a reader
+	// sees as done already has its certificates and proposed joins. A failure to derive them never fails
+	// the scan: it is undone to a savepoint and the graph is marked stale for the next start to rebuild.
+	derived := s.deriveTx(tx, func() error {
+		if err := s.projectScanTx(tx, id); err != nil {
+			return err
+		}
+		return s.correlateTx(tx)
+	})
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if !derived {
+		_, _ = s.db.Exec(`UPDATE projection_state SET stale = 1`)
 	}
 	return s.afterFinish(id)
 }
@@ -255,7 +282,9 @@ func (s *Store) afterFinish(scanID int64) error {
 			return err
 		}
 	}
-	return s.retain(assetID, s.keep())
+	err := s.retain(assetID, s.keep())
+	s.pruneOrphans()
+	return err
 }
 
 // Retention is how many finished scans are kept per asset.

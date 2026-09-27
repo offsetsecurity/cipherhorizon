@@ -30,8 +30,11 @@ Design record: [docs/decisions](decisions) (ADR-0001 to ADR-0010) and the progra
   package and no CycloneDX; sensors import neither `cbom` nor `derive`, run no subprocess and use no
   network. `internal/archtest` enforces it.
 
-Built-in sensors: `apt` (Debian, Ubuntu, Kali: the dpkg database) and `pe-files` (loose crypto libraries on
-Windows: a bounded walk of install locations plus a hand-written, fuzzed PE version-resource reader).
+Built-in sensors: `apt` (Debian, Ubuntu, Kali: the dpkg database), `pe-files` (loose crypto libraries on
+Windows: a bounded walk of install locations plus a hand-written, fuzzed PE version-resource reader),
+`windows-cng` (what Windows itself provides) and `cert-files` (X.509 certificates held as files on Linux: trust
+stores and service directories; public metadata only, never a key; see ADR-0015 and
+`docs/host-discovery/stage-3-certificates-report.md`).
 
 ### The sensor contract (`internal/sense`)
 

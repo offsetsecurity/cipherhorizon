@@ -41,8 +41,9 @@ const (
 
 // Store is the database handle. It is safe for concurrent use.
 type Store struct {
-	db  *sql.DB
-	now func() time.Time
+	db   *sql.DB
+	path string
+	now  func() time.Time
 }
 
 // Open opens (creating if needed) the database at path and applies migrations.
@@ -51,11 +52,14 @@ type Store struct {
 // created owner-only (0600) and an existing one is tightened. SQLite gives its
 // -wal and -shm files the same mode as the database. On Windows the mode bits
 // are not enforced and the profile's ACL applies instead.
+// Every transaction is opened IMMEDIATE: a write transaction takes the write lock when it begins,
+// so two of them queue behind the busy timeout instead of one failing at its first write with
+// "database is locked" (a deferred transaction that read first cannot be upgraded under WAL).
 func Open(path string) (*Store, error) {
 	if err := restrictFile(path); err != nil {
 		return nil, fmt.Errorf("store: securing %s: %w", path, err)
 	}
-	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)"
+	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)&_txlock=immediate"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
@@ -65,8 +69,12 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("store: opening %s: %w", path, err)
 	}
-	s := &Store{db: db, now: time.Now}
+	s := &Store{db: db, path: path, now: time.Now}
 	if err := s.migrate(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if err := s.ensureProjection(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -160,6 +168,140 @@ var migrations = []string{
 		PRIMARY KEY (asset_id, linked_asset_id),
 		CHECK (asset_id != linked_asset_id)
 	);`,
+	// 4: the estate model (PRD-003, ENG-HANDOFF-002). A system is the owned unit that
+	// carries the operator's metadata; every asset belongs to one (backfilled below, one
+	// per asset, joining assets a person had already linked). sources say where a
+	// projection came from; entities and observations are that projection. The raw
+	// documents in scans and host_snapshots stay the source of truth and are never
+	// rewritten, so entities and observations can be dropped and rebuilt (REQ-MOD-1).
+	// audit_log is append-only, enforced by triggers (SR-11).
+	`CREATE TABLE systems (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		owner TEXT NOT NULL DEFAULT '',
+		environment TEXT NOT NULL DEFAULT '',
+		criticality TEXT NOT NULL DEFAULT '',
+		exposure TEXT NOT NULL DEFAULT '',
+		data_lifetime_years INTEGER,
+		fisma_id TEXT NOT NULL DEFAULT '',
+		fips199 TEXT NOT NULL DEFAULT '',
+		hva_id TEXT NOT NULL DEFAULT '',
+		hosting TEXT NOT NULL DEFAULT '',
+		hosting_provider TEXT NOT NULL DEFAULT '',
+		notes TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	ALTER TABLE assets ADD COLUMN system_id INTEGER REFERENCES systems(id);
+	CREATE INDEX assets_system ON assets(system_id);
+	-- who a host upload is attributed to: legacy rows start as imported (safe) and the backfill upgrades
+	-- those whose recorded producer is this product.
+	ALTER TABLE host_snapshots ADD COLUMN source_class TEXT NOT NULL DEFAULT 'imported';
+	ALTER TABLE host_snapshots ADD COLUMN submitted_by TEXT NOT NULL DEFAULT '';
+	CREATE TABLE sources (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		class TEXT NOT NULL CHECK (class IN ('scanner','collector','imported','operator')),
+		stream TEXT NOT NULL CHECK (stream IN ('host','network','imported')),
+		ref_kind TEXT NOT NULL CHECK (ref_kind IN ('scan','host_snapshot','import')),
+		ref_id INTEGER NOT NULL,
+		asset_id INTEGER REFERENCES assets(id) ON DELETE CASCADE,
+		system_id INTEGER REFERENCES systems(id) ON DELETE CASCADE,
+		tool_name TEXT NOT NULL DEFAULT '',
+		tool_version TEXT NOT NULL DEFAULT '',
+		sha256 TEXT NOT NULL DEFAULT '',
+		size INTEGER NOT NULL DEFAULT 0,
+		received_at TEXT NOT NULL,
+		observed_at TEXT NOT NULL,
+		submitted_by TEXT NOT NULL DEFAULT '',
+		subject_claim TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','withdrawn')),
+		is_current INTEGER NOT NULL DEFAULT 1,
+		not_interpreted_json TEXT NOT NULL DEFAULT '{}',
+		UNIQUE (ref_kind, ref_id)
+	);
+	CREATE INDEX sources_asset ON sources(asset_id, is_current);
+	CREATE TABLE entities (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		kind TEXT NOT NULL,
+		key TEXT NOT NULL,
+		name TEXT NOT NULL DEFAULT '',
+		attrs_json TEXT NOT NULL DEFAULT '{}',
+		UNIQUE (kind, key)
+	);
+	CREATE TABLE observations (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+		entity_id INTEGER NOT NULL REFERENCES entities(id),
+		relation TEXT NOT NULL,
+		via TEXT NOT NULL DEFAULT '',
+		rung TEXT NOT NULL,
+		class INTEGER NOT NULL,
+		method TEXT NOT NULL CHECK (method <> ''),
+		quality TEXT NOT NULL,
+		observed_at TEXT NOT NULL,
+		attrs_json TEXT NOT NULL DEFAULT '{}'
+	);
+	CREATE INDEX observations_entity ON observations(entity_id);
+	CREATE INDEX observations_source ON observations(source_id);
+	CREATE TABLE audit_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		at TEXT NOT NULL,
+		actor TEXT NOT NULL,
+		object_kind TEXT NOT NULL,
+		object_id INTEGER NOT NULL,
+		action TEXT NOT NULL,
+		before_json TEXT NOT NULL DEFAULT '{}',
+		after_json TEXT NOT NULL DEFAULT '{}',
+		reason TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX audit_object ON audit_log(object_kind, object_id, id);
+	CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+	CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
+	CREATE TABLE projection_state (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		version INTEGER NOT NULL,
+		built_at TEXT NOT NULL,
+		stale INTEGER NOT NULL DEFAULT 0
+	);
+	INSERT INTO projection_state (id, version, built_at, stale) VALUES (1, 0, '', 1);`,
+	// 5: third-party CBOM imports (PRD-003 REQ-ING). The raw document is kept as uploaded; what it
+	// contributed to the graph is a projection of it, rebuilt like the others. The operator's
+	// choice of system, the producer the document claims, and who submitted it live on its source.
+	`CREATE TABLE imports (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		sha256 TEXT NOT NULL UNIQUE,
+		spec_version TEXT NOT NULL,
+		profile TEXT NOT NULL,
+		kind TEXT NOT NULL CHECK (kind IN ('static-source','host','generic')),
+		cbom_json BLOB NOT NULL,
+		created_at TEXT NOT NULL
+	);`,
+	// 6: correlation links (PRD-003 REQ-COR). A link says an asset belongs to a system, why (the rules
+	// that fired and the values that matched), how strongly (a fixed table), and who decided. Manual
+	// links of 0.1.0 become confirmed links in the backfill.
+	`CREATE TABLE links (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+		system_id INTEGER NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+		state TEXT NOT NULL CHECK (state IN ('proposed','confirmed','rejected')),
+		strength TEXT NOT NULL CHECK (strength IN ('strong','medium','weak')),
+		rules_json TEXT NOT NULL DEFAULT '[]',
+		evidence_json TEXT NOT NULL DEFAULT '{}',
+		stale INTEGER NOT NULL DEFAULT 0,
+		decided_by TEXT NOT NULL DEFAULT '',
+		decided_at TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		UNIQUE (asset_id, system_id)
+	);
+	CREATE INDEX links_state ON links(state);`,
+}
+
+// postMigrations are steps that need Go rather than SQL. They run inside the same
+// transaction as the migration with the same number.
+var postMigrations = map[int]func(tx *sql.Tx, now time.Time) error{
+	4: backfillSystems,
+	6: backfillLinks,
 }
 
 // Finding triage statuses. "Resolved" is never one of these: it is not a
@@ -183,6 +325,13 @@ func (s *Store) migrate() error {
 	if have > len(migrations) {
 		return fmt.Errorf("store: database schema version %d is newer than this program understands (%d)", have, len(migrations))
 	}
+	if have > 0 && have < len(migrations) {
+		// An existing database is about to change shape: keep a copy first (SR-10). If the
+		// copy cannot be made, nothing is changed.
+		if err := s.backup(have); err != nil {
+			return fmt.Errorf("store: cannot back up %s before migrating from version %d, so it was not changed: %w", s.path, have, err)
+		}
+	}
 	for v := have + 1; v <= len(migrations); v++ {
 		tx, err := s.db.Begin()
 		if err != nil {
@@ -191,6 +340,12 @@ func (s *Store) migrate() error {
 		if _, err := tx.Exec(migrations[v-1]); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("store: migration %d: %w", v, err)
+		}
+		if post := postMigrations[v]; post != nil {
+			if err := post(tx, s.now()); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("store: migration %d: %w", v, err)
+			}
 		}
 		if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, v, ts(s.now())); err != nil {
 			_ = tx.Rollback()
@@ -234,6 +389,7 @@ func isConstraint(err error) bool {
 // Asset is something to scan.
 type Asset struct {
 	ID              int64      `json:"id"`
+	SystemID        int64      `json:"systemId"`
 	Kind            string     `json:"kind"`
 	Name            string     `json:"name"`
 	Host            string     `json:"host"`
@@ -296,6 +452,8 @@ type Result struct {
 	Medium         int
 	CertNotAfter   *time.Time
 	Incomplete     bool
+	// FinalEvent, if set, is logged with the result in one transaction.
+	FinalEvent string
 }
 
 // Event is one line of a scan's progress log.
@@ -322,7 +480,7 @@ func decodeTags(s string) []string {
 
 // ---- assets --------------------------------------------------------------------------------
 
-const assetCols = `id, kind, name, host, port, tags, notes, interval_seconds, next_scan_at, created_at, updated_at`
+const assetCols = `id, COALESCE(system_id, 0), kind, name, host, port, tags, notes, interval_seconds, next_scan_at, created_at, updated_at`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -330,7 +488,7 @@ func scanAsset(r scanner) (Asset, error) {
 	var a Asset
 	var tags, created, updated string
 	var next sql.NullString
-	if err := r.Scan(&a.ID, &a.Kind, &a.Name, &a.Host, &a.Port, &tags, &a.Notes, &a.IntervalSeconds, &next, &created, &updated); err != nil {
+	if err := r.Scan(&a.ID, &a.SystemID, &a.Kind, &a.Name, &a.Host, &a.Port, &tags, &a.Notes, &a.IntervalSeconds, &next, &created, &updated); err != nil {
 		return Asset{}, err
 	}
 	a.Tags = decodeTags(tags)
@@ -344,12 +502,22 @@ func scanAsset(r scanner) (Asset, error) {
 	return a, nil
 }
 
-// CreateAsset inserts an asset. It returns ErrDuplicate if the same kind, host
-// and port already exist.
+// CreateAsset inserts an asset, and the system it belongs to. It returns
+// ErrDuplicate if the same kind, host and port already exist.
 func (s *Store) CreateAsset(a Asset) (Asset, error) {
 	now := ts(s.now())
-	res, err := s.db.Exec(`INSERT INTO assets (kind, name, host, port, tags, notes, interval_seconds, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`, a.Kind, a.Name, a.Host, a.Port, encodeTags(a.Tags), a.Notes, now, now)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return Asset{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	sys, err := tx.Exec(`INSERT INTO systems (name, created_at, updated_at) VALUES (?, ?, ?)`, a.Name, now, now)
+	if err != nil {
+		return Asset{}, err
+	}
+	sysID, _ := sys.LastInsertId()
+	res, err := tx.Exec(`INSERT INTO assets (kind, name, host, port, tags, notes, interval_seconds, created_at, updated_at, system_id)
+		VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`, a.Kind, a.Name, a.Host, a.Port, encodeTags(a.Tags), a.Notes, now, now, sysID)
 	if isConstraint(err) {
 		return Asset{}, ErrDuplicate
 	}
@@ -357,6 +525,9 @@ func (s *Store) CreateAsset(a Asset) (Asset, error) {
 		return Asset{}, err
 	}
 	id, _ := res.LastInsertId()
+	if err := tx.Commit(); err != nil {
+		return Asset{}, err
+	}
 	return s.GetAsset(id)
 }
 
@@ -466,16 +637,30 @@ func (s *Store) UpdateAsset(id int64, p AssetPatch) (Asset, error) {
 	return s.GetAsset(id)
 }
 
-// DeleteAsset removes an asset and, by cascade, its scans and events.
+// DeleteAsset removes an asset and, by cascade, its scans, events and observations.
+// The system it belonged to goes too, unless something else still needs it: another
+// asset, an imported source, or anything a person recorded about it.
 func (s *Store) DeleteAsset(id int64) error {
-	res, err := s.db.Exec(`DELETE FROM assets WHERE id = ?`, id)
+	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	defer func() { _ = tx.Rollback() }()
+	var sysID int64
+	if err := tx.QueryRow(`SELECT COALESCE(system_id, 0) FROM assets WHERE id = ?`, id).Scan(&sysID); errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
+	} else if err != nil {
+		return err
 	}
-	return nil
+	if _, err := tx.Exec(`DELETE FROM assets WHERE id = ?`, id); err != nil {
+		return err
+	}
+	if sysID != 0 {
+		if err := pruneSystemIfEmpty(tx, sysID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 const scanCols = `id, asset_id, status, trigger, stage, progress_pct, connections, queued_at, started_at, finished_at, error,

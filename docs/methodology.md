@@ -97,3 +97,18 @@ A few dozen to a few hundred short TLS handshakes per endpoint (a ClientHello, a
 close). No application data, no exploit traffic. Concurrency, connection budget and timeouts are bounded
 (`--concurrency`, `--timeout`; hard cap of 2000 connections per scan, after which the result is flagged
 incomplete). See [tls-scanning.md](tls-scanning.md) for the probe design and known limits.
+
+## Prioritisation: which systems to work on first
+
+`GET /api/v1/estate` ranks systems by four rules applied **in order** (`internal/eval/priority.go`, version `priority/1`; the API returns the rules beside the ranking). There is **no composite score**: each rule decides between two systems only if every earlier rule tied, so any position can be explained in one sentence, and every row lists the facts behind it.
+
+| # | Rule | Reads |
+|---|---|---|
+| R1 | **Harvest now, decrypt later.** A system with a TLS service whose key exchange a current client negotiates without post-quantum protection ranks first. Among those, systems whose data must stay confidential **past 2030** (the year NIST IR 8547 plans to deprecate classical public-key algorithms) rank above those where the lifetime is unknown or shorter; a longer lifetime ranks higher. No scanned service means exposure is *not known*, which is not the same as safe, and the row says so. | scan readiness (observed); data lifetime (entered) |
+| R2 | **Exposure, then criticality.** Internet-facing before internal before restricted; high before moderate before low (the FIPS 199 vocabulary). | entered by a person |
+| R3 | **Defects.** The worst severity among the system's current certificate findings (expired, expiring, not yet valid, weak key, broken signature hash, a quantum-vulnerable key outliving 2030 or 2035) and its scans' critical and high findings; then how many. | observed |
+| R4 | **How well it is known.** Systems seen by this product's own scanner or collector before systems known only from imported documents; then name. | source classes |
+
+Citations: CISA/NSA/NIST on harvest-now-decrypt-later, NIST IR 8547, RFC 5280, the CA/Browser Forum baseline requirements, NIST SP 800-57. The dates are those documents' dates, used as stated; this product does not predict when a quantum computer will exist.
+
+A system for which nobody has entered exposure, criticality or data lifetime is still ranked, and its row says **"based on evidence only"** and lists what would change its position. Imported evidence ranks a system but is labelled unverified: treat such a position as a lead.

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("-----BEGIN CERTIFICATE-----\n0AA00000-----END CERTIFICATE")

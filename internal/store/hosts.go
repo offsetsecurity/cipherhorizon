@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/example/cipherhorizon/internal/estate"
 )
 
 // HostSnapshot is one uploaded CBOM of a host, with its analysis summary.
@@ -34,17 +36,33 @@ func (s *Store) UpsertHostAsset(name string) (a Asset, created bool, err error) 
 // HostSnapshotsKept is how many uploads are retained per host.
 var HostSnapshotsKept = 50
 
-// AddHostSnapshot stores an uploaded CBOM and its analysis.
+// AddHostSnapshot stores an uploaded CBOM and its analysis as an imported document:
+// the safe default, since nothing here proves who made it.
 func (s *Store) AddHostSnapshot(assetID int64, cbom, summary []byte) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO host_snapshots (asset_id, at, cbom_json, summary_json) VALUES (?, ?, ?, ?)`,
-		assetID, ts(s.now()), cbom, summary)
+	return s.AddHostSnapshotAs(assetID, cbom, summary, estate.ClassImported, "")
+}
+
+// AddHostSnapshotAs stores an uploaded CBOM attributed to a source class, and projects
+// it into the graph. The caller decides the class from the channel, not from anything
+// the document claims about itself (SECARCH-001 T-03).
+func (s *Store) AddHostSnapshotAs(assetID int64, cbom, summary []byte, class estate.SourceClass, submittedBy string) (int64, error) {
+	if !class.Valid() {
+		return 0, errors.New("store: unknown source class")
+	}
+	res, err := s.db.Exec(`INSERT INTO host_snapshots (asset_id, at, cbom_json, summary_json, source_class, submitted_by) VALUES (?, ?, ?, ?, ?, ?)`,
+		assetID, ts(s.now()), cbom, summary, string(class), submittedBy)
 	if err != nil {
 		return 0, err
 	}
 	id, _ := res.LastInsertId()
-	_, err = s.db.Exec(`DELETE FROM host_snapshots WHERE asset_id = ? AND id NOT IN
-		(SELECT id FROM host_snapshots WHERE asset_id = ? ORDER BY id DESC LIMIT ?)`, assetID, assetID, HostSnapshotsKept)
-	return id, err
+	if _, err = s.db.Exec(`DELETE FROM host_snapshots WHERE asset_id = ? AND id NOT IN
+		(SELECT id FROM host_snapshots WHERE asset_id = ? ORDER BY id DESC LIMIT ?)`, assetID, assetID, HostSnapshotsKept); err != nil {
+		return id, err
+	}
+	s.projectQuietly(func(tx *sql.Tx) error { return s.projectSnapshotTx(tx, id) })
+	s.pruneOrphans()
+	s.correlateQuietly()
+	return id, nil
 }
 
 // HostSnapshots lists a host's uploads, newest first.

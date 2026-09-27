@@ -1,8 +1,10 @@
-// About: version, the readiness scale, how the TLS hygiene score works, and the limits of what is measured.
+// About: what this product is, how to get the collector, the readiness scale, how the TLS hygiene
+// score works, and the limits of what is measured.
 import { h } from '../dom.js';
 import { api } from '../api.js';
 import { LEVELS, levelClass } from '../charts.js';
-import { citations } from '../ui.js';
+import { citations, button } from '../ui.js';
+import { collectorDownloadBlock, collectDialog } from '../guide.js';
 
 const MEANING = {
   '-1': 'The scan could not establish what the endpoint supports, so no level is given rather than a guess.',
@@ -23,14 +25,31 @@ const SOURCES = [
 
 export async function render(root) {
   const a = await api.about();
-  root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'About'), h('div', { class: 'sub' }, `${a.name} ${a.version}`))));
+  root.appendChild(h('section', { class: 'about-hero' },
+    h('div', { class: 'about-hero-mark', 'aria-hidden': 'true' },
+      h('svg', { viewBox: '0 0 32 32', fill: 'none' },
+        h('path', { d: 'M16 2 L28 9 V23 L16 30 L4 23 V9 Z', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linejoin': 'round' }),
+        h('path', { d: 'M16 9 L22 12.5 V19.5 L16 23 L10 19.5 V12.5 Z', fill: 'currentColor' }))),
+    h('div', null,
+      h('h1', null, a.name || 'CipherHorizon'),
+      h('p', { class: 'about-hero-sub' }, 'A cryptographic inventory that ranks your systems for the move to post-quantum cryptography.'),
+      h('p', { class: 'muted mono small' }, `Version ${a.version}`))));
 
   root.appendChild(h('div', { class: 'callout' }, h('b', null, 'Use only on systems you are authorised to test. '), a.notice));
 
+  root.appendChild(h('section', { class: 'card' },
+    h('div', { class: 'row spread' },
+      h('div', null, h('h2', null, 'Get the collector'),
+        h('p', { class: 'text-2' }, 'The small program that inventories a machine’s cryptographic software and certificates. It is one file, reads no key material, starts no other program and makes no network connection.')),
+      button('Full instructions', () => collectDialog(null))),
+    collectorDownloadBlock()));
+
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'PQC readiness levels'),
     h('p', { class: 'muted' }, 'This scale is this product’s own. Each fact behind a level is separately sourced from a standard, and shown with its evidence.'),
-    h('ul', { class: 'legend stack' }, LEVELS.slice().reverse().map(({ level, name, short }) =>
-      h('li', null, h('span', { class: `badge lvbadge ${levelClass(level)}` }, h('b', null, short), ` ${name}`), ' ', MEANING[level])))));
+    h('div', { class: 'readylist' }, LEVELS.slice().reverse().map(({ level, name, short }) =>
+      h('div', { class: 'readylist-row' },
+        h('span', { class: `badge lvbadge ${levelClass(level)}` }, h('b', null, short), ` ${name}`),
+        h('p', null, MEANING[level]))))));
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'How the TLS hygiene score works'),
     h('p', null, 'The score starts at 100 and takes points off for each finding on the endpoint: 40 for a critical one, 20 for high, 10 for medium, 4 for low. ',

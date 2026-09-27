@@ -70,6 +70,10 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return tlsCmd(ctx, args[1:], env)
 	case "serve":
 		return serveCmd(ctx, args[1:], env)
+	case "import":
+		return importCmd(ctx, args[1:], env)
+	case "db":
+		return dbCmd(args[1:], env)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(env.Stdout, "cipherhorizon", version.Get())
 		return ExitOK
@@ -98,6 +102,8 @@ Usage:
   cipherhorizon run [--config FILE] [-o FILE] [--root DIR] [--redact-host]
   cipherhorizon tls scan [flags] HOST[:PORT]...
   cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--token TOKEN]
+  cipherhorizon import [--server URL] (--system ID | --new-system NAME) FILE|-
+  cipherhorizon db rebuild-graph|stats [--db FILE]
   cipherhorizon plugins       list the built-in sensors
   cipherhorizon version
 

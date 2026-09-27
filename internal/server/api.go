@@ -469,6 +469,14 @@ func (s *Server) scanCBOM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	spec := r.URL.Query().Get("spec")
+	if spec == "" {
+		spec = cbom.DefaultSpec
+	}
+	if spec != cbom.Spec16 && spec != cbom.Spec17 {
+		writeErr(w, http.StatusBadRequest, "spec must be 1.6 or 1.7")
+		return
+	}
 	bom, _ := cbom.Build(tlscbom.FromTLSReport(&rep), cbom.Options{
 		Tool:     cbom.Tool{Name: "cipherhorizon", Version: s.cfg.Version},
 		Endpoint: fmt.Sprintf("%s:%d", rep.Target.Host, rep.Target.Port),
@@ -477,7 +485,7 @@ func (s *Server) scanCBOM(w http.ResponseWriter, r *http.Request) {
 	pqc.Annotate(bom, pqcRep)
 
 	var buf bytes.Buffer
-	if err := cbom.Encode(&buf, bom, true); err != nil {
+	if err := cbom.EncodeSpec(&buf, bom, spec, true); err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}

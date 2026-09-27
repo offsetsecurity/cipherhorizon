@@ -17,6 +17,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -123,6 +124,7 @@ run flags:
   -o, --output FILE  write the CBOM here, atomically (default: stdout)
   --root DIR      the host filesystem's location, e.g. /host inside a container
   --redact-host   record a stable label derived from the machine id instead of the host name
+  --spec 1.6|1.7  CycloneDX version to write (default 1.7)
 
 run reports what is present and what it can do, never what it is used for. Running without
 elevated privileges is allowed and may leave results incomplete; run as Administrator (Windows)
@@ -144,6 +146,7 @@ func Run(ctx context.Context, args []string, env Env) int {
 	fl.StringVar(&outPath, "o", "", "")
 	root := fl.String("root", "", "")
 	redact := fl.Bool("redact-host", false, "")
+	spec := fl.String("spec", "", "")
 	if err := fl.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return ExitOK
@@ -167,6 +170,9 @@ func Run(ctx context.Context, args []string, env Env) int {
 	if *redact {
 		cfg.Host.Redact = true
 	}
+	if *spec != "" {
+		cfg.Output.Spec = *spec
+	}
 	if err := cfg.Validate(); err != nil {
 		return fatalf(env, "%v", err)
 	}
@@ -178,8 +184,14 @@ func Run(ctx context.Context, args []string, env Env) int {
 		}
 	}
 
+	hostFS, closeFS, err := openHostFS(cfg.Host.Root)
+	if err != nil {
+		return fatalf(env, "cannot open the host root %s: %v", cfg.Host.Root, err)
+	}
+	defer closeFS()
+
 	res, err := discover.Run(ctx, env.Registry, discover.Options{
-		FS:         os.DirFS(cfg.Host.Root),
+		FS:         hostFS,
 		OS:         env.OS,
 		Tier:       env.Tier(),
 		HostName:   hostName,
@@ -222,7 +234,7 @@ func Run(ctx context.Context, args []string, env Env) int {
 	}
 
 	var buf bytes.Buffer
-	if err := cbom.Encode(&buf, bom, cfg.Output.Pretty); err != nil {
+	if err := cbom.EncodeSpec(&buf, bom, specOf(cfg.Output.Spec), cfg.Output.Pretty); err != nil {
 		return fatalf(env, "encoding CBOM: %v", err)
 	}
 	if cfg.Output.Path == "" {
@@ -254,6 +266,29 @@ func report(env Env, res sense.Result) {
 			_, _ = fmt.Fprintf(env.Stderr, "plugin %s: %s, %d observations: %v\n", r.Name, r.Status, r.Observations, r.Err)
 		}
 	}
+}
+
+// openHostFS opens the host filesystem sensors read. For this machine's own root it is the
+// ordinary directory tree. For any other root (a container's /host mount, a mounted disk) it
+// is a traversal-resistant view (os.Root): a symbolic link inside a tree we do not control
+// cannot lead a sensor out of it, whatever a sensor does with a path (SECARCH-001 SR-16).
+func openHostFS(root string) (fsys fs.FS, closeFn func(), err error) {
+	if root == config.DefaultRoot() {
+		return os.DirFS(root), func() {}, nil
+	}
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	return r.FS(), func() { _ = r.Close() }, nil
+}
+
+// specOf is the CycloneDX version to write: the configured one, or the default.
+func specOf(s string) string {
+	if s == "" {
+		return cbom.DefaultSpec
+	}
+	return s
 }
 
 // Plugins implements `plugins`: list the built-in sensors and the methods they use.

@@ -38,8 +38,8 @@ export async function render(root) {
   const paint = (f, hosts, priority) => {
     clear(root);
     root.appendChild(h('div', { class: 'page-head' },
-      h('div', null, h('h1', null, 'Dashboard'),
-        h('div', { class: 'sub' }, 'Crypto posture across your TLS endpoints and hosts')),
+      h('div', null, h('h1', null, 'TLS overview'),
+        h('div', { class: 'sub' }, 'How well your scanned endpoints are configured. Which systems to look at first is on the Estate page.')),
       h('div', { class: 'row' },
         button('Add endpoints', () => openAddDialog(() => draw()), 'primary'),
         f.assets ? button('Scan all', scanAll) : null)));
@@ -47,8 +47,8 @@ export async function render(root) {
     if (!f.assets && !hosts.length) {
       // Nothing yet: the page's only job is to show the two ways to begin.
       clear(root);
-      root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Dashboard'),
-        h('div', { class: 'sub' }, 'Crypto posture across your TLS endpoints and hosts'))));
+      root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'TLS overview'),
+        h('div', { class: 'sub' }, 'How well your scanned endpoints are configured. Which systems to look at first is on the Estate page.'))));
       root.appendChild(getStarted({ onAddEndpoints: () => openAddDialog(() => draw()), onUpload: () => uploadDialog(() => draw()) }));
       return;
     }

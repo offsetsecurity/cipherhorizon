@@ -44,6 +44,8 @@ type Server struct {
 	mux     *http.ServeMux
 	handler http.Handler
 	log     *slog.Logger
+
+	routeTable []string
 }
 
 // New builds the server.
@@ -176,7 +178,7 @@ func (s *Server) mutationGuard(next http.Handler) http.Handler {
 					writeErr(w, http.StatusForbidden, "cross-site request refused")
 					return
 				}
-				if r.ContentLength != 0 && !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+				if r.ContentLength != 0 && !bodyTypeOK(r) {
 					writeErr(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 					return
 				}
@@ -184,6 +186,16 @@ func (s *Server) mutationGuard(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// bodyTypeOK reports whether a request's body has a type the route accepts: JSON
+// everywhere, and CSV on the one route that reads it.
+func bodyTypeOK(r *http.Request) bool {
+	ct := r.Header.Get("Content-Type")
+	if strings.HasPrefix(ct, "application/json") {
+		return true
+	}
+	return r.URL.Path == "/api/v1/systems/import.csv" && strings.HasPrefix(ct, "text/csv")
 }
 
 // ---- JSON helpers --------------------------------------------------------------------------
@@ -218,45 +230,83 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
+// Routes lists every registered API route as "METHOD /path" with {name} placeholders,
+// in registration order.
+func (s *Server) Routes() []string { return append([]string(nil), s.routeTable...) }
+
 // ---- routes ---------------------------------------------------------------------------------
 
 func (s *Server) routes() {
 	m := s.mux
-	m.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
-	m.HandleFunc("GET /api/v1/about", s.about)
-	m.HandleFunc("GET /api/v1/summary", s.summary)
+	// handle registers a route and records it, so tests can walk the real route table
+	// instead of a list that could drift from it.
+	handle := func(pattern string, h http.HandlerFunc) {
+		m.HandleFunc(pattern, h)
+		s.routeTable = append(s.routeTable, pattern)
+	}
+	handle("GET /api/v1/health", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
+	handle("GET /api/v1/about", s.about)
+	handle("GET /api/v1/openapi.json", s.openAPIDoc)
+	handle("GET /api/v1/summary", s.summary)
 
-	m.HandleFunc("GET /api/v1/assets", s.listAssets)
-	m.HandleFunc("POST /api/v1/assets", s.createAsset)
-	m.HandleFunc("POST /api/v1/assets/bulk", s.bulkAssets)
-	m.HandleFunc("GET /api/v1/assets/{id}", s.getAsset)
-	m.HandleFunc("PATCH /api/v1/assets/{id}", s.patchAsset)
-	m.HandleFunc("DELETE /api/v1/assets/{id}", s.deleteAsset)
-	m.HandleFunc("POST /api/v1/assets/{id}/scan", s.scanAsset)
-	m.HandleFunc("GET /api/v1/assets/{id}/history", s.history)
-	m.HandleFunc("GET /api/v1/assets/{id}/diff", s.diff)
-	m.HandleFunc("GET /api/v1/assets/{id}/findings", s.listAssetFindings)
-	m.HandleFunc("PUT /api/v1/assets/{id}/findings/{key}/status", s.setFindingStatus)
-	m.HandleFunc("DELETE /api/v1/assets/{id}/findings/{key}/status", s.clearFindingStatus)
-	m.HandleFunc("PUT /api/v1/assets/{id}/links/{otherId}", s.linkAssets)
-	m.HandleFunc("DELETE /api/v1/assets/{id}/links/{otherId}", s.unlinkAssets)
+	handle("GET /api/v1/assets", s.listAssets)
+	handle("POST /api/v1/assets", s.createAsset)
+	handle("POST /api/v1/assets/bulk", s.bulkAssets)
+	handle("GET /api/v1/assets/{id}", s.getAsset)
+	handle("PATCH /api/v1/assets/{id}", s.patchAsset)
+	handle("DELETE /api/v1/assets/{id}", s.deleteAsset)
+	handle("POST /api/v1/assets/{id}/scan", s.scanAsset)
+	handle("GET /api/v1/assets/{id}/history", s.history)
+	handle("GET /api/v1/assets/{id}/diff", s.diff)
+	handle("GET /api/v1/assets/{id}/findings", s.listAssetFindings)
+	handle("PUT /api/v1/assets/{id}/findings/{key}/status", s.setFindingStatus)
+	handle("DELETE /api/v1/assets/{id}/findings/{key}/status", s.clearFindingStatus)
+	handle("PUT /api/v1/assets/{id}/links/{otherId}", s.linkAssets)
+	handle("DELETE /api/v1/assets/{id}/links/{otherId}", s.unlinkAssets)
 
-	m.HandleFunc("GET /api/v1/findings", s.fleetFindings)
+	handle("GET /api/v1/findings", s.fleetFindings)
 
-	m.HandleFunc("POST /api/v1/scans", s.scanMany)
-	m.HandleFunc("GET /api/v1/scans", s.listScans)
-	m.HandleFunc("GET /api/v1/scans/{id}", s.getScan)
-	m.HandleFunc("POST /api/v1/scans/{id}/cancel", s.cancelScan)
-	m.HandleFunc("GET /api/v1/scans/{id}/report", s.report)
-	m.HandleFunc("GET /api/v1/scans/{id}/evaluation", s.evaluation)
-	m.HandleFunc("GET /api/v1/scans/{id}/cbom", s.scanCBOM)
+	handle("GET /api/v1/systems", s.listSystems)
+	handle("GET /api/v1/systems/export.csv", s.exportSystemsCSV)
+	handle("POST /api/v1/systems/import.csv", s.importSystemsCSV)
+	handle("GET /api/v1/systems/{id}", s.getSystem)
+	handle("PATCH /api/v1/systems/{id}", s.patchSystem)
+	handle("GET /api/v1/systems/{id}/m2302.json", s.m2302JSON)
+	handle("GET /api/v1/systems/{id}/m2302.csv", s.m2302CSV)
+	handle("GET /api/v1/systems/{id}/audit", s.systemAudit)
+	handle("GET /api/v1/systems/{id}/observations", s.systemObservations)
+	handle("GET /api/v1/systems/{id}/certificates", s.systemCertificates)
+	handle("GET /api/v1/certificates", s.listCertificates)
+	handle("GET /api/v1/certificates/{fingerprint}", s.getCertificate)
+	handle("POST /api/v1/imports", s.importDocument)
+	handle("GET /api/v1/imports", s.listImports)
+	handle("GET /api/v1/imports/{id}", s.getImport)
+	handle("POST /api/v1/imports/{id}/withdraw", s.withdrawImport)
+	handle("GET /api/v1/links", s.listLinks)
+	handle("POST /api/v1/links/{id}/confirm", s.confirmLink)
+	handle("POST /api/v1/links/{id}/reject", s.rejectLink)
+	handle("GET /api/v1/systems/{id}/links", s.systemLinks)
+	handle("GET /api/v1/estate", s.estateRanking)
+	handle("GET /api/v1/entities", s.listEntities)
+	handle("GET /api/v1/graph/stats", s.graphStats)
 
-	m.HandleFunc("GET /api/v1/export/assets.csv", s.exportCSV)
+	handle("POST /api/v1/scans", s.scanMany)
+	handle("GET /api/v1/scans", s.listScans)
+	handle("GET /api/v1/scans/{id}", s.getScan)
+	handle("POST /api/v1/scans/{id}/cancel", s.cancelScan)
+	handle("GET /api/v1/scans/{id}/report", s.report)
+	handle("GET /api/v1/scans/{id}/evaluation", s.evaluation)
+	handle("GET /api/v1/scans/{id}/cbom", s.scanCBOM)
 
-	m.HandleFunc("POST /api/v1/hosts/ingest", s.ingestHost)
-	m.HandleFunc("GET /api/v1/hosts", s.listHosts)
-	m.HandleFunc("GET /api/v1/hosts/{id}", s.getHost)
-	m.HandleFunc("GET /api/v1/hosts/{id}/snapshots/{snapshotId}/cbom", s.hostSnapshotCBOM)
+	handle("GET /api/v1/export/assets.csv", s.exportCSV)
+
+	handle("POST /api/v1/hosts/ingest", s.ingestHost)
+	handle("GET /api/v1/hosts", s.listHosts)
+	handle("GET /api/v1/hosts/{id}", s.getHost)
+	handle("GET /api/v1/hosts/{id}/snapshots/{snapshotId}/cbom", s.hostSnapshotCBOM)
+
+	handle("GET /api/v1/collector/binaries", s.listCollectorBinaries)
+	handle("GET /api/v1/collector/binaries/{name}", s.downloadCollectorBinary)
 
 	// Unknown API paths get a JSON 404. Registered for GET only so that a wrong
 	// method on a real path is answered 405 by the mux rather than swallowed here.

@@ -30,7 +30,13 @@ type Output struct {
 	Path string `yaml:"path"`
 	// Pretty indents the JSON.
 	Pretty bool `yaml:"pretty"`
+	// Spec is the CycloneDX version written: "1.7" (the default) or "1.6" for consumers that have
+	// not moved to 1.7.
+	Spec string `yaml:"spec"`
 }
+
+// DefaultSpec is the CycloneDX version written unless configured otherwise.
+const DefaultSpec = "1.7"
 
 // Host describes the machine being scanned.
 type Host struct {
@@ -76,7 +82,7 @@ func DefaultRoot() string {
 // Default returns the configuration used when nothing is specified.
 func Default() Config {
 	return Config{
-		Output:  Output{Pretty: true},
+		Output:  Output{Pretty: true, Spec: DefaultSpec},
 		Host:    Host{Root: DefaultRoot()},
 		Plugins: Plugins{Timeout: 60 * time.Second},
 		PQC:     PQC{Enabled: true},
@@ -114,6 +120,9 @@ func Parse(r io.Reader) (Config, error) {
 func (c Config) Validate() error {
 	if c.Host.Root == "" {
 		return errors.New("config: host.root must not be empty")
+	}
+	if c.Output.Spec != "" && c.Output.Spec != "1.6" && c.Output.Spec != "1.7" {
+		return errors.New("config: output.spec must be 1.6 or 1.7")
 	}
 	if c.Plugins.Timeout < 0 {
 		return errors.New("config: plugins.timeout must not be negative")

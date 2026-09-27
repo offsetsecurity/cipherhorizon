@@ -6,22 +6,28 @@
 > this notice). See [docs/engineering/BRANCHING.md](docs/engineering/BRANCHING.md#first-push).
 <!-- /placeholder-owner -->
 
-A vendor-neutral, open-source tool for **cryptographic posture**: one place to see what cryptography your
-endpoints and hosts use, how well it is configured, and how exposed it is to a future quantum computer.
+A vendor-neutral, open-source **cryptographic inventory that ranks your systems for the move to post-quantum
+cryptography**. It scans your TLS endpoints, inventories the cryptography and certificates on your machines, imports
+CBOMs from other tools, joins what belongs together, and tells you which system to look at first and why.
 
-- **Web UI**: add TLS endpoints, scan them, watch progress, read each endpoint's **PQC readiness** (L0-L4) and
-  **TLS hygiene** score, and see how it changed since the last scan.
+- **Estate**: the home page. Systems in the order to look at them, by four published, cited rules (traffic exposed to
+  later decryption against how long its data must stay secret, exposure and criticality, certificate and TLS defects,
+  strength of evidence). No composite score: every row says which rule put it there and where it is from.
+- **Systems, certificates, review, imports**: a *system* is what an owner answers for. Its services, machines and
+  certificates (with key sizes) hang under it; likely matches between a service and a machine are proposed for a person to
+  confirm or reject; documents from other tools are imported with provenance and never overwrite what was observed.
 - **Active TLS/SSL scanner**: protocol versions (SSLv2 to TLS 1.3), every cipher suite, key-exchange groups
-  including post-quantum hybrids such as `X25519MLKEM768`, certificates, with a cited finding for every problem.
-- **CBOM, both directions**: `cipherhorizon run` inventories what cryptography is installed on a host, and
-  `cipherhorizon tls scan --cbom` exports what an active scan observed on a remote endpoint (protocols, cipher
-  suites, key-exchange groups, certificates) — both as a [CycloneDX](https://cyclonedx.org/capabilities/cbom/)
-  1.6 **CBOM** with the same evidence-based post-quantum classifications. Upload either to the UI's **Hosts** page
-  to see its per-algorithm verdicts (the page is named for the host case; an endpoint's CBOM works the same way).
+  including post-quantum hybrids such as `X25519MLKEM768`, certificates, with a cited finding for every problem. Each
+  endpoint also has a **PQC readiness** level (L0-L4) and a **TLS hygiene** score.
+- **CBOM as an interchange format**: `cipherhorizon run`, `cipherhorizon-collector run` and `cipherhorizon tls scan --cbom`
+  write a [CycloneDX](https://cyclonedx.org/capabilities/cbom/) **1.7** CBOM (`--spec 1.6` for older consumers) with
+  evidence-based post-quantum classifications, and third-party CBOMs can be imported. Per system, the nine items of
+  OMB M-23-02 can be exported as JSON or CSV (it supports the structure; it is not a compliance statement). See
+  [docs/estate-guide.md](docs/estate-guide.md), [docs/exporting.md](docs/exporting.md), [docs/importing.md](docs/importing.md) and the OpenAPI description served at `/api/v1/openapi.json`.
 
 ### Start here
 
-1. Run `cipherhorizon serve` and open <http://127.0.0.1:8080>. The first screen offers two ways to begin.
+1. Run `cipherhorizon serve` and open <http://127.0.0.1:8080>. The first screen offers three ways to begin: scan a service, inventory a machine, or import a CBOM.
 2. **Check a server's TLS:** choose *Add endpoints*, enter `example.com:443`, and scan it. You get a readiness
    level, a hygiene score and a ranked list of what to fix.
 3. **Inventory a machine:** copy the small `cipherhorizon-collector` to it, run
@@ -30,7 +36,7 @@ endpoints and hosts use, how well it is configured, and how exposed it is to a f
    asks the operating system what cryptography it provides (CNG algorithms and providers, key storage providers and
    the post-quantum parameter sets it accepts) and flags retired algorithms such as MD5 and RC4, with their sources.
 
-The dashboard always shows a single **next step**. More detail: [How to start](#how-to-start) below.
+The Estate names the next useful step, and the TLS overview shows a single **next step** for your endpoints. More detail: [How to start](#how-to-start) below.
 
 **Status: pre-release, `0.x` (release R1 of the workbench).** Interfaces can still change between minor versions ([versioning policy](docs/engineering/RELEASING.md#versioning-policy)). See the [release report](docs/product/RELEASE-REPORT-001.md)
 for what is in, what is not, and what was found in testing.

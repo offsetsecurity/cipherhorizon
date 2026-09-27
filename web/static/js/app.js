@@ -2,12 +2,19 @@
 import { h, clear } from './dom.js';
 import { api, ApiError, setAuthHandler, setToken } from './api.js';
 import { modal, button, empty, notice, playEnter } from './ui.js';
+import { collectDialog } from './guide.js';
 
 const main = document.getElementById('main');
 const modalRoot = document.getElementById('modal-root');
 
 const routes = [
-  [/^#\/?$/, 'dashboard', () => import('./views/dashboard.js')],
+  [/^#\/?$/, 'estate', () => import('./views/estate.js')],
+  [/^#\/overview\/?$/, 'overview', () => import('./views/dashboard.js')],
+  [/^#\/systems\/(\d+)\/?$/, 'estate', () => import('./views/system.js')],
+  [/^#\/certificates\/?$/, 'certificates', () => import('./views/certificates.js')],
+  [/^#\/certificates\/([0-9a-fA-F]{64})\/?$/, 'certificates', () => import('./views/certificate.js')],
+  [/^#\/review\/?$/, 'review', () => import('./views/review.js')],
+  [/^#\/imports\/?$/, 'imports', () => import('./views/imports.js')],
   [/^#\/(?:assets|endpoints)\/?$/, 'assets', () => import('./views/assets.js')],
   [/^#\/(?:assets|endpoints)\/(\d+)\/?$/, 'assets', () => import('./views/asset.js')],
   [/^#\/scans\/?$/, 'scans', () => import('./views/scans.js')],
@@ -42,7 +49,7 @@ async function route() {
   }
   clear(main);
   if (!match) {
-    main.appendChild(notice('We could not find that page', 'The address may be mistyped, or the page may have moved. Everything is reachable from the menu.', button('Go to the dashboard', () => { location.hash = '#/'; }, 'primary')));
+    main.appendChild(notice('We could not find that page', 'The address may be mistyped, or the page may have moved. Everything is reachable from the menu.', button('Go to the estate', () => { location.hash = '#/'; }, 'primary')));
     return;
   }
   try {
@@ -61,7 +68,23 @@ async function route() {
       button('Try again', route, 'primary')));
   }
   main.focus({ preventScroll: true });
+  refreshReviewCount();
 }
+
+// The number of proposed matches waiting for a person, shown beside "Review" in the menu.
+async function refreshReviewCount() {
+  const el = document.getElementById('nav-review-count');
+  if (!el) return;
+  try {
+    const n = (await api.links('proposed')).length;
+    el.textContent = String(n);
+    el.hidden = n === 0;
+    el.setAttribute('aria-label', `${n} waiting`);
+  } catch { /* the badge is decoration: never block on it */ }
+}
+window.addEventListener('estate-changed', refreshReviewCount);
+
+document.getElementById('nav-collector')?.addEventListener('click', () => collectDialog(null));
 
 setAuthHandler(() => {
   if (document.querySelector('.modal[aria-label="Access token"]')) return;

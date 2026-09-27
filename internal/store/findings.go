@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -87,24 +88,141 @@ func (s *Store) AllFindingStatuses() (map[int64]map[string]FindingStatus, error)
 // LinkAssets records that two assets (typically a TLS endpoint and a host)
 // are known, by a person, to be the same machine. Never inferred by the
 // product itself. Order does not matter; the link is symmetric.
-func (s *Store) LinkAssets(a, b int64) error {
+//
+// The two assets also become one system (their systems are merged, keeping the
+// host's), so the metadata a person records is about the machine, not one of its
+// faces. If the two systems hold different operator-set values the link is refused
+// with a ConflictError naming the fields, and nothing changes.
+func (s *Store) LinkAssets(a, b int64) error { return s.LinkAssetsAs(a, b, "operator") }
+
+// LinkAssetsAs is LinkAssets recording who made the link.
+func (s *Store) LinkAssetsAs(a, b int64, actor string) error {
 	if a == b {
 		return errors.New("store: cannot link an asset to itself")
 	}
-	if _, err := s.GetAsset(a); err != nil {
+	aa, err := s.GetAsset(a)
+	if err != nil {
 		return err
 	}
-	if _, err := s.GetAsset(b); err != nil {
+	bb, err := s.GetAsset(b)
+	if err != nil {
 		return err
 	}
-	_, err := s.db.Exec(`INSERT OR IGNORE INTO asset_links (asset_id, linked_asset_id, created_at) VALUES (?, ?, ?)`, a, b, ts(s.now()))
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if aa.SystemID != bb.SystemID && aa.SystemID != 0 && bb.SystemID != 0 {
+		from, to := bb.SystemID, aa.SystemID
+		if bb.Kind == KindHost && aa.Kind != KindHost {
+			from, to = aa.SystemID, bb.SystemID
+		}
+		if err := s.mergeSystemsTx(tx, from, to, actor, fmt.Sprintf("assets %d and %d linked", a, b)); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO asset_links (asset_id, linked_asset_id, created_at) VALUES (?, ?, ?)`, a, b, ts(s.now())); err != nil {
+		return err
+	}
+	// The same fact, as a reviewable link a person made: confirmed, source operator.
+	linkAsset := a
+	if aa.Kind == KindHost && bb.Kind != KindHost {
+		linkAsset = b
+	}
+	var sysID int64
+	if err := tx.QueryRow(`SELECT COALESCE(system_id, 0) FROM assets WHERE id = ?`, linkAsset).Scan(&sysID); err != nil {
+		return err
+	}
+	if sysID != 0 {
+		if err := recordManualLinkTx(tx, ts(s.now()), actor, linkAsset, sysID, LinkConfirmed); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.correlateQuietly()
+	return nil
 }
 
-// UnlinkAssets removes a link in either direction.
-func (s *Store) UnlinkAssets(a, b int64) error {
-	_, err := s.db.Exec(`DELETE FROM asset_links WHERE (asset_id = ? AND linked_asset_id = ?) OR (asset_id = ? AND linked_asset_id = ?)`, a, b, b, a)
-	return err
+// UnlinkAssets removes a link in either direction. If that leaves the two assets
+// unconnected by any other link, the second asset (and whatever is still linked to it)
+// moves to a system of its own; the metadata stays with the original system.
+func (s *Store) UnlinkAssets(a, b int64) error { return s.UnlinkAssetsAs(a, b, "operator") }
+
+// UnlinkAssetsAs is UnlinkAssets recording who removed the link.
+func (s *Store) UnlinkAssetsAs(a, b int64, actor string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`DELETE FROM asset_links WHERE (asset_id = ? AND linked_asset_id = ?) OR (asset_id = ? AND linked_asset_id = ?)`, a, b, b, a); err != nil {
+		return err
+	}
+	var sysA, sysB sql.NullInt64
+	_ = tx.QueryRow(`SELECT system_id FROM assets WHERE id = ?`, a).Scan(&sysA)
+	_ = tx.QueryRow(`SELECT system_id FROM assets WHERE id = ?`, b).Scan(&sysB)
+	if sysA.Valid && sysB.Valid && sysA.Int64 == sysB.Int64 {
+		comp, err := componentTx(tx, a)
+		if err != nil {
+			return err
+		}
+		if !comp[b] {
+			bComp, err := componentTx(tx, b)
+			if err != nil {
+				return err
+			}
+			var moved []int64
+			for id := range bComp {
+				moved = append(moved, id)
+			}
+			sort.Slice(moved, func(i, j int) bool { return moved[i] < moved[j] })
+			var name string
+			_ = tx.QueryRow(`SELECT name FROM assets WHERE id = ?`, b).Scan(&name)
+			if err := s.splitAssetTx(tx, moved, name, actor, fmt.Sprintf("assets %d and %d unlinked", a, b), sysA.Int64); err != nil {
+				return err
+			}
+			// A person said these are not the same system: remember it, so correlation does not
+			// propose the pair again.
+			if err := recordManualLinkTx(tx, ts(s.now()), actor, b, sysA.Int64, LinkRejected); err != nil {
+				return err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.correlateQuietly()
+	return nil
+}
+
+// componentTx returns the assets connected to id through asset_links.
+func componentTx(tx *sql.Tx, id int64) (map[int64]bool, error) {
+	seen := map[int64]bool{id: true}
+	queue := []int64{id}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		rows, err := tx.Query(`SELECT linked_asset_id FROM asset_links WHERE asset_id = ? UNION SELECT asset_id FROM asset_links WHERE linked_asset_id = ?`, cur, cur)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var n int64
+			if err := rows.Scan(&n); err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			if !seen[n] {
+				seen[n] = true
+				queue = append(queue, n)
+			}
+		}
+		_ = rows.Close()
+	}
+	return seen, nil
 }
 
 // AllLinks returns every asset's linked-asset IDs in one query, symmetric

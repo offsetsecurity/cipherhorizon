@@ -96,7 +96,7 @@ func TestLegacyOutputIsPreserved(t *testing.T) {
 			}
 			old := decodeBOM(t, oldRaw)
 
-			code, stdout, stderr := run(t, "run", "--root", fixture(name))
+			code, stdout, stderr := run(t, "run", "--root", fixture(name), "--spec", "1.6")
 			if code != 0 {
 				t.Fatalf("exit %d: %s", code, stderr)
 			}
@@ -184,7 +184,7 @@ func TestLegacyOutputIsPreserved(t *testing.T) {
 // kind of statement it is and how it was found, every provides edge is labelled as
 // a mapped capability, and the document says what it could not see.
 func TestCurrentOutputCarriesClaimsAndCoverage(t *testing.T) {
-	_, stdout, _ := run(t, "run", "--root", fixture("debian-13"))
+	_, stdout, _ := run(t, "run", "--root", fixture("debian-13"), "--spec", "1.6")
 	cur := decodeBOM(t, []byte(stdout))
 
 	var sawProvider bool

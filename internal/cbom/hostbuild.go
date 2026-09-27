@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/package-url/packageurl-go"
@@ -76,7 +77,38 @@ func FromHostGraph(g *evidence.Graph, opts HostOptions) ([]collector.CryptoAsset
 	}
 
 	var assets []collector.CryptoAsset
+	// Algorithms a certificate references: a catalogue entry is added at the end with the
+	// others; one this document derives itself (RSA-2048, ECDSA-P256) is kept here by bom-ref.
+	derived := map[string]collector.CryptoAsset{}
+	emitCatalogue := func(id string) (string, bool) {
+		a, ok := algo.Lookup(id)
+		if !ok {
+			return "", false
+		}
+		algosUsed[id] = true
+		return a.BOMRef(), true
+	}
+	emitDerived := func(a collector.CryptoAsset) string {
+		if _, ok := derived[a.Component.BOMRef]; !ok {
+			a.Component.Evidence = nil
+			derived[a.Component.BOMRef] = a
+		}
+		return a.Component.BOMRef
+	}
 	for _, n := range g.Nodes() {
+		if n.Subject.Kind == evidence.KindCertificate {
+			cert, key, err := certificateComponents(g, n, emitCatalogue, emitDerived)
+			if err != nil {
+				return nil, nil, err
+			}
+			if cert != nil {
+				assets = append(assets, *cert)
+				if key != nil {
+					assets = append(assets, *key)
+				}
+			}
+			continue
+		}
 		if n.Subject.Kind != evidence.KindPackage && n.Subject.Kind != evidence.KindArtefact && n.Subject.Kind != evidence.KindProvider {
 			continue
 		}
@@ -110,7 +142,120 @@ func FromHostGraph(g *evidence.Graph, opts HostOptions) ([]collector.CryptoAsset
 		}
 		assets = append(assets, a.Asset())
 	}
+	refs := make([]string, 0, len(derived))
+	for ref := range derived {
+		refs = append(refs, ref)
+	}
+	sort.Strings(refs)
+	for _, ref := range refs {
+		assets = append(assets, derived[ref])
+	}
 	return assets, hostMetadata(g, opts), nil
+}
+
+// certificateComponents projects a certificate the host holds: the certificate, and the
+// public key it certifies with its size, in the standard's shape (shared with the TLS
+// inventory through CertificateAsset). Only public metadata is in the graph, so only public
+// metadata can be here. A certificate node with no provisioned observation is not projected.
+func certificateComponents(g *evidence.Graph, n *evidence.Node, emit func(string) (string, bool), emitAsset func(collector.CryptoAsset) string) (*collector.CryptoAsset, *collector.CryptoAsset, error) {
+	var obs []*evidence.Observation
+	for _, o := range n.Observations {
+		if o.Origin == evidence.OriginObserved && o.Claim.Rung == evidence.RungProvisioned && o.Outcome == evidence.OutcomeObserved {
+			obs = append(obs, o)
+		}
+	}
+	if len(obs) == 0 {
+		return nil, nil, nil
+	}
+	s := n.Subject
+	a := s.Attrs
+	notBefore, _ := time.Parse("2006-01-02T15:04:05Z", a["notBefore"])
+	notAfter, _ := time.Parse("2006-01-02T15:04:05Z", a["notAfter"])
+	bits, _ := strconv.Atoi(a["keyBits"])
+	cert, key := CertificateAsset(CertFacts{
+		Subject: a["subject"], Issuer: a["issuer"], SerialHex: a["serial"], SHA256: a["sha256"],
+		NotBefore: notBefore, NotAfter: notAfter,
+		KeyAlgorithm: a["keyAlg"], KeyBits: bits, Curve: a["curve"], SigName: a["sigAlg"],
+	}, emit, emitAsset)
+	if cert.Component.Name == "" {
+		cert.Component.Name = s.Name
+	}
+
+	// Best method, and every place it was found. A place says whether a private key is stored
+	// beside the certificate there, in the occurrence's additionalContext (the standard's slot
+	// for context about one occurrence).
+	best, bestQuality := obs[0], evidence.Quality("")
+	type place struct{ privateKey string }
+	places := map[string]place{}
+	var locations []string
+	methodIDs := map[string]bool{}
+	anyKey := false
+	for _, o := range obs {
+		q, err := evidence.QualityOf(*o)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cbom: %w", err)
+		}
+		if bestQuality == "" || rankQuality(q) > rankQuality(bestQuality) {
+			best, bestQuality = o, q
+		}
+		loc := o.Source.Location
+		if g.Host.OSFamily != "windows" && !strings.HasPrefix(loc, "cert-store:") {
+			loc = "/" + loc // host-relative paths on Unix are absolute from the host root
+		}
+		if _, dup := places[loc]; !dup {
+			locations = append(locations, loc)
+		}
+		pk := o.Source.Attrs["privateKey"]
+		if pk == "yes" {
+			anyKey = true
+		}
+		if prev, ok := places[loc]; !ok || pk == "yes" || prev.privateKey == "" {
+			places[loc] = place{privateKey: pk}
+		}
+		methodIDs[o.Method] = true
+	}
+	sort.Strings(locations)
+	occ := make([]cdx.EvidenceOccurrence, len(locations))
+	for i, l := range locations {
+		occ[i] = cdx.EvidenceOccurrence{Location: l}
+		if pk := places[l].privateKey; pk != "" {
+			occ[i].AdditionalContext = "privateKey=" + pk
+		}
+	}
+	method, _ := evidence.LookupMethod(best.Method)
+	cert.Component.Evidence = &cdx.Evidence{Occurrences: &occ, Identity: identityEvidence(s, methodIDs)}
+	if sha := a["sha256"]; sha != "" {
+		cert.Component.Hashes = &[]cdx.Hash{{Algorithm: cdx.HashAlgoSHA256, Value: sha}}
+	}
+
+	props := []cdx.Property{
+		Property("collector", method.Sensor),
+		Property("evidence", "certificate-metadata"),
+		Property("claim", string(evidence.RungProvisioned)),
+		Property("method", best.Method),
+		Property("method-quality", string(bestQuality)),
+		Property("privilege", best.Privilege),
+	}
+	for _, p := range []struct{ prop, attr string }{
+		{"cert:key-algorithm", "keyAlg"}, {"cert:key-bits", "keyBits"}, {"cert:curve", "curve"}, {"cert:signature-algorithm", "sigAlg"},
+		{"cert:is-ca", "isCA"}, {"cert:self-signed", "selfSigned"}, {"cert:key-usage", "keyUsage"}, {"cert:san", "dnsNames"},
+	} {
+		if v := a[p.attr]; v != "" {
+			props = append(props, Property(p.prop, v))
+		}
+	}
+	if v := a["serial"]; v != "" {
+		props = append(props, Property("cert:serial", v))
+	}
+	// Summary over all places; the per-place answer is in each occurrence's additionalContext.
+	if anyKey {
+		props = append(props, Property("cert:private-key", "yes"))
+	}
+	cert.Component.Properties = &props
+	if key != nil {
+		key.Component.Evidence = &cdx.Evidence{Occurrences: &occ}
+	}
+	return &cert, key, nil
 }
 
 func hostComponent(g *evidence.Graph, n *evidence.Node, algos []string, cites []string) (collector.CryptoAsset, error) {
@@ -361,6 +506,17 @@ func hostMetadata(g *evidence.Graph, opts HostOptions) []cdx.Property {
 			v += " scope=" + c.Scope
 		}
 		props = append(props, Property("coverage", v))
+		// What the sensor counted or bounded (files it did not open, certificates it could not
+		// parse, budgets it hit), one property each, so a reader sees how much was left out and
+		// not only that something was.
+		limitKeys := make([]string, 0, len(c.Limits))
+		for k := range c.Limits {
+			limitKeys = append(limitKeys, k)
+		}
+		sort.Strings(limitKeys)
+		for _, k := range limitKeys {
+			props = append(props, Property("coverage-limit", fmt.Sprintf("sensor=%s %s=%s", c.Sensor, k, c.Limits[k])))
+		}
 		for _, u := range c.Unseen {
 			if !seen[u] {
 				seen[u] = true

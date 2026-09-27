@@ -134,6 +134,10 @@ const (
 type Source struct {
 	Kind     string `json:"kind"`     // file, registry, api, database, procfs
 	Location string `json:"location"` // host-relative, forward-slash, user names tokenised
+	// Attrs are facts about this particular place, as opposed to the thing found there:
+	// the same certificate in two files can have a private key beside it in one and not
+	// the other. Allow-listed (SourceAttrs); nothing free-form.
+	Attrs map[string]string `json:"attrs,omitempty"`
 }
 
 // KnowledgeRef names the cited knowledge a derived fact applies.

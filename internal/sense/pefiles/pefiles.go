@@ -112,7 +112,7 @@ var unseen = []string{
 	"libraries outside the searched locations (other drives, portable applications, per-user installs elsewhere)",
 	"libraries whose file name is not a recognised crypto-library name (renamed or unrecognised)",
 	"whether a file is genuine: version strings are what the file claims, a SHA-256 identifies the exact file but not who made it, and signatures are not verified",
-	"registry-installed products, certificates, configuration and key material (not collected by this version)",
+	"registry-installed products, configuration and key material (not collected by this version); certificates are the certificate sensors' business",
 	"what any library actually does: a file being present says nothing about use",
 }
 

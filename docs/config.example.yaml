@@ -12,7 +12,7 @@ host:
   redact: false # record a stable label derived from the machine id instead of the host name.
                 # Refuses to run if the platform offers no machine id.
 
-plugins:         # these are the sensors: "apt" (dpkg hosts) and "pe-files" (Windows loose libraries)
+plugins:         # these are the sensors: "apt" (dpkg hosts), "pe-files" (Windows loose libraries), "windows-cng", "cert-files" (Linux certificate files)
   enabled: []   # run only these sensors. Empty = every registered sensor.
   disabled: []  # never run these.
   timeout: 60s  # per-sensor budget for detect + collect. 0 = unbounded.

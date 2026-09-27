@@ -32,6 +32,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 	fl.SetOutput(env.Stderr)
 	asJSON := fl.Bool("json", false, "print the reports as a JSON array instead of text")
 	asCBOM := fl.Bool("cbom", false, "print a CycloneDX CBOM of what was observed instead of text (exactly one target)")
+	spec := fl.String("spec", cbom.DefaultSpec, "CycloneDX version of the CBOM: 1.7 or 1.6")
 	timeout := fl.Duration("timeout", 8*time.Second, "per-connection timeout")
 	concurrency := fl.Int("concurrency", 4, "connections in flight to a target at once")
 	maxConns := fl.Int("max-connections", 2000, "hard cap on connections per target")
@@ -95,7 +96,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 			code = ExitIncomplete
 		}
 		if *asCBOM {
-			if err := writeTLSCBOM(env, rep, t); err != nil {
+			if err := writeTLSCBOM(env, rep, t, *spec); err != nil {
 				return fatalf(env, "%v", err)
 			}
 			continue
@@ -132,7 +133,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 // a host inventory's are, since that classification is about the algorithm, not
 // about who found it; the readiness level and TLS hygiene score stay out of it,
 // the same way a host CBOM carries no verdict beyond the algorithm's own.
-func writeTLSCBOM(env Env, rep *tlsprobe.Report, t tlsprobe.Target) error {
+func writeTLSCBOM(env Env, rep *tlsprobe.Report, t tlsprobe.Target, spec string) error {
 	bom, warnings := cbom.Build(tlscbom.FromTLSReport(rep), cbom.Options{
 		Tool:      cbom.Tool{Name: "cipherhorizon", Version: version.Version},
 		Endpoint:  fmt.Sprintf("%s:%d", t.Host, t.Port),
@@ -147,7 +148,7 @@ func writeTLSCBOM(env Env, rep *tlsprobe.Report, t tlsprobe.Target) error {
 	_, _ = fmt.Fprint(env.Stderr, pqcRep.Summary())
 
 	var buf bytes.Buffer
-	if err := cbom.Encode(&buf, bom, true); err != nil {
+	if err := cbom.EncodeSpec(&buf, bom, spec, true); err != nil {
 		return fmt.Errorf("encoding CBOM: %w", err)
 	}
 	_, err := env.Stdout.Write(buf.Bytes())

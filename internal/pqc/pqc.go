@@ -225,3 +225,12 @@ func buildIndex() index {
 	sort.SliceStable(ix.arcs, func(i, j int) bool { return len(ix.arcs[i].arc) > len(ix.arcs[j].arc) })
 	return ix
 }
+
+// ClassOf returns the cited verdict for an algorithm by OID and name, or false when no rule
+// matches (unclassified, never a guess).
+func ClassOf(name, oid string) (Class, bool) {
+	if r, _ := classify(name, oid); r != nil {
+		return r.class, true
+	}
+	return "", false
+}

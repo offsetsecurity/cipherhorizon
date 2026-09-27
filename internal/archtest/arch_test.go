@@ -6,12 +6,15 @@
 package archtest
 
 import (
+	"bytes"
+	"encoding/json"
 	"go/parser"
 	"go/token"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -120,30 +123,65 @@ func TestNoSubprocessAnywhereInLibraryCode(t *testing.T) {
 
 // The collector is the program deployed on endpoints, so it must stay small and auditable: no
 // web server, no database, no TLS scanner, no HTTP or TLS client. This checks the *linked*
-// dependency set of cmd/cipherhorizon-collector, not just its imports. (On Windows the standard
-// x/sys/windows package pulls in the network package for socket type definitions; nothing calls
-// it, so `net` is only banned on other platforms.)
+// dependency set of cmd/cipherhorizon-collector, not just its imports.
+//
+// The network package is the one careful case. Two standard packages import it for
+// parsing types only, and nothing in the collector calls it: crypto/x509 (which the
+// certificate sensors need to read certificates; ADR-0015) and, on Windows, x/sys/windows
+// (for socket type definitions). So `net` may be linked, but ONLY through those named
+// importers: any other package importing it, above all any of this module's own, fails.
 func TestCollectorLinksNoServerStoreOrScanner(t *testing.T) {
 	banned := []string{
 		"net/http", "crypto/tls", "database/sql", "modernc.org", "golang.org/x/net",
 		module + "/internal/server", module + "/internal/store", module + "/internal/tlsprobe",
-		module + "/internal/tlscbom", module + "/internal/eval", module + "/internal/app",
+		module + "/internal/tlscbom", module + "/internal/eval", module + "/internal/app", module + "/internal/estate",
 	}
-	for goos, extra := range map[string][]string{"linux": {"net"}, "windows": nil} {
-		cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", "./cmd/cipherhorizon-collector")
+	// Who may import "net" in the collector's dependency graph, per platform.
+	netImporters := map[string]map[string]bool{
+		"linux":   {"crypto/x509": true},
+		"windows": {"crypto/x509": true, "golang.org/x/sys/windows": true},
+	}
+	for goos, allowed := range netImporters {
+		cmd := exec.Command("go", "list", "-deps", "-json", "./cmd/cipherhorizon-collector")
 		cmd.Dir = "../.."
 		cmd.Env = append(os.Environ(), "GOOS="+goos, "CGO_ENABLED=0")
 		out, err := cmd.Output()
 		if err != nil {
 			t.Fatalf("go list (%s): %v", goos, err)
 		}
-		for _, pkg := range strings.Fields(string(out)) {
-			for _, b := range append(append([]string{}, banned...), extra...) {
-				// "net" itself is banned exactly: net/url and net/netip are pure parsing packages.
-				if pkg == b || (b != "net" && strings.HasPrefix(pkg, b+"/")) {
-					t.Errorf("the collector (%s) links %s; it must not (see cmd/cipherhorizon-collector)", goos, pkg)
+		dec := json.NewDecoder(bytes.NewReader(out))
+		linked := 0
+		for dec.More() {
+			var pkg struct {
+				ImportPath string
+				Imports    []string
+			}
+			if err := dec.Decode(&pkg); err != nil {
+				t.Fatalf("go list output (%s): %v", goos, err)
+			}
+			linked++
+			for _, b := range banned {
+				if pkg.ImportPath == b || strings.HasPrefix(pkg.ImportPath, b+"/") {
+					t.Errorf("the collector (%s) links %s; it must not (see cmd/cipherhorizon-collector)", goos, pkg.ImportPath)
+				}
+			}
+			for _, imp := range pkg.Imports {
+				if imp == "net" && !allowed[pkg.ImportPath] {
+					t.Errorf("the collector (%s) links net through %s; only %v may import it (ADR-0015)", goos, pkg.ImportPath, keysOf(allowed))
 				}
 			}
 		}
+		if linked < 50 {
+			t.Errorf("go list (%s) returned only %d packages: the check is not seeing the dependency graph", goos, linked)
+		}
 	}
+}
+
+func keysOf(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

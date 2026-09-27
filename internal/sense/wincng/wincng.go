@@ -89,7 +89,7 @@ var unseen = []string{
 	"key storage providers other than the in-box software provider (Platform/TPM, Smart Card, Passport, Pluton, and any third-party or hardware provider): listed by name and not opened, because opening one loads its code, so the algorithms they offer are not enumerated",
 	"legacy cryptographic service providers: listed by name and type only; asking one for its algorithms means loading it",
 	"which provider or algorithm any application actually uses, and which algorithms are enabled for TLS or other protocols (policy is not collected by this version)",
-	"certificates and keys held by any provider (not collected by this version)",
+	"keys held by any provider (never collected); the certificates in the system stores are the certificate sensor's business",
 	"algorithms that only a third-party provider adds",
 	"that Windows offers an algorithm does not mean it is approved, enabled or configured for use",
 }

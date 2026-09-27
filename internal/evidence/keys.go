@@ -15,6 +15,13 @@ func ProviderKey(namespace, name string) string {
 	return "provider:" + namespace + ":" + strings.ToLower(name)
 }
 
+// CertificateKey is the canonical key of a certificate: its SHA-256 fingerprint over the
+// DER encoding, lower-case hex. It is the same key the estate graph uses, so a
+// certificate a host holds and the one a server presents are one entity.
+func CertificateKey(sha256hex string) string {
+	return "cert:" + strings.ToLower(strings.TrimSpace(sha256hex))
+}
+
 // AlgorithmKey is the canonical key of a catalogue algorithm.
 func AlgorithmKey(id string) string { return "algo:" + id }
 

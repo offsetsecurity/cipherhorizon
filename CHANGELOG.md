@@ -10,6 +10,98 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Estate model, WP-1** (PRD-003, ENG-HANDOFF-002; the first package of the 0.2.0 program). The database gains a
+  **system** (the owned unit an owner answers for) above the assets, and an **estate graph**: certificates, algorithms,
+  software, providers, protocols, suites and groups as entities, each with observations that say who saw them, how, how
+  strongly and when. The graph is a *projection* of the stored scan reports and host uploads, which are never rewritten; it can
+  be dropped and rebuilt (`cipherhorizon db rebuild-graph`, `db stats`). The same certificate seen by a scan, a host or
+  two endpoints is one entity. Host and network evidence stay separate (ADR-0006); a host observation is never at the
+  exercised rung, and a third-party document cannot establish bound, loaded or exercised.
+- **System metadata**: owner, environment, criticality, exposure, data lifetime, and the M-23-02 manual items (FISMA
+  id, FIPS 199 category, HVA id, hosting). All optional; empty means "not provided". `GET/PATCH /api/v1/systems`,
+  CSV export/import (all-or-nothing, every problem named by line), and an append-only **audit log** of every change
+  (`GET /api/v1/systems/{id}/audit`; the log cannot be edited or emptied, enforced by database triggers).
+- Every asset now belongs to a system. Linking a TLS endpoint to a host merges their systems (refused, naming the fields,
+  if both hold different operator-set values); unlinking splits them again.
+- Every observation records its **source class** (scanner, collector, imported, operator). A host upload is attributed to the
+  collector only when it names this product as its producer; anything else is imported.
+- New API routes: `/api/v1/systems*`, `/api/v1/entities`, `/api/v1/graph/stats`. Tests now walk the real route table to
+  check that every route needs the token and every mutating route refuses forged, cross-origin and wrongly typed requests.
+- **Certificates, WP-2 and WP-3** (PRD-003 REQ-CERT; ADR-0015, ADR-0016; `docs/host-discovery/stage-3-certificates-report.md`). Two new sensors describe the X.509
+  certificates a host holds, **public metadata only, never a key**: `cert-files` (Linux trust stores and service
+  directories) and `windows-certs` (the MY, Root, CA, TrustedPeople, TrustedPublisher and AuthRoot system stores, for the machine
+  and the current user, through a new bounded, read-only, reviewed layer in `internal/winapi`). Each certificate carries its **key
+  size and curve**, validity, signature algorithm, names, and whether a private key is associated at each place it was found. Key
+  files are never opened and key blocks are never decoded; a test plants decoy keys and asserts no byte of them travels.
+  A certificate a server presents and the same certificate a host holds are **one entity** with several places (shared
+  `internal/certinfo`, one CBOM builder for both, in the standard's shape: the certificate points at a public-key component with its
+  `size`).
+- `GET /api/v1/certificates`, `/api/v1/certificates/{fingerprint}`, `/api/v1/systems/{id}/certificates`: end-entity certificates itemised with cited findings
+  (expired, expiring, not yet valid, weak key, broken signature hash, and a quantum-vulnerable key in a certificate that outlives 2030 or 2035 per
+  NIST IR 8547); roots and intermediates **summarised**, with any change to a host's set of roots reported. Key size is `null` with a note when no source
+  recorded one; it is never guessed.
+- Every sensor's counted limits (files not opened, certificates that could not be parsed, budgets hit) are now written into the CBOM as
+  `cipherhorizon:coverage-limit` properties, so a reader sees how much was left out, not only that something was.
+- Independent oracles: `compare-certs.ps1` (Windows, .NET `X509Store`; agrees on this machine, five negative controls caught) and `compare-certs.sh`
+  (OpenSSL; agrees on a real Linux-style tree of Mozilla CA bundles; not yet run on a live Linux host).
+- **Third-party CBOM import, WP-4** (PRD-003 REQ-ING; ADR-0017; `docs/importing.md`). `cipherhorizon import` and `POST /api/v1/imports` accept CycloneDX 1.6 and 1.7 CBOMs from CBOMkit, CBOM-Lens, cdxgen, Theia and others,
+  validated against the specification's schema (embedded), after limits on size, depth, values and strings. **You name the system**; the document's own claim about its subject is only recorded. Imports are read as
+  capability from source, or presence from a host or network scan, never as use, and **never as first-party**: an import can add to the estate graph but not overwrite what a scan or collector observed, and any
+  disagreement is recorded and shown. Everything not modelled is counted by reason; keys and secrets found by other tools are counted and not stored. Provenance is recorded and audited; imports can be withdrawn.
+  Checked on real CBOMkit, CBOM-Lens 1.6/1.7 and Theia documents (all validate; every component accounted for).
+- **Correlation, WP-5** (PRD-003 REQ-COR). The product now proposes which TLS endpoint belongs to which machine, from exactly three deterministic rules: the endpoint's leaf certificate is held on a host (SHA-256), the endpoint's host name is the
+  machine's name, the certificate names the machine. Each proposal is a reviewable **link** with the values that matched, a strength from a fixed table (never a score), and a state. Only a strong, unambiguous match made
+  entirely of the product's own scanner and collector data joins on its own; everything else, and everything involving an imported document, is a proposal for a person (`GET /api/v1/links`, `POST /api/v1/links/{id}/confirm|reject`). A
+  certificate on several hosts is shown as ambiguous and joins none; one on more than 25 systems is treated as shared infrastructure and joins nothing; chain and CA certificates never join; a rejected link is never proposed again; a confirmed join that
+  loses its evidence is flagged for review, not undone; a join that would overwrite different values a person entered is refused with the fields named. The manual links of 0.1.0 are now confirmed links. Every decision is audited.
+- **Prioritisation, WP-6** (PRD-003 REQ-PRI). `GET /api/v1/estate` ranks systems for post-quantum migration by four ordered, cited rules: recorded traffic exposed to
+  harvest-now-decrypt-later against how long the data must stay secret, how exposed the system is, certificate and TLS defects, and how strong the evidence is. There is no composite
+  score. Every row lists the rules and citations behind its place and says when it rests on evidence alone because nothing was entered; a system with no scan is not reported as safe, and a system known only from an
+  imported document is ranked after what was observed and labelled a lead. The rules are published with the ranking and in `docs/methodology.md`.
+- **CycloneDX 1.7, WP-7** (PRD-003 REQ-EXP-1, 2). CBOMs are written as **1.7 by default**; `--spec 1.6` (or `output.spec`) writes 1.6 for consumers that have not moved, and the scan CBOM route takes `?spec=`.
+  Deprecated constructs are replaced, not doubled (`relatedCryptographicAssets`, `ellipticCurve`); `algorithmFamily` is set only where the registry has one, and the five catalogue entries without one are
+  listed in `docs/exporting.md`. Both versions are validated against their vendored schemas. The importer reads 1.7's `relatedCryptographicAssets`, so a 1.7 document from another tool keeps its key sizes.
+- **M-23-02 structure** (REQ-EXP-3): `GET /api/v1/systems/{id}/m2302.json` and `.csv` give the nine items for a system, each marked provided or not provided and by whom. It supports the structure; it does not claim compliance.
+  Not yet covered: the supplier of software (item 5). The operating system (item 6) comes from the machine's own collector upload.
+- **OpenAPI 3.1** (REQ-EXP-5): `GET /api/v1/openapi.json`, written by hand, with tests that fail when it and the route table disagree or a GET route answers a status it does not list.
+- **The estate UI, WP-8** (PRD-003 REQ-UI; `docs/product/UX-DESIGN-002-estate-ui.md`). The home page is now the **Estate**: systems in the order to
+  look at them, each row expandable to its four cited rules and marked when it rests on evidence alone. New pages: a **system** (why it is
+  ranked there, a details editor with an audit trail, services and machines with per-endpoint CBOM download, certificates with key sizes, matches with undo,
+  imported sources, coverage, M-23-02 export, history), **Certificates** (filter by expiry, key, signature, origin; trust anchors summarised; changes to a machine's roots),
+  **Review** (proposed joins with the matching rule and values; confirm or reject with a reason; a count in the menu) and **Imports** (choose a file, name the system,
+  see the detected producer and what was not interpreted). The first run offers three doors: scan a service, inventory a machine, import a CBOM. `GET /api/v1/estate`
+  rows now say how a system is known (`evidence`), and certificates say which kinds of source observe them (`origins`).
+- **Menu, download and visual pass** (direct feedback on WP-8: the menu was hard to follow, there was no way to get the collector
+  from the browser, About read as a wall of reference text, and the interface looked generic). The menu is now two labelled
+  groups (Manage: Certificates, Review, Imports; Monitor: Endpoints, Hosts, Findings, TLS overview) under the single Estate
+  home link, with About and a new **Get the collector** action moved to the sidebar footer, off the data menu. `GET
+  /api/v1/collector/binaries` and `GET /api/v1/collector/binaries/{name}` let the running server hand out a collector binary
+  placed beside its own executable (or in a `collectors/` folder there, one per platform) directly from the browser — the "How
+  do I collect?" dialog and the About page both offer it, with its checksum, and say plainly when none is on disk. About now
+  opens with a proper header instead of starting straight into reference tables. A colour identity (an indigo–violet primary,
+  a warm accent used sparingly for the estate's top ranks and the first-run doors) replaces the generic interface blue.
+- Every database transaction is now opened IMMEDIATE, so concurrent writers queue instead of one failing with "database is locked".
+- Documents: RESEARCH-003, PRD-003, SECARCH-001, REQ-REVIEW-001, ENG-HANDOFF-002, QA-PLAN-002, ADR-0014 and a program
+  tracker with a requirements traceability matrix that a test keeps consistent (`docs/program/`).
+
+### Changed
+
+- The collector may now link `crypto/x509` (and through it `net`); the rule that the collector links no network package is tightened to "only through `crypto/x509`, and no
+  package of this module imports it", checked on both platforms (ADR-0015). For an overridden `--root` the host filesystem is now a traversal-resistant view, so a
+  symbolic link in a tree we do not control cannot lead a sensor out of it.
+- `evidence.Validate` now rejects control characters in attribute values for every kind (it accepted them before; the sensors cleaned their input, so nothing exploited it).
+- A scan's final event is recorded in the same transaction as its result, so a finished scan can never be seen without its summary line.
+- The old Dashboard is now **TLS overview** under Sources, and the CBOM page is no longer in the menu (its address still works). Endpoints and Hosts are views of a system.
+- The default CBOM version is now 1.7 (was 1.6). Pass `--spec 1.6` to keep the old output.
+- The database migrates to schema version 4 on first start. **An automatic, owner-only copy of the previous database is
+  written next to it first** (`<db>.bak-v3-<time>`); if the copy cannot be made, nothing is changed.
+
+### Fixed
+
+- A scan could be seen as finished a moment before its certificates and proposed joins were derived from it; they are now derived in the same transaction as the result.
+
 ## [0.1.0] - 2026-09-26
 
 ### Added

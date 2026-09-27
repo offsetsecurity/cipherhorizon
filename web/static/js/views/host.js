@@ -6,7 +6,7 @@ import { collectDialog, accessState, privilegeLabel, sensorLabel, osLabel } from
 import { uploadDialog } from './hosts.js';
 
 /** How complete the inventory is: what ran, with what rights, what it read and what it could not see. */
-function coverageCard(cov, onUpload) {
+export function coverageCard(cov, onUpload) {
   const acc = accessState(cov);
   const head = h('div', { class: 'row' }, h('h2', null, 'Inventory coverage'), badge(acc.label, acc.tone));
   if (!cov) {

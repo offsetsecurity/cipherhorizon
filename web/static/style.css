@@ -231,9 +231,9 @@ main:focus, main:focus-visible { outline: none; }
 .row { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; }
 .row.end { justify-content: flex-end; margin-top: 1rem; }
 .grid { display: grid; gap: var(--space-4); }
-.grid.two { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); }
 .grid.kpis { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.grid.three { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid.three { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
 
 /* ==========================================================================
    Surfaces
@@ -789,3 +789,177 @@ details.more > .hint { margin-top: .4rem; }
 main > .card + .card, main > .grid + .card, main > .card + .grid, main > .grid + .grid, main > .nextstep + .grid { margin-top: var(--space-5); }
 main > .card + .callout, main > .callout + .card, main > .callout + .grid { margin-top: var(--space-5); }
 .namecell > a { white-space: nowrap; }
+
+/* ==========================================================================
+   Estate views: Estate, System, Certificates, Review, Imports
+   ========================================================================== */
+.small { font-size: .78rem; }
+.navgroup { margin: var(--space-3) var(--space-3) .15rem; font-size: .68rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
+.navcount { margin-left: auto; min-width: 1.35rem; padding: 0 .4rem; border-radius: 999px; background: var(--warn); color: #1c1200; font-size: .72rem; font-weight: 700; text-align: center; line-height: 1.35rem; }
+.navcount[hidden] { display: none; }
+@media (max-width: 900px) { .navgroup { display: none; } .navcount { position: absolute; top: 2px; right: 6px; margin: 0; } }
+
+.why-list { list-style: none; margin: .4rem 0; padding: 0; display: grid; gap: .6rem; }
+.why-list li { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .15rem .8rem; align-items: baseline; }
+.why-list.plain { gap: .3rem; }
+.why-rule { font-size: .74rem; font-weight: 650; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: .05rem .45rem; white-space: nowrap; }
+.why-text { overflow-wrap: anywhere; }
+.why-list .cites, .why-list .hint { grid-column: 2; }
+.why-row > td { background: var(--surface-2); }
+.nextstep-line p { margin: 0; }
+td, th { overflow-wrap: anywhere; }
+
+.toc { display: flex; flex-wrap: wrap; gap: .4rem .9rem; margin: 0 0 var(--space-4); font-size: .88rem; }
+.system-form .field { min-width: 0; }
+.system-form select, .system-form input[type="number"] { width: 100%; }
+input[type="number"] { width: 100%; }
+.link-card h3 { margin: 0; overflow-wrap: anywhere; }
+.link-row, .import-row { border-top: 1px solid var(--border); padding: var(--space-3) 0; }
+.link-row:first-child, .import-row:first-child { border-top: 0; }
+.audit { margin: 0; padding-left: 1.2rem; }
+.audit ul { margin: .15rem 0 .6rem; padding-left: 1.1rem; color: var(--text-2); font-size: .86rem; }
+.audit li { overflow-wrap: anywhere; }
+
+.nowrapcell { white-space: nowrap; }
+.tiercell { min-width: 16rem; }
+td .btn-sm, td .btn { white-space: nowrap; }
+@media (max-width: 640px) {
+  .why-list li { grid-template-columns: minmax(0, 1fr); }
+  .why-list .cites, .why-list .hint { grid-column: 1; }
+  .why-rule { white-space: normal; justify-self: start; }
+}
+
+/* ==========================================================================
+   Visual identity refresh
+   A distinct colour identity (an indigo–violet primary, a warm "horizon" amber
+   accent used sparingly) in place of a generic interface blue, plus the
+   sidebar, buttons and rank/first-run treatments that carry it. Tokens only
+   where the cascade needs reordering: everything above keeps working.
+   ========================================================================== */
+:root {
+  --primary: #5b3fe0;
+  --primary-h: #4a31c4;
+  --primary-2: #8657ff;
+  --primary-soft: #f1eeff;
+  --primary-soft-border: #ded3ff;
+  --primary-shadow: rgba(91, 63, 224, .28);
+  --focus: #5b3fe0;
+
+  --accent: #d9702f;
+  --accent-2: #f2a33f;
+  --accent-soft: #fdf1e2;
+  --accent-soft-border: #f2d3a3;
+  --accent-shadow: rgba(217, 112, 47, .26);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #b7a9ff;
+    --primary-h: #c9beff;
+    --primary-2: #9c8cff;
+    --primary-soft: #241c42;
+    --primary-soft-border: #392c63;
+    --primary-shadow: rgba(183, 169, 255, .22);
+    --focus: #b7a9ff;
+
+    --accent: #ffb86b;
+    --accent-2: #ffcb8e;
+    --accent-soft: #33230f;
+    --accent-soft-border: #5c4319;
+    --accent-shadow: rgba(255, 184, 107, .2);
+  }
+}
+
+/* -- sidebar: a horizon glow behind the brand mark, not a flat panel -------------------------- */
+.sidebar {
+  background:
+    radial-gradient(65% 40% at 22% 0%, rgba(155, 140, 255, .20), transparent 65%),
+    radial-gradient(45% 30% at 85% 8%, rgba(242, 163, 63, .10), transparent 70%),
+    linear-gradient(180deg, #100d20 0%, #0a0c13 45%, #08090f 100%);
+}
+.brandmark { position: relative; color: #b7a9ff; }
+.brandmark::before {
+  content: ""; position: absolute; inset: -9px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(183, 169, 255, .45), transparent 70%);
+  filter: blur(2px); z-index: -1;
+}
+.brandblock { border-bottom: 1px solid rgba(255, 255, 255, .06); margin-bottom: var(--space-2); padding-bottom: var(--space-4); }
+
+.navgroup { margin-top: var(--space-4); }
+.navgroup:first-of-type { margin-top: var(--space-2); }
+
+#nav a[aria-current="page"] {
+  background: linear-gradient(135deg, var(--primary-2), var(--primary-h));
+  color: #fff; box-shadow: 0 3px 10px rgba(74, 49, 196, .35);
+}
+#nav a[aria-current="page"]:hover { color: #fff; }
+#nav a[aria-current="page"]::before { background: var(--accent-2); }
+
+.sidefoot-action {
+  display: flex; align-items: center; gap: .7rem; padding: .5rem .7rem; margin: 0 calc(-1 * var(--space-1));
+  border-radius: var(--radius-sm); border: 0; background: none; color: #aab2c8; font: inherit; font-weight: 540;
+  font-size: .84rem; text-align: left; cursor: pointer; width: calc(100% + .5rem);
+}
+.sidefoot-action:hover { background: rgba(255, 255, 255, .06); color: #fff; text-decoration: none; }
+.sidefoot-action .navicon { width: 17px; height: 17px; }
+.sidefoot-divider { height: 1px; background: rgba(255, 255, 255, .08); margin: var(--space-3) 0; }
+
+/* -- buttons: the primary action carries the brand gradient and a tinted shadow --------------- */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-2), var(--primary-h));
+  border-color: var(--primary-h); box-shadow: var(--shadow-xs), 0 5px 14px var(--primary-shadow);
+}
+.btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, var(--primary-2), var(--primary)); border-color: var(--primary); }
+.btn-primary:hover:not(:disabled) { box-shadow: var(--shadow-sm), 0 8px 20px var(--primary-shadow); }
+.btn-danger { box-shadow: var(--shadow-xs), 0 5px 14px rgba(217, 45, 32, .22); }
+
+/* -- rank: the position is a filled pill, the first three worth a glance ----------------------- */
+.rankcell { width: 1%; }
+.rankpill {
+  display: inline-grid; place-items: center; min-width: 1.9rem; height: 1.9rem; padding: 0 .35rem;
+  border-radius: 999px; font-weight: 700; font-size: .85rem; font-variant-numeric: tabular-nums;
+  background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border);
+}
+.rankpill.rank-1 { background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: #fff; border-color: transparent; box-shadow: 0 3px 10px var(--accent-shadow); }
+.rankpill.rank-2 { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft-border); }
+.rankpill.rank-3 { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft-border); opacity: .82; }
+
+/* -- first-run doors: an icon tile in the door's own tone ---------------------------------------- */
+.door-icon {
+  display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+.door-icon svg { width: 1.35rem; height: 1.35rem; }
+.door-icon-scan { background: var(--primary-soft); color: var(--primary); }
+.door-icon-inventory { background: var(--ok-bg); color: var(--ok); }
+.door-icon-import { background: var(--accent-soft); color: var(--accent); }
+
+/* -- about page: a proper hero instead of diving straight into reference tables ----------------- */
+.about-hero { display: flex; align-items: center; gap: var(--space-5); margin-bottom: var(--space-5); }
+.about-hero-mark {
+  flex: 0 0 auto; width: 3.4rem; height: 3.4rem; border-radius: var(--radius); display: grid; place-items: center;
+  color: #fff; background: linear-gradient(135deg, var(--primary-2), var(--primary-h));
+  box-shadow: 0 8px 22px var(--primary-shadow);
+}
+.about-hero-mark svg { width: 1.8rem; height: 1.8rem; }
+.about-hero h1 { margin-bottom: .2rem; }
+.about-hero-sub { color: var(--text-2); max-width: 52ch; margin: 0 0 .3rem; }
+.readylist { display: grid; gap: .7rem; }
+.readylist-row { display: grid; grid-template-columns: 11.5rem 1fr; gap: .3rem 1rem; align-items: baseline; }
+.readylist-row p { margin: 0; color: var(--text-2); }
+@media (max-width: 640px) { .readylist-row { grid-template-columns: 1fr; } .about-hero { flex-direction: column; align-items: flex-start; text-align: left; } }
+
+/* -- collector download rows (guide.js) ----------------------------------------------------- */
+.dlbox { margin-top: var(--space-3); }
+.dlrow {
+  display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: space-between;
+  padding: .7rem .9rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+}
+.dlrow + .dlrow { margin-top: .5rem; }
+.dlrow-primary { border-color: var(--primary-soft-border); background: var(--primary-soft); }
+.dlrow-main { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.dlrow-os { font-weight: 650; }
+.dlrow-actions { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.dlrow-sha { display: inline-flex; align-items: center; gap: .2rem; font-size: .78rem; }
+
+/* -- small utility ------------------------------------------------------------------------------ */
+.row.spread { justify-content: space-between; }

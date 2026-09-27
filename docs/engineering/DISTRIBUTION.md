@@ -35,6 +35,25 @@ ever links the server, the store or the scanner. A machine being inventoried nee
 ./cipherhorizon-collector run -o host.cbom.json      # then upload host.cbom.json on the Hosts page
 ```
 
+### Handing the collector to a fleet from the running server
+
+The collector and the product are separate release archives, so a fresh install of `cipherhorizon` does not have
+`cipherhorizon-collector` sitting beside it. If an operator puts one there anyway (having downloaded it once, or
+built it), the server offers it to anyone who opens the UI, instead of everyone finding it themselves:
+
+- a same-platform companion file next to the server's own executable, named `cipherhorizon-collector` (or
+  `cipherhorizon-collector.exe` on Windows) — the common case, since the two archives usually get unpacked
+  together; or
+- a `collectors/` folder next to the executable holding one binary per platform, named the way goreleaser's own
+  archives are (`cipherhorizon-collector_<os>_<arch>[.exe]`), for a server that inventories more than one kind of
+  machine.
+
+`GET /api/v1/collector/binaries` lists what is present (platform, size, SHA-256), and `GET
+/api/v1/collector/binaries/{name}` streams one by its exact listed filename. Neither builds, downloads or embeds
+anything: with nothing on disk the list is simply empty, and the UI says so and falls back to the manual build
+instructions. Nothing here executes a file — each one is only read and streamed as bytes, like the CBOM downloads
+already on this server.
+
 ## What a release contains
 
 On the GitHub Releases page (`https://github.com/<owner>/cipherhorizon/releases`):

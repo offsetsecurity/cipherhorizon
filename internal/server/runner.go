@@ -291,15 +291,13 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 		Report: repJSON, Evaluation: evJSON, Band: ev.Hygiene.Band, Score: ev.Hygiene.Score, ReadinessLevel: ev.Readiness.Level,
 		HNDLExposed: ev.Readiness.HNDLExposed, Critical: ev.Counts[eval.Critical], High: ev.Counts[eval.High],
 		Medium: ev.Counts[eval.Medium], Incomplete: rep.Incomplete,
+		FinalEvent: fmt.Sprintf("done: TLS hygiene %s (%d), PQC readiness L%d (%s), %d connections",
+			ev.Hygiene.Band, ev.Hygiene.Score, ev.Readiness.Level, ev.Readiness.Label, rep.Connections),
 	}
 	if na := leafNotAfter(rep); na != nil {
 		res.CertNotAfter = na
 	}
-	if err := r.st.FinishScan(sc.ID, res); err != nil {
-		return // canceled while evaluating
-	}
-	_ = r.st.AddEvent(sc.ID, fmt.Sprintf("done: TLS hygiene %s (%d), PQC readiness L%d (%s), %d connections",
-		ev.Hygiene.Band, ev.Hygiene.Score, ev.Readiness.Level, ev.Readiness.Label, rep.Connections))
+	_ = r.st.FinishScan(sc.ID, res) // an error means it was canceled while evaluating: nothing to add
 }
 
 func (r *Runner) canceledByUser(id int64) bool {

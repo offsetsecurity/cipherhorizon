@@ -3,6 +3,10 @@
 package winapi
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"unicode/utf16"
 )
@@ -156,4 +160,126 @@ func has(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// ---- certificate stores (ADR-0016) --------------------------------------------------------
+
+// The layer must never call a function that opens, acquires, exports or uses a private key
+// (ADR-0005 decision 4, ADR-0016). This scans the package's own source for those names, so a
+// later edit that reaches for one fails the build instead of passing review by accident.
+func TestNoKeyMaterialFunctionIsCalled(t *testing.T) {
+	forbidden := []string{
+		"CryptAcquireCertificatePrivateKey", "CryptAcquireContext", "NCryptOpenKey", "NCryptExportKey", "NCryptImportKey",
+		"NCryptSignHash", "NCryptDecrypt", "NCryptEncrypt", "CryptExportKey", "CryptGetUserKey", "CryptImportKey",
+		"CryptSignHash", "CryptDecrypt", "PFXExportCertStore", "PFXExportCertStoreEx", "CryptExportPKCS8", "BCryptExportKey",
+		"CertGetPublicKeyLength", "CertOpenSystemStore", "CertFindCertificateInStore", "CertAddCertificateContextToStore",
+		"CertDeleteCertificateFromStore", "CertSetCertificateContextProperty",
+	}
+	files, err := filepath.Glob("*.go")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no source files found: %v", err)
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Comments may name the functions to say they are not called; code may not.
+		code := stripComments(string(src))
+		for _, name := range forbidden {
+			if strings.Contains(code, name) {
+				t.Errorf("%s calls or names %s: the platform layer may not use key-material or store-modifying functions (ADR-0016)", f, name)
+			}
+		}
+	}
+}
+
+func stripComments(s string) string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if i := strings.Index(line, "//"); i >= 0 {
+			line = line[:i]
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// Only one property id is ever queried, and only without an output buffer: the query can say
+// that a key association exists, and cannot return what it contains.
+func TestKeyAssociationQueryIsTheOnlyPropertyReadAndHasNoBuffer(t *testing.T) {
+	src, err := os.ReadFile("certstore_windows.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := stripComments(string(src))
+	if n := strings.Count(code, "pCertGetCertificateContextProperty.Call("); n != 1 {
+		t.Fatalf("%d property queries, want exactly 1", n)
+	}
+	if !strings.Contains(code, "certKeyProvInfoPropID, 0, uintptr(unsafe.Pointer(&cb))") {
+		t.Error("the property query must pass the fixed property id and a nil output buffer")
+	}
+	if certKeyProvInfoPropID != 2 {
+		t.Errorf("property id = %d, want CERT_KEY_PROV_INFO_PROP_ID (2)", certKeyProvInfoPropID)
+	}
+	if !strings.Contains(code, "windows.CERT_STORE_OPEN_EXISTING_FLAG | windows.CERT_STORE_READONLY_FLAG") {
+		t.Error("stores must be opened read-only and existing-only")
+	}
+}
+
+func TestStoresOutsideTheAllowListAreRefusedBeforeWindowsIsCalled(t *testing.T) {
+	api := NewCertStore()
+	for _, c := range []struct {
+		loc  StoreLocation
+		name string
+	}{{LocalMachine, "Disallowed"}, {LocalMachine, ""}, {"Users", "Root"}, {CurrentUser, `..\Root`}, {LocalMachine, "root"}, {LocalMachine, "MY\x00"}} {
+		if _, _, err := api.CertStore(c.loc, c.name); !errors.Is(err, ErrStoreNotAllowed) {
+			t.Errorf("CertStore(%q, %q) = %v, want ErrStoreNotAllowed", c.loc, c.name, err)
+		}
+	}
+}
+
+// Against the real machine: not exact contents but the properties every Windows must satisfy.
+func TestTheRealCertificateStoresAnswerSanely(t *testing.T) {
+	api := NewCertStore()
+	if !api.Native() {
+		t.Fatal("the Windows implementation must report itself native")
+	}
+	total := 0
+	for _, loc := range []StoreLocation{LocalMachine, CurrentUser} {
+		for _, name := range CertStoreNames {
+			certs, skipped, err := api.CertStore(loc, name)
+			if err != nil {
+				t.Errorf("%s/%s: %v", loc, name, err)
+				continue
+			}
+			if len(certs) > MaxCertsPerStore || skipped < 0 {
+				t.Errorf("%s/%s: %d certificates, %d skipped", loc, name, len(certs), skipped)
+			}
+			for _, c := range certs {
+				total++
+				if len(c.DER) == 0 || len(c.DER) > MaxCertDER || c.DER[0] != 0x30 {
+					t.Errorf("%s/%s: bad DER of %d bytes", loc, name, len(c.DER))
+				}
+				if c.PrivateKey != KeyYes && c.PrivateKey != KeyNo && c.PrivateKey != KeyUnknown {
+					t.Errorf("%s/%s: private-key answer %q", loc, name, c.PrivateKey)
+				}
+			}
+		}
+	}
+	// A Windows machine trusts some roots; an empty answer everywhere means the call is broken.
+	roots, _, _ := api.CertStore(LocalMachine, "Root")
+	if len(roots) == 0 {
+		t.Error("the LocalMachine Root store is empty")
+	}
+	for _, r := range roots {
+		if r.PrivateKey == KeyYes {
+			t.Error("a trusted root reports a private key on this machine; check the property query")
+			break
+		}
+	}
+	t.Logf("%d certificates across the readable stores", total)
 }

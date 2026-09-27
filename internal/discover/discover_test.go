@@ -282,7 +282,7 @@ func TestDeterministic(t *testing.T) {
 // windows-cng asks the running operating system, so it is registered but runs only for a live host.
 func TestDebianAndWindowsSensorsAreBothRegistered(t *testing.T) {
 	names := sense.Default.Names()
-	if len(names) != 3 || names[0] != "apt" || names[1] != "pe-files" || names[2] != "windows-cng" {
+	if len(names) != 5 || names[0] != "apt" || names[1] != "cert-files" || names[2] != "pe-files" || names[3] != "windows-certs" || names[4] != "windows-cng" {
 		t.Errorf("registered sensors = %v", names)
 	}
 }

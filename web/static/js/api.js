@@ -21,7 +21,7 @@ function token() {
   try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
 }
 
-async function request(method, path, body, raw) {
+async function request(method, path, body, raw, contentType) {
   const headers = {};
   const t = token();
   if (t) headers['Authorization'] = `Bearer ${t}`;
@@ -33,7 +33,7 @@ async function request(method, path, body, raw) {
     } else {
       payload = JSON.stringify(body);
     }
-    headers['Content-Type'] = 'application/json';
+    headers['Content-Type'] = contentType || 'application/json';
   }
   let res;
   try {
@@ -86,6 +86,8 @@ export const api = {
   host: (id) => request('GET', `/api/v1/hosts/${id}`),
   ingest: (json, name) => request('POST', `/api/v1/hosts/ingest${name ? `?name=${encodeURIComponent(name)}` : ''}`, json),
 
+  collectorBinaries: () => request('GET', '/api/v1/collector/binaries'),
+
   assetFindings: (assetId) => request('GET', `/api/v1/assets/${assetId}/findings`),
   fleetFindings: (query = '') => request('GET', `/api/v1/findings${query}`),
   setFindingStatus: (assetId, key, status, note) =>
@@ -94,6 +96,24 @@ export const api = {
 
   linkAsset: (assetId, otherId) => request('PUT', `/api/v1/assets/${assetId}/links/${otherId}`),
   unlinkAsset: (assetId, otherId) => request('DELETE', `/api/v1/assets/${assetId}/links/${otherId}`),
+
+  // The estate: systems, ranking, certificates, imports and correlation.
+  estate: () => request('GET', '/api/v1/estate'),
+  systems: () => request('GET', '/api/v1/systems'),
+  system: (id) => request('GET', `/api/v1/systems/${id}`),
+  patchSystem: (id, patch, reason) => request('PATCH', `/api/v1/systems/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`, patch),
+  systemAudit: (id) => request('GET', `/api/v1/systems/${id}/audit`),
+  systemCertificates: (id) => request('GET', `/api/v1/systems/${id}/certificates`),
+  systemLinks: (id) => request('GET', `/api/v1/systems/${id}/links`),
+  systemObservations: (id) => request('GET', `/api/v1/systems/${id}/observations?current=1`),
+  certificates: (query = '') => request('GET', `/api/v1/certificates${query}`),
+  certificate: (fp) => request('GET', `/api/v1/certificates/${fp}`),
+  links: (state = '') => request('GET', `/api/v1/links${state ? `?state=${state}` : ''}`),
+  confirmLink: (id, reason) => request('POST', `/api/v1/links/${id}/confirm${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
+  rejectLink: (id, reason) => request('POST', `/api/v1/links/${id}/reject${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
+  imports: () => request('GET', '/api/v1/imports'),
+  importDocument: (text, target) => request('POST', `/api/v1/imports?${target}`, text),
+  withdrawImport: (id, reason) => request('POST', `/api/v1/imports/${id}/withdraw${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
 
   // Downloads need the token too, so they are fetched and saved rather than linked.
   async download(path, filename) {

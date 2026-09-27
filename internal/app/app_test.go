@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/example/cipherhorizon/internal/app"
+	"github.com/example/cipherhorizon/internal/cdxschema"
 	"github.com/example/cipherhorizon/internal/evidence"
 	"github.com/example/cipherhorizon/internal/schematest"
 	"github.com/example/cipherhorizon/internal/sense"
@@ -65,41 +66,67 @@ func runOS(t *testing.T, ctx context.Context, reg *sense.Registry, hostOS, tier 
 
 func fixture(name string) string { return filepath.Join(fixturesDir, name) }
 
+// TestGoldenCBOMs pins the documents byte for byte, in both versions written: 1.6 (for consumers
+// that have not moved) and 1.7 (the default), each validated against its own schema.
 func TestGoldenCBOMs(t *testing.T) {
 	for _, name := range []string{"ubuntu-24.04", "debian-13"} {
-		t.Run(name, func(t *testing.T) {
-			code, stdout, stderr := run(t, "run", "--root", fixture(name))
-			if code != app.ExitOK {
-				t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
-			}
-			// stdout is the document and nothing else; diagnostics stay on stderr.
-			if !json.Valid([]byte(stdout)) {
-				t.Fatalf("stdout is not JSON:\n%s", stdout)
-			}
-			if !strings.Contains(stderr, "plugin apt: ok") || !strings.Contains(stderr, "PQC:") {
-				t.Errorf("stderr lacks plugin/PQC report:\n%s", stderr)
-			}
-			schematest.Validate(t, []byte(stdout))
-
-			golden := filepath.Join(goldenDir, name+".cbom.json")
-			if *update {
-				if err := os.WriteFile(golden, []byte(stdout), 0o644); err != nil {
-					t.Fatal(err)
+		for _, spec := range []string{"1.6", "1.7"} {
+			t.Run(name+"-"+spec, func(t *testing.T) {
+				code, stdout, stderr := run(t, "run", "--root", fixture(name), "--spec", spec)
+				if code != app.ExitOK {
+					t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 				}
-				t.Logf("updated %s", golden)
-				return
-			}
-			want, err := os.ReadFile(golden)
-			if err != nil {
-				t.Fatalf("%v (run `go test ./internal/app -update` to create it)", err)
-			}
-			if stdout != string(want) {
-				t.Errorf("output differs from %s; review the diff, then run `go test ./internal/app -update`\n%s",
-					golden, firstDifference(string(want), stdout))
-			}
-			// The committed baseline itself must remain valid CycloneDX 1.6.
-			schematest.Validate(t, want)
-		})
+				// stdout is the document and nothing else; diagnostics stay on stderr.
+				if !json.Valid([]byte(stdout)) {
+					t.Fatalf("stdout is not JSON:\n%s", stdout)
+				}
+				if !strings.Contains(stderr, "plugin apt: ok") || !strings.Contains(stderr, "PQC:") {
+					t.Errorf("stderr lacks plugin/PQC report:\n%s", stderr)
+				}
+				valid := func(doc []byte) {
+					t.Helper()
+					if probs, err := cdxschema.Validate(doc, spec, 5); err != nil || len(probs) != 0 {
+						t.Errorf("not valid CycloneDX %s: %v %v", spec, probs, err)
+					}
+				}
+				valid([]byte(stdout))
+
+				file := name + ".cbom.json" // the 1.6 baselines keep their original names
+				if spec == "1.7" {
+					file = name + ".cbom-1.7.json"
+				}
+				golden := filepath.Join(goldenDir, file)
+				if *update {
+					if err := os.WriteFile(golden, []byte(stdout), 0o644); err != nil {
+						t.Fatal(err)
+					}
+					t.Logf("updated %s", golden)
+					return
+				}
+				want, err := os.ReadFile(golden)
+				if err != nil {
+					t.Fatalf("%v (run `go test ./internal/app -update` to create it)", err)
+				}
+				if stdout != string(want) {
+					t.Errorf("output differs from %s; review the diff, then run `go test ./internal/app -update`\n%s",
+						golden, firstDifference(string(want), stdout))
+				}
+				valid(want) // the committed baseline itself must remain valid
+			})
+		}
+	}
+}
+
+// The default is 1.7, and an unknown version is refused, never defaulted.
+func TestSpecFlag(t *testing.T) {
+	_, def, _ := run(t, "run", "--root", fixture("debian-13"))
+	if !strings.Contains(def, `"specVersion": "1.7"`) {
+		t.Error("the default is not CycloneDX 1.7")
+	}
+	for _, bad := range []string{"1.5", "2.0", "1.7 "} {
+		if code, _, errOut := run(t, "run", "--root", fixture("debian-13"), "--spec", bad); code != app.ExitFatal || !strings.Contains(errOut, "1.6 or 1.7") {
+			t.Errorf("--spec %q: exit %d %q", bad, code, errOut)
+		}
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 )
 
 // Subject kinds.
@@ -16,7 +15,15 @@ const (
 	KindArtefact  = "artefact"
 	KindAlgorithm = "algorithm"
 	KindProvider  = "provider" // a cryptographic provider the operating system registers
+	// KindCertificate is an X.509 certificate a host holds. Only the certificate's public
+	// metadata is ever described: never a key, never a password (ADR-0005, PRD-003 REQ-CERT-4).
+	KindCertificate = "certificate"
 )
+
+// SourceAttrs is the allow-list of attributes of a place (Source.Attrs). privateKey says
+// whether a private key is known to be stored beside a certificate at this place: yes, no or
+// unknown. It is read from metadata or the presence of a key block, never from opening a key.
+var SourceAttrs = map[string]bool{"privateKey": true}
 
 // AllowedAttrs is the allow-list of attributes per subject kind (ADR-0005).
 // A sensor may not put anything else on a subject: free-form host data is how
@@ -26,6 +33,13 @@ var AllowedAttrs = map[string]map[string]bool{
 	KindArtefact:  set("path", "size", "fileVersion", "productName", "family", "kind", "arch", "peValid", "sha256", "imports"),
 	KindAlgorithm: set(),
 	KindProvider:  set("providerKind", "cspType", "comment", "opened", "algorithms"),
+	// A certificate's identity is its SHA-256 fingerprint (sha256 is 64 lower-case hex digits, as
+	// for a file). subject, issuer and dnsNames are display strings from the certificate: they are
+	// attacker-controlled and are cleaned and length-capped by the sensor and escaped on render.
+	// privateKey says whether a private key is known to sit alongside it: yes, no or unknown. It is a
+	// flag read from metadata, never derived from opening a key.
+	KindCertificate: set("sha256", "serial", "subject", "issuer", "notBefore", "notAfter", "keyAlg", "keyBits", "curve",
+		"sigAlg", "isCA", "selfSigned", "dnsNames", "keyUsage"),
 }
 
 func set(ss ...string) map[string]bool {
@@ -111,8 +125,8 @@ func Validate(o Observation) error {
 		if kindKnown && !allowed[k] {
 			fail("attribute %q is not allowed on a %s subject", k, o.Subject.Kind)
 		}
-		if len(v) > maxAttrLen || !utf8.ValidString(v) {
-			fail("attribute %q is over %d bytes or not UTF-8", k, maxAttrLen)
+		if !SafeText(v, maxAttrLen) {
+			fail("attribute %q is over %d bytes, not UTF-8, or holds a control character", k, maxAttrLen)
 		}
 		if err := validateAttrFormat(k, v); err != nil {
 			fail("%v", err)
@@ -178,6 +192,15 @@ func Validate(o Observation) error {
 	if strings.ContainsAny(o.Source.Location, "\\\x00\r\n") {
 		fail("source location must be a normalised, forward-slash path")
 	}
+	for k, v := range o.Source.Attrs {
+		if !SourceAttrs[k] {
+			fail("source attribute %q is not allowed", k)
+			continue
+		}
+		if err := validateAttrFormat(k, v); err != nil {
+			fail("source: %v", err)
+		}
+	}
 
 	return errors.Join(errs...)
 }
@@ -217,6 +240,23 @@ func validateAttrFormat(k, v string) error {
 			if !isLowerHex(v[i]) {
 				return fmt.Errorf("attribute sha256 must be lower-case hex")
 			}
+		}
+	case "keyBits":
+		if len(v) == 0 || len(v) > 6 {
+			return fmt.Errorf("attribute keyBits must be digits")
+		}
+		for i := 0; i < len(v); i++ {
+			if v[i] < '0' || v[i] > '9' {
+				return fmt.Errorf("attribute keyBits must be digits")
+			}
+		}
+	case "isCA", "selfSigned":
+		if v != "true" && v != "false" {
+			return fmt.Errorf("attribute %s must be true or false", k)
+		}
+	case "privateKey":
+		if v != "yes" && v != "no" && v != "unknown" {
+			return fmt.Errorf("attribute privateKey must be yes, no or unknown")
 		}
 	case "providerKind":
 		if v != "cng" && v != "ksp" && v != "cng+ksp" && v != "csp" {

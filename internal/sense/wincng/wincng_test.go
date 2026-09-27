@@ -459,7 +459,7 @@ func TestOutputIsDeterministicAndCoverageNamesTheBlindSpots(t *testing.T) {
 		t.Error("output is not deterministic or not sorted")
 	}
 	joined := strings.Join(a.Coverage[0].Unseen, "|")
-	for _, want := range []string{"not opened", "loading it", "policy", "certificates and keys"} {
+	for _, want := range []string{"not opened", "loading it", "policy", "keys held by any provider"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("the blind spots do not mention %q", want)
 		}

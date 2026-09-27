@@ -14,6 +14,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
+	"github.com/example/cipherhorizon/internal/estate"
 	"github.com/example/cipherhorizon/internal/pqc"
 	"github.com/example/cipherhorizon/internal/store"
 )
@@ -161,7 +162,16 @@ func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
 	}
 	sum := summarizeCBOM(&bom, name)
 	sumJSON, _ := json.Marshal(sum)
-	id, err := s.cfg.Store.AddHostSnapshot(asset.ID, raw, sumJSON)
+	// Trust follows the channel, not the document (SECARCH-001 T-03). Until the collector has an
+	// authenticated push of its own, this token-protected upload route is what carries its output,
+	// so a document that names this product as its producer is attributed to the collector and
+	// anything else is imported. A token holder can still mislabel a document; that is the
+	// operator-mislabel residual the threat model states, and the class is recorded per source.
+	class := estate.ClassImported
+	if strings.HasPrefix(strings.ToLower(sum.Producer), "cipherhorizon") {
+		class = estate.ClassCollector
+	}
+	id, err := s.cfg.Store.AddHostSnapshotAs(asset.ID, raw, sumJSON, class, s.actor())
 	if err != nil {
 		storeErr(w, err)
 		return
@@ -170,7 +180,7 @@ func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
 	if created {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, map[string]any{"asset": view(asset, nil), "snapshotId": id, "created": created, "summary": sum})
+	writeJSON(w, status, map[string]any{"asset": view(asset, nil), "snapshotId": id, "created": created, "summary": sum, "sourceClass": class})
 }
 
 type hostView struct {
