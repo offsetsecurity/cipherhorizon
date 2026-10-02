@@ -1,8 +1,8 @@
-# RTM: requirements traceability matrix for PRD-003
+# RTM: requirements traceability matrix for PRD-003 and PRD-004
 
 The **only** place a requirement is declared done. Checked by `internal/archtest` (`TestRequirementsTraceability`):
 
-- every `REQ-*` id in [PRD-003](../product/PRD-003-cryptographic-estate-model.md) has exactly one row here, and every row here exists in the PRD;
+- every `REQ-*` id in [PRD-003](../product/PRD-003-cryptographic-estate-model.md) and [PRD-004](../product/PRD-004-tls-scanner-t1-pki-depth.md) has exactly one row here, and every row here exists in a PRD;
 - a row with status `done` lists at least one test, and every `Test*`/`Fuzz*` name listed exists in a `_test.go` file of the repository;
 - evidence that is not a Go test is written `script:<file>#<check>`, `oracle:<file>` or `report:<doc>#<section>`; those are not resolved automatically, they must point at something that exists in the repository (checked for the file part).
 
@@ -75,6 +75,75 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-NFR-5 | P0 | all | — | — | report:docs/program/QA-REPORT-002.md | in-progress | tests, lint and vet green; govulncheck and a licence check have not been run (not installed; installing needs a download) |
 | REQ-NFR-6 | P1 | WP-9 | — | — | script:testing/e2e/estate-phase.mjs#NFR-a11y | in-progress | accessible names, keyboard-operable controls and no overflow checked on every new view; contrast not measured by a tool |
 
+## PRD-004 — TLS scanner T1 ([ENG-HANDOFF-003](../product/ENG-HANDOFF-003-tls-t1.md) §4 work packages; tests per [QA-PLAN-004](../product/QA-PLAN-004-tls-t1.md))
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-TSTG-1 | P0 | T1b | RESEARCH-004 | — | TestStagesRecorded, TestStagesTLS13Only, TestStagesUnreachable | done |  |
+| REQ-TSTG-2 | P0 | T1b | RESEARCH-004 | — | TestStagesRecorded, TestSectionsAndFixFirst, script:testing/e2e/t1-phase.mjs#T1-E2E.7 | done | probes in words, connections per stage (sum = scan total), inconclusive parts; reference snapshots in How we tested |
+| REQ-TSTG-3 | P0 | T1b | RESEARCH-004 | — | TestLegacyReportsEvaluate, TestRawChainStapleAndSCTs, report:docs/program/QA-REPORT-003.md#legacy | done | 0.2.0 database upgraded and rendered (QA-REPORT-003 §4); /1 never rewritten |
+| REQ-TSTG-4 | P0 | T1b | RESEARCH-004 | SR-21 | TestStagesRecorded, TestHSTSHeaderParsedInScan, TestHSTSNilWhenNotSpeakingHTTP, script:testing/e2e/t1-phase.mjs#T1-E2E.1 | done | default true on serve and tls scan; About, tls-scanning.md and CHANGELOG state it |
+| REQ-TSTG-5 | P0 | T1b | RESEARCH-004 | SR-19 | TestTargetOnlyTraffic, script:testing/pki/mutations.py | done | recording dialer and lookup; a 301 to another host is not followed |
+| REQ-TCRT-1 | P0 | T1b | RESEARCH-004 | — | TestExtensionFacts, TestRawChainStapleAndSCTs | done | IV class added (CA/B 2.23.140.1.2.3) |
+| REQ-TCRT-2 | P0 | T1b | RESEARCH-004 | — | TestNoSNIDifferent, TestRawChainStapleAndSCTs, TestT1TrustMatrix | done | deviation: report-level noSni = same, different or failed; a separate chain only when different (ENG-HANDOFF-003 §6) |
+| REQ-TCRT-3 | P0 | T1c | RESEARCH-004 | — | TestT1ChainMatrix, TestT1TrustMatrix, TestLifetimeTablePinned, script:testing/pki/mutations.py | done |  |
+| REQ-TCRT-4 | P0 | T1c | RESEARCH-004 | — | TestCertificateRules, TestT1ChainMatrix, script:testing/pki/mutations.py | done | EvaluateCertificate (estate certificates) uses the same scaling |
+| REQ-TCRT-5 | P0 | T1c | RESEARCH-004 | — | TestT1ChainMatrix | done |  |
+| REQ-TCRT-6 | P1 | T1c | RESEARCH-004 | — | TestT1ChainMatrix | deferred | exponent < 65537 done (CERT.WEAK-EXPONENT); ROCA fingerprint, Debian blocklist and estate-wide shared modulus deferred to T2 |
+| REQ-TCRT-7 | P1 | T1c | RESEARCH-004 | — | TestPrivateCATrustAnchors | done | entity attrs extKeyUsage, keyUsage, policyClass, lifetimeDays, wildcards, cnOnly, spkiSha256; certificate API and page show them; list columns are REQ-TUI-13 |
+| REQ-TCHN-1 | P0 | T1b | RESEARCH-004 | — | TestServedChain, TestT1ChainMatrix, oracle:testing/pki/oracle.sh | done |  |
+| REQ-TCHN-2 | P0 | T1c | RESEARCH-004 | — | TestServedChain, TestT1ChainMatrix, TestT1TrustMatrix, oracle:testing/pki/oracle.sh, script:testing/pki/mutations.py | done | deviation: when the served path ends at a CA, the unknown issuer is reported as an unknown (private) root under CERT.UNTRUSTED, not as a missing intermediate |
+| REQ-TCHN-3 | P0 | T1c | RESEARCH-004 | — | TestT1ChainMatrix | done | severity: medium unless TLS 1.3 is negotiated or supported |
+| REQ-TCHN-4 | P0 | T1c | RESEARCH-004 | — | TestServedChain, TestT1ChainMatrix | done |  |
+| REQ-TCHN-5 | P0 | T1c | RESEARCH-004 | — | TestExpiresFirst, TestT1ChainMatrix | done |  |
+| REQ-TCHN-6 | P1 | T1c | RESEARCH-004 | — | TestServedChain | done | page notes chains over 4 KiB |
+| REQ-TTRS-1 | P0 | T1c | RESEARCH-004 | — | TestValidate, TestStoresLoad, TestT1TrustMatrix, oracle:testing/pki/oracle.sh | done | CCADB snapshot 2026-10-02: Mozilla 121, Chrome 101 roots |
+| REQ-TTRS-2 | P0 | T1c | RESEARCH-004 | SR-20 | TestPrivateCATrustAnchors, TestT1TrustMatrix, script:testing/e2e/security.sh, script:testing/e2e/t1-phase.mjs#T1-E2E.9 | done | deviation: server-wide bundle is the --ca-bundle flag only (serve has no config file) |
+| REQ-TTRS-3 | P1 | T1c | RESEARCH-004 | — | TestOSTrustIsOptIn, TestCertificatesAndTrust | done | tls scan --os-trust; the UI shows a "this machine" row only when present |
+| REQ-TTRS-4 | P0 | T1c | RESEARCH-004 | — | TestT1TrustMatrix | done |  |
+| REQ-TTRS-5 | P0 | T1c | RESEARCH-004 | — | TestNameMatch, TestT1ChainMatrix | done |  |
+| REQ-TTRS-6 | P1 | T1c | RESEARCH-004 | — | TestRootConstraintsCarried, TestValidate, TestT1TrustMatrix, script:testing/pki/mutations.py | done | distrust-after, sct_not_after, program name constraints; removed CAs are absent |
+| REQ-TREV-1 | P0 | T1b | RESEARCH-004 | SR-23 | TestOCSPAgainstOpenSSL, TestOCSPTamperedAndHostile, FuzzParseOCSP, report:docs/program/QA-REPORT-003.md#fuzz | done |  |
+| REQ-TREV-2 | P0 | T1c | RESEARCH-004 | — | TestT1RevocationMatrix, script:testing/pki/mutations.py | done |  |
+| REQ-TREV-3 | P0 | T1c | RESEARCH-004 | — | TestT1RevocationMatrix, script:testing/pki/mutations.py | done |  |
+| REQ-TREV-4 | P0 | T1c | RESEARCH-004 | — | TestT1RevocationMatrix | done |  |
+| REQ-TREV-5 | P0 | T1c | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.15 | done |  |
+| REQ-TCT-1 | P0 | T1b | RESEARCH-004 | SR-23 | TestSCTList, TestT1ChainMatrix, FuzzParseSCTList | done | embedded and TLS sources tested end to end; OCSP-carried SCTs use the same decoder but no fixture carries them (QA-REPORT-003 §6) |
+| REQ-TCT-2 | P1 | T1c | RESEARCH-004 | — | TestCTLookup, TestGeneratedTablesAreSelfConsistent | done |  |
+| REQ-TCT-3 | P0 | T1c | RESEARCH-004 | — | TestT1ChainMatrix, TestT1TrustMatrix | done |  |
+| REQ-TKX-1 | P0 | T1c | RESEARCH-004 | — | TestDHPrimesMatchOpenSSL, TestT1HTTPKeyExchangeAndVulnerabilities | done | 14 of 16 primes pinned to OpenSSL 3.5 named groups |
+| REQ-TKX-2 | P0 | T1c | RESEARCH-004 | — | TestT1HTTPKeyExchangeAndVulnerabilities | done |  |
+| REQ-THTP-1 | P0 | T1b | RESEARCH-004 | SR-23 | TestParseHSTS, TestHSTSHeaderParsedInScan, FuzzParseHSTS | done |  |
+| REQ-THTP-2 | P0 | T1c | RESEARCH-004 | — | TestT1HTTPKeyExchangeAndVulnerabilities | done |  |
+| REQ-THTP-3 | P0 | T1b | RESEARCH-004 | — | TestHSTSNilWhenNotSpeakingHTTP | done |  |
+| REQ-TVLN-1 | P0 | T1c | RESEARCH-004 | — | TestLabelsDoNotChangeHygiene, TestT1HTTPKeyExchangeAndVulnerabilities, script:testing/pki/mutations.py | done |  |
+| REQ-TVLN-2 | P1 | T1c | RESEARCH-004 | — | TestDROWNAcrossTheEstate, TestT1HTTPKeyExchangeAndVulnerabilities | done | index built from the latest completed scan of every endpoint at evaluation time |
+| REQ-TVLN-3 | P0 | T1c | RESEARCH-004 | — | TestT1HTTPKeyExchangeAndVulnerabilities, script:testing/e2e/journey.mjs#E2E-05.4 | done |  |
+| REQ-TDAT-1 | P0 | T1a | RESEARCH-004 | SR-22 | TestGeneratedTablesAreSelfConsistent, TestDHPrimesMatchOpenSSL, TestLifetimeTablePinned, TestSourcesRecorded | done | generator internal/refdata/gen; lifetime table hand-transcribed and pinned |
+| REQ-TDAT-2 | P0 | T1a | RESEARCH-004 | — | report:docs/reference-data.md | done | all five lists passed the gate |
+| REQ-TDAT-3 | P1 | T1a | RESEARCH-004 | — | TestSourcesRecorded, TestReferenceDataAndServerBundle | done | About page table and every section's How we tested |
+| REQ-TUI-1 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.4 | done |  |
+| REQ-TUI-2 | P0 | T1d | RESEARCH-004 | — | TestSectionsAndFixFirst, script:testing/e2e/t1-phase.mjs#T1-E2E.5 | done |  |
+| REQ-TUI-3 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.6, script:testing/e2e/t1-phase.mjs#T1-E2E.14 | done |  |
+| REQ-TUI-4 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.7 | done |  |
+| REQ-TUI-5 | P0 | T1d | RESEARCH-004 | — | TestSectionsAndFixFirst, TestLegacyReportsEvaluate, report:docs/program/QA-REPORT-003.md#legacy | done |  |
+| REQ-TUI-6 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.8, script:testing/e2e/t1-phase.mjs#T1-E2E.12 | done |  |
+| REQ-TUI-7 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.15 | done |  |
+| REQ-TUI-8 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/journey.mjs#E2E-05.4, script:testing/e2e/t1-phase.mjs#T1-E2E.7 | done | Scan details closes the page; History stays a tab |
+| REQ-TUI-9 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.16 | done |  |
+| REQ-TUI-10 | P1 | T1d | RESEARCH-004 | — |  | deferred | History does not yet mark which sections changed; P1, next increment |
+| REQ-TUI-11 | P1 | T1d | RESEARCH-004 | — | report:docs/program/QA-REPORT-003.md#export | done | print/PDF prints the sectioned page; JSON export carries the evaluation with sections |
+| REQ-TUI-12 | P0 | T1d | RESEARCH-004 | SR-20 | TestPrivateCATrustAnchors, script:testing/e2e/t1-phase.mjs#T1-E2E.9, script:testing/e2e/t1-phase.mjs#T1-E2E.10 | done |  |
+| REQ-TUI-13 | P1 | T1d | RESEARCH-004 | — |  | deferred | Certificates page columns/filters for trust per store, OCSP and SCTs: P1, next increment |
+| REQ-TUI-14 | P0 | T1d | RESEARCH-004 | — | TestUIDoesNotBorrowAnotherScannersRatingVocabulary | done |  |
+| REQ-TNFR-1 | P0 | T1b | RESEARCH-004 | SR-23 | FuzzParseOCSP, FuzzParseSCTList, FuzzParseHSTS, FuzzServedChain, report:docs/program/QA-REPORT-003.md#fuzz | done | Windows fuzz engine stalls on encoding/asn1 targets; campaigns run on Linux (WSL), 6.4-10.5 M execs each |
+| REQ-TNFR-2 | P0 | T1b | RESEARCH-004 | — | report:docs/program/QA-REPORT-003.md#dependencies | done | go.mod unchanged |
+| REQ-TNFR-3 | P0 | T1d | RESEARCH-004 | SR-24 | TestNoInnerHTMLOrEval, script:testing/e2e/t1-phase.mjs#T1-E2E.13, script:testing/e2e/security.sh | done |  |
+| REQ-TNFR-4 | P0 | T1c | RESEARCH-004 | — | TestPrivateCATrustAnchors, report:docs/program/QA-REPORT-003.md#legacy | done |  |
+| REQ-TNFR-5 | P0 | T1c | RESEARCH-004 | — | report:docs/program/QA-REPORT-003.md#budget | done | +1 connection (address targets), +2 (named targets) |
+| REQ-TNFR-6 | P0 | T1c | RESEARCH-004 | — | TestOpenAPIDescribesExactlyTheRegisteredRoutes | done | docs/tls-scanning.md, docs/methodology.md |
+| REQ-TNFR-7 | P1 | T1c | RESEARCH-004 | — | TestCertificateExtensionsOnlyIn17 | done | docs/cbom-model.md lists what has no field |
+
 ## Security requirements (SECARCH-001) coverage
 
 Each SR must be exercised by at least one requirement above; `TestRequirementsTraceability` checks that every `SR-nn` in SECARCH-001 appears in the SR column at least once, except those listed here as cross-cutting.
@@ -99,3 +168,9 @@ Each SR must be exercised by at least one requirement above; `TestRequirementsTr
 | SR-16 | REQ-CERT-2 | follow symlinks unconditionally → symlink fixtures must fail |
 | SR-17 | REQ-CERT-4 | echo a document fragment in an error → invariant test must fail |
 | SR-18 | REQ-ING-5, REQ-ING-8 | let an import overwrite first-party → precedence test must fail |
+| SR-19 | REQ-TSTG-5 | let the scan dial a second host → recording-dialer test must fail |
+| SR-20 | REQ-TTRS-2, REQ-TUI-12 | accept key blocks in an anchor upload → decoy-key test must fail |
+| SR-21 | REQ-TSTG-4 | follow a Location header → no-redirect test must fail |
+| SR-22 | REQ-TDAT-1 | edit a generated list by hand → checksum test must fail |
+| SR-23 | REQ-TNFR-1, REQ-TREV-1, REQ-TCT-1, REQ-THTP-1 | remove a length check → fuzz seed test must fail |
+| SR-24 | REQ-TNFR-3 | render a certificate subject as markup → hostile journey check must fail |

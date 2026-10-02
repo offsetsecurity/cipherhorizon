@@ -14,8 +14,13 @@ import (
 // the product requirements document, and "done" cannot be claimed without tests
 // that exist.
 
+// prdPaths are the product requirements documents whose requirements the matrix traces.
+var prdPaths = []string{
+	"../../docs/product/PRD-003-cryptographic-estate-model.md",
+	"../../docs/product/PRD-004-tls-scanner-t1-pki-depth.md",
+}
+
 const (
-	prdPath    = "../../docs/product/PRD-003-cryptographic-estate-model.md"
 	secarchDoc = "../../docs/product/SECARCH-001-threat-model-and-security-requirements.md"
 	rtmPath    = "../../docs/program/RTM.md"
 	repoRoot   = "../.."
@@ -96,11 +101,18 @@ func goTestNames(t *testing.T) map[string]bool {
 
 func TestRequirementsTraceability(t *testing.T) {
 	declared := map[string]bool{}
-	for _, m := range reqDeclared.FindAllStringSubmatch(readFile(t, prdPath), -1) {
-		declared[m[1]] = true
-	}
-	if len(declared) == 0 {
-		t.Fatal("no requirement ids found in the PRD: has its table format changed?")
+	for _, p := range prdPaths {
+		n := 0
+		for _, m := range reqDeclared.FindAllStringSubmatch(readFile(t, p), -1) {
+			if declared[m[1]] {
+				t.Errorf("%s is declared by more than one PRD", m[1])
+			}
+			declared[m[1]] = true
+			n++
+		}
+		if n == 0 {
+			t.Fatalf("no requirement ids found in %s: has its table format changed?", p)
+		}
 	}
 
 	rows := rtmRows(t)

@@ -16,26 +16,33 @@ var fingerprintRE = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
 // certView is a certificate as the API shows it: its public attributes, its role, and the
 // cited findings that apply to it. The graph has no key material to show.
 type certView struct {
-	Fingerprint string    `json:"fingerprint"`
-	Name        string    `json:"name"`
-	Role        string    `json:"role"`
-	Subject     string    `json:"subject"`
-	Issuer      string    `json:"issuer"`
-	Serial      string    `json:"serial,omitempty"`
-	DNSNames    string    `json:"dnsNames,omitempty"`
-	KeyAlg      string    `json:"keyAlgorithm"`
-	KeyBits     *int      `json:"keyBits"`
-	Curve       string    `json:"curve,omitempty"`
-	SigAlg      string    `json:"signatureAlgorithm"`
-	NotBefore   *string   `json:"notBefore"`
-	NotAfter    *string   `json:"notAfter"`
-	DaysLeft    *int      `json:"daysLeft"`
-	Current     bool      `json:"current"`
-	Places      int       `json:"places"`
-	Systems     int       `json:"systems"`
-	Origins     []string  `json:"origins"`
-	FirstSeen   time.Time `json:"firstSeen"`
-	LastSeen    time.Time `json:"lastSeen"`
+	Fingerprint string `json:"fingerprint"`
+	Name        string `json:"name"`
+	Role        string `json:"role"`
+	Subject     string `json:"subject"`
+	Issuer      string `json:"issuer"`
+	Serial      string `json:"serial,omitempty"`
+	DNSNames    string `json:"dnsNames,omitempty"`
+	KeyAlg      string `json:"keyAlgorithm"`
+	KeyBits     *int   `json:"keyBits"`
+	Curve       string `json:"curve,omitempty"`
+	SigAlg      string `json:"signatureAlgorithm"`
+	// Extension facts a tls-report/2 recorded (PRD-004 REQ-TCRT-7); empty when no source had them.
+	KeyUsage     string    `json:"keyUsage,omitempty"`
+	ExtKeyUsage  string    `json:"extKeyUsage,omitempty"`
+	PolicyClass  string    `json:"policyClass,omitempty"`
+	LifetimeDays string    `json:"lifetimeDays,omitempty"`
+	Wildcards    string    `json:"wildcards,omitempty"`
+	CNOnly       bool      `json:"cnOnly,omitempty"`
+	NotBefore    *string   `json:"notBefore"`
+	NotAfter     *string   `json:"notAfter"`
+	DaysLeft     *int      `json:"daysLeft"`
+	Current      bool      `json:"current"`
+	Places       int       `json:"places"`
+	Systems      int       `json:"systems"`
+	Origins      []string  `json:"origins"`
+	FirstSeen    time.Time `json:"firstSeen"`
+	LastSeen     time.Time `json:"lastSeen"`
 
 	Findings []certFindingBrief `json:"findings"`
 	// KeyLengthNote says why a key size is absent: the graph never guesses one.
@@ -58,6 +65,8 @@ func viewCert(c store.CertificateRow, now time.Time) (certView, []eval.Finding) 
 		Serial: c.Attrs["serial"], DNSNames: c.Attrs["dnsNames"], KeyAlg: c.Attrs["keyAlg"], Curve: c.Attrs["curve"], SigAlg: c.Attrs["sigAlg"],
 		Current: c.Current, Places: c.Places, Systems: c.Systems, Origins: c.Origins, FirstSeen: c.FirstSeen, LastSeen: c.LastSeen,
 		Findings: []certFindingBrief{},
+		KeyUsage: c.Attrs["keyUsage"], ExtKeyUsage: c.Attrs["extKeyUsage"], PolicyClass: c.Attrs["policyClass"],
+		LifetimeDays: c.Attrs["lifetimeDays"], Wildcards: c.Attrs["wildcards"], CNOnly: c.Attrs["cnOnly"] == "true",
 	}
 	if f.KeyBits > 0 {
 		v.KeyBits = &f.KeyBits

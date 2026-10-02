@@ -38,7 +38,7 @@ func pki(t *testing.T, cn string, ca bool, notAfter time.Time, parent *pkiCert) 
 	}
 	tpl := &x509.Certificate{
 		SerialNumber: new(big.Int).SetInt64(time.Now().UnixNano()), Subject: pkix.Name{CommonName: cn},
-		NotBefore: time.Now().Add(-24 * time.Hour), NotAfter: notAfter,
+		NotBefore: time.Now().AddDate(-1, 0, 0), NotAfter: notAfter,
 		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign, BasicConstraintsValid: true, IsCA: ca,
 	}
 	signer, signKey := tpl, key

@@ -52,6 +52,27 @@ check "POST with text/plain body -> 415"      415 "$(code -X POST "${AUTH[@]}" -
 check "POST from same origin -> 201"          201 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H "Origin: $B" -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
 check "PUT is not routed -> 405"              405 "$(code -X PUT "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' $B/api/v1/assets)"
 
+echo "== TLS T1 routes: trust anchors, reference data, re-evaluation (SR-12, SR-20) =="
+for r in /api/v1/trust-anchors /api/v1/reference-data /api/v1/systems/1/trust-anchors; do
+  check "GET $r without a token -> 401"  401 "$(code $B$r)"
+done
+SYS=$(curl -s "${AUTH[@]}" $B/api/v1/systems | python -c 'import sys,json; print(json.load(sys.stdin)["systems"][0]["id"])')
+check "GET reference data with the token -> 200" 200 "$(code "${AUTH[@]}" $B/api/v1/reference-data)"
+check "POST trust anchors without X-Requested-With -> 403" 403 "$(code -X POST "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"pem":"x"}' $B/api/v1/systems/$SYS/trust-anchors)"
+check "POST trust anchors from a foreign origin -> 403" 403 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Origin: http://evil.example' -H 'Content-Type: application/json' -d '{"pem":"x"}' $B/api/v1/systems/$SYS/trust-anchors)"
+KEYBODY='{"pem":"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n-----BEGIN PRIVATE KEY-----\nQUFBQQ==\n-----END PRIVATE KEY-----\n"}'
+check "an upload with a private key block is refused -> 400 (SR-20)" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d "$KEYBODY" $B/api/v1/systems/$SYS/trust-anchors)"
+KEYMSG=$(curl -s -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d "$KEYBODY" $B/api/v1/systems/$SYS/trust-anchors)
+echo "$KEYMSG" | grep -q "private key block" && { echo "PASS  the refusal says why"; pass=$((pass+1)); } || { echo "FAIL  refusal message: $KEYMSG"; fail=$((fail+1)); }
+python -c 'import json; print(json.dumps({"pem": "<script>alert(1)</script>" + "A"*70000}))' > "$WORK/big.json"
+check "an upload over 64 KiB -> 413" 413 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' --data-binary @"$WORK/big.json" $B/api/v1/systems/$SYS/trust-anchors)"
+check "a hostile fingerprint in the path -> 400" 400 "$(code -X DELETE "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' "$B/api/v1/systems/$SYS/trust-anchors/%3Cscript%3E")"
+check "POST reevaluate without X-Requested-With -> 403" 403 "$(code -X POST "${AUTH[@]}" $B/api/v1/scans/1/reevaluate)"
+printf -- '-----BEGIN EC PRIVATE KEY-----\nQUFBQQ==\n-----END EC PRIVATE KEY-----\n' > "$WORK/bundle-with-key.pem"
+"$BIN" serve --addr 127.0.0.1:8084 --db "$WORK/sec-bundle.db" --ca-bundle "$WORK/bundle-with-key.pem" > "$WORK/bundle.out" 2>&1; rc=$?
+check "serve --ca-bundle with a key block exits non-zero" 1 "$rc"
+grep -q "private key block" "$WORK/bundle.out" && { echo "PASS  and says why"; pass=$((pass+1)); } || { echo "FAIL  ca-bundle message"; fail=$((fail+1)); }
+
 echo "== SSRF guard =="
 check "cloud metadata address refused -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"169.254.169.254"}' $B/api/v1/assets)"
 check "0.0.0.0 refused -> 400"                400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"0.0.0.0:443"}' $B/api/v1/assets)"

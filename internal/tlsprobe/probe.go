@@ -34,6 +34,12 @@ type Options struct {
 	// reads the Strict-Transport-Security header. Off by default: this is the
 	// only check in the package that sends anything beyond a TLS handshake.
 	HTTPChecks bool
+	// OSTrust, when set, also checks each chain against the operating system's
+	// trust store at scan time (REQ-TTRS-3). Off by default: the bundled root
+	// stores are applied in evaluation, and on some systems the OS verifier
+	// fetches missing intermediates from the network, which would contact a
+	// host other than the target.
+	OSTrust bool
 
 	// Dial opens a connection. Default: net.Dialer. Tests and the future
 	// STARTTLS/SSRF-guard layers replace it.
@@ -126,8 +132,11 @@ type prober struct {
 	nextStart time.Time
 
 	incomplete atomic.Bool
+	budgetHit  atomic.Bool
 	notesMu    sync.Mutex
 	notes      []string
+	// stageIncon collects, for the running stage, what proved nothing.
+	stageIncon []string
 }
 
 func newProber(opts Options, t Target, addr string) *prober {
@@ -174,6 +183,7 @@ func (p *prober) acquire(ctx context.Context) (func(), error) {
 	if n > int64(p.opts.MaxConnections) {
 		p.conns.Add(-1)
 		p.incomplete.Store(true)
+		p.budgetHit.Store(true)
 		release()
 		return nil, errBudget
 	}

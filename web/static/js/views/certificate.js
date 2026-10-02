@@ -24,6 +24,12 @@ export async function render(root, { args }) {
       h('div', null, h('dt', null, 'Valid until'), h('dd', null, c.notAfter ? fmtDate(c.notAfter) : 'not recorded', ' ', expiryBadge(c))),
       h('div', null, h('dt', null, 'Names'), h('dd', null, c.dnsNames || 'none recorded')),
       h('div', null, h('dt', null, 'Serial'), h('dd', { class: 'mono' }, c.serial || 'not recorded')),
+      c.extKeyUsage ? h('div', null, h('dt', null, 'Extended key usage'), h('dd', null, c.extKeyUsage)) : null,
+      c.keyUsage ? h('div', null, h('dt', null, 'Key usage'), h('dd', null, c.keyUsage)) : null,
+      c.policyClass && c.policyClass !== 'unknown' ? h('div', null, h('dt', null, 'Validation type'), h('dd', null, c.policyClass)) : null,
+      c.lifetimeDays ? h('div', null, h('dt', null, 'Lifetime'), h('dd', null, `${c.lifetimeDays} days`)) : null,
+      c.wildcards ? h('div', null, h('dt', null, 'Wildcard names'), h('dd', null, c.wildcards)) : null,
+      c.cnOnly ? h('div', null, h('dt', null, 'Names'), h('dd', null, 'Common name only; no subject alternative name (modern clients will reject it)')) : null,
       h('div', null, h('dt', null, 'SHA-256 fingerprint'), h('dd', { class: 'mono' }, c.fingerprint)))));
 
   root.appendChild(h('section', { class: 'card mt' }, h('h2', null, 'Findings'),

@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/eval"
 	"github.com/example/cipherhorizon/internal/store"
 	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
@@ -23,6 +22,9 @@ type RunnerOptions struct {
 	// ScanTimeout bounds one whole scan (default 10 minutes).
 	ScanTimeout time.Duration
 	Now         func() time.Time
+	// CABundle is the server-wide private CA bundle (--ca-bundle), applied to
+	// every evaluation as "your CA bundle" (REQ-TTRS-2).
+	CABundle []AnchorCert
 }
 
 // Runner executes queued scans and triggers scheduled ones.
@@ -71,6 +73,9 @@ func (r *Runner) Wait() { r.wg.Wait() }
 // HTTPChecks reports whether this runner's scans send the opt-in HTTP-layer
 // check (HSTS), so the API can tell callers about a server-wide setting.
 func (r *Runner) HTTPChecks() bool { return r.opts.Scan.HTTPChecks }
+
+// CABundle returns the server-wide private CA bundle.
+func (r *Runner) CABundle() []AnchorCert { return r.opts.CABundle }
 
 // Notify tells idle workers there is queued work.
 func (r *Runner) Notify() {
@@ -279,21 +284,15 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 	}
 	_ = r.st.UpdateProgress(sc.ID, stageEvaluating, floorEvaluating, rep.Connections)
 	_ = r.st.AddEvent(sc.ID, "evaluating results")
-	ev := eval.Evaluate(rep, r.opts.Now())
+	ev := r.Evaluate(rep, sc.AssetID)
 
-	repJSON, err1 := json.Marshal(rep)
-	evJSON, err2 := json.Marshal(ev)
-	if err1 != nil || err2 != nil {
-		_ = r.st.FailScan(sc.ID, "could not encode the result", nil)
+	res, err := resultOf(rep, ev)
+	if err != nil {
+		_ = r.st.FailScan(sc.ID, err.Error(), nil)
 		return
 	}
-	res := store.Result{
-		Report: repJSON, Evaluation: evJSON, Band: ev.Hygiene.Band, Score: ev.Hygiene.Score, ReadinessLevel: ev.Readiness.Level,
-		HNDLExposed: ev.Readiness.HNDLExposed, Critical: ev.Counts[eval.Critical], High: ev.Counts[eval.High],
-		Medium: ev.Counts[eval.Medium], Incomplete: rep.Incomplete,
-		FinalEvent: fmt.Sprintf("done: TLS hygiene %s (%d), PQC readiness L%d (%s), %d connections",
-			ev.Hygiene.Band, ev.Hygiene.Score, ev.Readiness.Level, ev.Readiness.Label, rep.Connections),
-	}
+	res.FinalEvent = fmt.Sprintf("done: TLS hygiene %s (%d), PQC readiness L%d (%s), %d connections",
+		ev.Hygiene.Band, ev.Hygiene.Score, ev.Readiness.Level, ev.Readiness.Label, rep.Connections)
 	if na := leafNotAfter(rep); na != nil {
 		res.CertNotAfter = na
 	}

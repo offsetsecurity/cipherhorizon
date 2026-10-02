@@ -2,7 +2,7 @@
 // who said what (PRD-003 REQ-UI-3). Sections on one page so nothing is hidden behind a tab.
 import { h, clear, fmtDate, relTime } from '../dom.js';
 import { api } from '../api.js';
-import { badge, button, toast, skeleton, levelBadge, bandBadge } from '../ui.js';
+import { badge, button, toast, skeleton, levelBadge, bandBadge, confirmDialog } from '../ui.js';
 import { collectDialog } from '../guide.js';
 import { coverageCard } from './host.js';
 import { importDialog, notInterpretedTable } from './imports.js';
@@ -108,12 +108,53 @@ function auditList(entries) {
     h('ul', null, changed(e).slice(0, 12).map((k) => h('li', null, `${k}: ${show(e.before && e.before[k])} → ${show(e.after && e.after[k])}`))))));
 }
 
+// The system's private CA bundle (PRD-004 REQ-TTRS-2, REQ-TUI-12): CA certificates its endpoints are
+// also judged against. Certificates only; the server refuses an upload containing a key, unread.
+function anchorsCard(sys, data, reload) {
+  const list = data.anchors || [];
+  const text = h('textarea', { class: 'pem', id: 'anchor-pem', placeholder: '-----BEGIN CERTIFICATE-----', spellcheck: 'false' });
+  const file = h('input', { type: 'file', accept: '.pem,.crt,.cer,.txt', 'aria-label': 'Read a PEM file', onchange: async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (f.size > 64 * 1024) { toast('The file is larger than 64 KiB', 'error'); return; }
+    text.value = await f.text();
+  } });
+  const err = h('div', { class: 'callout bad', role: 'alert', hidden: true });
+  const add = async () => {
+    err.hidden = true;
+    try {
+      const out = await api.addTrustAnchors(sys.id, text.value);
+      toast(out.added.length ? `Added ${out.added.length} CA certificate(s); ${out.reevaluated} result(s) re-evaluated` : 'Already in the bundle', 'success');
+      reload();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  };
+  const remove = async (a) => {
+    if (!(await confirmDialog('Remove this CA?', `Endpoints of this system will no longer be judged trusted through ${a.subject}. Their latest results are re-evaluated.`, 'Remove'))) return;
+    try { await api.removeTrustAnchor(sys.id, a.fingerprint); toast('Removed', 'success'); reload(); } catch (ex) { toast(ex.message, 'error'); }
+  };
+  return h('div', null,
+    h('p', { class: 'text-2' }, 'Add the CA certificates of a private PKI so this system’s endpoints are reported as “trusted by your CA bundle” instead of untrusted. ',
+      'The latest result of each endpoint is re-evaluated at once; no rescan is needed. Every change is recorded in the history below.'),
+    list.length ? h('ul', { class: 'anchors-list' }, list.map((a) => h('li', null,
+      h('div', null, h('b', null, a.subject), h('div', { class: 'hint' }, `expires ${fmtDate(a.notAfter)} · added ${relTime(a.addedAt)} by ${a.addedBy}`),
+        h('div', { class: 'fp' }, a.fingerprint)),
+      button('Remove', () => remove(a), 'secondary', { class: 'btn btn-sm btn-secondary' }))))
+      : h('p', { class: 'hint' }, 'No private CA added. Endpoints are judged against the bundled Mozilla and Chrome root stores only.'),
+    h('details', { class: 'mt-sm' },
+      h('summary', null, 'Add CA certificates'),
+      h('label', { for: 'anchor-pem' }, `PEM certificates (up to ${data.max || 50} per system, 64 KiB per upload)`), text,
+      h('div', { class: 'row mt-sm' }, file, button('Add to the bundle', add, 'primary', { class: 'btn btn-primary' })),
+      err,
+      h('p', { class: 'hint' }, 'Certificates only. An upload that contains a private key block is refused without being read, and only CA certificates are accepted.')));
+}
+
 export async function render(root, { args }) {
   const id = args[0];
   if (!validId(id)) { location.hash = '#/'; return null; }
   root.appendChild(skeleton(6));
-  const [sys, list, est, certs, links, imports, audit, assets, hosts] = await Promise.all([
+  const [sys, list, est, certs, links, imports, audit, assets, hosts, anchors] = await Promise.all([
     api.system(id), api.systems(), api.estate(), api.systemCertificates(id), api.systemLinks(id), api.imports(), api.systemAudit(id), api.assets(), api.hosts(),
+    api.trustAnchors(id),
   ]);
   clear(root);
   const reload = () => { root.replaceChildren(); return render(root, { args }); };
@@ -133,7 +174,7 @@ export async function render(root, { args }) {
     if (el) { el.scrollIntoView({ block: 'start' }); el.focus(); }
   };
   root.appendChild(h('nav', { class: 'toc', 'aria-label': 'On this page' }, [
-    ['why', 'Why here'], ['details', 'Details'], ['services', 'Services and machines'], ['certs', 'Certificates'], ['links', 'Matches'],
+    ['why', 'Why here'], ['details', 'Details'], ['services', 'Services and machines'], ['certs', 'Certificates'], ['anchors', 'CA bundle'], ['links', 'Matches'],
     ['imports', 'Imported'], ['coverage', 'Coverage'], ['export', 'Export'], ['history', 'History']].map(([k, t]) => h('a', { href: `#/systems/${sys.id}`, onclick: jump(k) }, t))));
 
   if (row) {
@@ -148,6 +189,8 @@ export async function render(root, { args }) {
     ee.length ? certTable(ee) : h('p', { class: 'hint' }, 'No end-entity certificate has been observed for this system.'),
     anchorLine(certs.trustAnchors),
     h('p', { class: 'hint' }, 'Only public certificate details are read. Where a machine holds a certificate, the certificate page says whether a key is associated in that store; it never reads the key.')));
+
+  root.appendChild(section('anchors', 'Private CA bundle', anchorsCard(sys, anchors, reload)));
 
   const undo = async (l) => {
     const reason = await reasonDialog('Undo this join', `${l.assetName} will leave “${l.systemName}” and will not be proposed again.`, 'Undo');

@@ -26,14 +26,22 @@ type rule struct {
 	citations   []Citation
 	remediation string
 	check       func(*ctx) []hit
+	// legacyOnly and v2Only limit a rule to reports before or from tls-report/2.
+	legacyOnly, v2Only bool
 }
+
+func allRules() []rule { return append(append([]rule(nil), rules...), t1Rules...) }
 
 // RuleIDs lists the IDs of the built-in rules (PQC readiness findings, which come
 // from the readiness assessment, are not included).
 func RuleIDs() []string {
-	out := make([]string, len(rules))
-	for i, r := range rules {
-		out[i] = r.id
+	seen := map[string]bool{}
+	var out []string
+	for _, r := range allRules() {
+		if !seen[r.id] {
+			seen[r.id] = true
+			out = append(out, r.id)
+		}
 	}
 	return out
 }
@@ -101,6 +109,27 @@ func certLabel(cr tlsprobe.CertResult, leaf tlsprobe.CertInfo) string {
 }
 
 func daysLeft(notAfter, now time.Time) int { return int(notAfter.Sub(now).Hours() / 24) }
+
+// expiringCheck is CERT.EXPIRING (REQ-TCRT-4): it fires at min(30 days, a third
+// of the lifetime) as medium and min(7 days, a tenth) as high, and names the
+// threshold it used. A 47-day certificate with 20 days left raises nothing.
+func expiringCheck(now time.Time, label string, notBefore, notAfter time.Time, lifetime int) (string, Severity, bool) {
+	if notAfter.Before(now) {
+		return "", "", false
+	}
+	if lifetime == 0 {
+		lifetime = lifetimeDays(notBefore, notAfter)
+	}
+	d := daysLeft(notAfter, now)
+	med, high := expiryWindow(lifetime)
+	switch {
+	case d <= high:
+		return fmt.Sprintf("%s expires in %d day(s) (threshold %d days for a %d-day certificate)", label, d, high, lifetime), High, true
+	case d <= med:
+		return fmt.Sprintf("%s expires in %d day(s) (threshold %d days for a %d-day certificate)", label, d, med, lifetime), Medium, true
+	}
+	return "", "", false
+}
 
 // certRule runs fn on the leaf of every certificate the server presented.
 func certRule(id, title string, sev Severity, cites []Citation, remed string, fn func(c *ctx, cr tlsprobe.CertResult, leaf tlsprobe.CertInfo) (string, Severity, bool)) rule {
@@ -238,19 +267,14 @@ var rules = []rule{
 	certRule("CERT.EXPIRING", "Certificate expires soon", Medium, []Citation{citRFC5280},
 		"Renew before expiry; automate renewal.",
 		func(c *ctx, cr tlsprobe.CertResult, l tlsprobe.CertInfo) (string, Severity, bool) {
-			d := daysLeft(l.NotAfter, c.now)
-			if l.NotAfter.Before(c.now) || d > 30 {
-				return "", "", false
-			}
-			sev := Medium
-			if d <= 7 {
-				sev = High
-			}
-			return fmt.Sprintf("%s expires in %d day(s)", certLabel(cr, l), d), sev, true
+			return expiringCheck(c.now, certLabel(cr, l), l.NotBefore, l.NotAfter, l.LifetimeDays)
 		}),
 	certRule("CERT.UNTRUSTED", "Certificate chain is not trusted", High, []Citation{citRFC5280},
 		"Install a certificate from a CA the clients trust, and serve the full chain. (Trust is judged against the scanner host's certificate store.)",
 		func(c *ctx, cr tlsprobe.CertResult, l tlsprobe.CertInfo) (string, Severity, bool) {
+			if !c.legacy {
+				return "", "", false // tls-report/2: judged per store, in rules_t1.go
+			}
 			if cr.Trusted || l.NotAfter.Before(c.now) || l.NotBefore.After(c.now) {
 				return "", "", false // expiry has its own finding
 			}
@@ -337,7 +361,13 @@ var rules = []rule{
 		citations:   []Citation{citRFC6797},
 		remediation: "Send a Strict-Transport-Security response header (RFC 6797) with a meaningful max-age, so browsers refuse to fall back to plain HTTP.",
 		check: func(c *ctx) []hit {
-			if c.rep.HSTS != nil && !*c.rep.HSTS {
+			if h := c.rep.HSTSHeader; h != nil {
+				if len(h.Values) == 0 {
+					return one("an HTTP response was received without a Strict-Transport-Security header")
+				}
+				return nil
+			}
+			if c.legacy && c.rep.HSTS != nil && !*c.rep.HSTS {
 				return one("an HTTP response was received (--http-checks) without a Strict-Transport-Security header")
 			}
 			return nil

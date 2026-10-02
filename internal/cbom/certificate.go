@@ -26,6 +26,23 @@ type CertFacts struct {
 	KeyBits      int
 	Curve        string
 	SigName      string // as Go's x509 (or certinfo, for algorithms Go does not know) names the signature algorithm
+
+	// Extensions are the certificate extensions CycloneDX 1.7 names (certificateExtensions,
+	// commonExtensionName). They are written only to 1.7 documents; 1.6 has no such field.
+	Extensions []CertExtension
+}
+
+// CertExtension is one certificate extension by its CycloneDX 1.7 common name.
+type CertExtension struct {
+	Name  string // basicConstraints, keyUsage, extendedKeyUsage, certificatePolicies, ...
+	Value string
+}
+
+// commonExtensions are the names the 1.7 schema allows for commonExtensionName.
+var commonExtensions = map[string]bool{
+	"basicConstraints": true, "keyUsage": true, "extendedKeyUsage": true, "subjectAlternativeName": true,
+	"authorityKeyIdentifier": true, "subjectKeyIdentifier": true, "authorityInformationAccess": true,
+	"certificatePolicies": true, "crlDistributionPoints": true, "signedCertificateTimestamp": true,
 }
 
 // CertificateAsset builds the certificate component and, when the key algorithm can be
@@ -46,6 +63,15 @@ func CertificateAsset(f CertFacts, emit func(id string) (string, bool), emitAsse
 	}
 	if !f.NotAfter.IsZero() {
 		props.NotValidAfter = f.NotAfter.UTC().Format(time.RFC3339)
+	}
+	var exts []cdx.CertificateExtension
+	for _, e := range f.Extensions {
+		if commonExtensions[e.Name] && e.Value != "" {
+			exts = append(exts, cdx.CertificateExtension{Common: &cdx.CommonCertificateExtension{Name: cdx.CertificateExtensionName(e.Name), Value: e.Value}})
+		}
+	}
+	if len(exts) > 0 {
+		props.CertificateExtensions = &exts
 	}
 
 	certRef := "crypto/certificate/" + strings.ToLower(f.SHA256)

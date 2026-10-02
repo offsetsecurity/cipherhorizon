@@ -139,6 +139,18 @@ func CertificateEntity(c tlsprobe.CertInfo) Entity {
 	if c.PublicKey.Bits > 0 {
 		attrs["keyBits"] = strconv.Itoa(c.PublicKey.Bits)
 	}
+	// tls-report/2 facts (PRD-004 REQ-TCRT-1/7); empty on older reports and dropped.
+	attrs["keyUsage"] = clean(strings.Join(c.KeyUsage, ","), MaxAttrLen)
+	attrs["extKeyUsage"] = clean(strings.Join(c.ExtKeyUsage, ","), MaxAttrLen)
+	attrs["policyClass"] = clean(c.PolicyClass, 16)
+	attrs["spkiSha256"] = strings.ToLower(clean(c.SPKISHA256, 64))
+	attrs["wildcards"] = clean(strings.Join(c.Wildcards, ","), MaxAttrLen)
+	if c.LifetimeDays > 0 {
+		attrs["lifetimeDays"] = strconv.Itoa(c.LifetimeDays)
+	}
+	if c.CNOnly {
+		attrs["cnOnly"] = "true"
+	}
 	if names := append(append([]string{}, c.DNSNames...), c.IPAddresses...); len(names) > 0 {
 		attrs["dnsNames"] = clean(strings.Join(names, ","), MaxAttrLen)
 	}

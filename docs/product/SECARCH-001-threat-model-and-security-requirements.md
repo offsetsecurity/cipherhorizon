@@ -62,6 +62,12 @@ Likelihood/impact are judged for a self-hosted tool with a single trust domain p
 | **T-16** | T/I | Linux certificate sensor follows symlinks or reads devices/FIFOs outside intended dirs | **SR-16** Walk with `fs.WalkDir`; regular files only (skip symlinks, devices, sockets, FIFOs); per-file size cap; per-directory and total counts capped; no path escapes the sensor's `fs.FS` root. | Legitimate symlinked trust stores (e.g. Debian's `/etc/ssl/certs` symlinks into `/usr/share/ca-certificates`) require an explicit, tested resolution rule — see design note DN-4 |
 | **T-17** | I | Error messages, logs and CBOM output leak file contents or secrets | **SR-17** The existing "no secret in output" invariant test is extended with the estate fixtures; certificate and ingest error messages contain only names and codes, never document fragments beyond a length-capped, escaped excerpt. | None |
 | **T-18** | R/T | An imported document could *lower* a finding (mask a weakness) or remove first-party evidence | **SR-18** Precedence rule: imported evidence can add observations and open questions, never delete or downgrade first-party observations; conflicts are shown side by side with their sources. | None |
+| **T-19** | I | The TLS scanner contacts a third party (a CA responder, a CT log, a resolver) without the operator knowing, leaking which systems are being examined | **SR-19** (PRD-004) T1 traffic goes only to the target; a recording-dialer test over a full Standard scan asserts it. Third-party lookups arrive later only behind a visible, default-off switch. | None in T1 |
+| **T-20** | I/T | The private CA bundle upload is used to plant key material or non-CA certificates | **SR-20** (PRD-004) PEM certificates only, key blocks refused undecoded (host-sensor rules), CA certificates only, size and count limits, every change audited. | An operator can trust a CA they should not (stated limit: operator with the token) |
+| **T-21** | I/D | Turning the HTTP check on by default widens what is sent to targets | **SR-21** (PRD-004) Limits unchanged: one `GET /`, 8 KiB read, no redirect followed, the SSRF guard on the same dialer, a server-wide off switch. | The target sees one HTTP request |
+| **T-22** | T | Reference data (roots, distrust, CT logs, DH primes) tampered with or silently refreshed | **SR-22** (PRD-004) Generated at build from recorded sources with SHA-256, compiled in, dated; no run-time download; a test asserts the scan path builds no HTTP client. | Snapshots age between releases (dates shown) |
+| **T-23** | D/E | Hostile OCSP responses, SCT lists or HSTS headers crash or exhaust the scanner | **SR-23** (PRD-004) Own bounded decoders, every length checked, input caps, fuzz targets in CI. | Fuzzing finds bugs, it does not prove their absence |
+| **T-24** | T | Certificate- or header-controlled text in the new page sections injects markup | **SR-24** (PRD-004) `textContent` only; hostile fixtures in every new section in the journey and `security.sh`. | None |
 
 ## 4. Security requirements by work package (gates)
 
@@ -78,7 +84,7 @@ Each work package in [ENG-HANDOFF-002](ENG-HANDOFF-002-estate-model.md) names th
 
 | When | Reviewer | Checks |
 |---|---|---|
-| Requirements baseline | Security Architect + PM | This document ↔ PRD-003 traceable (RTM) |
+| Requirements baseline | Security Architect + PM | This document ↔ PRD-003 and PRD-004 traceable (RTM) |
 | Design | Security Architect | ENG-HANDOFF-002 data model and trust rules match §3 |
 | Each work package | Security Architect | SR tests present; mutation check performed |
 | WP-CERT-WIN | Security Architect | Written syscall review |

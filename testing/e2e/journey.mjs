@@ -13,6 +13,7 @@ import { mkdirSync, writeFileSync, mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { estatePhase } from './estate-phase.mjs';
+import { t1Phase } from './t1-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -231,9 +232,10 @@ async function main() {
   }
   await go(`#/assets/${by[9443].id}`);
   await sleep(500);
-  await clickText('TLS details');
-  await sleep(300);
-  await shot('asset-terrible-legacy-tls-details');
+  const vulns = await js(`return document.querySelector('#sec-vulnerabilities')?.innerText || ''`);
+  check('E2E-05.4', 'the vulnerabilities section names the inferred attacks and the ones not tested by design',
+    /Exposed[\s\S]*POODLE/.test(vulns) && /Not tested by design[\s\S]*Heartbleed/.test(vulns), vulns.slice(0, 160));
+  await shot('asset-terrible-legacy-report');
   await clickText(`Findings (${(await api(`/api/v1/scans/${by[9443].lastDone.id}/evaluation`)).findings.length})`);
   await sleep(300);
   const fnd = await js(`return { cards: document.querySelectorAll('.finding').length, cites: document.querySelectorAll('.finding .cites a').length }`);
@@ -241,9 +243,7 @@ async function main() {
   await shot('asset-terrible-legacy-findings');
   await go(`#/assets/${by[9440].id}`);
   await sleep(500);
-  await clickText('TLS details');
-  await sleep(300);
-  await shot('asset-modern-hybrid-tls-details');
+  await shot('asset-modern-hybrid-report');
 
   // J6: history and change over time (US-07): flip the toggle target to hybrid and rescan.
   const t = by[9445];
@@ -462,6 +462,7 @@ async function main() {
   await viewport(1280, 900);
 
   // The estate views (PRD-003 WP-8).
+  await t1Phase({ check, js, go, sleep, shot, api, BASE, CONTROL, viewport });
   await estatePhase({ check, js, go, sleep, shot, api, BASE, send, viewport, clickText });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).

@@ -32,7 +32,7 @@ func TestTLSScanTextReport(t *testing.T) {
 	for _, want := range []string{
 		"TLS scan of 127.0.0.1", "Protocols", "TLSv1.3", "YES", "Cipher suites", "TLS_AES_128_GCM_SHA256",
 		"Key-exchange groups", "X25519MLKEM768", "POST-QUANTUM HYBRID", "Certificates", "ECDSA", "P-256",
-		"NOT trusted", "Negotiated by a current client", "(post-quantum)",
+		"judged in evaluation", "Negotiated by a current client", "(post-quantum)",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("report lacks %q", want)

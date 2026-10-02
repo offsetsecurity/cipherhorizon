@@ -111,7 +111,7 @@ func slowProxy(addr, target string, delay time.Duration) (io.Closer, error) {
 }
 
 func main() {
-	base := flag.Int("base-port", 9440, "first port; the targets use base..base+7")
+	base := flag.Int("base-port", 9440, "first port; the targets use base..base+10")
 	flag.Parse()
 	addr := func(off int) string { return fmt.Sprintf("127.0.0.1:%d", *base+off) }
 	fail := func(err error) {
@@ -144,7 +144,22 @@ func main() {
 		fail(err)
 	}
 
+	pki, err := newDemoPKI()
+	if err != nil {
+		fail(err)
+	}
+	if err := startPKITargets(pki, addr(8), addr(9)); err != nil {
+		fail(err)
+	}
+	if err := startHostileTarget(pki, addr(10)); err != nil {
+		fail(err)
+	}
+
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /corp-root.pem", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/x-pem-file")
+		_, _ = w.Write(pki.rootPEM)
+	})
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, "toggle target %s: post-quantum key exchange is %s\n", tg.addr, map[bool]string{true: "ON", false: "OFF"}[tg.state()])
 	})
@@ -182,10 +197,15 @@ func main() {
                               curl -X POST http://%s/pq/on    (then /pq/off)
   %s   slow-hybrid        hybrid, ~2 s per connection (a scan takes about 20 s:
                           use it to watch progress and to cancel)
+  %s   private-ca         a private CA chain and a short HSTS header -> untrusted until its
+                          root is added to the system's CA bundle:
+                              curl http://%s/corp-root.pem
+  %s   broken-chain       the same CA, intermediate not sent, no HSTS -> missing intermediate
+  %s   hostile-pki        markup in the certificate and the HSTS header (must render as text)
 
 Start the product with:  cipherhorizon serve --allow-loopback
 Ctrl+C stops everything.
-`, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6))
+`, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6), addr(8), addr(7), addr(9), addr(10))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

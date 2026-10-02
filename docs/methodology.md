@@ -79,17 +79,56 @@ endpoint that has not yet adopted post-quantum key exchange scores Strong on hyg
 not marked down twice.
 
 The result lists each deduction (rule ID, title, severity, points), any ceiling that changed the outcome, and what is
-**not measured**: certificate revocation status, and active exploit probes (Heartbleed, ROBOT, CCS injection). HTTP
-Strict Transport Security is measured only when `--http-checks` is explicitly enabled (off by default): every other
-check in this tool exchanges only TLS handshake messages, and this is the one exception, so it is opt-in and never
-silent. Weaknesses inferable from what a server offers (POODLE,
-Sweet32, FREAK, Logjam, CRIME, BEAST, RC4) appear as `inferred` findings and are scored like any other.
+**not measured**: live revocation status (the staple is read; the CA is not asked), and active exploit probes
+(Heartbleed, ROBOT, CCS injection). HTTP Strict Transport Security is measured by default (the HTTP stage sends one
+`GET /`; `--http-checks=false` turns it off, and the HTTP section then says *Not checked* and why). Weaknesses
+inferable from what a server offers (POODLE, Sweet32, FREAK, Logjam, CRIME, BEAST, RC4) appear as `inferred`
+findings and are scored like any other; an attack name is a label on its finding, so it never counts twice.
 
 The weights are a judgement call made for this project. If your policy weighs things differently, the findings
 underneath are unchanged and are the primary output; the score is a summary of them.
 
-Private-CA and self-signed certificates produce the high-severity finding `CERT.UNTRUSTED` (the chain does not build
-to the operating system's trust store), which is expected for internal endpoints; the readiness level is unaffected.
+`CERT.UNTRUSTED` fires only when **no** bundled root store (Mozilla, Chrome) and **no** private anchor validates the
+chain. For internal endpoints, add the private CA to the system's CA bundle (or the server-wide `--ca-bundle`): the
+result is re-evaluated at once and reads "trusted by your CA bundle". Private chains are exempt from the public
+lifetime limit and the CT requirement. The readiness level is unaffected by trust.
+
+### Rules added in eval/3 (PRD-004)
+
+| Rule | Severity | Fires when | Source |
+|---|---|---|---|
+| `CERT.CHAIN-INCOMPLETE` | high | only the leaf is served and its issuer is in no store | RFC 8446 §4.4.2, RFC 5246 §7.4.2 |
+| `CERT.CHAIN-ORDER` | medium (low if TLS 1.3) | a certificate is not followed by its issuer | RFC 5246 §7.4.2, RFC 8446 §4.4.2 |
+| `CERT.CHAIN-EXTRA` | info | a root, duplicate or unrelated certificate is sent | RFC 8446 §4.4.2 |
+| `CERT.INTERMEDIATE-EXPIRES` | medium | a served CA expires before the leaf or inside its warning window | RFC 5280 |
+| `CERT.LIFETIME` | medium | public, and validity exceeds the limit on its issue date | CA/B Forum BR §6.3.2 (SC-081v3) |
+| `CERT.NO-SERVERAUTH` | high | the leaf has an EKU without serverAuth | RFC 5280 §4.2.1.12 |
+| `CERT.CLIENTAUTH-EKU` | info | public, and a chain certificate also allows clientAuth | Chrome Root Program Policy |
+| `CERT.PARTIAL-TRUST` | medium | some bundled stores trust it and others do not (constraints named) | RFC 5280 §6 |
+| `CERT.WEAK-EXPONENT` | low | RSA public exponent below 65537 | CA/B Forum BR §6.1.6 |
+| `OCSP.REVOKED` | critical | the valid stapled response says revoked | RFC 6960 |
+| `OCSP.MISMATCH` | high | the staple is for another certificate, unusable, or its signature fails | RFC 6960 §3.2 |
+| `OCSP.STALE` | medium | the staple's nextUpdate has passed | RFC 6960 §4.2.2.1 |
+| `OCSP.UNKNOWN` | medium | the staple says unknown | RFC 6960 |
+| `OCSP.MUST-STAPLE-MISSING` | high | a Must-Staple certificate is served without a staple | RFC 7633 |
+| `OCSP.NO-STAPLE` | low | the certificate names an OCSP URL and nothing is stapled (CRL-only raises nothing) | RFC 6066 §8 |
+| `CT.NO-SCTS` | medium | public, and no SCT from any of the three sources | RFC 6962, browser CT policies |
+| `KX.DH-COMMON-PRIME` | medium | the DHE prime is an RFC-published group of ≤ 1024 bits | Logjam (CVE-2015-4000), RFC 7919 |
+| `HTTP.HSTS-DISABLED` / `-SHORT` / `-INVALID` / `-NO-SUBDOMAINS` | medium / low / medium / info | max-age 0 / under one year / syntax or duplicate header / no includeSubDomains | RFC 6797; HSTS preload requirements |
+| `CIPHER.CBC` | info | CBC suites in TLS 1.2 or earlier (label LUCKY13) | RFC 9325 §4.2 |
+| `VULN.DROWN-SHARED-KEY` | high | the leaf's key is served on an SSLv2 endpoint elsewhere in the estate | CVE-2016-0800 |
+
+`CERT.EXPIRING` now fires at min(30 days, a third of the lifetime) as medium and min(7 days, a tenth) as high, and
+names the threshold: a 47-day certificate with 20 days left raises nothing.
+
+### Sections and *Fix first*
+
+Each finding belongs to one section of the endpoint page. A section's status is, first, its scan stage (skipped →
+*Not checked*, inconclusive → *Inconclusive*, a report from before `tls-report/2` → *Not collected*), and otherwise
+its worst finding: critical or high → *Problem*, medium or low → *Needs attention*, none or info → *Good*. *Fix first*
+takes every finding except info, orders it by severity, then by whether it stops clients connecting (expired,
+untrusted, name mismatch, missing intermediate, no serverAuth, Must-Staple missing, revoked), then by section order,
+and shows the first three distinct rules.
 
 ## What a scan sends
 

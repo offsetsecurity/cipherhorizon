@@ -53,7 +53,7 @@ func cert(alg string, bits int, opts ...func(*tlsprobe.CertResult)) tlsprobe.Cer
 		Source: "tls-default", Trusted: true, NameMatches: true,
 		Chain: []tlsprobe.CertInfo{{
 			Subject: "CN=test.example", Issuer: "CN=Test CA", SHA256: "aa" + alg,
-			NotBefore: now.AddDate(0, -1, 0), NotAfter: now.AddDate(0, 6, 0),
+			NotBefore: now.AddDate(-1, 0, 0), NotAfter: now.AddDate(0, 6, 0),
 			PublicKey:    tlsprobe.KeyInfo{Algorithm: alg, Bits: bits},
 			SignatureAlg: tlsprobe.AlgInfo{Name: "SHA256-RSA"},
 		}},
@@ -161,9 +161,16 @@ func terrible() *tlsprobe.Report {
 }
 
 func TestEveryRuleFiresAndIsCited(t *testing.T) {
-	ev := eval.Evaluate(terrible(), now)
-
-	fired := ids(ev)
+	evs := append([]eval.Evaluation{eval.Evaluate(terrible(), now)}, t1Firing(t)...)
+	fired := map[string]bool{}
+	var all []eval.Finding
+	for _, ev := range evs {
+		for id := range ids(ev) {
+			fired[id] = true
+		}
+		all = append(all, ev.Findings...)
+	}
+	ev := eval.Evaluation{Findings: all}
 	for _, id := range eval.RuleIDs() {
 		if !fired[id] {
 			t.Errorf("rule %s never fired on the worst-case endpoint (dead rule, or the fixture misses it)", id)

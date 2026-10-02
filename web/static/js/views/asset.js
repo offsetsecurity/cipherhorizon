@@ -2,6 +2,7 @@
 import { h, clear, fmtDate, fmtDay, daysUntil, INTERVALS, intervalLabel, toCSV } from '../dom.js';
 import { api, ApiError } from '../api.js';
 import { historyChart, levelClass, levelName } from '../charts.js';
+import { reportView, SECTIONS } from './report.js';
 import { levelBadge, bandBadge, bandTone, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog,
   scanProgress, badge, certExpiry, certChain, playEnter } from '../ui.js';
 
@@ -9,7 +10,7 @@ export async function render(root, { args, query }) {
   const id = Number(args[0]);
   const viewScanId = Number(query.get('scan')) || null;
   let stopped = false, timer = null;
-  let tab = query.get('tab') || 'overview';
+  let tab = query.get('tab') || 'report';
 
   const head = h('div');
   const body = h('div');
@@ -90,6 +91,21 @@ export async function render(root, { args, query }) {
     });
   };
 
+  const reevaluate = async () => {
+    try {
+      const out = await api.reevaluate(shown.id);
+      toast(`Re-evaluated with ${out.version}`, 'success');
+      shown = null;
+      await refresh();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const goToSection = (sec) => {
+    tab = 'report';
+    paint();
+    requestAnimationFrame(() => { const el = document.getElementById(`sec-${sec}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  };
+
   const startScan = async () => {
     try {
       const r = await api.scanAsset(id);
@@ -110,7 +126,8 @@ export async function render(root, { args, query }) {
   const runExport = async (type, format) => {
     const stem = asset.name.replace(/[^a-z0-9._-]+/gi, '_');
     if (format === 'pdf') {
-      if (type === 'tls' || type === 'cert') { tab = 'tls'; } else if (type === 'full') { tab = 'overview'; }
+      if (ev.sections) tab = 'report';
+      else if (type === 'tls' || type === 'cert') { tab = 'tls'; } else if (type === 'full') { tab = 'overview'; }
       paint();
       await new Promise((r) => setTimeout(r, 60));
       window.print();
@@ -226,11 +243,24 @@ export async function render(root, { args, query }) {
       body.appendChild(h('div', { class: 'warnbanner', role: 'status' },
         'This scan was incomplete: some probes were inconclusive or hit a limit. A missing finding is not proof that the problem is absent.'));
     }
-    const tabs = [['overview', 'Overview'], ['tls', 'TLS details'], ['findings', `Findings (${ev.findings.length})`], ['history', `History (${history.length})`]];
+    // eval/3 results are one sectioned report; older ones keep the previous layout and offer re-evaluation.
+    const sectioned = Array.isArray(ev.sections);
+    if (sectioned && (tab === 'overview' || tab === 'tls')) tab = 'report';
+    if (!sectioned && tab === 'report') tab = 'overview';
+    if (!sectioned) {
+      body.appendChild(h('div', { class: 'callout info', role: 'status' },
+        h('b', null, `Evaluated by an earlier version (${ev.version}). `),
+        'Re-evaluate to judge the stored report with the current rules — sections, per-store trust and “Fix first” — without a new scan.',
+        viewScanId ? null : h('span', null, ' ', button('Re-evaluate', reevaluate, 'secondary', { class: 'btn btn-sm' }))));
+    }
+    const tabs = sectioned
+      ? [['report', 'Report'], ['findings', `Findings (${ev.findings.length})`], ['history', `History (${history.length})`]]
+      : [['overview', 'Overview'], ['tls', 'TLS details'], ['findings', `Findings (${ev.findings.length})`], ['history', `History (${history.length})`]];
     body.appendChild(h('div', { class: 'tabs', role: 'tablist' }, tabs.map(([k, label]) =>
       h('button', { type: 'button', class: 'tab', role: 'tab', id: `tab-${k}`, 'aria-selected': String(tab === k),
         onclick: () => { tab = k; paint(); playEnter(body, 700); } }, label))));
-    body.appendChild(tab === 'tls' ? tlsTab() : tab === 'findings' ? findingsTab() : tab === 'history' ? historySection() : overviewTab());
+    body.appendChild(tab === 'report' ? reportView({ asset: a, rep, ev, history, viewScanId, goToFinding, onReevaluate: reevaluate, hygieneBody })
+      : tab === 'tls' ? tlsTab() : tab === 'findings' ? findingsTab() : tab === 'history' ? historySection() : overviewTab());
     if (!viewScanId) body.appendChild(linkedAssetsCard());
   };
 
@@ -455,10 +485,14 @@ export async function render(root, { args, query }) {
     return h('div', null,
       h('div', { class: 'row', 'aria-label': 'Finding counts' }, ['critical', 'high', 'medium', 'low', 'info'].filter((s) => counts[s]).map((s) => h('span', null, sevBadge(s), ` ${counts[s]}`))),
       h('div', { class: 'findings mt' }, ev.findings.map((f) => h('article', { class: `finding s-${f.severity}`, id: `finding-${f.id}` },
-        h('div', { class: 'finding-head' }, sevBadge(f.severity), h('strong', null, f.title), evidenceBadge(f.evidence), badge(f.category, 'neutral')),
+        h('div', { class: 'finding-head' }, sevBadge(f.severity), h('strong', null, f.title), evidenceBadge(f.evidence),
+          (f.labels || []).map((l) => badge(l, 'neutral', 'Published attack this enables')),
+          f.availability ? badge('clients fail to connect', 'bad') : null),
         h('div', { class: 'detail' }, f.detail),
         h('div', { class: 'fix' }, h('b', null, 'Fix: '), f.remediation),
         citations(f.citations),
+        f.section ? h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); goToSection(f.section); } },
+          `In ${(SECTIONS.find(([sid]) => sid === f.section) || [null, f.section])[1]} →`) : badge(f.category, 'neutral'),
         triageControls(f.id)))));
   };
 

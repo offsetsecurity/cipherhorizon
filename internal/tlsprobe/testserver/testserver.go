@@ -48,6 +48,11 @@ type Config struct {
 	// without answering), mirroring StartScript. Used to test the optional
 	// post-handshake HTTP check.
 	HTTPResponse func(request []byte) []byte
+	// Chain, when set, replaces Cert: the server presents exactly these
+	// certificates (with any OCSPStaple and SignedCertificateTimestamps they carry).
+	Chain []tls.Certificate
+	// NoSNI, when set, is presented to clients that send no server_name.
+	NoSNI *tls.Certificate
 	// Addr is the listen address; empty means 127.0.0.1:0. Restarting a server on
 	// the same address with a different Config simulates an endpoint being changed.
 	Addr string
@@ -159,13 +164,31 @@ func Listen(cfg Config) (*Server, error) {
 		NextProtos:       cfg.ALPN,
 		ClientAuth:       cfg.ClientAuth,
 	}
-	switch cfg.Cert {
-	case CertRSA:
+	switch {
+	case len(cfg.Chain) > 0:
+		tc.Certificates = cfg.Chain
+	case cfg.Cert == CertRSA:
 		tc.Certificates = []tls.Certificate{rsaC}
-	case CertBoth:
+	case cfg.Cert == CertBoth:
 		tc.Certificates = []tls.Certificate{ec, rsaC}
 	default:
 		tc.Certificates = []tls.Certificate{ec}
+	}
+	if cfg.NoSNI != nil {
+		nosni, certs := cfg.NoSNI, tc.Certificates
+		tc.GetCertificate = func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			if hi.ServerName == "" {
+				return nosni, nil
+			}
+			for i := range certs {
+				if hi.SupportsCertificate(&certs[i]) == nil {
+					return &certs[i], nil
+				}
+			}
+			return &certs[0], nil
+		}
+		// crypto/tls consults GetCertificate only when Certificates is empty or SNI was sent.
+		tc.Certificates = nil
 	}
 
 	addr := cfg.Addr

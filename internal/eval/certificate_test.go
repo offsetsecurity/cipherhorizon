@@ -25,7 +25,7 @@ func days(n int) time.Time { return certNow.Add(time.Duration(n) * 24 * time.Hou
 // REQ-CERT-7: each rule fires on the certificates it should and stays quiet on the ones it
 // should not.
 func TestCertificateRules(t *testing.T) {
-	good := CertificateFacts{Subject: "CN=ok", NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 256, SigName: "ECDSA-SHA256"}
+	good := CertificateFacts{Subject: "CN=ok", NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 256, SigName: "ECDSA-SHA256"}
 	mut := func(f func(*CertificateFacts)) CertificateFacts { c := good; f(&c); return c }
 	cases := []struct {
 		name string
@@ -38,6 +38,12 @@ func TestCertificateRules(t *testing.T) {
 		{"expires in 5 days", mut(func(c *CertificateFacts) { c.NotAfter = days(5) }), []string{"CERT.EXPIRING"}, map[string]Severity{"CERT.EXPIRING": High}},
 		{"expires in 20 days", mut(func(c *CertificateFacts) { c.NotAfter = days(20) }), []string{"CERT.EXPIRING"}, map[string]Severity{"CERT.EXPIRING": Medium}},
 		{"expires in 31 days", mut(func(c *CertificateFacts) { c.NotAfter = days(31) }), nil, nil},
+		// REQ-TCRT-4: the window scales with the lifetime.
+		{"47-day certificate with 20 days left", mut(func(c *CertificateFacts) { c.NotBefore, c.NotAfter = days(-27), days(20) }), nil, nil},
+		{"47-day certificate with 15 days left", mut(func(c *CertificateFacts) { c.NotBefore, c.NotAfter = days(-32), days(15) }),
+			[]string{"CERT.EXPIRING"}, map[string]Severity{"CERT.EXPIRING": Medium}},
+		{"47-day certificate with 4 days left", mut(func(c *CertificateFacts) { c.NotBefore, c.NotAfter = days(-43), days(4) }),
+			[]string{"CERT.EXPIRING"}, map[string]Severity{"CERT.EXPIRING": High}},
 		{"not yet valid", mut(func(c *CertificateFacts) { c.NotBefore = days(3) }), []string{"CERT.NOT-YET-VALID"}, nil},
 		{"RSA 512", mut(func(c *CertificateFacts) { c.KeyAlgorithm, c.KeyBits = "RSA", 512 }), []string{"CERT.WEAK-KEY"}, map[string]Severity{"CERT.WEAK-KEY": Critical}},
 		{"RSA 1536", mut(func(c *CertificateFacts) { c.KeyAlgorithm, c.KeyBits = "RSA", 1536 }), []string{"CERT.WEAK-KEY"}, map[string]Severity{"CERT.WEAK-KEY": High}},
@@ -81,23 +87,23 @@ func TestCertificateRules(t *testing.T) {
 func TestCertificateRulesAgreeWithTheTLSRules(t *testing.T) {
 	shared := map[string]bool{"CERT.EXPIRED": true, "CERT.NOT-YET-VALID": true, "CERT.EXPIRING": true, "CERT.WEAK-KEY": true, "CERT.WEAK-SIGNATURE": true}
 	tab := []CertificateFacts{
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 256, SigName: "ECDSA-SHA256"},
-		{NotBefore: days(-30), NotAfter: days(-1), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(3), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(20), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(30), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(31), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 256, SigName: "ECDSA-SHA256"},
+		{NotBefore: days(-365), NotAfter: days(-1), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(3), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(20), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(30), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(31), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
 		{NotBefore: days(2), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 512, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 1023, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 1024, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2047, SigName: "SHA256-RSA"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 223, SigName: "ECDSA-SHA256"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 224, SigName: "ECDSA-SHA256"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA1-RSA"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "MD5-RSA"},
-		{NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "ECDSA-SHA1"},
-		{NotBefore: days(-30), NotAfter: days(-10), KeyAlgorithm: "RSA", KeyBits: 512, SigName: "MD5-RSA"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 512, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 1023, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 1024, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2047, SigName: "SHA256-RSA"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 223, SigName: "ECDSA-SHA256"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 224, SigName: "ECDSA-SHA256"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "SHA1-RSA"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "MD5-RSA"},
+		{NotBefore: days(-365), NotAfter: days(300), KeyAlgorithm: "RSA", KeyBits: 2048, SigName: "ECDSA-SHA1"},
+		{NotBefore: days(-365), NotAfter: days(-10), KeyAlgorithm: "RSA", KeyBits: 512, SigName: "MD5-RSA"},
 	}
 	for i, f := range tab {
 		f.Subject = "CN=x"

@@ -263,10 +263,22 @@ func (r *Report) writeCerts(o *out) {
 		}
 		o.f(" (OID %s)\n    signature %s (OID %s)\n", leaf.PublicKey.OID, leaf.SignatureAlg.Name, leaf.SignatureAlg.OID)
 		o.f("    validity  %s to %s\n", leaf.NotBefore.Format("2006-01-02"), leaf.NotAfter.Format("2006-01-02"))
-		if c.Trusted {
-			o.ln("    trust     chain builds to a trusted root")
-		} else {
-			o.f("    trust     NOT trusted: %s\n", c.TrustError)
+		if c.NoSNI {
+			o.ln("    served    to clients that send no server name (differs from the SNI certificate)")
+		}
+		switch {
+		case c.Trusted:
+			o.ln("    OS trust  chain builds to a root in this machine's store")
+		case c.TrustError != "":
+			o.f("    OS trust  NOT trusted by this machine's store: %s\n", c.TrustError)
+		default:
+			o.ln("    trust     judged in evaluation against the bundled root stores")
+		}
+		if c.OCSPStaple != "" {
+			o.ln("    ocsp      a response was stapled")
+		}
+		if len(c.TLSSCTs) > 0 {
+			o.f("    sct       %d in the TLS extension\n", len(c.TLSSCTs))
 		}
 		if c.NameMatches {
 			o.f("    name      matches %s\n", r.Target.Host)

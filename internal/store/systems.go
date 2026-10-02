@@ -514,6 +514,10 @@ func (s *Store) mergeSystemsTx(tx *sql.Tx, fromID, toID int64, actor, reason str
 	if _, err := tx.Exec(`UPDATE sources SET system_id = ? WHERE system_id = ?`, toID, fromID); err != nil {
 		return err
 	}
+	// Trust anchors follow their system; one the target already holds is kept once.
+	if _, err := tx.Exec(`UPDATE OR IGNORE trust_anchors SET system_id = ? WHERE system_id = ?`, toID, fromID); err != nil {
+		return err
+	}
 	if len(filled) > 0 {
 		var sets []string
 		var args []any

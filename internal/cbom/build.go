@@ -175,10 +175,40 @@ const schemaURL = "http://cyclonedx.org/schema/bom-1.6.schema.json"
 // tests would fail on any other 1.7-only field. TestEncodeKeepsCryptographicAssetType
 // guards this; revisit when the SDK is fixed.
 func Encode(w io.Writer, bom *cdx.BOM, pretty bool) error {
-	out := *bom // do not mutate the caller's BOM
+	out := strip17Only(bom) // a copy: the caller's BOM is not changed
 	out.SpecVersion = SpecVersion
 	out.JSONSchema = schemaURL
-	return cdx.NewBOMEncoder(w, cdx.BOMFileFormatJSON).SetPretty(pretty).SetEscapeHTML(false).Encode(&out)
+	return cdx.NewBOMEncoder(w, cdx.BOMFileFormatJSON).SetPretty(pretty).SetEscapeHTML(false).Encode(out)
+}
+
+// strip17Only returns a copy of bom without the fields only CycloneDX 1.7 defines
+// (certificateExtensions), for a 1.6 document.
+func strip17Only(bom *cdx.BOM) *cdx.BOM {
+	out := *bom
+	var fix func(cs []cdx.Component) []cdx.Component
+	fix = func(cs []cdx.Component) []cdx.Component {
+		res := make([]cdx.Component, len(cs))
+		for i, c := range cs {
+			if c.Components != nil {
+				sub := fix(*c.Components)
+				c.Components = &sub
+			}
+			if c.CryptoProperties != nil && c.CryptoProperties.CertificateProperties != nil && c.CryptoProperties.CertificateProperties.CertificateExtensions != nil {
+				cp := *c.CryptoProperties
+				p := *cp.CertificateProperties
+				p.CertificateExtensions = nil
+				cp.CertificateProperties = &p
+				c.CryptoProperties = &cp
+			}
+			res[i] = c
+		}
+		return res
+	}
+	if bom.Components != nil {
+		cs := fix(*bom.Components)
+		out.Components = &cs
+	}
+	return &out
 }
 
 func metadata(opts Options) *cdx.Metadata {

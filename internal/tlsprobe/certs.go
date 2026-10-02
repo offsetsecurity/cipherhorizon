@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 
 	"github.com/example/cipherhorizon/internal/certinfo"
@@ -49,7 +50,7 @@ var (
 // succeeded outright — a complete handshake with no request is proof none was
 // sent. Anything else (the handshake failed for some other reason before or
 // without a request) is nil: unknown, not "no."
-func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*legacyEnum) ([]CertResult, *Negotiated, *bool) {
+func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*legacyEnum) ([]CertResult, *Negotiated, *bool, string) {
 	type attempt struct {
 		source string
 		cfg    *tls.Config
@@ -72,6 +73,13 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		rs.MaxVersion, rs.CipherSuites = tls.VersionTLS12, rsaSuites
 		attempts = append(attempts, attempt{"tls1.2-ecdsa", ec}, attempt{"tls1.2-rsa", rs})
 	}
+	// Without server_name: what a client that sends no SNI (old clients, scanners,
+	// direct-to-address connections) is served (REQ-TCHN-1).
+	if p.target.SNI != "" {
+		nosni := base()
+		nosni.ServerName = ""
+		attempts = append(attempts, attempt{"no-sni", nosni})
+	}
 
 	var (
 		results    []CertResult
@@ -79,6 +87,8 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		firstErr   error
 		firstDone  bool
 		byLeaf     = map[string]int{}
+		defaultFP  string
+		noSNI      string
 	)
 	for i, a := range attempts {
 		if ctx.Err() != nil {
@@ -90,16 +100,34 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 			firstErr, firstDone = err, true
 		}
 		if state == nil || len(state.PeerCertificates) == 0 {
+			if a.source == "no-sni" {
+				noSNI = "failed"
+			}
 			continue
 		}
 		fp := sha256.Sum256(state.PeerCertificates[0].Raw)
 		key := hex.EncodeToString(fp[:])
+		if i == 0 {
+			defaultFP = key
+		}
+		if a.source == "no-sni" {
+			if key == defaultFP {
+				noSNI = "same"
+				continue
+			}
+			noSNI = "different"
+			r := p.describeChain(a.source, state)
+			r.NoSNI = true
+			results = append(results, r)
+			continue
+		}
 		if idx, seen := byLeaf[key]; seen {
 			results[idx].Source += ", " + a.source
+			p.mergeRevocation(&results[idx], state)
 			continue
 		}
 		byLeaf[key] = len(results)
-		results = append(results, p.describeChain(a.source, state.PeerCertificates))
+		results = append(results, p.describeChain(a.source, state))
 	}
 
 	var requested *bool
@@ -110,7 +138,49 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		notRequested := false
 		requested = &notRequested
 	}
-	return results, negotiated, requested
+	return results, negotiated, requested, noSNI
+}
+
+// Bounds on the raw revocation data kept from a handshake.
+const (
+	maxStapleBytes = 64 << 10
+	maxTLSSCTs     = 32
+	maxTLSSCTBytes = 4 << 10
+)
+
+// revocationData returns the stapled OCSP response and the TLS-extension SCTs,
+// base64, within the bounds; anything over a bound is dropped and noted.
+func (p *prober) revocationData(st *tls.ConnectionState) (string, []string) {
+	var staple string
+	if n := len(st.OCSPResponse); n > maxStapleBytes {
+		p.note("stapled OCSP response of %d bytes ignored (limit %d)", n, maxStapleBytes)
+	} else if n > 0 {
+		staple = base64.StdEncoding.EncodeToString(st.OCSPResponse)
+	}
+	var scts []string
+	for i, s := range st.SignedCertificateTimestamps {
+		if i == maxTLSSCTs {
+			p.note("more than %d SCTs in the TLS extension; the rest were ignored", maxTLSSCTs)
+			break
+		}
+		if len(s) > maxTLSSCTBytes {
+			continue
+		}
+		scts = append(scts, base64.StdEncoding.EncodeToString(s))
+	}
+	return staple, scts
+}
+
+// mergeRevocation fills in a staple or SCTs a later handshake for the same leaf
+// returned when the first did not.
+func (p *prober) mergeRevocation(r *CertResult, st *tls.ConnectionState) {
+	staple, scts := p.revocationData(st)
+	if r.OCSPStaple == "" {
+		r.OCSPStaple = staple
+	}
+	if len(r.TLSSCTs) == 0 {
+		r.TLSSCTs = scts
+	}
 }
 
 // handshake completes one TLS handshake and returns the connection state.
@@ -154,25 +224,32 @@ func negotiatedFrom(st *tls.ConnectionState, err error) *Negotiated {
 	return n
 }
 
-// describeChain describes a presented chain and checks its trust and name.
-func (p *prober) describeChain(source string, chain []*x509.Certificate) CertResult {
+// describeChain describes a presented chain, keeps its raw bytes for
+// evaluation, and checks its name. Trust against the bundled root stores is
+// decided in evaluation, from the raw certificates; the OS store is consulted
+// here only when Options.OSTrust is set.
+func (p *prober) describeChain(source string, st *tls.ConnectionState) CertResult {
+	chain := st.PeerCertificates
 	res := CertResult{Source: source}
 	for _, c := range chain {
 		res.Chain = append(res.Chain, describeCert(c))
 	}
 	leaf := chain[0]
+	res.OCSPStaple, res.TLSSCTs = p.revocationData(st)
 
-	inter := x509.NewCertPool()
-	for _, c := range chain[1:] {
-		inter.AddCert(c)
-	}
-	_, err := leaf.Verify(x509.VerifyOptions{
-		Intermediates: inter, CurrentTime: p.opts.Now(),
-		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	})
-	res.Trusted = err == nil
-	if err != nil {
-		res.TrustError = err.Error()
+	if p.opts.OSTrust {
+		inter := x509.NewCertPool()
+		for _, c := range chain[1:] {
+			inter.AddCert(c)
+		}
+		_, err := leaf.Verify(x509.VerifyOptions{
+			Intermediates: inter, CurrentTime: p.opts.Now(),
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		})
+		res.Trusted = err == nil
+		if err != nil {
+			res.TrustError = err.Error()
+		}
 	}
 	if err := leaf.VerifyHostname(p.target.Host); err != nil {
 		res.NameError = err.Error()
@@ -187,14 +264,29 @@ func (p *prober) describeChain(source string, chain []*x509.Certificate) CertRes
 // describeCert describes one certificate. The facts themselves come from certinfo, the
 // one place they are worked out, so a certificate a server presents and the same
 // certificate a host holds have identical attributes.
-func describeCert(c *x509.Certificate) CertInfo {
+func describeCert(c *x509.Certificate) CertInfo { return DescribeCertificate(c) }
+
+// DescribeCertificate is the CertInfo the scanner records for a certificate,
+// raw DER included. Exported for evaluation fixtures and importers.
+func DescribeCertificate(c *x509.Certificate) CertInfo {
 	f := certinfo.Describe(c)
-	return CertInfo{
+	ci := CertInfo{
 		Subject: f.Subject, Issuer: f.Issuer, SerialHex: f.SerialHex, DNSNames: f.DNSNames, IPAddresses: f.IPAddresses,
 		NotBefore: f.NotBefore, NotAfter: f.NotAfter, IsCA: f.IsCA, SelfSigned: f.SelfSigned, SHA256: f.SHA256,
 		PublicKey:    KeyInfo{Algorithm: f.KeyAlgorithm, OID: f.KeyOID, Bits: f.KeyBits, Curve: f.Curve},
 		SignatureAlg: AlgInfo{Name: f.SigName, OID: f.SigOID},
 		OCSPServers:  f.OCSPServers, IssuerURLs: f.IssuerURLs, CRLPoints: f.CRLPoints,
 		OCSPMustStaple: f.OCSPMustStaple, EmbeddedSCTs: f.EmbeddedSCTs,
+
+		DER: base64.StdEncoding.EncodeToString(c.Raw), SPKISHA256: f.SPKISHA256, KeyUsage: f.KeyUsage,
+		ExtKeyUsage: f.ExtKeyUsage, Policies: f.Policies, PolicyClass: f.PolicyClass, CNOnly: f.CNOnly,
+		Wildcards: f.Wildcards, LifetimeDays: f.LifetimeDays, RSAExponent: f.RSAExponent,
 	}
+	if bc := f.BasicConstraints; bc != nil {
+		ci.BasicConstraints = &BasicConstraints{CA: bc.CA, MaxPathLen: bc.MaxPathLen}
+	}
+	if nc := f.NameConstraints; nc != nil {
+		ci.NameConstraints = &NameConstraints{Critical: nc.Critical, Permitted: nc.Permitted, Excluded: nc.Excluded}
+	}
+	return ci
 }

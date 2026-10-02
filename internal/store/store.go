@@ -295,6 +295,19 @@ var migrations = []string{
 		UNIQUE (asset_id, system_id)
 	);
 	CREATE INDEX links_state ON links(state);`,
+	// 7: private trust anchors per system (PRD-004 REQ-TTRS-2). Certificates only, as PEM;
+	// at most MaxAnchorsPerSystem per system, enforced on insert.
+	`CREATE TABLE trust_anchors (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		system_id INTEGER NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+		sha256 TEXT NOT NULL,
+		subject TEXT NOT NULL,
+		not_after TEXT NOT NULL,
+		pem TEXT NOT NULL,
+		added_at TEXT NOT NULL,
+		added_by TEXT NOT NULL,
+		UNIQUE (system_id, sha256)
+	);`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same

@@ -20,6 +20,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/hex"
+	"math"
 	"strings"
 	"time"
 
@@ -54,12 +55,45 @@ type Facts struct {
 	CRLPoints      []string
 	OCSPMustStaple bool
 	EmbeddedSCTs   bool
+
+	SPKISHA256       string   // lower-case hex over SubjectPublicKeyInfo: the key's identity across certificates
+	ExtKeyUsage      []string // RFC 5280 names ("serverAuth"), or the OID for one without a name
+	BasicConstraints *BasicConstraints
+	NameConstraints  *NameConstraints
+	Policies         []string // certificate policy OIDs
+	PolicyClass      string   // DV, OV, IV or EV from the CA/Browser Forum policy OIDs; "unknown" otherwise
+	CNOnly           bool     // a subject CN and no subjectAltName at all
+	Wildcards        []string // DNS SANs that are wildcards
+	LifetimeDays     int      // validity period in days, rounded up (notBefore and notAfter both inclusive)
+	RSAExponent      int      // public exponent of an RSA key, else 0
+}
+
+// BasicConstraints is the basicConstraints extension.
+type BasicConstraints struct {
+	CA         bool
+	MaxPathLen int // -1 when absent
+}
+
+// NameConstraints is the nameConstraints extension, flattened to strings.
+type NameConstraints struct {
+	Critical  bool
+	Permitted []string
+	Excluded  []string
 }
 
 var (
-	oidTLSFeature = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 24}
-	oidSCTList    = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 11129, 2, 4, 2}
+	oidTLSFeature      = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 24}
+	oidSCTList         = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 11129, 2, 4, 2}
+	oidNameConstraints = asn1.ObjectIdentifier{2, 5, 29, 30}
 )
+
+// policyClasses are the CA/Browser Forum reserved policy OIDs (BR §7.1.6.1, EVG §9.3.4).
+var policyClasses = map[string]string{
+	"2.23.140.1.2.1": "DV",
+	"2.23.140.1.2.2": "OV",
+	"2.23.140.1.2.3": "IV",
+	"2.23.140.1.1":   "EV",
+}
 
 // knownKeyOIDs names the public-key algorithms whose identity is fixed by RFCs.
 // Anything else is looked up in the algorithm catalogue (which carries the
@@ -95,13 +129,93 @@ func Describe(c *x509.Certificate) Facts {
 		case e.Id.Equal(oidSCTList):
 			f.EmbeddedSCTs = true
 		case e.Id.Equal(oidTLSFeature):
-			// TLS Feature: SEQUENCE OF INTEGER; 5 is status_request, i.e. OCSP must-staple.
-			f.OCSPMustStaple = bytes.Contains(e.Value, []byte{0x02, 0x01, 0x05})
+			// TLS Feature (RFC 7633): SEQUENCE OF INTEGER; 5 is status_request, i.e. OCSP must-staple.
+			var features []int
+			if rest, err := asn1.Unmarshal(e.Value, &features); err == nil && len(rest) == 0 {
+				for _, v := range features {
+					f.OCSPMustStaple = f.OCSPMustStaple || v == 5
+				}
+			}
+		case e.Id.Equal(oidNameConstraints):
+			f.NameConstraints = nameConstraints(c, e.Critical)
 		}
 	}
 	f.KeyAlgorithm, f.KeyOID, f.KeyBits, f.Curve = describeKey(c)
 	f.SigName, f.SigOID = describeSignature(c)
+
+	spki := sha256.Sum256(c.RawSubjectPublicKeyInfo)
+	f.SPKISHA256 = hex.EncodeToString(spki[:])
+	f.ExtKeyUsage = extKeyUsage(c)
+	if c.BasicConstraintsValid {
+		bc := &BasicConstraints{CA: c.IsCA, MaxPathLen: -1}
+		if c.MaxPathLen > 0 || c.MaxPathLenZero {
+			bc.MaxPathLen = c.MaxPathLen
+		}
+		f.BasicConstraints = bc
+	}
+	f.PolicyClass = "unknown"
+	for _, p := range c.Policies {
+		f.Policies = append(f.Policies, p.String())
+		if cls, ok := policyClasses[p.String()]; ok {
+			f.PolicyClass = cls
+		}
+	}
+	f.CNOnly = c.Subject.CommonName != "" && len(c.DNSNames) == 0 && len(c.IPAddresses) == 0 &&
+		len(c.EmailAddresses) == 0 && len(c.URIs) == 0
+	for _, n := range c.DNSNames {
+		if strings.HasPrefix(n, "*") {
+			f.Wildcards = append(f.Wildcards, n)
+		}
+	}
+	if !c.NotAfter.Before(c.NotBefore) {
+		// Both ends are inclusive (RFC 5280 §4.1.2.5), hence the extra second.
+		secs := c.NotAfter.Sub(c.NotBefore).Seconds() + 1
+		f.LifetimeDays = int(math.Ceil(secs / 86400))
+	}
+	if k, ok := c.PublicKey.(*rsa.PublicKey); ok {
+		f.RSAExponent = k.E
+	}
 	return f
+}
+
+var ekuNames = map[x509.ExtKeyUsage]string{
+	x509.ExtKeyUsageAny: "any", x509.ExtKeyUsageServerAuth: "serverAuth", x509.ExtKeyUsageClientAuth: "clientAuth",
+	x509.ExtKeyUsageCodeSigning: "codeSigning", x509.ExtKeyUsageEmailProtection: "emailProtection",
+	x509.ExtKeyUsageTimeStamping: "timeStamping", x509.ExtKeyUsageOCSPSigning: "OCSPSigning",
+	x509.ExtKeyUsageIPSECEndSystem: "ipsecEndSystem", x509.ExtKeyUsageIPSECTunnel: "ipsecTunnel",
+	x509.ExtKeyUsageIPSECUser: "ipsecUser", x509.ExtKeyUsageMicrosoftServerGatedCrypto: "msSGC",
+	x509.ExtKeyUsageNetscapeServerGatedCrypto: "nsSGC", x509.ExtKeyUsageMicrosoftCommercialCodeSigning: "msCodeCom",
+	x509.ExtKeyUsageMicrosoftKernelCodeSigning: "msKernelCode",
+}
+
+func extKeyUsage(c *x509.Certificate) []string {
+	var out []string
+	for _, u := range c.ExtKeyUsage {
+		if n, ok := ekuNames[u]; ok {
+			out = append(out, n)
+		}
+	}
+	for _, o := range c.UnknownExtKeyUsage {
+		out = append(out, o.String())
+	}
+	return out
+}
+
+func nameConstraints(c *x509.Certificate, critical bool) *NameConstraints {
+	nc := &NameConstraints{Critical: critical}
+	nc.Permitted = append(nc.Permitted, c.PermittedDNSDomains...)
+	nc.Excluded = append(nc.Excluded, c.ExcludedDNSDomains...)
+	for _, n := range c.PermittedIPRanges {
+		nc.Permitted = append(nc.Permitted, n.String())
+	}
+	for _, n := range c.ExcludedIPRanges {
+		nc.Excluded = append(nc.Excluded, n.String())
+	}
+	nc.Permitted = append(nc.Permitted, c.PermittedEmailAddresses...)
+	nc.Excluded = append(nc.Excluded, c.ExcludedEmailAddresses...)
+	nc.Permitted = append(nc.Permitted, c.PermittedURIDomains...)
+	nc.Excluded = append(nc.Excluded, c.ExcludedURIDomains...)
+	return nc
 }
 
 func describeKey(c *x509.Certificate) (alg, oid string, bits int, curve string) {

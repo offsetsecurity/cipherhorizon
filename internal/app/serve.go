@@ -64,8 +64,11 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	workers := fl.Int("max-concurrent-scans", 2, "scans that may run at once")
 	timeout := fl.Duration("timeout", 8*time.Second, "per-connection timeout during a scan")
 	concurrency := fl.Int("concurrency", 4, "connections in flight to one target at once")
-	httpChecks := fl.Bool("http-checks", false, "after each scan's handshake, send one plain HTTP GET / and read the Strict-Transport-Security header. "+
-		"This is the only check that sends anything beyond a TLS handshake: it makes a real HTTP request to every scanned target. Off by default, server-wide.")
+	httpChecks := fl.Bool("http-checks", true, "after each scan's handshake, send one plain HTTP GET / and read the Strict-Transport-Security header. "+
+		"This is the only check that sends anything beyond a TLS handshake: one real HTTP request to every scanned target, read for headers only. "+
+		"On by default, server-wide; --http-checks=false turns it off")
+	caBundle := fl.String("ca-bundle", "", "PEM file of private CA certificates every scan is also judged against (\"trusted by your CA bundle\"). "+
+		"Certificates only: a file containing a private-key block is refused")
 	var allowedHosts stringList
 	fl.Var(&allowedHosts, "allowed-host", "extra Host header accepted when no token is set (repeatable)")
 	if err := fl.Parse(args); err != nil {
@@ -90,6 +93,24 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 			"Set --token (or %s), or bind 127.0.0.1", *addr, tokenEnv)
 	}
 
+	var bundle []server.AnchorCert
+	if *caBundle != "" {
+		fi, err := os.Stat(*caBundle)
+		if err != nil {
+			return fatalf(env, "--ca-bundle: %v", err)
+		}
+		if fi.Size() > 1<<20 {
+			return fatalf(env, "--ca-bundle: the file is larger than 1 MiB")
+		}
+		data, err := os.ReadFile(*caBundle)
+		if err != nil {
+			return fatalf(env, "--ca-bundle: %v", err)
+		}
+		if bundle, err = server.ParseAnchors(data, 500); err != nil {
+			return fatalf(env, "--ca-bundle %s: %v", *caBundle, err)
+		}
+	}
+
 	st, err := store.Open(*dbPath)
 	if err != nil {
 		return fatalf(env, "opening the database: %v", err)
@@ -105,8 +126,9 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 
 	guard := server.Guard{AllowLoopback: *allowLoopback}
 	runner := server.NewRunner(st, guard, server.RunnerOptions{
-		Workers: *workers,
-		Scan:    tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
+		Workers:  *workers,
+		Scan:     tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
+		CABundle: bundle,
 	})
 	srv := server.New(server.Config{
 		Store: st, Runner: runner, Guard: guard,

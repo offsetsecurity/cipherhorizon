@@ -24,7 +24,7 @@ const SOURCES = [
 ];
 
 export async function render(root) {
-  const a = await api.about();
+  const [a, ref, bundle] = await Promise.all([api.about(), api.referenceData().catch(() => null), api.serverTrustAnchors().catch(() => null)]);
   root.appendChild(h('section', { class: 'about-hero' },
     h('div', { class: 'about-hero-mark', 'aria-hidden': 'true' },
       brandMark('Hero', 'rgba(17,17,30,.14)')),
@@ -58,18 +58,39 @@ export async function render(root) {
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'What is not measured'),
     h('ul', null, [
-      'Certificate revocation status.',
+      'Live revocation status: the stapled OCSP response is read, but the CA’s OCSP responder and CRL are not contacted (the scan talks only to the endpoint).',
       'Behavioural vulnerabilities (for example Heartbleed or ROBOT): the scanner sends no exploit traffic. Findings such as POODLE or Sweet32 are inferred from what the endpoint offers.',
       'Anything reachable only with client certificates, or only from another network.',
       'STARTTLS protocols: only direct TLS endpoints are scanned.',
     ].map((t) => h('li', null, t)))));
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'HTTP-layer check (HSTS)'),
-    h('p', null, 'Every other check in this tool exchanges only TLS handshake messages: no application data is sent. This one is the exception. ',
-      h('b', null, 'When enabled it sends a real HTTP request'), ' — a plain ', h('code', null, 'GET /'), ' — to each scanned target after the handshake, and reads only the ',
-      h('code', null, 'Strict-Transport-Security'), ' response header (no body, no redirect is followed).'),
-    h('p', null, 'This installation has it ', a.httpChecks ? h('b', null, 'enabled') : 'disabled', ' for every scan (server-wide ', h('code', null, '--http-checks'), ' flag). ',
-      'The CLI\'s ', h('code', null, 'tls scan'), ' has its own ', h('code', null, '--http-checks'), ' flag, off by default.')));
+    h('p', null, 'Every other check in this tool exchanges only TLS handshake messages: no application data is sent. This one is the exception: ',
+      h('b', null, 'it sends one real HTTP request'), ' — a plain ', h('code', null, 'GET /'), ' — to each scanned target after the handshake, and reads only the ',
+      h('code', null, 'Strict-Transport-Security'), ' response header (at most 8 KiB, no body kept, no redirect followed).'),
+    h('p', null, 'It is on by default. This installation has it ', a.httpChecks ? h('b', null, 'enabled') : h('b', null, 'disabled'), ' for every scan (server-wide ',
+      h('code', null, '--http-checks=false'), ' turns it off). The CLI’s ', h('code', null, 'tls scan'), ' has the same flag, also on by default.')));
+
+  if (ref) {
+    root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Reference data'),
+      h('p', { class: 'text-2' }, 'Endpoints are judged against these dated lists, compiled into this version. Nothing is downloaded while it runs. A list older than ',
+        `${ref.staleAfterDays} days is flagged here.`),
+      h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
+        h('thead', null, h('tr', null, ['List', 'Entries', 'Retrieved', 'Licence'].map((c) => h('th', { scope: 'col' }, c)))),
+        h('tbody', null, ref.lists.map((l) => h('tr', null,
+          h('td', null, h('b', null, l.name), h('div', { class: 'hint' }, l.source)),
+          h('td', { class: 'num' }, String(l.count)),
+          h('td', null, l.retrieved, l.stale ? h('div', null, h('span', { class: 'badge b-warn' }, `${l.ageDays} days old`)) : null),
+          h('td', { class: 'hint' }, l.licence)))))),
+      h('p', { class: 'hint' }, ref.attribution)));
+  }
+  if (bundle) {
+    root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Server-wide CA bundle'),
+      bundle.anchors.length
+        ? h('ul', { class: 'anchors-list' }, bundle.anchors.map((x) => h('li', null, h('div', null, h('b', null, x.subject),
+          h('div', { class: 'fp' }, x.fingerprint)))))
+        : h('p', { class: 'hint' }, 'None. Start the server with ', h('code', null, '--ca-bundle FILE'), ' to judge every endpoint against your private CAs as well; per-system bundles are set on each system’s page.')));
+  }
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'This installation'),
     h('dl', { class: 'kv' },

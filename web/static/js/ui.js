@@ -165,8 +165,9 @@ function shortSubject(subject) {
  * with a connector between each certificate, each one expandable in place. */
 export function certChain(c, opts = {}) {
   const chain = c.chain || [];
+  // noTrust: trust is shown per store elsewhere (tls-report/2); the scanner's own field is not a verdict there.
   const summary = h('div', { class: 'row mt-sm' },
-    c.trusted ? badge('chain trusted', 'good') : badge('not trusted', 'bad'),
+    opts.noTrust ? null : c.trusted ? badge('chain trusted', 'good') : badge('not trusted', 'bad'),
     c.nameMatches ? badge(`matches ${opts.host || 'the requested host'}`, 'good') : badge('name does not match', 'bad'),
     h('span', { class: 'muted' }, `via ${c.source}`));
   const rail = h('div', { class: 'certchain' },
@@ -182,8 +183,8 @@ export function certChain(c, opts = {}) {
         card);
     }));
   const issues = [];
-  if (!c.trusted && chain.length === 1 && !chain[0].selfSigned) issues.push('Only one certificate was presented and it is not self-signed — an intermediate certificate may be missing.');
-  if (c.trustError) issues.push(c.trustError);
+  if (!opts.noTrust && !c.trusted && chain.length === 1 && !chain[0].selfSigned) issues.push('Only one certificate was presented and it is not self-signed — an intermediate certificate may be missing.');
+  if (!opts.noTrust && c.trustError) issues.push(c.trustError);
   return h('div', { class: 'mt' }, summary, rail,
     issues.length ? h('div', { class: 'certwarn mt-sm' }, iconWarn(), h('div', null, issues.map((w) => h('div', null, w)))) : null);
 }

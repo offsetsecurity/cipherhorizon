@@ -32,6 +32,7 @@ func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
 
 	ip, all, err := resolve(ctx, opts, t.Host)
 	if err != nil {
+		rep.Stages = notReached(nil, "the name did not resolve")
 		return rep, fmt.Errorf("resolving %s: %w", t.Host, err)
 	}
 	for _, a := range all {
@@ -46,29 +47,36 @@ func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
 		rep.Incomplete = rep.Incomplete || p.incomplete.Load()
 	}()
 
+	sc := &stageClock{p: p}
+
 	// Stage 1: which protocol versions does the server speak?
 	p.progress("testing protocol versions")
+	sc.begin()
 	protos := p.detectProtocols(ctx)
 	for _, pr := range protos {
 		rep.Protocols = append(rep.Protocols, pr.result)
 	}
 	if err := reachability(protos); err != nil {
 		rep.Incomplete = true
+		rep.Stages = append(rep.Stages, sc.end(StageProtocols, OutcomeInconclusive, err.Error(), ReasonNotReached, probesProtocols))
+		rep.Stages = notReached(rep.Stages, "the endpoint could not be scanned")
 		return rep, err
-	}
-	if ctx.Err() != nil {
-		rep.Incomplete = true
-		return rep, ctx.Err()
 	}
 	for _, pr := range protos {
 		if !pr.result.Supported && pr.result.Evidence == EvidenceInconclusive {
-			rep.Incomplete = true
-			p.note("%s: inconclusive (%s)", pr.result.Version, pr.result.Detail)
+			p.inconclusive("%s: inconclusive (%s)", pr.result.Version, pr.result.Detail)
 		}
+	}
+	rep.Stages = append(rep.Stages, sc.end(StageProtocols, OutcomeDone, "", "", probesProtocols))
+	if ctx.Err() != nil {
+		rep.Incomplete = true
+		rep.Stages = notReached(rep.Stages, "the scan ran out of time")
+		return rep, ctx.Err()
 	}
 
 	// Stage 2: enumerate suites per supported version, in parallel.
 	p.progress("enumerating cipher suites")
+	sc.begin()
 	var (
 		wg      sync.WaitGroup
 		legacy  = map[wire.Version]*legacyEnum{}
@@ -128,8 +136,16 @@ func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
 		rep.Suites = append(rep.Suites, suiteResults(v, e.suites, e.pref)...)
 		rep.Preference = append(rep.Preference, PreferenceResult{Version: v.String(), Subject: "suites", Order: e.pref})
 	}
+	if tls13 == nil && len(legacy) == 0 {
+		rep.Stages = append(rep.Stages, sc.end(StageSuites, OutcomeSkipped,
+			"only SSLv2 answered; SSLv2 cipher kinds are listed under protocols", ReasonNotApplicable, nil))
+	} else {
+		rep.Stages = append(rep.Stages, sc.end(StageSuites, OutcomeDone, "", "", probesSuites))
+	}
 
 	// Stage 3: ephemeral-ECDH curves and DH parameters for TLS 1.2 and earlier.
+	// TLS 1.3 groups were read in stage 2, from the same HelloRetryRequests.
+	sc.begin()
 	if highest != 0 {
 		e := legacy[highest]
 		p.progress("probing key exchange")
@@ -144,24 +160,77 @@ func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
 			rep.DH = p.sampleDH(ctx, highest, s, e.small)
 		}
 	}
+	switch {
+	case highest != 0:
+		rep.Stages = append(rep.Stages, sc.end(StageKeyExchange, OutcomeDone, "", "", probesKeyExchange))
+	case tls13 != nil:
+		rep.Stages = append(rep.Stages, sc.end(StageKeyExchange, OutcomeDone,
+			"TLS 1.3 only: the groups were read during suite enumeration", "", probesKeyExchange13))
+	default:
+		rep.Stages = append(rep.Stages, sc.end(StageKeyExchange, OutcomeSkipped,
+			"no TLS version with a key exchange to test", ReasonNotApplicable, nil))
+	}
 
 	// Stage 4: server features read from hello extensions. SSLv3 has none, and we
 	// send none in an SSLv3 hello, so nothing can be concluded from it.
+	sc.begin()
 	if highest >= wire.VersionTLS10 {
 		rep.Features = p.features(ctx, protos, legacy, highest)
+		rep.Stages = append(rep.Stages, sc.end(StageFeatures, OutcomeDone, "", "", probesFeatures))
+	} else {
+		rep.Stages = append(rep.Stages, sc.end(StageFeatures, OutcomeSkipped,
+			"these behaviours are read from TLS 1.0–1.2 hellos, and the server speaks none of those versions", ReasonNotApplicable, nil))
 	}
 
-	// Stage 5: certificates and what a current client negotiates.
-	if !opts.SkipCertificates {
+	// Stage 5: certificates and what a current client negotiates. Revocation
+	// data (the stapled OCSP response and SCTs) rides on the same handshakes.
+	if opts.SkipCertificates {
+		why := "certificate checks were turned off for this scan"
+		rep.Stages = append(rep.Stages, sc.skip(StageCerts, why, ReasonOptionOff), sc.skip(StageRevocation, why, ReasonOptionOff))
+	} else {
 		p.progress("fetching certificates")
-		rep.Certificates, rep.Negotiated, rep.Features.ClientCertRequested = p.certificates(ctx, legacy)
+		sc.begin()
+		rep.Certificates, rep.Negotiated, rep.Features.ClientCertRequested, rep.NoSNI = p.certificates(ctx, legacy)
+		probes := probesCerts
+		if t.SNI != "" {
+			probes = append(append([]string(nil), probes...), "one handshake without server_name, to see the certificate such clients get")
+		}
+		if len(rep.Certificates) == 0 {
+			why := "no handshake returned a certificate"
+			if rep.Negotiated != nil && rep.Negotiated.Error != "" {
+				why += ": " + rep.Negotiated.Error
+			}
+			rep.Stages = append(rep.Stages, sc.end(StageCerts, OutcomeInconclusive, why, ReasonNotReached, probes),
+				sc.skip(StageRevocation, "no certificate was received", ReasonNotReached))
+		} else {
+			rep.Stages = append(rep.Stages, sc.end(StageCerts, OutcomeDone, "", "", probes),
+				Stage{Name: StageRevocation, Outcome: OutcomeDone, Probes: probesRevocation})
+		}
 	}
 
-	// Stage 6: optional HTTP-layer check (HSTS). Off by default and only
-	// attempted when the handshake it would ride on actually succeeded.
-	if opts.HTTPChecks && rep.Negotiated != nil && rep.Negotiated.Error == "" {
+	// Stage 6: the HTTP-layer check (HSTS), attempted only when the handshake it
+	// would ride on succeeded.
+	switch {
+	case !opts.HTTPChecks:
+		rep.Stages = append(rep.Stages, sc.skip(StageHTTP, "HTTP checks are off for this scan (--http-checks=false)", ReasonOptionOff))
+	case rep.Negotiated == nil || rep.Negotiated.Error != "":
+		rep.Stages = append(rep.Stages, sc.skip(StageHTTP, "no full TLS handshake succeeded, so no HTTP request could be sent", ReasonNotReached))
+	default:
 		p.progress("checking HSTS")
-		rep.HSTS = p.hstsCheck(ctx)
+		sc.begin()
+		res, why := p.hstsCheck(ctx)
+		switch {
+		case res == nil && why == notHTTP:
+			// Not an HTTP service: not applicable, not a failure (REQ-THTP-3).
+			rep.Stages = append(rep.Stages, sc.end(StageHTTP, OutcomeSkipped, why, ReasonNotApplicable, probesHTTP))
+		case res == nil:
+			rep.Stages = append(rep.Stages, sc.end(StageHTTP, OutcomeInconclusive, why, "", probesHTTP))
+		default:
+			rep.HSTSHeader = res
+			v := res.Valid()
+			rep.HSTS = &v
+			rep.Stages = append(rep.Stages, sc.end(StageHTTP, OutcomeDone, "", "", probesHTTP))
+		}
 	}
 
 	sortReport(rep)
@@ -375,8 +444,7 @@ func (p *prober) enumerateLegacy(ctx context.Context, v wire.Version, small bool
 		sh := o.serverHello()
 		if sh == nil {
 			if !o.conclusive() {
-				p.incomplete.Store(true)
-				p.note("%s: suite enumeration stopped early (%s)", v, o.detail())
+				p.inconclusive("%s: suite enumeration stopped early (%s)", v, o.detail())
 			}
 			break
 		}

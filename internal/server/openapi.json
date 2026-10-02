@@ -2244,6 +2244,236 @@
           }
         }
       }
+    },
+    "/api/v1/systems/{id}/trust-anchors": {
+      "get": {
+        "summary": "The system's private CA bundle: fingerprint, subject, expiry, who added it and when.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "get_systems_id_trust_anchors",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add CA certificates to the system's private bundle. Body {\"pem\": \"...\"} (at most 64 KiB, 50 anchors per system). Certificates only: an upload containing a private-key block is refused unread, and non-CA certificates are refused. The latest scan of each of the system's endpoints is re-evaluated.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "post_systems_id_trust_anchors",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "pem"
+                ],
+                "properties": {
+                  "pem": {
+                    "type": "string",
+                    "maxLength": 65536
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "413": {
+            "description": "Request body too large"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/trust-anchors/{fingerprint}": {
+      "delete": {
+        "summary": "Remove one anchor from the system's bundle (audited); its endpoints are re-evaluated.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "delete_systems_id_trust_anchors_fingerprint",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/trust-anchors": {
+      "get": {
+        "summary": "The server-wide private CA bundle (--ca-bundle), read-only.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_trust_anchors",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/reference-data": {
+      "get": {
+        "summary": "Each bundled reference list (root stores, CT logs, DH groups, lifetime limits): source, retrieval date, count, licence, age and whether it is stale.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_reference_data",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/scans/{id}/reevaluate": {
+      "post": {
+        "summary": "Recompute a completed scan's evaluation from its stored report with the current anchors, reference data and time. The report is never rewritten; a scan event records the old and new evaluation versions.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "post_scans_id_reevaluate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
     }
   },
   "components": {

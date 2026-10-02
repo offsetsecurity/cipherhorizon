@@ -6,6 +6,7 @@ package tlscbom
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -506,6 +507,7 @@ func certificateAsset(ci tlsprobe.CertInfo, role string, emit resolver, emitAsse
 		Subject: ci.Subject, Issuer: ci.Issuer, SerialHex: ci.SerialHex, SHA256: ci.SHA256,
 		NotBefore: ci.NotBefore, NotAfter: ci.NotAfter,
 		KeyAlgorithm: ci.PublicKey.Algorithm, KeyBits: ci.PublicKey.Bits, Curve: ci.PublicKey.Curve, SigName: ci.SignatureAlg.Name,
+		Extensions: certExtensions(ci),
 	}, emit, emitAsset)
 	ev := observedEvidence("certificate chain presented during the TLS handshake")
 	cert.Component.Evidence = ev
@@ -526,4 +528,30 @@ func ptrOrNil[T any](s []T) *[]T {
 		return nil
 	}
 	return &s
+}
+
+// certExtensions names the extensions a tls-report/2 recorded, by the CycloneDX 1.7 common
+// names (PRD-004 REQ-TNFR-7). A tls-report/1 certificate yields none: nothing is invented.
+func certExtensions(ci tlsprobe.CertInfo) []cbom.CertExtension {
+	var out []cbom.CertExtension
+	if bc := ci.BasicConstraints; bc != nil {
+		v := "CA:FALSE"
+		if bc.CA {
+			v = "CA:TRUE"
+			if bc.MaxPathLen >= 0 {
+				v += ", pathlen:" + strconv.Itoa(bc.MaxPathLen)
+			}
+		}
+		out = append(out, cbom.CertExtension{Name: "basicConstraints", Value: v})
+	}
+	if len(ci.KeyUsage) > 0 {
+		out = append(out, cbom.CertExtension{Name: "keyUsage", Value: strings.Join(ci.KeyUsage, ", ")})
+	}
+	if len(ci.ExtKeyUsage) > 0 {
+		out = append(out, cbom.CertExtension{Name: "extendedKeyUsage", Value: strings.Join(ci.ExtKeyUsage, ", ")})
+	}
+	if len(ci.Policies) > 0 {
+		out = append(out, cbom.CertExtension{Name: "certificatePolicies", Value: strings.Join(ci.Policies, ", ")})
+	}
+	return out
 }

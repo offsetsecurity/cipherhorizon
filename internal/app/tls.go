@@ -38,8 +38,11 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 	maxConns := fl.Int("max-connections", 2000, "hard cap on connections per target")
 	interval := fl.Duration("min-interval", 0, "minimum spacing between connection starts (rate limit)")
 	noCerts := fl.Bool("no-certs", false, "skip the certificate and negotiation steps")
-	httpChecks := fl.Bool("http-checks", false, "after the handshake, send one plain HTTP GET / and read the Strict-Transport-Security header. "+
-		"This is the only check that sends anything beyond a TLS handshake: it makes a real HTTP request to the target. Off by default.")
+	httpChecks := fl.Bool("http-checks", true, "after the handshake, send one plain HTTP GET / and read the Strict-Transport-Security header. "+
+		"This is the only check that sends anything beyond a TLS handshake: one real HTTP request to the target, whose answer is read for headers only. "+
+		"On by default; --http-checks=false turns it off")
+	osTrust := fl.Bool("os-trust", false, "also check each chain against this machine's trust store. Off by default: on some systems the OS verifier "+
+		"fetches missing intermediates from the network, contacting hosts other than the target")
 	fl.Usage = func() {
 		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...  (flags must come before targets)")
 		fl.PrintDefaults()
@@ -81,7 +84,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		_, _ = fmt.Fprintf(env.Stderr, "scanning %s:%d\n", t.Host, t.Port)
 		rep, err := tlsprobe.Scan(ctx, t, tlsprobe.Options{
 			Timeout: *timeout, Concurrency: *concurrency, MaxConnections: *maxConns,
-			MinInterval: *interval, SkipCertificates: *noCerts, HTTPChecks: *httpChecks,
+			MinInterval: *interval, SkipCertificates: *noCerts, HTTPChecks: *httpChecks, OSTrust: *osTrust,
 			Progress: func(msg string) { _, _ = fmt.Fprintf(env.Stderr, "  %s\n", msg) },
 			Now:      env.Now,
 		})

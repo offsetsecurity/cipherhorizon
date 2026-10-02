@@ -14,8 +14,13 @@ import (
 )
 
 // SchemaVersion identifies the JSON shape of Report. It changes only with a
-// documented, backward-incompatible change.
-const SchemaVersion = "tls-report/1"
+// documented change. tls-report/2 adds the stage records, the raw served
+// certificates, the stapled OCSP response and TLS SCTs, the no-SNI chain and
+// the parsed HSTS header; every /1 field keeps its meaning.
+const SchemaVersion = "tls-report/2"
+
+// SchemaVersion1 is the previous shape, still read from stored scans.
+const SchemaVersion1 = "tls-report/1"
 
 // Target is one endpoint to probe.
 type Target struct {
@@ -57,12 +62,78 @@ type Report struct {
 	// check was not attempted (the default) or the connection did not answer
 	// with an HTTP response; true/false only when a response was observed.
 	HSTS *bool `json:"hsts,omitempty"`
+	// HSTSHeader is what the Strict-Transport-Security header said, parsed. nil
+	// when no HTTP response was read.
+	HSTSHeader *HSTSResult `json:"hstsHeader,omitempty"`
+	// NoSNI is what a handshake without server_name returned: "same" (the same
+	// leaf as with SNI), "different" (a separate certificate result with NoSNI
+	// set), "failed", or empty when not attempted (the target is an address).
+	NoSNI string `json:"noSni,omitempty"`
+
+	// Stages record, for each part of the scan (the sections of the endpoint
+	// page), whether it ran, why not, and what it cost.
+	Stages []Stage `json:"stages,omitempty"`
 
 	// Notes are non-fatal observations about the probing itself.
 	Notes []string `json:"notes,omitempty"`
 	// Incomplete is true when some probes were inconclusive (timeouts, budget);
 	// absence of a finding is then not evidence of absence.
 	Incomplete bool `json:"incomplete"`
+}
+
+// Stage names: fixed, they are the endpoint page's sections.
+const (
+	StageProtocols   = "protocols"
+	StageSuites      = "suites"
+	StageKeyExchange = "key-exchange"
+	StageFeatures    = "features"
+	StageCerts       = "certificates"
+	StageRevocation  = "revocation"
+	StageHTTP        = "http"
+)
+
+// Stage outcomes and reason codes.
+const (
+	OutcomeDone         = "done"
+	OutcomeSkipped      = "skipped"
+	OutcomeInconclusive = "inconclusive"
+
+	ReasonOptionOff     = "option-off"
+	ReasonNotApplicable = "not-applicable"
+	ReasonNotReached    = "not-reached"
+	ReasonBudget        = "budget"
+	ReasonLegacy        = "legacy-report"
+)
+
+// Stage is one part of the scan.
+type Stage struct {
+	Name        string   `json:"name"`
+	Outcome     string   `json:"outcome"`
+	Reason      string   `json:"reason,omitempty"`
+	ReasonCode  string   `json:"reasonCode,omitempty"`
+	Connections int      `json:"connections"`
+	Probes      []string `json:"probes,omitempty"` // what was sent, in words
+	// Inconclusive lists the parts of a done stage that proved nothing
+	// (timeouts, budget), so an absent finding there is not evidence of absence.
+	Inconclusive []string `json:"inconclusive,omitempty"`
+}
+
+// HSTSResult is the parsed Strict-Transport-Security header (RFC 6797 §6.1).
+type HSTSResult struct {
+	// Values are the raw header values, cleaned and bounded (at most 4, each at
+	// most 512 bytes). Empty: the response had no such header.
+	Values            []string `json:"values,omitempty"`
+	MaxAge            *int64   `json:"maxAge,omitempty"`
+	IncludeSubDomains bool     `json:"includeSubDomains,omitempty"`
+	Preload           bool     `json:"preload,omitempty"`
+	// Problems are reasons the header is invalid; a user agent ignores an
+	// invalid header entirely.
+	Problems []string `json:"problems,omitempty"`
+}
+
+// Valid reports whether a header was present and a user agent would honour it.
+func (h *HSTSResult) Valid() bool {
+	return h != nil && len(h.Values) > 0 && h.MaxAge != nil && len(h.Problems) == 0
 }
 
 // Evidence says how a result was obtained.
@@ -183,6 +254,14 @@ type CertResult struct {
 	// NameMatches: the leaf is valid for the target host name.
 	NameMatches bool   `json:"nameMatches"`
 	NameError   string `json:"nameError,omitempty"`
+
+	// NoSNI marks the chain returned to a handshake without server_name, when it
+	// differs from the SNI chain.
+	NoSNI bool `json:"noSni,omitempty"`
+	// OCSPStaple is the raw stapled OCSP response (base64), at most 64 KiB.
+	OCSPStaple string `json:"ocspStaple,omitempty"`
+	// TLSSCTs are the raw SCTs from the TLS extension (base64), at most 32.
+	TLSSCTs []string `json:"tlsScts,omitempty"`
 }
 
 // CertInfo describes one certificate.
@@ -206,6 +285,33 @@ type CertInfo struct {
 	OCSPMustStaple bool     `json:"ocspMustStaple,omitempty"`
 	EmbeddedSCTs   bool     `json:"embeddedScts,omitempty"`
 	ParseError     string   `json:"parseError,omitempty"`
+
+	// tls-report/2 additions.
+	DER              string            `json:"der,omitempty"` // base64 of the certificate as served
+	SPKISHA256       string            `json:"spkiSha256,omitempty"`
+	KeyUsage         []string          `json:"keyUsage,omitempty"`
+	ExtKeyUsage      []string          `json:"extKeyUsage,omitempty"`
+	BasicConstraints *BasicConstraints `json:"basicConstraints,omitempty"`
+	NameConstraints  *NameConstraints  `json:"nameConstraints,omitempty"`
+	Policies         []string          `json:"policies,omitempty"`
+	PolicyClass      string            `json:"policyClass,omitempty"` // DV | OV | IV | EV | unknown
+	CNOnly           bool              `json:"cnOnly,omitempty"`
+	Wildcards        []string          `json:"wildcards,omitempty"`
+	LifetimeDays     int               `json:"lifetimeDays,omitempty"`
+	RSAExponent      int               `json:"rsaExponent,omitempty"`
+}
+
+// BasicConstraints is the basicConstraints extension.
+type BasicConstraints struct {
+	CA         bool `json:"ca"`
+	MaxPathLen int  `json:"maxPathLen"` // -1 when absent
+}
+
+// NameConstraints is the nameConstraints extension.
+type NameConstraints struct {
+	Critical  bool     `json:"critical"`
+	Permitted []string `json:"permitted,omitempty"`
+	Excluded  []string `json:"excluded,omitempty"`
 }
 
 // KeyInfo describes a public key.

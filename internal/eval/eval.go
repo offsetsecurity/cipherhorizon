@@ -12,12 +12,13 @@ import (
 	"sort"
 	"time"
 
+	"github.com/example/cipherhorizon/internal/refdata"
 	"github.com/example/cipherhorizon/internal/tlsprobe"
 )
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/2"
+const Version = "eval/3"
 
 // Severity ranks a finding.
 type Severity string
@@ -79,6 +80,14 @@ type Finding struct {
 	Evidence    Evidence   `json:"evidence"`
 	Citations   []Citation `json:"citations"`
 	Remediation string     `json:"remediation"`
+
+	// Section is the endpoint-page section the finding belongs to.
+	Section string `json:"section"`
+	// Labels name the published attacks this weakness enables (FREAK, Logjam,
+	// ...). They are labels on the finding, never separate findings.
+	Labels []string `json:"labels,omitempty"`
+	// Availability marks findings that make clients fail to connect.
+	Availability bool `json:"availability,omitempty"`
 }
 
 // Evaluation is the full judgement of one scan.
@@ -88,14 +97,49 @@ type Evaluation struct {
 	Readiness Readiness        `json:"readiness"`
 	Hygiene   Hygiene          `json:"hygiene"`
 	Counts    map[Severity]int `json:"counts"`
+
+	// eval/3 additions.
+	EvaluatedAt     time.Time    `json:"evaluatedAt"`
+	Sections        []Section    `json:"sections"`
+	FixFirst        []string     `json:"fixFirst"` // rule IDs, at most three
+	PKI             []ChainView  `json:"pki"`
+	Vulnerabilities []AttackView `json:"vulnerabilities"`
+	ReferenceData   []RefInfo    `json:"referenceData"`
+	// DHGroup names the server's DHE prime when it is a published group.
+	DHGroup *DHGroupView `json:"dhGroup,omitempty"`
+	// LegacyReport is set when the report predates tls-report/2: the sections
+	// that need its data are marked not-collected.
+	LegacyReport bool `json:"legacyReport,omitempty"`
 }
 
-// Evaluate judges a scan report. now is used for certificate expiry.
+// DHGroupView is a published Diffie-Hellman group the server's prime matched.
+type DHGroupView struct {
+	Name       string `json:"name"`
+	Source     string `json:"source"`
+	Bits       int    `json:"bits"`
+	Negotiated bool   `json:"rfc7919"`
+}
+
+// Evaluate judges a scan report at now, against the bundled root stores and no
+// private anchors.
 func Evaluate(rep *tlsprobe.Report, now time.Time) Evaluation {
-	c := newContext(rep, now)
+	return EvaluateWith(rep, Input{Now: now})
+}
+
+// EvaluateWith judges a scan report with explicit inputs.
+func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
+	if in.Stores == nil {
+		in.Stores = refdata.Stores()
+	}
+	c := newContext(rep, in.Now)
+	c.in = in
+	c.legacy = rep.SchemaVersion == "" || rep.SchemaVersion == tlsprobe.SchemaVersion1
+	if !c.legacy {
+		c.analyseChains()
+	}
 
 	var findings []Finding
-	for _, r := range rules {
+	for _, r := range allRules() {
 		for _, h := range r.check(c) {
 			sev := r.severity
 			if h.severity != "" {
@@ -104,6 +148,9 @@ func Evaluate(rep *tlsprobe.Report, now time.Time) Evaluation {
 			ev := r.evidence
 			if h.evidence != "" {
 				ev = h.evidence
+			}
+			if r.legacyOnly && !c.legacy || r.v2Only && c.legacy {
+				continue
 			}
 			findings = append(findings, Finding{
 				ID: r.id, Title: r.title, Severity: sev, Category: r.category,
@@ -122,20 +169,39 @@ func Evaluate(rep *tlsprobe.Report, now time.Time) Evaluation {
 		return findings[i].ID < findings[j].ID
 	})
 
+	annotate(findings)
+
 	counts := map[Severity]int{}
 	for _, f := range findings {
 		counts[f.Severity]++
 	}
-	return Evaluation{
+	ev := Evaluation{
 		Version: Version, Findings: findings, Readiness: ready,
 		Hygiene: computeHygiene(c, findings), Counts: counts,
+		EvaluatedAt: in.Now.UTC(), LegacyReport: c.legacy, PKI: []ChainView{},
 	}
+	for _, ch := range c.chains {
+		ev.PKI = append(ev.PKI, ch.view)
+	}
+	ev.Sections = sections(c, findings)
+	ev.FixFirst = fixFirst(findings)
+	ev.Vulnerabilities = attacks(findings)
+	ev.ReferenceData = referenceData(in.Now)
+	if rep.DH != nil {
+		if p, ok := refdata.LookupDHPrime(rep.DH.PrimeSHA256); ok {
+			ev.DHGroup = &DHGroupView{Name: p.Name, Source: p.Source, Bits: p.Bits, Negotiated: p.Negotiated}
+		}
+	}
+	return ev
 }
 
 // ctx is the report plus the derived views every rule needs.
 type ctx struct {
-	rep *tlsprobe.Report
-	now time.Time
+	rep    *tlsprobe.Report
+	now    time.Time
+	in     Input
+	legacy bool     // the report predates tls-report/2
+	chains []*chain // the PKI view of each served chain (tls-report/2 only)
 
 	supported map[string]bool // protocol version name -> supported
 	suites    []tlsprobe.SuiteResult

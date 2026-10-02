@@ -138,13 +138,14 @@ const (
 // entityAttrs and observationAttrs allow-list what may be attached (ADR-0005):
 // nothing free-form travels through the graph.
 var entityAttrs = map[string]map[string]bool{
-	KindCertificate: set("fingerprint", "serial", "subject", "issuer", "notBefore", "notAfter", "keyAlg", "keyBits", "curve", "sigAlg", "isCA", "selfSigned", "dnsNames", "keyUsage"),
-	KindAlgorithm:   set("oid"),
-	KindSoftware:    set("version", "purl", "family", "kind", "arch"),
-	KindProvider:    set("providerKind"),
-	KindProtocol:    set("version"),
-	KindSuite:       set("version", "kx", "auth", "cipher", "mac", "aead", "ianaRecommended"),
-	KindGroup:       set("version", "pq", "hybrid", "obsolete", "ianaRecommended"),
+	KindCertificate: set("fingerprint", "serial", "subject", "issuer", "notBefore", "notAfter", "keyAlg", "keyBits", "curve", "sigAlg", "isCA", "selfSigned", "dnsNames", "keyUsage",
+		"extKeyUsage", "policyClass", "lifetimeDays", "spkiSha256", "cnOnly", "wildcards"),
+	KindAlgorithm: set("oid"),
+	KindSoftware:  set("version", "purl", "family", "kind", "arch"),
+	KindProvider:  set("providerKind"),
+	KindProtocol:  set("version"),
+	KindSuite:     set("version", "kx", "auth", "cipher", "mac", "aead", "ianaRecommended"),
+	KindGroup:     set("version", "pq", "hybrid", "obsolete", "ianaRecommended"),
 }
 
 var observationAttrs = set("rank", "position", "location", "version", "origin", "privateKey")

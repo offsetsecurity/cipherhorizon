@@ -68,6 +68,24 @@ Legend: ✅ done · ⏳ in progress · ⬜ not started · ⛔ blocked · ➖ def
 | 2026-09-26 | Trust follows the channel, not what a document claims (host upload = collector only if it names this product as producer; documented weaker guarantee until an authenticated push exists) | SECARCH-001 T-03 |
 | 2026-09-26 | Systems are a layer above assets (asset = observation anchor; system = owned unit); links merge systems | ENG-HANDOFF-002 D3, DN-1 |
 
+## Program 2: TLS scanner, phase T1 (PRD-004)
+
+Research [RESEARCH-004](../product/RESEARCH-004-tls-scanner-and-pki.md) → requirements [PRD-004](../product/PRD-004-tls-scanner-t1-pki-depth.md) (baselined 2026-10-02) → design [ENG-HANDOFF-003](../product/ENG-HANDOFF-003-tls-t1.md) → tests [QA-PLAN-004](../product/QA-PLAN-004-tls-t1.md). Requirement status is in the RTM (PRD-004 section).
+
+| WP | Title | Status | Requirements | Notes |
+|---|---|---|---|---|
+| T1a | Reference data (CCADB Mozilla/Chrome roots with constraints, DH primes, CT logs, lifetime table) | ✅ built | TDAT-* | snapshot 2026-10-02; licences in docs/reference-data.md |
+| T1b | Scanner: stages, tls-report/2, raw DER/staple/SCT capture, no-SNI, certinfo extensions, HSTS parser, internal/pki decoders | ✅ built | TSTG-*, TCRT-1/2, TCHN-1, TREV-1, TCT-1, THTP-1/3, TNFR-1/2 | |
+| T1c | Evaluation eval/3, trust per store, anchors store/API, reevaluate, DROWN index, OpenAPI | ✅ built | remaining non-UI | deviations V-1..V-8 in ENG-HANDOFF-003 §6 |
+| T1d | Endpoint page rebuild, anchors UI, About, Certificates additions | ✅ built | TUI-*, TNFR-3 | TUI-10, TUI-13 deferred (P1) |
+| T1e | QA-PLAN-004 executed, QA-REPORT-003 | ✅ done | all | [QA-REPORT-003](QA-REPORT-003.md): journey 126/126, security 69/69, oracle 15/15, mutations 12/12; uncommitted, owner review next |
+
+| Date | Decision | Record |
+|---|---|---|
+| 2026-10-02 | Owner accepted all RESEARCH-004 §8 recommendations (external lookups default off from T2; no active probes; Mozilla+Chrome roots first; STARTTLS order; own client hellos; TLS-only HTTP scope, HTTP stage on by default; first address default) | PRD-004 §9 |
+| 2026-10-02 | PRD-004 baselined; roots from CCADB (CDLA-Permissive-2.0, attribution) | PRD-004 §11, §12 |
+| 2026-10-02 | T1 built and QA'd; private chain served correctly is "unknown root", not "missing intermediate" | ENG-HANDOFF-003 §6 V-2 |
+
 ## Open questions and owner actions
 
 | ID | Item | Owner | Blocks |

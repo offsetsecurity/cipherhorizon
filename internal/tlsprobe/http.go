@@ -14,14 +14,14 @@ import (
 const httpReadBudget = 8 << 10 // 8 KiB
 
 // checkHSTS sends one minimal HTTP/1.1 request over an already-established TLS
-// connection and reports whether the response carries a Strict-Transport-Security
-// header. It sends nothing else: no body, no other header is acted on, and a
+// connection and returns the Strict-Transport-Security header values of the
+// response. It sends nothing else: no body, no other header is acted on, and a
 // Location header is never followed (a redirect could point off-target).
 //
 // The result is nil when the connection does not appear to be speaking HTTP at
-// all (the reply is not a valid HTTP status line): false means "a response
-// arrived and lacked the header," not "this wasn't a web server."
-func checkHSTS(conn *tls.Conn, host string) (*bool, error) {
+// all (the reply is not a valid HTTP status line). A non-nil result with no
+// values means "a response arrived and lacked the header".
+func checkHSTS(conn *tls.Conn, host string) (*HSTSResult, error) {
 	req := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host)
 	if _, err := conn.Write([]byte(req)); err != nil {
 		return nil, fmt.Errorf("writing request: %w", err)
@@ -45,7 +45,7 @@ func checkHSTS(conn *tls.Conn, host string) (*bool, error) {
 		return nil, nil //nolint:nilnil // "not speaking HTTP" is unknown, not an error
 	}
 
-	found := false
+	var values []string
 	sc := bufio.NewScanner(bytes.NewReader(buf.Bytes()))
 	sc.Scan() // status line, already checked above
 	for sc.Scan() {
@@ -53,46 +53,48 @@ func checkHSTS(conn *tls.Conn, host string) (*bool, error) {
 		if line == "" {
 			break // end of headers
 		}
-		name, _, ok := strings.Cut(line, ":")
+		name, value, ok := strings.Cut(line, ":")
 		if ok && strings.EqualFold(strings.TrimSpace(name), "Strict-Transport-Security") {
-			found = true
+			values = append(values, value)
 		}
 	}
-	return &found, nil
+	return ParseHSTS(values), nil
 }
 
+// notHTTP is the reason given when the service answered, but not with HTTP.
+const notHTTP = "the service did not answer with an HTTP response"
+
 // hstsCheck opens one additional TLS connection — only ever called when
-// Options.HTTPChecks is set — and asks checkHSTS whether the server sends
-// Strict-Transport-Security. Any failure short of a genuine HTTP response
-// leaves the result nil and records why, per the "nil means unknown, not no"
-// rule documented on checkHSTS.
-func (p *prober) hstsCheck(ctx context.Context) *bool {
+// Options.HTTPChecks is set — and reads the Strict-Transport-Security header.
+// Any failure short of a genuine HTTP response returns nil and a reason.
+func (p *prober) hstsCheck(ctx context.Context) (*HSTSResult, string) {
 	cfg := &tls.Config{InsecureSkipVerify: true, ServerName: p.target.SNI, //nolint:gosec // reading a header, not trusting the identity
 		MinVersion: tls.VersionTLS10, NextProtos: []string{"http/1.1"}}
 	conn, release, err := p.connect(ctx)
 	if err != nil {
 		p.note("HSTS check: connecting: %v", err)
-		return nil
+		return nil, "connecting failed: " + err.Error()
 	}
 	defer release()
 	tc := tls.Client(conn, cfg)
 	defer tc.Close() //nolint:errcheck // probe connection
 	if err := tc.HandshakeContext(ctx); err != nil {
 		p.note("HSTS check: handshake: %v", err)
-		return nil
+		return nil, "handshake failed: " + err.Error()
 	}
 
 	host := p.target.SNI
 	if host == "" {
 		host = p.target.Host
 	}
-	found, err := checkHSTS(tc, host)
+	res, err := checkHSTS(tc, host)
 	if err != nil {
 		p.note("HSTS check: %v", err)
-		return nil
+		return nil, err.Error()
 	}
-	if found == nil {
+	if res == nil {
 		p.note("HSTS check: the connection did not answer with an HTTP response")
+		return nil, notHTTP
 	}
-	return found
+	return res, ""
 }

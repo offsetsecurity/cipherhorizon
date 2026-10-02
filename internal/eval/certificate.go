@@ -52,17 +52,14 @@ func EvaluateCertificate(f CertificateFacts, now time.Time) []Finding {
 	}
 
 	if !f.NotAfter.IsZero() {
-		switch d := daysLeft(f.NotAfter, now); {
+		switch {
 		case f.NotAfter.Before(now):
 			add("CERT.EXPIRED", "Certificate has expired", Critical, []Citation{citRFC5280}, "Renew and deploy a new certificate.",
 				fmt.Sprintf("%s expired on %s", label, f.NotAfter.Format("2006-01-02")))
-		case d <= 30:
-			sev := Medium
-			if d <= 7 {
-				sev = High
+		default:
+			if detail, sev, fire := expiringCheck(now, label, f.NotBefore, f.NotAfter, 0); fire {
+				add("CERT.EXPIRING", "Certificate expires soon", sev, []Citation{citRFC5280}, "Renew before expiry; automate renewal.", detail)
 			}
-			add("CERT.EXPIRING", "Certificate expires soon", sev, []Citation{citRFC5280}, "Renew before expiry; automate renewal.",
-				fmt.Sprintf("%s expires in %d day(s)", label, d))
 		}
 	}
 	if !f.NotBefore.IsZero() && f.NotBefore.After(now) {

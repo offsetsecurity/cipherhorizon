@@ -104,3 +104,30 @@ A review of the first endpoint CBOM raised six points. What was done:
 | Obsolete draft group as a dependency | **Same answer.** It is listed because a server was observed accepting it, and marked `iana-obsolete`; it is not flagged negotiated unless it was. |
 | Certificate points at an algorithm, not a key | **Fixed.** `subjectPublicKeyRef` now references a `related-crypto-material` public key with its size and algorithm variant, as the 1.6 schema describes it. |
 | No statement of where crypto is used | **Fixed.** The endpoint now depends on its protocols and certificates; certificates on keys; keys on algorithms. |
+
+## Certificate facts in the CBOM (PRD-004 REQ-TNFR-7)
+
+`tls-report/2` records more about each certificate than before. They reach the CBOM only where CycloneDX has a field.
+
+**In 1.7 documents** (`certificateProperties.certificateExtensions`, by `commonExtensionName`):
+
+| 1.7 name | Value written |
+|---|---|
+| `basicConstraints` | `CA:TRUE` (with `pathlen:N` when set) or `CA:FALSE` |
+| `keyUsage` | the RFC 5280 names, comma separated |
+| `extendedKeyUsage` | `serverAuth`, `clientAuth`, ... (an unnamed usage as its OID) |
+| `certificatePolicies` | the policy OIDs |
+
+1.6 has no such field, so a 1.6 document omits them (`TestCertificateExtensionsOnlyIn17` validates both against the
+vendored schemas). A certificate from a `tls-report/1` scan has none of these facts, and none is invented.
+
+**Not in the CBOM** (no field in 1.6 or 1.7); they stay in the report, the evaluation and the estate graph:
+
+| Fact | Why |
+|---|---|
+| Name constraints | 1.7's common extension names do not include nameConstraints; a custom extension would be our own vocabulary |
+| The DV/OV/IV/EV class | derived from the policy OIDs, which are emitted |
+| Lifetime and the limit it is held to | derivable from `notValidBefore`/`notValidAfter`; the limit is a judgement |
+| Served order, chain problems, per-store trust | properties of an endpoint's configuration and of evaluation, not of the certificate |
+| Stapled OCSP response, the SCTs themselves | revocation evidence observed on a connection, not part of the certificate (embedded SCTs are part of it, but are not decoded into the CBOM) |
+| Public-key SHA-256 (SPKI) | no field; the certificate's SHA-256 fingerprint is the identifier used |

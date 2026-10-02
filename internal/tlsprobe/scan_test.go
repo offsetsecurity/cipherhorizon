@@ -232,8 +232,11 @@ func TestCertificatesAndTrust(t *testing.T) {
 		}
 		leaf := c.Chain[0]
 		algs[leaf.PublicKey.Algorithm] = true
-		if c.Trusted || c.TrustError == "" {
-			t.Errorf("a self-signed test certificate must be reported untrusted: %+v", c)
+		if c.Trusted || c.TrustError != "" {
+			t.Errorf("the OS store must not be consulted unless OSTrust is set: %+v", c)
+		}
+		if leaf.DER == "" || leaf.SPKISHA256 == "" {
+			t.Errorf("tls-report/2 raw certificate missing: %+v", leaf)
 		}
 		if !c.NameMatches {
 			t.Errorf("127.0.0.1 is a SAN of the test certificate: %s", c.NameError)
@@ -331,6 +334,24 @@ func TestHSTSNilWhenNotSpeakingHTTP(t *testing.T) {
 	rep := scan(t, srv, o)
 	if rep.HSTS != nil {
 		t.Errorf("HSTS = %v, want nil: the response was not HTTP", rep.HSTS)
+	}
+	// REQ-THTP-3: not an HTTP service is "not applicable", not a failure.
+	for _, s := range rep.Stages {
+		if s.Name == tlsprobe.StageHTTP && (s.Outcome != tlsprobe.OutcomeSkipped || s.ReasonCode != tlsprobe.ReasonNotApplicable) {
+			t.Errorf("http stage on a non-HTTP service: %+v", s)
+		}
+	}
+}
+
+// REQ-TTRS-3: the machine's own store is an opt-in extra.
+func TestOSTrustIsOptIn(t *testing.T) {
+	srv := testserver.Start(t, testserver.Config{MinVersion: tls.VersionTLS12})
+	o := opts()
+	o.OSTrust = true
+	for _, c := range scan(t, srv, o).Certificates {
+		if c.Trusted || c.TrustError == "" {
+			t.Errorf("with OSTrust, a self-signed certificate must carry the OS verdict: %+v", c)
+		}
 	}
 }
 

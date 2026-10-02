@@ -119,3 +119,20 @@ func firstElement(b []byte) ([]byte, bool) {
 	}
 	return raw.FullBytes, true
 }
+
+// PEMCertificates is the certificate-only PEM reader for callers outside this sensor
+// (the private trust-anchor upload, the server-wide CA bundle): the same rules, so a
+// private key in an upload is counted and refused, never decoded.
+type PEMCertificates struct {
+	Certs     [][]byte
+	KeyBlocks int
+	Other     int
+	Malformed int
+	Truncated bool
+}
+
+// ReadPEMCertificates scans text for certificate blocks.
+func ReadPEMCertificates(data []byte) PEMCertificates {
+	r := scanPEM(data)
+	return PEMCertificates{Certs: r.certs, KeyBlocks: r.keyBlocks, Other: r.other, Malformed: r.malformed, Truncated: r.truncated}
+}
