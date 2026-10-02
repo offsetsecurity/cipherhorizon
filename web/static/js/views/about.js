@@ -1,6 +1,6 @@
 // About: what this product is, how to get the collector, the readiness scale, how the TLS hygiene
 // score works, and the limits of what is measured.
-import { h } from '../dom.js';
+import { h, brandMark } from '../dom.js';
 import { api } from '../api.js';
 import { LEVELS, levelClass } from '../charts.js';
 import { citations, button } from '../ui.js';
@@ -27,9 +27,7 @@ export async function render(root) {
   const a = await api.about();
   root.appendChild(h('section', { class: 'about-hero' },
     h('div', { class: 'about-hero-mark', 'aria-hidden': 'true' },
-      h('svg', { viewBox: '0 0 32 32', fill: 'none' },
-        h('path', { d: 'M16 2 L28 9 V23 L16 30 L4 23 V9 Z', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linejoin': 'round' }),
-        h('path', { d: 'M16 9 L22 12.5 V19.5 L16 23 L10 19.5 V12.5 Z', fill: 'currentColor' }))),
+      brandMark('Hero', 'rgba(17,17,30,.14)')),
     h('div', null,
       h('h1', null, a.name || 'CipherHorizon'),
       h('p', { class: 'about-hero-sub' }, 'A cryptographic inventory that ranks your systems for the move to post-quantum cryptography.'),

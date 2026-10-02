@@ -1,0 +1,33 @@
+# One-command install: `docker compose up -d`, then open http://127.0.0.1:8080.
+#
+# Builds the image from the local Dockerfile (no registry image is published yet; once one is,
+# replace `build: .` below with `image: ghcr.io/<owner>/cipherhorizon:<version>` and pin a version).
+#
+# A token is required because compose publishes the port beyond loopback (see SECURITY.md and the
+# Dockerfile's own comment). Put one in a ".env" file next to this one (compose reads it
+# automatically, and .env is already gitignored) or export it in your shell before starting:
+#
+#   echo "CIPHERHORIZON_TOKEN=$(openssl rand -hex 24)" > .env
+#   docker compose up -d
+#
+# Data (the SQLite database, everything the server has observed) lives in the "data" volume, so it
+# survives `docker compose down`; use `docker compose down -v` to also remove it.
+
+services:
+  cipherhorizon:
+    build: .
+    container_name: cipherhorizon
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Fails fast with a clear error (rather than starting unauthenticated) if neither this nor
+      # a ".env" file supplies one — the same rule the binary itself enforces outside loopback.
+      CIPHERHORIZON_TOKEN: ${CIPHERHORIZON_TOKEN:?set CIPHERHORIZON_TOKEN in the environment or a .env file next to this compose file — see the comment above}
+    volumes:
+      - data:/data
+    # The image itself declares a HEALTHCHECK (the base image has no shell, curl or wget, so
+    # the binary checks its own /api/v1/health); nothing to add here.
+
+volumes:
+  data:

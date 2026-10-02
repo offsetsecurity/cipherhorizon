@@ -1,8 +1,0 @@
-name,address,tags,hygiene_band,pqc_level,pqc_label,hndl_exposed,critical,high,cert_expires,last_scan,status,rescan_interval_seconds,hygiene_score
-slow-hybrid,127.0.0.1:9446,,,,,,,,,,canceled,0,
-pq-toggle,127.0.0.1:9445,,Fair,3,Hybrid negotiated,false,0,2,2026-09-22,2026-09-21T20:20:34Z,done,0,60
-dead-port,127.0.0.1:9444,,,,,,,,,,failed,0,
-terrible-legacy,127.0.0.1:9443,,Broken,0,Not ready,true,3,4,,2026-09-21T20:20:11Z,done,0,0
-legacy-tls12,127.0.0.1:9442,,Fair,0,Not ready,true,0,2,2026-09-22,2026-09-21T20:20:11Z,done,0,56
-classical-tls13,127.0.0.1:9441,,Fair,1,Exposed,true,0,2,2026-09-22,2026-09-21T20:20:11Z,done,0,60
-modern-hybrid,127.0.0.1:9440,demo;web,Fair,3,Hybrid negotiated,false,0,2,2026-09-22,2026-09-21T20:20:11Z,done,86400,60

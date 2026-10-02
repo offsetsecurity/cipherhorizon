@@ -3,6 +3,7 @@
 * text=auto eol=lf
 
 *.png binary
+*.gif binary
 *.ico binary
 *.woff2 binary
 *.woff binary
@@ -12,5 +13,6 @@
 
 # GitHub language statistics and diffs: vendored/generated files are not "the code".
 testing/schema/*.json linguist-vendored
+internal/cdxschema/schemas/*.json linguist-vendored
 web/static/fonts/** linguist-vendored
 internal/tlsprobe/registry/*_gen.go linguist-generated

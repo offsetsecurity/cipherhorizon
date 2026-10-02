@@ -74,6 +74,8 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return importCmd(ctx, args[1:], env)
 	case "db":
 		return dbCmd(args[1:], env)
+	case "healthcheck":
+		return healthcheckCmd(ctx, args[1:], env)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(env.Stdout, "cipherhorizon", version.Get())
 		return ExitOK
@@ -105,6 +107,7 @@ Usage:
   cipherhorizon import [--server URL] (--system ID | --new-system NAME) FILE|-
   cipherhorizon db rebuild-graph|stats [--db FILE]
   cipherhorizon plugins       list the built-in sensors
+  cipherhorizon healthcheck [--addr HOST:PORT]   for a container orchestrator; see below
   cipherhorizon version
 
 run flags:
@@ -128,6 +131,9 @@ the same way a host inventory's are. Scan only systems you are authorised to tes
 serve runs the web UI and API: add endpoints, scan them, watch progress, see history and
 post-quantum readiness. It listens on 127.0.0.1:8080 by default and refuses any other
 address unless --token (or CIPHERHORIZON_TOKEN) is set. Data is kept in --db (SQLite).
+
+healthcheck asks a running "serve" for its health, without a token, and exits 0 or 1; it is
+what the container image's HEALTHCHECK runs, since the distroless base has no shell or curl.
 
 Exit codes: 0 success; 1 fatal error; 2 result produced, but incomplete or a target failed.
 `)

@@ -936,11 +936,10 @@ td .btn-sm, td .btn { white-space: nowrap; }
 /* -- about page: a proper hero instead of diving straight into reference tables ----------------- */
 .about-hero { display: flex; align-items: center; gap: var(--space-5); margin-bottom: var(--space-5); }
 .about-hero-mark {
-  flex: 0 0 auto; width: 3.4rem; height: 3.4rem; border-radius: var(--radius); display: grid; place-items: center;
-  color: #fff; background: linear-gradient(135deg, var(--primary-2), var(--primary-h));
-  box-shadow: 0 8px 22px var(--primary-shadow);
+  flex: 0 0 auto; width: 3.6rem; height: 3.6rem; display: grid; place-items: center;
+  filter: drop-shadow(0 6px 14px var(--primary-shadow));
 }
-.about-hero-mark svg { width: 1.8rem; height: 1.8rem; }
+.about-hero-mark svg { width: 100%; height: 100%; }
 .about-hero h1 { margin-bottom: .2rem; }
 .about-hero-sub { color: var(--text-2); max-width: 52ch; margin: 0 0 .3rem; }
 .readylist { display: grid; gap: .7rem; }

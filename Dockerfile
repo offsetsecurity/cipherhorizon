@@ -30,7 +30,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 ARG VERSION=0.0.0-dev
 ARG COMMIT=
 LABEL org.opencontainers.image.title="CipherHorizon" \
-      org.opencontainers.image.description="PQC readiness and TLS posture workbench" \
+      org.opencontainers.image.description="A cryptographic inventory that ranks your systems for the move to post-quantum cryptography" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}"
@@ -43,3 +43,6 @@ EXPOSE 8080
 # Listening beyond loopback requires an access token: pass CIPHERHORIZON_TOKEN (or --token).
 ENTRYPOINT ["/cipherhorizon"]
 CMD ["serve", "--addr", "0.0.0.0:8080", "--db", "/data/cipherhorizon.db"]
+# The base image has no shell, curl or wget, so the binary checks its own /api/v1/health.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
+  CMD ["/cipherhorizon", "healthcheck", "--addr", "127.0.0.1:8080"]

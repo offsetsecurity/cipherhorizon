@@ -1,24 +1,33 @@
 # CipherHorizon
 
+[![CI](https://github.com/example/cipherhorizon/actions/workflows/ci.yml/badge.svg)](https://github.com/example/cipherhorizon/actions/workflows/ci.yml)
+[![Go Reference](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![CycloneDX](https://img.shields.io/badge/CBOM-CycloneDX%201.7-6c4ce0)](docs/exporting.md)
+
 <!-- placeholder-owner -->
 > **Before the first push:** the module path `github.com/example/cipherhorizon` uses a placeholder owner. Run
 > `scripts/set-owner.sh <your-github-username>` (rewrites the module path, release config and links, and removes
 > this notice). See [docs/engineering/BRANCHING.md](docs/engineering/BRANCHING.md#first-push).
 <!-- /placeholder-owner -->
 
-A vendor-neutral, open-source **cryptographic inventory that ranks your systems for the move to post-quantum
-cryptography**. It scans your TLS endpoints, inventories the cryptography and certificates on your machines, imports
-CBOMs from other tools, joins what belongs together, and tells you which system to look at first and why.
+A vendor-neutral, open-source **active TLS/SSL scanner and cryptographic inventory** that rates every endpoint's
+posture and ranks your systems for the move to post-quantum cryptography. It scans your TLS endpoints, inventories
+the cryptography and certificates on your machines, imports CBOMs from other tools, joins what belongs together, and
+tells you which system to look at first and why.
 
+![CipherHorizon: systems ranked with cited reasons; a scanned endpoint's PQC readiness and TLS hygiene score with every point explained; the fleet-wide TLS posture overview; the certificate inventory; and getting the collector from the About page](docs/img/demo.gif)
+
+- **Active TLS/SSL scanner and posture score**: protocol versions (SSLv2 to TLS 1.3), every cipher suite, key-exchange
+  groups including post-quantum hybrids such as `X25519MLKEM768`, and certificates, each endpoint scored 0-100 (a
+  **TLS hygiene** band) and rated **PQC readiness** L0-L4, with a cited finding and remediation for every point lost —
+  never a bare number. A fleet-wide **TLS overview** ranks every endpoint's problems worst first.
 - **Estate**: the home page. Systems in the order to look at them, by four published, cited rules (traffic exposed to
   later decryption against how long its data must stay secret, exposure and criticality, certificate and TLS defects,
   strength of evidence). No composite score: every row says which rule put it there and where it is from.
 - **Systems, certificates, review, imports**: a *system* is what an owner answers for. Its services, machines and
   certificates (with key sizes) hang under it; likely matches between a service and a machine are proposed for a person to
   confirm or reject; documents from other tools are imported with provenance and never overwrite what was observed.
-- **Active TLS/SSL scanner**: protocol versions (SSLv2 to TLS 1.3), every cipher suite, key-exchange groups
-  including post-quantum hybrids such as `X25519MLKEM768`, certificates, with a cited finding for every problem. Each
-  endpoint also has a **PQC readiness** level (L0-L4) and a **TLS hygiene** score.
 - **CBOM as an interchange format**: `cipherhorizon run`, `cipherhorizon-collector run` and `cipherhorizon tls scan --cbom`
   write a [CycloneDX](https://cyclonedx.org/capabilities/cbom/) **1.7** CBOM (`--spec 1.6` for older consumers) with
   evidence-based post-quantum classifications, and third-party CBOMs can be imported. Per system, the nine items of
@@ -38,8 +47,9 @@ CBOMs from other tools, joins what belongs together, and tells you which system 
 
 The Estate names the next useful step, and the TLS overview shows a single **next step** for your endpoints. More detail: [How to start](#how-to-start) below.
 
-**Status: pre-release, `0.x` (release R1 of the workbench).** Interfaces can still change between minor versions ([versioning policy](docs/engineering/RELEASING.md#versioning-policy)). See the [release report](docs/product/RELEASE-REPORT-001.md)
-for what is in, what is not, and what was found in testing.
+**Status: pre-release, `0.x`.** Interfaces can still change between minor versions ([versioning policy](docs/engineering/RELEASING.md#versioning-policy)).
+The first tagged release (`0.1.0`) is written up in the [release report](docs/product/RELEASE-REPORT-001.md); the
+cryptographic estate model above it is written up in [QA-REPORT-002](docs/program/QA-REPORT-002.md), not yet tagged.
 
 ## Tech stack
 
@@ -50,7 +60,7 @@ for what is in, what is not, and what was found in testing.
 | Web UI | Plain **HTML, CSS and JavaScript ES modules**, hand-drawn SVG charts. No framework, no npm, no build step. The files in `web/static` are compiled into the binary with `go:embed`, so the UI works offline. |
 | Storage | **SQLite** through the pure-Go driver `modernc.org/sqlite` (no C compiler needed), WAL mode, embedded forward-only migrations. The whole state is one file. |
 | TLS scanning | An **own TLS wire-protocol implementation** (`internal/tlsprobe/wire`) so it can offer what Go's `crypto/tls` cannot (SSLv2/3, export and anonymous suites, arbitrary groups). Go's `crypto/tls` is used only to fetch certificates and to show what a current client negotiates. IANA cipher-suite and group registries are generated from the registry CSVs. |
-| CBOM | `github.com/CycloneDX/cyclonedx-go` (CycloneDX 1.6), `github.com/package-url/packageurl-go`; output validated against the vendored CycloneDX JSON schema in tests (`santhosh-tekuri/jsonschema`). |
+| CBOM | `github.com/CycloneDX/cyclonedx-go`; CycloneDX **1.7** by default (`--spec 1.6` for older consumers), `github.com/package-url/packageurl-go`; output validated against the vendored CycloneDX JSON schema of the matching version in tests (`santhosh-tekuri/jsonschema`). |
 | Config | YAML (`go.yaml.in/yaml/v3`) for the host inventory command. |
 | Tests and tooling | `go test` (unit, integration against in-process servers, fuzzing), `golangci-lint`, and a browser end-to-end script (Node 22+, no dependencies, drives Chrome/Edge over the DevTools protocol). GitHub Actions for CI. |
 
@@ -77,9 +87,11 @@ Administrator (Windows) or root (Linux) for a fuller result.
 
 Download an archive for Linux, macOS or Windows (amd64/arm64) from the
 [Releases](../../releases) page, verify it ([how](docs/engineering/DISTRIBUTION.md#verifying-a-download)),
-extract it and run `cipherhorizon serve`. Or use the container image
+extract it and run `cipherhorizon serve`. Or use the container image once one is published
 (`docker run -p 8080:8080 -e CIPHERHORIZON_TOKEN=... -v data:/data ghcr.io/<owner>/cipherhorizon:<version>`),
-or `go install github.com/<owner>/cipherhorizon/cmd/cipherhorizon@<version>`. What each release contains and how
+or build one locally with `docker compose up -d` (reads [docker-compose.yml](docker-compose.yml); put a token in
+a `.env` file next to it first — the file's own comment shows how) or plain `docker build .`, or
+`go install github.com/<owner>/cipherhorizon/cmd/cipherhorizon@<version>`. What each release contains and how
 it is built and signed: [docs/engineering/DISTRIBUTION.md](docs/engineering/DISTRIBUTION.md).
 
 ### Build and run

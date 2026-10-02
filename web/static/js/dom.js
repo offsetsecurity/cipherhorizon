@@ -132,3 +132,25 @@ export function fmtBytes(n) {
 /** "Linux" from "linux", "macOS" from "darwin". */
 const OS_LABEL = { linux: 'Linux', darwin: 'macOS', windows: 'Windows' };
 export function osPlatformLabel(goos) { return OS_LABEL[goos] || goos; }
+
+/** The CipherHorizon mark: a gradient shield (the "horizon", violet into amber) with a keyhole cut
+ * from it (the "cipher") and a thin facet line catching the light. idSuffix keeps its <defs> ids
+ * unique when more than one copy is on the page at once (the static sidebar mark in index.html is
+ * always present); border picks a stroke that reads on the background this copy sits on. */
+export function brandMark(idSuffix, border = 'rgba(255,255,255,.16)') {
+  const grad = `chGrad${idSuffix}`;
+  const cut = `chCut${idSuffix}`;
+  return svg('svg', { viewBox: '0 0 32 32', fill: 'none' },
+    svg('defs', null,
+      svg('linearGradient', { id: grad, x1: '16', y1: '1', x2: '16', y2: '31', gradientUnits: 'userSpaceOnUse' },
+        svg('stop', { offset: '0', 'stop-color': '#9C7CFF' }),
+        svg('stop', { offset: '.55', 'stop-color': '#7048E8' }),
+        svg('stop', { offset: '1', 'stop-color': '#F2A33F' })),
+      svg('mask', { id: cut, maskUnits: 'userSpaceOnUse', x: '0', y: '0', width: '32', height: '32' },
+        svg('rect', { width: '32', height: '32', fill: '#fff' }),
+        svg('circle', { cx: '16', cy: '13.4', r: '3', fill: '#000' }),
+        svg('path', { d: 'M14.3 15.3H17.7L16.7 20.4H15.3Z', fill: '#000' }))),
+    svg('path', { d: 'M16 1.4 L28.6 8.2 V23.6 L16 30.6 L3.4 23.6 V8.2 Z', fill: `url(#${grad})`, mask: `url(#${cut})` }),
+    svg('path', { d: 'M16 1.4 L28.6 8.2 V23.6 L16 30.6 L3.4 23.6 V8.2 Z', fill: 'none', stroke: border, 'stroke-width': '.6' }),
+    svg('path', { d: 'M4.6 9.2 L16 15.2 L27.4 9.2', stroke: 'rgba(255,255,255,.4)', 'stroke-width': '.55', fill: 'none' }));
+}

@@ -85,15 +85,23 @@ version always; `<major>.<minor>` and `latest` only for stable (non-0.x, non-pre
 tar -xzf cipherhorizon_0.1.0_linux_amd64.tar.gz
 ./cipherhorizon serve            # http://127.0.0.1:8080, data in ./cipherhorizon.db
 
-# container: listening beyond loopback requires a token
+# container, published image: listening beyond loopback requires a token
 docker run -d --name cipherhorizon -p 8080:8080 \
   -e CIPHERHORIZON_TOKEN="$(openssl rand -hex 24)" \
   -v cipherhorizon-data:/data \
   ghcr.io/<owner>/cipherhorizon:0.1.0
 
+# container, built locally (docker-compose.yml at the repository root)
+echo "CIPHERHORIZON_TOKEN=$(openssl rand -hex 24)" > .env
+docker compose up -d
+
 # from source, with Go installed
 go install github.com/<owner>/cipherhorizon/cmd/cipherhorizon@v0.1.0
 ```
+
+The image has no shell (distroless), so its `HEALTHCHECK` runs `cipherhorizon healthcheck` — a hidden CLI
+subcommand that asks the server's own `/api/v1/health`, without a token, and exits 0 or 1 — instead of the usual
+`curl`. `docker inspect --format '{{.State.Health.Status}}' cipherhorizon` reads the result.
 
 Windows: unzip and run `cipherhorizon.exe serve`. Upgrade by replacing the binary; the database migrates
 forward on start. **Back up the `.db` file before upgrading a 0.x release**: 0.x does not promise a downgrade

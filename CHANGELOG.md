@@ -12,6 +12,19 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
+- **A new mark**: a gradient shield (the "horizon", violet into amber) with a keyhole cut from it (the "cipher")
+  in place of the flat nested-hexagon icon, in the sidebar and on the About page (`web/static/js/dom.js`'s
+  `brandMark`). The README leads with an active-TLS-scanner-and-posture-score framing and a six-frame demo GIF
+  (ranked Estate → cited reasons → PQC readiness and TLS hygiene on a scanned endpoint → the fleet-wide TLS
+  overview → certificates → getting the collector), generated from the running app.
+- **`cipherhorizon healthcheck [--addr HOST:PORT]`**: a hidden CLI subcommand that asks a running server's own
+  `/api/v1/health`, without a token, and exits 0 or 1. It exists for the container image's `HEALTHCHECK`: the
+  distroless base has no shell, curl or wget, so the binary checks itself.
+- **`docker-compose.yml`** at the repository root: `docker compose up -d` builds the image locally and starts it
+  with a persisted volume; a `.env` file (gitignored) supplies `CIPHERHORIZON_TOKEN`. See
+  [docs/engineering/DISTRIBUTION.md](docs/engineering/DISTRIBUTION.md#install).
+- **`.dockerignore`**: the build context no longer includes `.git`, local databases, prior builds or docs, which
+  were previously sent to the Docker daemon on every build.
 - **Estate model, WP-1** (PRD-003, ENG-HANDOFF-002; the first package of the 0.2.0 program). The database gains a
   **system** (the owned unit an owner answers for) above the assets, and an **estate graph**: certificates, algorithms,
   software, providers, protocols, suites and groups as entities, each with observations that say who saw them, how, how
@@ -97,10 +110,18 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - The default CBOM version is now 1.7 (was 1.6). Pass `--spec 1.6` to keep the old output.
 - The database migrates to schema version 4 on first start. **An automatic, owner-only copy of the previous database is
   written next to it first** (`<db>.bak-v3-<time>`); if the copy cannot be made, nothing is changed.
+- The `artifacts/` directory (QA/release evidence from the first milestone, under the project's pre-rename name)
+  is no longer tracked in git; `.gitignore` now excludes it wholesale, matching how `testing/e2e` and the
+  Makefile already treat it as regenerable, not shipped. The durable write-up of that evidence lives in
+  `docs/product/` and `docs/program/` instead.
+- The sidebar no longer names Offset Security under the CipherHorizon wordmark; the credit stays once, in the
+  sidebar footer, where it already was.
 
 ### Fixed
 
 - A scan could be seen as finished a moment before its certificates and proposed joins were derived from it; they are now derived in the same transaction as the result.
+- The About page's brand mark was invisible (built with the HTML-element builder instead of the SVG one, so
+  nothing rendered inside its gradient tile); fixed as part of the new mark.
 
 ## [0.1.0] - 2026-09-26
 
