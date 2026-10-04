@@ -35,7 +35,7 @@ func chainRule(id, title, category string, sev Severity, cites []Citation, remed
 		check: func(c *ctx) []hit {
 			var hits []hit
 			for _, ch := range c.chains {
-				if ch.served == nil {
+				if ch.served == nil || ch.cr.NoSNI {
 					continue
 				}
 				if d, s, fire := fn(c, ch); fire {
@@ -232,6 +232,38 @@ var t1Rules = []rule{
 			return fmt.Sprintf("%s: exponent %d", ch.label(), e), "", e > 0 && e < 65537
 		}),
 
+	{
+		id: "CERT.NO-SNI-DIFFERENT", title: "Clients that send no server name get a different certificate", category: "certificate", severity: Info, evidence: Observed,
+		citations:   []Citation{citRFC6066},
+		remediation: "Usually nothing to do: every current client sends a server name (SNI), and many large sites deliberately serve a placeholder without it. Act only if you must support clients that cannot send SNI.",
+		v2Only:      true,
+		check: func(c *ctx) []hit {
+			var hits []hit
+			for _, ch := range c.chains {
+				if !ch.cr.NoSNI || len(ch.cr.Chain) == 0 {
+					continue
+				}
+				leaf := ch.cr.Chain[0]
+				var what []string
+				if ch.served != nil && len(ch.trustedBy) == 0 && !ch.private {
+					what = append(what, "not trusted by any store checked")
+				}
+				if !ch.cr.NameMatches {
+					what = append(what, "not valid for "+c.rep.Target.Host)
+				}
+				if leaf.NotAfter.Before(c.now) {
+					what = append(what, "expired on "+fmtDate(leaf.NotAfter))
+				}
+				d := fmt.Sprintf("without SNI the server presents %s", leaf.Subject)
+				if len(what) > 0 {
+					d += ", which is " + strings.Join(what, ", ")
+				}
+				hits = append(hits, hit{detail: d + ". It is shown for information and is not scored."})
+			}
+			return hits
+		},
+	},
+
 	// ---- revocation and transparency ----
 	chainRule("OCSP.REVOKED", "The stapled OCSP response says the certificate is revoked", "revocation", Critical,
 		[]Citation{citRFC6960},
@@ -377,7 +409,7 @@ var t1Rules = []rule{
 		check: func(c *ctx) []hit {
 			m := filter(c.suites, func(s tlsprobe.SuiteResult) bool { return isCBC(s) && s.Version != "TLSv1.3" })
 			if len(m) > 0 {
-				return one(fmt.Sprintf("%d accepted suite(s): %s", len(m), names(m)))
+				return one(acceptedSuites(m))
 			}
 			return nil
 		},

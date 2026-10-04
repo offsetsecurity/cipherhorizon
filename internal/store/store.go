@@ -308,6 +308,10 @@ var migrations = []string{
 		added_by TEXT NOT NULL,
 		UNIQUE (system_id, sha256)
 	);`,
+	// 8: low and informational finding counts, so a list can say how many findings a result has
+	// (not only the critical, high and medium ones). Filled from the stored evaluations.
+	`ALTER TABLE scans ADD COLUMN low INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE scans ADD COLUMN info INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same
@@ -315,6 +319,7 @@ var migrations = []string{
 var postMigrations = map[int]func(tx *sql.Tx, now time.Time) error{
 	4: backfillSystems,
 	6: backfillLinks,
+	8: backfillLowInfo,
 }
 
 // Finding triage statuses. "Resolved" is never one of these: it is not a
@@ -448,6 +453,8 @@ type ScanSummary struct {
 	Critical       int        `json:"critical"`
 	High           int        `json:"high"`
 	Medium         int        `json:"medium"`
+	Low            int        `json:"low"`
+	Info           int        `json:"info"`
 	CertNotAfter   *time.Time `json:"certNotAfter"`
 	Incomplete     bool       `json:"incomplete"`
 }
@@ -463,6 +470,8 @@ type Result struct {
 	Critical       int
 	High           int
 	Medium         int
+	Low            int
+	Info           int
 	CertNotAfter   *time.Time
 	Incomplete     bool
 	// FinalEvent, if set, is logged with the result in one transaction.
@@ -677,7 +686,7 @@ func (s *Store) DeleteAsset(id int64) error {
 }
 
 const scanCols = `id, asset_id, status, trigger, stage, progress_pct, connections, queued_at, started_at, finished_at, error,
-	band, score, readiness_level, hndl_exposed, crit, high, medium, cert_not_after, incomplete`
+	band, score, readiness_level, hndl_exposed, crit, high, medium, low, info, cert_not_after, incomplete`
 
 func scanSummary(r scanner) (ScanSummary, error) {
 	var v ScanSummary
@@ -686,7 +695,7 @@ func scanSummary(r scanner) (ScanSummary, error) {
 	var level sql.NullInt64
 	var hndl, incomplete int
 	if err := r.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
-		&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &certEnd, &incomplete); err != nil {
+		&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete); err != nil {
 		return ScanSummary{}, err
 	}
 	if t := parseTS(sql.NullString{String: queued, Valid: true}); t != nil {

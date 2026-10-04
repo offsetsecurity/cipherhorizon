@@ -231,6 +231,9 @@ func (c *ctx) analyseChains() {
 				expiredOnly = false
 			}
 		}
+		if len(ch.trustedBy) > 0 || ch.private {
+			ch.missing, ch.view.Served.Missing = false, nil
+		}
 		ch.expired = expiredOnly && len(stores) > 0 && ch.view.Public
 		if c.in.Anchors != nil && ch.view.Private.ExpiredOnly {
 			ch.expired = true

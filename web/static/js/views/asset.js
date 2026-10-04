@@ -1,16 +1,20 @@
 // One endpoint: readiness, TLS hygiene, TLS detail, findings and history.
-import { h, clear, fmtDate, fmtDay, daysUntil, INTERVALS, intervalLabel, toCSV } from '../dom.js';
+import { h, clear, fmtDate, fmtDay, daysUntil, relTime, INTERVALS, intervalLabel, toCSV } from '../dom.js';
 import { api, ApiError } from '../api.js';
 import { historyChart, levelClass, levelName } from '../charts.js';
-import { reportView, SECTIONS } from './report.js';
-import { levelBadge, bandBadge, bandTone, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog,
+import { summaryView, configurationView, weaknessesView, cbomView, SECTIONS } from './report.js';
+import { levelBadge, bandBadge, bandTone, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog, crumbs,
   scanProgress, badge, certExpiry, certChain, playEnter } from '../ui.js';
 
 export async function render(root, { args, query }) {
   const id = Number(args[0]);
   const viewScanId = Number(query.get('scan')) || null;
   let stopped = false, timer = null;
-  let tab = query.get('tab') || 'report';
+  // Summary (for anyone), Configuration (what the server ran), Weaknesses (every check), CBOM,
+  // History (PRD-006). Addresses of earlier layouts land on the nearest tab.
+  const OLD_TABS = { report: 'summary', overview: 'summary', findings: 'weaknesses', details: 'configuration', tls: 'configuration' };
+  let tab = OLD_TABS[query.get('tab')] || query.get('tab') || 'summary';
+  let focusFix = false;
 
   const head = h('div');
   const body = h('div');
@@ -48,7 +52,7 @@ export async function render(root, { args, query }) {
       if (active) timer = setTimeout(pollActive, 700);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) {
-        clear(body).appendChild(empty('This endpoint no longer exists', null, button('Back to endpoints', () => { location.hash = '#/assets'; }, 'primary')));
+        clear(body).appendChild(empty('This endpoint no longer exists', null, button('Back to endpoints', () => { location.hash = '#/endpoints'; }, 'primary')));
         return;
       }
       if (!stopped) toast(e.message, 'error');
@@ -83,11 +87,17 @@ export async function render(root, { args, query }) {
   };
 
   const goToFinding = (findingId) => {
-    tab = 'findings';
+    const sectioned = ev && Array.isArray(ev.sections);
+    tab = sectioned ? 'weaknesses' : 'findings';
     paint();
     requestAnimationFrame(() => {
-      const el = document.getElementById(`finding-${findingId}`);
-      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('highlight'); setTimeout(() => el.classList.remove('highlight'), 1500); }
+      const el = document.getElementById(sectioned ? `chk-${findingId}` : `finding-${findingId}`);
+      if (!el) return;
+      const d = el.querySelector('details');
+      if (d) d.open = true;
+      const noted = el.closest('details.noted');
+      if (noted) noted.open = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('highlight'); setTimeout(() => el.classList.remove('highlight'), 1500);
     });
   };
 
@@ -101,7 +111,9 @@ export async function render(root, { args, query }) {
   };
 
   const goToSection = (sec) => {
-    tab = 'report';
+    const sectioned = ev && Array.isArray(ev.sections);
+    if (sectioned && sec === 'vulnerabilities') { tab = 'weaknesses'; paint(); return; }
+    tab = sectioned ? 'configuration' : 'tls';
     paint();
     requestAnimationFrame(() => { const el = document.getElementById(`sec-${sec}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   };
@@ -126,11 +138,9 @@ export async function render(root, { args, query }) {
   const runExport = async (type, format) => {
     const stem = asset.name.replace(/[^a-z0-9._-]+/gi, '_');
     if (format === 'pdf') {
-      if (ev.sections) tab = 'report';
-      else if (type === 'tls' || type === 'cert') { tab = 'tls'; } else if (type === 'full') { tab = 'overview'; }
-      paint();
-      await new Promise((r) => setTimeout(r, 60));
-      window.print();
+      // A formatted A4 document made by the server from the stored scan, not a print of the page.
+      const suffix = { full: 'security-report', tls: 'tls-report', cert: 'certificate-report' }[type];
+      await api.download(`/api/v1/scans/${shown.id}/report.pdf?kind=${type}`, `${stem}-${suffix}.pdf`);
       return;
     }
     if (type === 'cbom') {
@@ -173,7 +183,7 @@ export async function render(root, { args, query }) {
 
   const exportDialog = () => {
     let type = 'full', format = 'pdf';
-    modal('Export report', (close) => {
+    modal('Download report', (close) => {
       const box = h('div', { class: 'modal-body' });
       const draw = () => {
         clear(box);
@@ -186,9 +196,13 @@ export async function render(root, { args, query }) {
           h('label', { for: 'export-format' }, 'Format'),
           h('select', { id: 'export-format', 'aria-label': 'Export format', onchange: (e) => { format = e.target.value; } },
             current[3].map((f) => h('option', { value: f, selected: f === format }, f.toUpperCase()))),
-          format === 'pdf' ? h('p', { class: 'hint' }, 'Opens your browser’s print dialog; choose “Save as PDF” as the destination.') : null,
+          format === 'pdf' ? h('p', { class: 'hint' }, 'An A4 report with the summary, what to fix first, every section and finding with its sources, and how the scan was done.') : null,
           h('div', { class: 'row end' }, button('Cancel', close),
-            h('button', { type: 'button', class: 'btn btn-primary', onclick: async () => { try { await runExport(type, format); close(); } catch (e) { toast(e.message, 'error'); } } }, 'Export')),
+            h('button', { type: 'button', class: 'btn btn-primary', onclick: async (e) => {
+              const b = e.currentTarget;
+              b.disabled = true; b.textContent = 'Preparing…';
+              try { await runExport(type, format); close(); toast('Downloaded', 'success'); } catch (err) { toast(err.message, 'error'); b.disabled = false; b.textContent = 'Download'; }
+            } }, 'Download')),
         ].filter(Boolean));
       };
       draw();
@@ -200,21 +214,19 @@ export async function render(root, { args, query }) {
     const a = asset;
     const active = a.latest && (a.latest.status === 'queued' || a.latest.status === 'running');
     clear(head);
-    head.appendChild(h('p', null, h('a', { href: '#/assets' }, '← Endpoints')));
-    head.appendChild(h('div', { class: 'page-head' },
+    head.appendChild(crumbs([['Endpoints', '#/endpoints'], [a.name]]));
+    const scanned = a.lastDone ? `scanned ${relTime(a.lastDone.finishedAt)}` : 'not scanned yet';
+    head.appendChild(h('div', { class: 'page-head report-head' },
       h('div', null, h('h1', null, a.name),
-        h('div', { class: 'sub' }, h('code', null, a.address), a.tags.length ? h('span', null, ' ', a.tags.map((t) => h('span', { class: 'tag' }, t))) : null),
+        h('div', { class: 'sub' }, h('code', null, a.address), h('span', { class: 'muted' }, ` · ${scanned}`),
+          a.tags.length ? h('span', null, ' ', a.tags.map((t) => h('span', { class: 'tag' }, t))) : null),
+        linkedAssets.length ? h('div', { class: 'sub' }, 'Same machine as ', linkedAssets.map((x, i) => [i ? ', ' : '',
+          h('a', { href: `#/${x.kind === 'host' ? 'hosts' : 'reports'}/${x.id}` }, x.name)])) : null,
         a.notes ? h('p', { class: 'muted' }, a.notes) : null),
       h('div', { class: 'row' },
-        button(active ? 'Scanning…' : 'Scan now', startScan, 'primary', { class: 'btn btn-primary', disabled: active }),
-        scheduleSelect(a),
-        shown ? button('Export report', exportDialog, 'secondary', { class: 'btn btn-secondary' }) : null,
-        button('Edit', () => editDialog(a, refresh)),
-        button('Delete', async () => {
-          if (await confirmDialog('Delete this endpoint?', `“${a.name}” and its whole scan history will be permanently deleted.`)) {
-            try { await api.deleteAsset(id); toast('Endpoint deleted'); location.hash = '#/assets'; } catch (e) { toast(e.message, 'error'); }
-          }
-        }, 'danger', { class: 'btn btn-danger' }))));
+        button(active ? 'Scanning…' : 'Scan again', startScan, 'primary', { class: 'btn btn-primary', disabled: active }),
+        shown ? button('Download', exportDialog, 'secondary', { class: 'btn btn-secondary' }) : null,
+        moreMenu(a))));
 
     if (active) {
       clear(progressBox);
@@ -226,17 +238,17 @@ export async function render(root, { args, query }) {
     if (viewScanId && shown) {
       const s = history.find((x) => x.scanId === viewScanId);
       body.appendChild(h('div', { class: 'viewing' }, h('b', null, 'Viewing a past scan'),
-        h('span', null, s ? fmtDate(s.at) : ''), '(read-only)', h('a', { href: `#/assets/${id}` }, 'Back to the latest result')));
+        h('span', null, s ? fmtDate(s.at) : ''), '(read-only)', h('a', { href: `#/endpoints/${id}` }, 'Back to the latest result')));
     }
-    if (a.latest && a.latest.status === 'failed' && !(a.lastDone && a.lastDone.id > a.latest.id) && !viewScanId) {
-      body.appendChild(h('div', { class: 'callout bad', role: 'alert' }, h('b', null, 'The last scan failed: '), a.latest.error));
+    if (a.latest && a.latest.status === 'failed' && !(a.lastDone && a.lastDone.id > a.latest.id) && !viewScanId && !active) {
+      body.appendChild(failedCard(a, !!ev, startScan));
     }
     if (!ev) {
       if (!active && !(a.latest && a.latest.status === 'failed')) {
         body.appendChild(empty('Not scanned yet', 'Run a scan to see this endpoint’s PQC readiness, TLS hygiene and findings.',
           button('Scan now', startScan, 'primary')));
       }
-      if (history.length) body.appendChild(historySection());
+      if (history.some((p) => p.status === 'done')) body.appendChild(historySection());
       return;
     }
     if (rep.incomplete) {
@@ -245,8 +257,8 @@ export async function render(root, { args, query }) {
     }
     // eval/3 results are one sectioned report; older ones keep the previous layout and offer re-evaluation.
     const sectioned = Array.isArray(ev.sections);
-    if (sectioned && (tab === 'overview' || tab === 'tls')) tab = 'report';
-    if (!sectioned && tab === 'report') tab = 'overview';
+    if (sectioned && OLD_TABS[tab]) tab = OLD_TABS[tab];
+    if (!sectioned && ['summary', 'configuration', 'weaknesses', 'cbom'].includes(tab)) tab = 'overview';
     if (!sectioned) {
       body.appendChild(h('div', { class: 'callout info', role: 'status' },
         h('b', null, `Evaluated by an earlier version (${ev.version}). `),
@@ -254,28 +266,36 @@ export async function render(root, { args, query }) {
         viewScanId ? null : h('span', null, ' ', button('Re-evaluate', reevaluate, 'secondary', { class: 'btn btn-sm' }))));
     }
     const tabs = sectioned
-      ? [['report', 'Report'], ['findings', `Findings (${ev.findings.length})`], ['history', `History (${history.length})`]]
+      ? [['summary', 'Summary'], ['configuration', 'Configuration'], ['weaknesses', 'Weaknesses'], ['cbom', 'CBOM'], ['history', `History (${history.length})`]]
       : [['overview', 'Overview'], ['tls', 'TLS details'], ['findings', `Findings (${ev.findings.length})`], ['history', `History (${history.length})`]];
     body.appendChild(h('div', { class: 'tabs', role: 'tablist' }, tabs.map(([k, label]) =>
       h('button', { type: 'button', class: 'tab', role: 'tab', id: `tab-${k}`, 'aria-selected': String(tab === k),
         onclick: () => { tab = k; paint(); playEnter(body, 700); } }, label))));
-    body.appendChild(tab === 'report' ? reportView({ asset: a, rep, ev, history, viewScanId, goToFinding, onReevaluate: reevaluate, hygieneBody })
+    const ctx = { asset: a, rep, ev, history, viewScanId, triage, triageControls, goDetails: goToSection, goIssue: goToFinding, onReevaluate: reevaluate, hygieneBody,
+      goTab: (t) => { tab = t; paint(); window.scrollTo(0, 0); },
+      scanId: shown.id, stem: a.name.replace(/[^a-z0-9._-]+/gi, '_'), download: (path, name) => api.download(path, name).catch((e) => toast(e.message, 'error')),
+      fetchCBOM: () => api.scanCBOM(shown.id) };
+    const views = { summary: summaryView, configuration: configurationView, weaknesses: weaknessesView, cbom: cbomView };
+    body.appendChild(views[tab] ? views[tab](ctx)
       : tab === 'tls' ? tlsTab() : tab === 'findings' ? findingsTab() : tab === 'history' ? historySection() : overviewTab());
-    if (!viewScanId) body.appendChild(linkedAssetsCard());
+    if (focusFix && tab === 'summary') {
+      focusFix = false;
+      requestAnimationFrame(() => { const el = document.getElementById('fix'); if (el) el.scrollIntoView({ block: 'start' }); });
+    }
   };
 
   const linkDialog = () => {
-    modal('Link to a host', (close) => {
+    modal('Link to a machine', (close) => {
       const body2 = h('div', { class: 'modal-body' });
       api.hosts().then((hosts) => {
         const linked = new Set(asset.linkedAssetIds || []);
         const choices = hosts.filter((hh) => !linked.has(hh.id));
         clear(body2);
         if (!choices.length) {
-          body2.append(h('p', { class: 'muted' }, 'No unlinked hosts exist to link to.'), h('div', { class: 'row end' }, button('Close', close)));
+          body2.append(h('p', { class: 'muted' }, 'No machine inventories exist to link to yet.'), h('div', { class: 'row end' }, button('Close', close)));
           return;
         }
-        const sel = h('select', { 'aria-label': 'Host to link' }, choices.map((hh) => h('option', { value: hh.id }, hh.name)));
+        const sel = h('select', { 'aria-label': 'Machine to link' }, choices.map((hh) => h('option', { value: hh.id }, hh.name)));
         body2.append(
           h('p', { class: 'muted' }, 'Record that this endpoint and a host are the same machine. This is never guessed — only what you confirm here.'),
           h('label', { for: 'link-host' }, 'Host'), sel,
@@ -287,15 +307,29 @@ export async function render(root, { args, query }) {
     });
   };
 
-  const linkedAssetsCard = () => h('section', { class: 'card' },
-    h('div', { class: 'row' }, h('h2', null, 'Linked assets'), button('Link a host', linkDialog, 'secondary', { class: 'btn btn-sm' })),
-    h('p', { class: 'hint' }, 'Assets a person has confirmed are the same machine as this endpoint.'),
-    linkedAssets.length
-      ? h('ul', { class: 'stack' }, linkedAssets.map((a) => h('li', { class: 'row' },
-          h('span', { class: 'kind-badge' }, a.kind === 'host' ? 'Host' : 'Endpoint'),
-          h('a', { href: `#/${a.kind === 'host' ? 'hosts' : 'assets'}/${a.id}` }, a.name),
-          button('Unlink', async () => { try { await api.unlinkAsset(id, a.id); toast('Unlinked'); await refresh(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' }))))
-      : h('p', { class: 'muted' }, 'Not linked to any host yet.'));
+  // Everything that is not reading the report or scanning again sits in one menu.
+  const moreMenu = (a) => {
+    const close = (e) => { const d = e.currentTarget.closest('details'); if (d) d.open = false; };
+    const item = (label, fn, cls = '') => h('button', { type: 'button', class: `menu-item ${cls}`, onclick: (e) => { close(e); fn(); } }, label);
+    return h('details', { class: 'menu more-menu' },
+      h('summary', { class: 'btn btn-secondary', 'aria-label': 'More actions' }, 'More'),
+      h('div', { class: 'menu-panel' },
+        shown ? item('Copy link', async () => {
+          try { await navigator.clipboard.writeText(location.href); toast('Link copied', 'success'); } catch { toast(location.href); }
+        }) : null,
+        h('label', { class: 'menu-field' }, 'Rescan automatically', scheduleSelect(a)),
+        item('Edit name, tags and notes', () => editDialog(a, refresh)),
+        item('Link to a machine', linkDialog),
+        linkedAssets.map((x) => item(`Unlink ${x.name}`, async () => {
+          try { await api.unlinkAsset(id, x.id); toast('Unlinked'); await refresh(); } catch (e) { toast(e.message, 'error'); }
+        })),
+        h('hr', { class: 'menu-sep' }),
+        item('Delete this endpoint', async () => {
+          if (await confirmDialog('Delete this endpoint?', `“${a.name}” and its whole scan history will be permanently deleted.`)) {
+            try { await api.deleteAsset(id); toast('Endpoint deleted'); location.hash = '#/endpoints'; } catch (e) { toast(e.message, 'error'); }
+          }
+        }, 'danger')));
+  };
 
   // ---- overview -------------------------------------------------------------------------------
 
@@ -528,7 +562,7 @@ export async function render(root, { args, query }) {
           h('td', null, fmtDate(p.at)), h('td', null, statusPill(p.status), p.error ? h('div', { class: 'hint' }, p.error) : null),
           h('td', null, p.status === 'done' ? levelBadge(p.readinessLevel) : '–'), h('td', null, p.status === 'done' ? bandBadge(p.band, p.score) : '–'),
           h('td', null, p.status === 'done' ? `${p.critical} critical, ${p.high} high` : '–'),
-          h('td', null, p.status === 'done' ? h('a', { href: `#/assets/${id}?scan=${p.scanId}` }, 'Open') : null))))))));
+          h('td', null, p.status === 'done' ? h('a', { href: `#/endpoints/${id}?scan=${p.scanId}` }, 'Open') : null))))))));
     return wrap;
   };
 
@@ -602,3 +636,23 @@ function editDialog(a, done) {
   });
 }
 
+// Why a scan failed, in words a person can act on, from the scanner's error text.
+function explainFailure(err, address) {
+  const e = (err || '').toLowerCase();
+  if (/refused/.test(e)) return ['Nothing accepted a connection.', `No program is listening on ${address}, or a firewall rejected the connection. Check the address and port, and that the server is running.`];
+  if (/no such host|resolve|lookup/.test(e)) return ['The name does not resolve.', 'Check the spelling; the name may also exist only on another network.'];
+  if (/timeout|timed out|deadline/.test(e)) return ['No answer in time.', 'The server did not reply. A firewall may be dropping the connection, or the server is down or slow.'];
+  if (/blocked address|not allowed|loopback|private/.test(e)) return ['This address is not allowed.', 'Scans of private or loopback addresses are refused unless the server was started to allow them.'];
+  if (/tls|handshake|protocol|record/.test(e)) return ['It answered, but not with TLS.', 'Something is listening there, but it did not complete a TLS handshake. Check that this port serves TLS (443 for HTTPS).'];
+  return ['The scan could not finish.', 'The technical reason is below.'];
+}
+
+function failedCard(a, hasEarlier, onRetry) {
+  const [title, text] = explainFailure(a.latest.error, a.address);
+  return h('section', { class: 'card failcard', role: 'alert' },
+    h('h2', null, `We could not scan ${a.address}`),
+    h('p', null, h('b', null, `${title} `), text),
+    h('p', { class: 'hint mono' }, a.latest.error || ''),
+    hasEarlier ? h('p', { class: 'hint' }, 'The report below is from the last scan that completed.') : null,
+    h('div', { class: 'row' }, button('Scan again', onRetry, 'primary')));
+}

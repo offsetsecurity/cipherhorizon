@@ -86,6 +86,26 @@ Research [RESEARCH-004](../product/RESEARCH-004-tls-scanner-and-pki.md) → requ
 | 2026-10-02 | PRD-004 baselined; roots from CCADB (CDLA-Permissive-2.0, attribution) | PRD-004 §11, §12 |
 | 2026-10-02 | T1 built and QA'd; private chain served correctly is "unknown root", not "missing intermediate" | ENG-HANDOFF-003 §6 V-2 |
 
+## Program 3: Focused flows (PRD-005)
+
+Research [RESEARCH-005](../product/RESEARCH-005-product-focus-and-flows.md) → requirements [PRD-005](../product/PRD-005-product-focus-and-flows.md) (baselined 2026-10-03) → design [UX-DESIGN-003](../product/UX-DESIGN-003-focused-flows.md) and [ENG-HANDOFF-004](../product/ENG-HANDOFF-004-focused-flows.md) → tests [QA-PLAN-005](../product/QA-PLAN-005-focused-flows.md). Requirement status is in the RTM (PRD-005 section).
+
+| WP | Title | Status | Requirements | Notes |
+|---|---|---|---|---|
+| F1 | Shell: four-entry menu, routes and redirects, Systems count | ✅ built | NAV-* | 11 old addresses redirect |
+| F2 | Scan home: one input, inline errors, recent reports, inventory card | ✅ built | HOME-*, UNF-1 | |
+| F3 | Reports: fleet summary, Endpoints/Findings/Activity, report URL, Download, Copy link | ✅ built | RPT-1..3, RPT-9 | TLS overview dashboard removed; fleet Findings grouped per problem |
+| F4 | Report compaction: one-line sections, Why and sources, About this report | ✅ built | RPT-4..8 | F-M3 38.6 % / 39.8 % |
+| F5 | Inventory API and page; whole-inventory CBOM | ✅ built | INV-*, UNF-2/4 | deviations D-1..D-5 (merged-CBOM inventory) |
+| F6 | Systems: ranking and Decisions tab | ✅ built | FSYS-* | |
+| F7 | Language pass, vocabulary guard, README and About | ✅ built | LANG-* | |
+| F8 | QA-PLAN-005 executed, QA-REPORT-004 | ✅ done | all | [QA-REPORT-004](QA-REPORT-004.md): journey 140/140, security 75/75; uncommitted, owner review next |
+
+| Date | Decision | Record |
+|---|---|---|
+| 2026-10-03 | The product is a TLS scanner and a CBOM inventory; system ranking is secondary (Systems) | RESEARCH-005 §4, PRD-005 §2 |
+| 2026-10-03 | The inventory is the merged CBOM, so the page and the download agree by construction | ENG-HANDOFF-004 §5 D-1 |
+
 ## Open questions and owner actions
 
 | ID | Item | Owner | Blocks |

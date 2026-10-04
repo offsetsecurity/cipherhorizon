@@ -25,12 +25,12 @@ function matches(c, f) {
   return true;
 }
 
-export async function render(root) {
+export async function render(root, ctx = {}) {
   root.appendChild(skeleton(4));
   const data = await api.certificates();
   clear(root);
   root.appendChild(h('div', { class: 'page-head' },
-    h('div', null, h('h1', null, 'Certificates'),
+    ctx.embedded ? h('div') : h('div', null, h('h1', null, 'Certificates'),
       h('div', { class: 'sub' }, 'Every certificate seen by a scan, a collector or an import: its key, when it expires, and where it is'))));
 
   const certs = data.certificates;

@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -106,7 +107,7 @@ func (s *Store) ListScans(f ScanFilter) ([]ScanWithAsset, error) {
 		var hndl, incomplete int
 		v := &w.ScanSummary
 		if err := rows.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
-			&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &certEnd, &incomplete, &name, &host, &port); err != nil {
+			&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete, &name, &host, &port); err != nil {
 			return nil, err
 		}
 		if t := parseTS(sql.NullString{String: queued, Valid: true}); t != nil {
@@ -210,8 +211,8 @@ func (s *Store) FinishScan(id int64, r Result) error {
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`UPDATE scans SET status = 'done', finished_at = ?, stage = 'done', progress_pct = 100, error = '',
 		report_json = ?, eval_json = ?, band = ?, score = ?, readiness_level = ?, hndl_exposed = ?, crit = ?, high = ?, medium = ?,
-		cert_not_after = ?, incomplete = ? WHERE id = ? AND status = 'running'`,
-		ts(s.now()), r.Report, r.Evaluation, r.Band, r.Score, r.ReadinessLevel, b2i(r.HNDLExposed), r.Critical, r.High, r.Medium,
+		low = ?, info = ?, cert_not_after = ?, incomplete = ? WHERE id = ? AND status = 'running'`,
+		ts(s.now()), r.Report, r.Evaluation, r.Band, r.Score, r.ReadinessLevel, b2i(r.HNDLExposed), r.Critical, r.High, r.Medium, r.Low, r.Info,
 		nullTS(r.CertNotAfter), b2i(r.Incomplete), id)
 	if err != nil {
 		return err
@@ -414,4 +415,38 @@ func b2i(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// backfillLowInfo fills the low and info counts of completed scans from their stored
+// evaluations (migration 8). An evaluation that cannot be read keeps zeros.
+func backfillLowInfo(tx *sql.Tx, _ time.Time) error {
+	rows, err := tx.Query(`SELECT id, eval_json FROM scans WHERE status = 'done' AND eval_json IS NOT NULL`)
+	if err != nil {
+		return err
+	}
+	type counts struct{ id, low, info int64 }
+	var all []counts
+	for rows.Next() {
+		var id int64
+		var raw []byte
+		if err := rows.Scan(&id, &raw); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		var ev struct {
+			Counts map[string]int64 `json:"counts"`
+		}
+		if json.Unmarshal(raw, &ev) == nil {
+			all = append(all, counts{id, ev.Counts["low"], ev.Counts["info"]})
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, c := range all {
+		if _, err := tx.Exec(`UPDATE scans SET low = ?, info = ? WHERE id = ?`, c.low, c.info, c.id); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
 }

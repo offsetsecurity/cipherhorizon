@@ -55,11 +55,13 @@ type Method struct {
 
 // Method IDs.
 const (
-	MethodDpkgStatus = "debian.dpkg.status@1"
-	MethodFSWalkName = "fs.walk.filename@1"
-	MethodPEVersion  = "pe.version-info@1"
-	MethodKnowledge  = "knowledge.mapping@1"
-	MethodPEImports  = "pe.imports@1"
+	MethodDpkgStatus   = "debian.dpkg.status@1"
+	MethodRPMQuery     = "rpm.query@1"            // the package list rpm -qa reports, gathered by the inventory script
+	MethodAPKInstalled = "alpine.apk.installed@1" // the package list apk reports, gathered by the inventory script
+	MethodFSWalkName   = "fs.walk.filename@1"
+	MethodPEVersion    = "pe.version-info@1"
+	MethodKnowledge    = "knowledge.mapping@1"
+	MethodPEImports    = "pe.imports@1"
 
 	// Certificates held as files: parsed from PEM or DER (PRD-003 REQ-CERT-2).
 	MethodCertFile = "certs.file-parse@1"
@@ -77,10 +79,12 @@ const (
 )
 
 var methods = map[string]Method{
-	MethodDpkgStatus: {ID: MethodDpkgStatus, Version: "1", Sensor: "apt", Technique: "manifest-analysis", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
-	MethodFSWalkName: {ID: MethodFSWalkName, Version: "1", Sensor: "pe-files", Technique: "filename", Quality: QualityHeuristic, MinPrivilege: "user", SecretProximity: "none"},
-	MethodPEVersion:  {ID: MethodPEVersion, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
-	MethodPEImports:  {ID: MethodPEImports, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
+	MethodRPMQuery:     {ID: MethodRPMQuery, Version: "1", Sensor: "packages", Technique: "manifest-analysis", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodAPKInstalled: {ID: MethodAPKInstalled, Version: "1", Sensor: "packages", Technique: "manifest-analysis", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodDpkgStatus:   {ID: MethodDpkgStatus, Version: "1", Sensor: "apt", Technique: "manifest-analysis", Quality: QualityAuthoritative, MinPrivilege: "user", SecretProximity: "none"},
+	MethodFSWalkName:   {ID: MethodFSWalkName, Version: "1", Sensor: "pe-files", Technique: "filename", Quality: QualityHeuristic, MinPrivilege: "user", SecretProximity: "none"},
+	MethodPEVersion:    {ID: MethodPEVersion, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
+	MethodPEImports:    {ID: MethodPEImports, Version: "1", Sensor: "pe-files", Technique: "binary-analysis", Quality: QualityParsed, MinPrivilege: "user", SecretProximity: "none"},
 	// Reading a certificate file is the one file method that opens files which can sit next to
 	// private keys (a combined PEM, a key in the same directory), so it is "adjacent" (ADR-0005):
 	// it decodes CERTIFICATE blocks only and never decodes, keeps or reports any other block.

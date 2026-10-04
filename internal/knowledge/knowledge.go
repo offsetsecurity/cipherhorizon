@@ -79,7 +79,7 @@ var Families = []Family{
 	{
 		ID: "openssl",
 		// openssl (CLI), libssl3, libssl3t64, libssl1.1, ... but not libssl-dev/-doc.
-		Package:    re(`^(openssl|libssl[0-9][0-9a-z.]*)$`),
+		Package:    re(`^(openssl|openssl-libs|openssl3|libcrypto3|libssl[0-9][0-9a-z.]*)$`),
 		Kind:       KindLibrary,
 		PackageApp: re(`^openssl$`),
 		Files: []*regexp.Regexp{
@@ -130,17 +130,17 @@ var Families = []Family{
 
 	// Inventory-only families: recognised crypto software with no capability
 	// mapping yet. Adding a mapping needs citations; adding a name does not.
-	{ID: "libgcrypt", Package: re(`^libgcrypt[0-9]+$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib|msys-|cyg)gcrypt-[0-9]+\.dll$`)}},
-	{ID: "gnutls", Package: re(`^libgnutls[0-9]+(t64)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib|msys-|cyg)gnutls-[0-9]+\.dll$`)}},
-	{ID: "nettle", Package: re(`^lib(nettle|hogweed)[0-9]+(t64)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib|msys-|cyg)(nettle|hogweed)-[0-9]+\.dll$`)}},
-	{ID: "libsodium", Package: re(`^libsodium[0-9]+(t64)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^libsodium(-[0-9]+)?\.dll$`)}},
-	{ID: "nss", Package: re(`^libnss3$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^nss3\.dll$`)}},
+	{ID: "libgcrypt", Package: re(`^libgcrypt([0-9]+)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib|msys-|cyg)gcrypt-[0-9]+\.dll$`)}},
+	{ID: "gnutls", Package: re(`^(libgnutls[0-9]+(t64)?|gnutls)$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib|msys-|cyg)gnutls-[0-9]+\.dll$`)}},
+	{ID: "nettle", Package: re(`^(lib(nettle|hogweed)[0-9]+(t64)?|nettle)$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib|msys-|cyg)(nettle|hogweed)-[0-9]+\.dll$`)}},
+	{ID: "libsodium", Package: re(`^libsodium([0-9]+(t64)?)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^libsodium(-[0-9]+)?\.dll$`)}},
+	{ID: "nss", Package: re(`^(libnss3|nss)$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^nss3\.dll$`)}},
 	{ID: "mbedtls", Package: re(`^libmbed(tls|crypto|x509)[0-9]+(t64)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib)?mbed(tls|crypto|x509)(-[0-9]+)?\.dll$`)}},
 	{ID: "wolfssl", Package: re(`^libwolfssl[0-9]*(t64)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib)?wolfssl(-[0-9]+)?\.dll$`)}},
 	{ID: "botan", Package: re(`^libbotan-[0-9]+-[0-9]+(t64)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^(lib)?botan(-[0-9]+(-[0-9]+)?)?\.dll$`)}},
 	{ID: "libssh", Package: re(`^(libssh2?|libssh-gcrypt)-[0-9]+(t64)?$`), Kind: KindLibrary, Files: []*regexp.Regexp{re(`^libssh2?(-[0-9]+)?\.dll$`)}},
-	{ID: "openssh", Package: re(`^openssh-(client|server)$`), Kind: KindApplication},
-	{ID: "kerberos", Package: re(`^(libk5crypto3|libkrb5-3)$`), Kind: KindLibrary},
+	{ID: "openssh", Package: re(`^openssh(-(client|server|clients))?$`), Kind: KindApplication},
+	{ID: "kerberos", Package: re(`^(libk5crypto3|libkrb5-3|krb5-libs)$`), Kind: KindLibrary},
 	{ID: "libxcrypt", Package: re(`^libcrypt[0-9]+$`), Kind: KindLibrary},
 	{ID: "cryptsetup", Package: re(`^libcryptsetup[0-9]+$`), Kind: KindLibrary},
 	{ID: "python-cryptography", Package: re(`^python3-(cryptography|openssl)$`), Kind: KindLibrary},

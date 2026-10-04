@@ -35,7 +35,7 @@ check "UI shell loads without token"       200 "$(code $B/)"
 
 AUTH=(-H "Authorization: Bearer $TOKEN")
 echo "== the estate routes are guarded like the rest (SR-08, SR-12) =="
-for r in /api/v1/estate /api/v1/systems /api/v1/systems/1/m2302.json /api/v1/systems/1/m2302.csv /api/v1/certificates /api/v1/links /api/v1/imports /api/v1/openapi.json /api/v1/graph/stats; do
+for r in /api/v1/estate /api/v1/systems /api/v1/systems/1/m2302.json /api/v1/systems/1/m2302.csv /api/v1/certificates /api/v1/links /api/v1/imports /api/v1/openapi.json /api/v1/graph/stats /api/v1/inventory /api/v1/inventory/summary /api/v1/inventory/cbom /api/v1/inventory/dashboard /api/v1/inventory/report.pdf /api/v1/scans/1/report.pdf /api/v1/collector/scripts /api/v1/collector/scripts/cipherhorizon-inventory.sh /api/v1/collector/signatures; do
   check "GET $r without a token -> 401"  401 "$(code $B$r)"
   check "GET $r with the token is not 401" 1 "$([ "$(code "${AUTH[@]}" $B$r)" != 401 ] && echo 1 || echo 0)"
 done

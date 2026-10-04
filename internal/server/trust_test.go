@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/example/cipherhorizon/internal/eval"
 	"github.com/example/cipherhorizon/internal/pki/pkitest"
 	"github.com/example/cipherhorizon/internal/server"
 	"github.com/example/cipherhorizon/internal/store"
@@ -74,7 +75,7 @@ func TestPrivateCATrustAnchors(t *testing.T) {
 		}
 		return ev
 	}
-	if ev := evaluation(); ev.Version != "eval/3" || !ev.has("CERT.UNTRUSTED") || len(ev.Sections) == 0 {
+	if ev := evaluation(); ev.Version != eval.Version || !ev.has("CERT.UNTRUSTED") || len(ev.Sections) == 0 {
 		t.Fatalf("before the bundle: %+v", ev)
 	}
 

@@ -99,7 +99,7 @@ const waitFor = async (fn, ms = 60000, every = 300) => {
   while (Date.now() < end) { try { const v = await fn(); if (v) return v; } catch { /* keep trying */ } await sleep(every); }
   return null;
 };
-const location_is_list = (h) => h === '#/assets';
+const location_is_list = (h) => h === '#/assets' || h === '#/endpoints';
 const clickText = (text, scope = 'document') => js(`
   const b = [...${scope}.querySelectorAll('button, a')].find(x => x.textContent.trim() === ${JSON.stringify(text)});
   if (!b) return false; b.click(); return true;`);
@@ -111,24 +111,62 @@ async function main() {
   await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable');
   await viewport(1280, 900);
 
-  // J1: first run shows an empty state that leads to adding endpoints (US-01).
+  // J1 (UX-DESIGN-005): the first screen is the Overview with the scan box on top; one action
+  // (type an address, press Enter) gives a report; a bad address is refused inline.
   await go('#/');
-  const empty = await js(`return document.querySelector('.start')?.innerText || ''`);
-  check('E2E-01.0', 'first run: the estate offers to add endpoints', /Add endpoints/.test(empty), empty.slice(0, 80));
-  const startText = await js(`return document.querySelector('main').innerText`);
-  check('E2E-12.1', 'first run shows three equal ways to begin: scan a service, inventory a machine, import a CBOM',
-    /Scan a service/.test(startText) && /Inventory a machine/.test(startText) && /Show me how/.test(startText) && /Import a CBOM/.test(startText), startText.slice(0, 120));
-  await clickText('Show me how');
+  const menu = await js(`return [...document.querySelectorAll('#nav a')].map((a) => a.innerText.trim().replace(/\\s+\\d+$/, ''))`);
+  const navMeta = await js(`return { groups: [...document.querySelectorAll('#nav .navgroup')].map((g) => g.textContent.trim()), scan: document.getElementById('nav-scan')?.textContent.trim() || '' }`);
+  check('F-M2', 'the menu is Overview, then Results (Endpoints, Machines, Findings, Inventory) and Plan & share (Systems, Reports), under a Scan a URL button (UX-DESIGN-005)',
+    menu.join() === 'Overview,Endpoints,Machines,Findings,Inventory,Systems,Reports' && navMeta.groups.join('|') === 'Results|Plan & share' && navMeta.scan === 'Scan a URL',
+    JSON.stringify({ menu, navMeta }));
+  const hero = await js(`return { h1: document.querySelector('main h1')?.innerText || '', input: !!document.getElementById('scan-target'), focused: document.activeElement?.id || '' }`);
+  check('E2E-F.0', 'the first screen is a scan box, focused', /Scan a website or endpoint/.test(hero.h1) && hero.input && hero.focused === 'scan-target', JSON.stringify(hero));
+  await shot('first-run-scan');
+  const enter = async () => {
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: String.fromCharCode(13) });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  };
+  await js(`const i = document.getElementById('scan-target'); i.focus(); i.value = 'not a valid host!!';`);
+  await enter();
+  await sleep(700);
+  const inlineErr = await js(`const e = document.querySelector('.scan-error'); return e && !e.hidden ? e.innerText : ''`);
+  check('E2E-F.2', 'a target the server refuses is explained under the input, not in a dialog', inlineErr.length > 0 && !(await js(`return !!document.querySelector('.modal')`)), inlineErr);
+  await js(`const i = document.getElementById('scan-target'); i.focus(); i.value = '127.0.0.1:9448';`);
+  await enter();
+  const landed = await waitFor(async () => { const h = await js(`return location.hash`); return /^#\/endpoints\/\d+/.test(h) ? h : null; }, 10000, 200);
+  const firstReport = await waitFor(async () => {
+    const r = await js(`return { strip: !!document.querySelector('.sumstrip'), fix: !!document.querySelector('#fix'), h1: document.querySelector('main h1')?.innerText || '' }`);
+    return r.strip && r.fix ? r : null;
+  }, 60000, 500);
+  check('F-M1', 'from an empty install, typing an address and pressing Enter gives its report', !!landed && !!firstReport, `${landed} ${JSON.stringify(firstReport)}`);
+  await shot('first-report');
+
+  // Add data: the three inputs in one dialog (REQ-INV-6); the collector how-to is one of them.
+  await go('#/');
+  await clickText('Import a CBOM');
+  await sleep(300);
+  const tiles = await js(`return [...document.querySelectorAll('.modal .adddata-tile h3')].map((x) => x.innerText)`);
+  check('E2E-12.1', 'Add data offers the three ways in: scan an endpoint, inventory a machine, import a CBOM',
+    tiles.join('|') === 'Scan an endpoint|Inventory a machine|Import a CBOM', tiles.join('|'));
+  await clickText('Show me how', "document.querySelector('.modal')");
   await sleep(300);
   const howto = await js(`const m = document.querySelector('.modal'); return { text: m ? m.innerText : '', cmds: m ? m.querySelectorAll('.cmdblock').length : 0, copies: m ? m.querySelectorAll('.cmdblock .copybtn').length : 0 }`);
-  check('E2E-12.2', 'the how-to dialog gives copyable Linux and Windows collector commands', howto.cmds >= 2 && howto.copies === howto.cmds && /cipherhorizon-collector/.test(howto.text) && /Administrator PowerShell/.test(howto.text), JSON.stringify(howto).slice(0, 120));
+  check('E2E-12.2', 'the how-to gives the PowerShell and shell inventory scripts with copyable commands, and no program to download',
+    howto.cmds >= 2 && howto.copies === howto.cmds && /cipherhorizon-inventory\.ps1/.test(howto.text) && /cipherhorizon-inventory\.sh/.test(howto.text) && !/collector\.exe/.test(howto.text), JSON.stringify(howto).slice(0, 160));
   await shot('how-to-collect-dialog', { full: false });
   await clickText('Close', "document.querySelector('.modal')");
   await sleep(300);
-  await shot('dashboard-empty');
+
+  // "Scan many endpoints" opens the bulk dialog, which J2/J3 exercise.
+  await clickText('Scan many endpoints');
+  await sleep(250);
+  const dlg = await js(`return document.querySelector('.modal')?.getAttribute('aria-label') || document.querySelector('.modal h2')?.innerText || ''`);
+  check('E2E-01.0', '"Scan many endpoints" opens the add-endpoints dialog', /Add endpoints/i.test(dlg), dlg);
+  await js(`document.querySelector('.modal .icon-btn')?.click()`);
+  await sleep(200);
 
   // J2: add a single endpoint (AC-01.1) with a name and tags; a bad one shows a clear error (AC-01.3).
-  await clickText('Add endpoints');
+  await clickText('Scan many endpoints');
   await sleep(250);
   await shot('add-endpoint-dialog', { full: false });
   await js(`document.getElementById('add-target').value = 'not a valid host!!'; document.querySelector('.modal form').requestSubmit();`);
@@ -142,7 +180,10 @@ async function main() {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
   await sleep(800);
   let assets = await api('/api/v1/assets?kind=tls-endpoint');
-  check('E2E-01.1', 'a single endpoint can be added with name and tags', assets.length === 1 && assets[0].name === 'modern-hybrid' && assets[0].tags.join() === 'demo,web', JSON.stringify(assets.map((a) => a.name)));
+  const mh = assets.find((a) => a.port === 9440);
+  check('E2E-01.1', 'a single endpoint can be added with name and tags', assets.length === 2 && mh && mh.name === 'modern-hybrid' && mh.tags.join() === 'demo,web', JSON.stringify(assets.map((a) => a.name)));
+  // Adding from the dialog lands on Endpoints, which has the same button.
+  await go('#/endpoints');
 
   // J3: bulk add (AC-01.2, AC-01.4): comments ignored, duplicates and bad lines reported, good lines added.
   await clickText('Add endpoints');
@@ -157,7 +198,7 @@ async function main() {
   await shot('add-bulk-result', { full: false });
   await js(`document.querySelector('.modal .icon-btn').click()`);
   assets = await api('/api/v1/assets?kind=tls-endpoint');
-  check('E2E-11.4', 'the metadata address was not added', !assets.some((a) => a.host === '169.254.169.254') && assets.length === 7, assets.length);
+  check('E2E-11.4', 'the metadata address was not added', !assets.some((a) => a.host === '169.254.169.254') && assets.length === 8, assets.length);
 
   // Give the friendly names to the rest so screenshots read well (also exercises Edit, US-01).
   const names = { 9441: 'classical-tls13', 9442: 'legacy-tls12', 9443: 'terrible-legacy', 9444: 'dead-port', 9445: 'pq-toggle', 9446: 'slow-hybrid' };
@@ -213,6 +254,13 @@ async function main() {
     hyg.deductions.length > 0 && hyg.deductions.every((d) => hygFindings.some((f) => f.id === d.finding && f.severity === d.severity)) &&
     hyg.score === (hyg.ceiling ? hyg.ceiling.score : Math.max(0, 100 - sum)), `${hyg.deductions.length} deductions, score ${hyg.score}`);
   check('E2E-02.4', 'the dead port fails with a readable reason', by[9444]?.latest?.status === 'failed' && /no response|refused|connect/i.test(by[9444].latest.error), by[9444]?.latest?.error);
+  await go(`#/endpoints/${by[9444].id}`);
+  await sleep(900);
+  const dead = await js(`return { card: document.querySelector('.failcard')?.innerText || '', chart: /Readiness over time/.test(document.querySelector('main').innerText),
+    retry: [...document.querySelectorAll('.failcard button')].some((b) => b.textContent.trim() === 'Scan again') }`);
+  check('E2E-02.4b', 'a failed endpoint shows one card that says why in plain words, with Scan again, and no empty charts',
+    /We could not scan/.test(dead.card) && /Nothing accepted a connection/.test(dead.card) && dead.retry && !dead.chart, JSON.stringify(dead).slice(0, 200));
+  await shot('failed-endpoint');
   check('E2E-04.1', 'L0/L1 endpoints are flagged exposed to harvest-now-decrypt-later', by[9441]?.lastDone?.hndlExposed && by[9442]?.lastDone?.hndlExposed && !by[9440]?.lastDone?.hndlExposed);
 
   await go('#/assets');
@@ -232,15 +280,33 @@ async function main() {
   }
   await go(`#/assets/${by[9443].id}`);
   await sleep(500);
-  const vulns = await js(`return document.querySelector('#sec-vulnerabilities')?.innerText || ''`);
-  check('E2E-05.4', 'the vulnerabilities section names the inferred attacks and the ones not tested by design',
-    /Exposed[\s\S]*POODLE/.test(vulns) && /Not tested by design[\s\S]*Heartbleed/.test(vulns), vulns.slice(0, 160));
   await shot('asset-terrible-legacy-report');
-  await clickText(`Findings (${(await api(`/api/v1/scans/${by[9443].lastDone.id}/evaluation`)).findings.length})`);
-  await sleep(300);
-  const fnd = await js(`return { cards: document.querySelectorAll('.finding').length, cites: document.querySelectorAll('.finding .cites a').length }`);
-  check('E2E-05.2', 'findings are listed with citations', fnd.cards > 0 && fnd.cites >= fnd.cards, JSON.stringify(fnd));
+  // Action items: each finding once, in plain words (PRD-006 REQ-RV-2).
+  const fnd = await js(`const rows = [...document.querySelectorAll('#fix .action')];
+    return { rows: rows.length, why: rows.filter((r) => /Why it matters:/.test(r.innerText) && /What to do:/.test(r.innerText)).length,
+      titles: rows.map((r) => r.querySelector('.action-title').textContent) }`);
+  check('E2E-05.2', 'action items list each finding once, each with why it matters and what to do', fnd.rows > 0 && fnd.why === fnd.rows && new Set(fnd.titles).size === fnd.titles.length, JSON.stringify(fnd).slice(0, 160));
   await shot('asset-terrible-legacy-findings');
+  await js(`[...document.querySelectorAll('.tab')].find((t) => t.textContent === 'Weaknesses').click()`);
+  await sleep(400);
+  const vulns = await js(`return document.querySelector('.report.weaknesses')?.innerText || ''`);
+  check('E2E-05.4', 'Weaknesses names the possible attacks and the ones not tested by design',
+    /POODLE[\s\S]*Possible/.test(vulns) && /Heartbleed[\s\S]*Not tested/.test(vulns), vulns.slice(0, 160));
+  const cites = await js(`const found = [...document.querySelectorAll('.weakcard .issue')]; found.forEach((r) => { r.querySelector('details').open = true; });
+    const passed = [...document.querySelectorAll('.chk-passed .clean')].map((li) => li.innerText);
+    const btn = (k) => document.querySelector('.chkfilter-btn[data-show="' + k + '"]');
+    const shown = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.offsetParent !== null).length;
+    btn('found').click();
+    const onlyFound = { issues: shown('.weakcard .issue'), passed: shown('.chk-passed .clean') };
+    btn('passed').click();
+    const onlyPassed = { issues: shown('.weakcard .issue'), passed: shown('.chk-passed .clean') };
+    btn('all').click();
+    return { found: found.length, cited: found.filter((r) => r.querySelector('.cites a')).length, passed: passed.length,
+      worded: passed.filter((t) => !/not found/.test(t)).length, toggles: document.querySelectorAll('.weakcard .issue-toggle').length, onlyFound, onlyPassed }`);
+  check('E2E-05.5', 'Weaknesses lists every check: found ones with their sources and a Details toggle, passed ones saying what was confirmed (PRD-006 REQ-RV-4)',
+    cites.found > 0 && cites.cited === cites.found && cites.toggles === cites.found && cites.passed > 10 && cites.worded === cites.passed, JSON.stringify(cites));
+  check('E2E-05.6', 'the Found / Passed filter shows only that kind of check',
+    cites.onlyFound.issues === cites.found && cites.onlyFound.passed === 0 && cites.onlyPassed.issues === 0 && cites.onlyPassed.passed === cites.passed, JSON.stringify(cites));
   await go(`#/assets/${by[9440].id}`);
   await sleep(500);
   await shot('asset-modern-hybrid-report');
@@ -252,7 +318,7 @@ async function main() {
   check('E2E-07.setup', 'operator enables hybrid key exchange on the target', flip.ok, flip.status);
   await go(`#/assets/${t.id}`);
   await sleep(600);
-  await clickText('Scan now');
+  await clickText('Scan again');
   const after = await waitFor(async () => { const a = await api(`/api/v1/assets/${t.id}`); return a.latest?.status === 'done' && a.lastDone.id !== t.lastDone.id ? a : null; }, 60000);
   check('E2E-07.1', 'a rescan runs and records a second result', !!after && after.lastDone.readinessLevel === 3, after?.lastDone?.readinessLevel);
   await go(`#/assets/${t.id}?tab=history`);
@@ -301,51 +367,52 @@ async function main() {
   // AC-01.5: edit and delete from the endpoint page, with a confirmation before anything is lost.
   await go(`#/assets/${hostile.id}`);
   await sleep(600);
-  await clickText('Edit');
+  await js(`document.querySelector('.more-menu').open = true`);
+  await clickText('Edit name, tags and notes');
   await sleep(250);
   await js(`document.getElementById('e-name').value = 'renamed in the UI'; document.getElementById('e-notes').value = 'edited by the journey'; document.querySelector('.modal form').requestSubmit();`);
   await sleep(700);
   const edited = await api(`/api/v1/assets/${hostile.id}`);
-  check('E2E-01.5a', 'name and notes can be edited from the endpoint page', edited.name === 'renamed in the UI' && edited.notes === 'edited by the journey', edited.name);
-  await clickText('Delete');
+  check('E2E-01.5a', 'name and notes can be edited from the endpoint page (More menu)', edited.name === 'renamed in the UI' && edited.notes === 'edited by the journey', edited.name);
+  await clickText('Delete this endpoint');
   await sleep(250);
   await shot('delete-confirmation', { full: false });
   await clickText('Cancel', "document.querySelector('.modal')");
   await sleep(250);
   check('E2E-01.5b', 'canceling the confirmation keeps the endpoint', (await fetch(`${BASE}/api/v1/assets/${hostile.id}`)).status === 200);
-  await clickText('Delete');
+  await clickText('Delete this endpoint');
   await sleep(250);
   await clickText('Delete', "document.querySelector('.modal')");
   await sleep(800);
   check('E2E-01.5c', 'confirming deletes the endpoint and returns to the list', (await fetch(`${BASE}/api/v1/assets/${hostile.id}`)).status === 404 && location_is_list(await js(`return location.hash`)));
 
-  // J9: hosts (US-09): upload a CBOM through the file input.
-  await go('#/hosts');
+  // J9: machines (US-09): upload a CBOM through the file input, from Machines.
+  await go('#/machines');
   await sleep(500);
   await shot('hosts-empty');
   const hostsEmpty = await js(`return document.querySelector('main').innerText`);
-  check('E2E-12.3', 'the empty Hosts page teaches the three steps with the exact command', /Inventory your first machine/.test(hostsEmpty) && /run -o host\.cbom\.json/.test(hostsEmpty) && /Automate the upload/.test(hostsEmpty), hostsEmpty.slice(0, 100));
+  check('E2E-12.3', 'the empty Machines page teaches the three steps with the exact command', /Inventory your first machine/.test(hostsEmpty) && /cipherhorizon-inventory\.sh/.test(hostsEmpty) && /Automate the upload/.test(hostsEmpty), hostsEmpty.slice(0, 100));
   const bom = { bomFormat: 'CycloneDX', specVersion: '1.6', version: 1, metadata: { timestamp: '2026-09-21T10:00:00Z', component: { 'bom-ref': 'host:web-01', type: 'device', name: 'web-01' } },
     components: [
       { 'bom-ref': 'crypto/rsa', type: 'cryptographic-asset', name: 'RSA', cryptoProperties: { assetType: 'algorithm', algorithmProperties: { primitive: 'pke' }, oid: '1.2.840.113549.1.1.1' } },
       { 'bom-ref': 'crypto/sha256', type: 'cryptographic-asset', name: 'SHA-256', cryptoProperties: { assetType: 'algorithm', algorithmProperties: { primitive: 'hash' }, oid: '2.16.840.1.101.3.4.2.1' } },
       { 'bom-ref': 'pkg/libgcrypt20', type: 'library', name: 'libgcrypt20', version: '1.10.3' }],
     dependencies: [{ ref: 'pkg/libgcrypt20', provides: ['crypto/rsa', 'crypto/sha256'] }] };
-  await clickText('Upload CBOM');
+  await clickText('Upload results');
   await sleep(250);
   await shot('host-upload-dialog', { full: false });
   await js(`const dt = new DataTransfer(); dt.items.add(new File([${JSON.stringify(JSON.stringify(bom))}], 'web-01.cbom.json', { type: 'application/json' }));
     document.getElementById('cbom-file').files = dt.files; document.querySelector('.modal form').requestSubmit();`);
   await sleep(1000);
   const host = await js(`return { hash: location.hash, text: document.querySelector('main').innerText }`);
-  check('E2E-10.1', 'a CBOM uploads and opens the host page with verdicts', /#\/hosts\/\d+/.test(host.hash) && /quantum-vulnerable/.test(host.text) && /quantum-safe/.test(host.text), host.hash);
+  check('E2E-10.1', 'a CBOM uploads and opens the host page with verdicts', /#\/machines\/\d+/.test(host.hash) && /quantum-vulnerable/.test(host.text) && /quantum-safe/.test(host.text), host.hash);
   check('E2E-10.2', 'the host page states capability is not use', /Capability, not use/.test(host.text));
   check('E2E-10.3', 'the package is shown as providing the algorithms', /libgcrypt20/.test(host.text));
   check('E2E-12.4', 'a CBOM that records no coverage is shown as Not recorded, never as complete', /Inventory coverage/.test(host.text) && /Not recorded/.test(host.text) && !/Full access/.test(host.text), host.text.slice(0, 80));
   await shot('host-detail');
   const badUpload = await fetch(`${BASE}/api/v1/hosts/ingest`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cipherhorizon' }, body: '{"hello":"world"}' });
   check('E2E-10.4', 'a non-CBOM upload is refused with 400', badUpload.status === 400, badUpload.status);
-  await go('#/hosts');
+  await go('#/inventory/sources');
   await sleep(500);
   await shot('hosts-list');
 
@@ -383,25 +450,186 @@ async function main() {
   check('E2E-12.6', 'the blind spots open on demand', /certificates, configuration and key material/.test(unseen), unseen.slice(0, 80));
   const why = await js(`const d = document.querySelector('details.why'); const before = d.open; d.querySelector('summary').click(); return { before, after: d.open, text: d.innerText }`);
   check('E2E-12.7', 'the reason for a verdict is one click away, with its sources', why.before === false && why.after === true && /Matched by/.test(why.text), JSON.stringify(why).slice(0, 100));
-  await go('#/hosts');
+  await go('#/machines');
   await sleep(600);
   const hostsList = await js(`return document.querySelector('main').innerText`);
   check('E2E-12.8', 'the Hosts list shows system and access for each machine', /Limited access/.test(hostsList) && /Not recorded/.test(hostsList) && /Windows 10\.0\.26200/.test(hostsList), hostsList.slice(0, 120));
-  await clickText('How do I collect?');
+  await clickText('Add a machine');
   await sleep(300);
   check('E2E-12.9', 'the collector how-to is reachable from a populated Hosts page', (await js(`return document.querySelectorAll('.modal .cmdblock').length`)) >= 2);
   await clickText('Close', "document.querySelector('.modal')");
   await sleep(300);
 
-  // J9c: the TLS overview advises, lays out six cards as 3 x 2, and the old and new addresses both work.
-  await go('#/overview');
-  await sleep(900);
-  const dash = await js(`const k = [...document.querySelectorAll('.grid.kpis.six .kpi')]; return { banner: document.querySelector('.nextstep')?.innerText || '', cards: k.length, rows: new Set(k.map((e) => e.offsetTop)).size, cols: new Set(k.map((e) => e.offsetLeft)).size, hndl: document.querySelector('main').innerText.includes('Recorded today, readable later') }`);
-  check('E2E-12.10', 'the dashboard states a next step', /next step/i.test(dash.banner) && dash.banner.length > 30, dash.banner);
-  check('E2E-12.11', 'six KPI cards sit three by two, and the jargon card explains itself', dash.cards === 6 && dash.rows === 2 && dash.cols === 3 && dash.hndl, JSON.stringify(dash));
+  // J9d (UX-DESIGN-005): each place checked for what it promises.
+  await go('#/');
+  await sleep(1200);
+  const home = await js(`const rows = [...document.querySelectorAll('.recent-row')];
+    const tiles = [...document.querySelectorAll('.fleet-tile')];
+    return { rows: rows.length, verdicts: rows.filter((r) => r.querySelector('.lvbadge, .badge, .pill')).length, links: rows.every((r) => /^#[/]endpoints[/][0-9]+$/.test(r.getAttribute('href'))),
+      tiles: tiles.map((t) => t.querySelector('.fleet-label')?.textContent + '>' + t.getAttribute('href')), fix: document.querySelectorAll('.firstfix li').length }`);
+  check('E2E-F.3', 'Overview lists the latest results, each with its verdict and a link to its report, and what to fix first', home.rows >= 1 && home.rows <= 6 && home.verdicts === home.rows && home.links && home.fix > 0, JSON.stringify(home).slice(0, 300));
+  check('E2E-F.4', 'Overview has one tile per question, each opening its place: endpoints, machines, findings, post-quantum, inventory, certificates',
+    home.tiles.join('|') === 'Endpoints>#/endpoints|Machines>#/machines|Findings>#/findings|Post-quantum>#/endpoints|Inventory>#/inventory|Next certificate expiry>#/inventory/certificates', home.tiles.join('|'));
   await go('#/endpoints');
-  await sleep(600);
-  check('E2E-12.12', '#/endpoints is an alias of the endpoints page', (await js(`return document.querySelector('h1')?.innerText`)) === 'Endpoints');
+  await sleep(900);
+  const reps = await js(`const rows = [...document.querySelectorAll('main tbody tr')];
+    return { head: document.querySelector('main h1')?.textContent, tabs: [...document.querySelectorAll('.tabs .tab')].map((t) => t.textContent).join('|'), rows: rows.length,
+      open: rows.filter((r) => r.querySelector('a.open-report')).length, scanned: rows.filter((r) => /Hybrid|Not ready|Classical|ready/i.test(r.innerText)).length,
+      findings: rows.map((r) => r.children[4]?.innerText || ''), actions: !!document.querySelector('.toolbar .toolbar-actions') }`);
+  check('E2E-F.5', 'Endpoints lists every endpoint with Add, Scan all and Export beside the filter, and a Scan activity tab',
+    reps.head === 'Endpoints' && reps.tabs === 'Endpoints|Scan activity' && reps.rows >= 5 && reps.actions, JSON.stringify(reps).slice(0, 300));
+  check('E2E-R.4', 'every scanned row has Open report, and its findings column counts every severity or says No problems (never a bare "none")',
+    reps.open >= reps.scanned && reps.findings.every((t) => t !== 'none') && reps.findings.some((t) => /\d+ (critical|high|medium|low)|No problems/.test(t)), JSON.stringify(reps.findings));
+  const rowClick = await js(`const r = [...document.querySelectorAll('main tbody tr.rowlink')].find((x) => x.querySelector('a.open-report'));
+    r.querySelector('td:nth-child(5)').click(); await new Promise((ok) => setTimeout(ok, 600));
+    return { hash: location.hash, crumbs: [...document.querySelectorAll('.crumbs li')].map((l) => l.textContent), lit: document.querySelector('#nav a[aria-current=page]')?.textContent.trim() }`);
+  check('E2E-R.5', 'clicking anywhere on a row opens its report, which names its home (Endpoints) in a breadcrumb and in the menu',
+    /^#\/endpoints\/\d+/.test(rowClick.hash) && rowClick.crumbs[0] === 'Endpoints' && rowClick.lit === 'Endpoints', JSON.stringify(rowClick));
+  // Reports holds documents, not data (UX-DESIGN-005 principle 6).
+  await go('#/reports');
+  await sleep(1200);
+  const docs = await js(`const t = document.querySelector('main').innerText;
+    return { head: document.querySelector('main h1')?.textContent, sections: [...document.querySelectorAll('.reports-docs h2')].map((x) => x.textContent),
+      epRows: document.querySelectorAll('.docs-table tbody tr').length, pdfButtons: [...document.querySelectorAll('.docs-table button')].filter((b) => b.textContent === 'Security').length,
+      invPdf: [...document.querySelectorAll('.docrow button')].some((b) => b.textContent === 'Download PDF'), tiles: document.querySelectorAll('.fleet-tile').length }`);
+  check('E2E-N.1', 'Reports lists documents: the inventory report and CBOM, a row of PDF reports and a CBOM per endpoint, machine CBOMs, CSV and standards exports; no data table of its own',
+    docs.head === 'Reports' && docs.sections.join('|') === 'Your cryptographic inventory|Endpoint reports|Machine CBOMs|Spreadsheets and standards exports' && docs.pdfButtons >= 5 && docs.invPdf && docs.tiles === 0,
+    JSON.stringify(docs));
+  const pdf = await js(`const b = [...document.querySelectorAll('.docs-table button')].find((x) => x.textContent === 'Security');
+    const orig = window.fetch; let got = null;
+    window.fetch = async (...a) => { const r = await orig(...a); got = { url: String(a[0]), type: r.headers.get('content-type') }; return r; };
+    b.click(); await new Promise((ok) => setTimeout(ok, 1500)); window.fetch = orig; return got;`);
+  check('E2E-N.2', 'a document downloads in one click from Reports', !!pdf && /report\.pdf\?kind=full/.test(pdf.url) && /application\/pdf/.test(pdf.type), JSON.stringify(pdf));
+  // The Scan a URL button works from any page and lands on the new report.
+  await go('#/inventory');
+  await sleep(700);
+  await js(`document.getElementById('nav-scan').click()`);
+  await sleep(300);
+  const scanDlg = await js(`return { open: !!document.querySelector('.modal[aria-label="Scan a URL"]'), focused: document.activeElement?.id }`);
+  await js(`const i = document.getElementById('scan-dialog-target'); i.value = '127.0.0.1:9440'; i.form.requestSubmit();`);
+  const viaButton = await waitFor(async () => { const h = await js(`return location.hash`); return /^#\/endpoints\/\d+/.test(h) ? h : null; }, 8000, 200);
+  check('E2E-N.3', 'Scan a URL opens a scan box from any page and lands on that endpoint\'s report', scanDlg.open && scanDlg.focused === 'scan-dialog-target' && viaButton === `#/endpoints/${by[9440].id}`,
+    JSON.stringify({ scanDlg, viaButton }));
+  await sleep(500);
+  await go('#/findings');
+  await sleep(1100);
+  const fl = await js(`const g = [...document.querySelectorAll('details.fgroup')];
+    const api = await (await fetch('/api/v1/findings', { headers: { 'X-Requested-With': 'cipherhorizon' } })).json();
+    return { groups: g.length, closed: g.filter((d) => !d.open).length, findings: api.length,
+      words: document.querySelector('main').innerText.split(/ +|\\n+/).filter(Boolean).length }`);
+  check('E2E-F.12', 'fleet Findings is one closed line per problem, not one card per endpoint', fl.groups > 0 && fl.groups < fl.findings && fl.closed === fl.groups, JSON.stringify(fl));
+  const lit = await js(`return document.querySelector('#nav a[aria-current=page]')?.textContent.trim()`);
+  check('E2E-N.4', 'Findings is a place of its own in the menu', lit === 'Findings', lit);
+  await shot('findings');
+  await go(`#/machines/${(await api('/api/v1/hosts'))[0].id}`);
+  await sleep(900);
+  const mcr = await js(`return { crumbs: [...document.querySelectorAll('.crumbs li')].map((l) => l.textContent), lit: document.querySelector('#nav a[aria-current=page]')?.textContent.trim() }`);
+  check('E2E-N.5', 'a machine\'s page names its home (Machines) in a breadcrumb and in the menu', mcr.crumbs[0] === 'Machines' && mcr.lit === 'Machines', JSON.stringify(mcr));
+  await go(`#/endpoints/${by[9443].id}`);
+  await sleep(1100);
+  const rp = await js(`const top = (sel) => { const e = document.querySelector(sel); return e ? e.getBoundingClientRect().top : 1e9; };
+    const head = [...document.querySelectorAll('.page-head button, .page-head summary')].map((b) => b.textContent.trim());
+    const issues = [...document.querySelectorAll('#fix .action-title')].map((x) => x.textContent);
+    const checks = document.querySelectorAll('#checks .check-row').length;
+    const coverage = document.querySelector('.coverage-line')?.innerText || '';
+    const tabs = [...document.querySelectorAll('.tabs .tab')].map((t) => t.textContent.split('(')[0].trim());
+    const strip = top('.sumstrip') < innerHeight * 2, fix = top('#fix') < innerHeight * 2;
+    const tab = (n) => [...document.querySelectorAll('.tab')].find((t) => t.textContent === n).click();
+    tab('Configuration');
+    await new Promise((r) => setTimeout(r, 400));
+    const rows = [...document.querySelectorAll('.matrix .ver-row')];
+    const matrix = { rows: rows.length, names: rows.map((r) => r.querySelector('.ver-name')?.textContent), opened: false, suites: 0,
+      states: Object.fromEntries(rows.map((r) => [r.querySelector('.ver-name')?.textContent, r.querySelector('.vstate')?.textContent])),
+      summary: document.querySelector('.ver-sum')?.textContent || '' };
+    const on = document.querySelector('.matrix details.ver-row');
+    if (on) { on.open = true; matrix.opened = true; matrix.suites = on.querySelectorAll('tbody tr').length; }
+    const cards = [...document.querySelectorAll('.detcard')];
+    const purposes = cards.map((c) => (c.querySelector('.purpose')?.textContent || '').trim().split(/ +/).length);
+    const findingCards = document.querySelectorAll('.report.configuration .finding, .report.configuration .issue').length;
+    const about = !!document.querySelector('#sec-details');
+    tab('CBOM');
+    await new Promise((r) => setTimeout(r, 1200));
+    const cbom = { rows: document.querySelectorAll('.report.cbom tbody tr').length, counts: document.querySelectorAll('.cbom-count').length,
+      dl: [...document.querySelectorAll('.report.cbom button')].map((b) => b.textContent) };
+    return { strip, fix, issues, checks, coverage, tabs, head, matrix, details: cards.length, findingCards, maxPurpose: Math.max(...purposes), about, cbom }`);
+  check('E2E-F.6', 'Summary shows the verdict, how many checks ran, and the action items first', rp.strip && rp.fix && /\d+ checks run/.test(rp.coverage), JSON.stringify({ strip: rp.strip, fix: rp.fix, coverage: rp.coverage }));
+  check('E2E-F.7', 'every finding appears once in the action items; What was evaluated has a line per area; Configuration shows no finding card',
+    rp.issues.length > 0 && new Set(rp.issues).size === rp.issues.length && rp.checks === 8 && rp.findingCards === 0, JSON.stringify(rp).slice(0, 240));
+  check('E2E-F.8', 'area purpose lines are at most 15 words, and How we tested ends Configuration', rp.maxPurpose <= 15 && rp.about, JSON.stringify({ max: rp.maxPurpose, about: rp.about }));
+  check('E2E-F.9', 'the header has Scan again, Download and More; the tabs are Summary, Configuration, Weaknesses, CBOM, History',
+    ['Scan again', 'Download', 'More'].every((t) => rp.head.includes(t)) && !rp.head.includes('Delete') && rp.tabs.join() === 'Summary,Configuration,Weaknesses,CBOM,History', JSON.stringify({ head: rp.head, tabs: rp.tabs }));
+  check('E2E-R.1', 'Configuration opens with a matrix of every TLS version; an accepted version opens to its suites (PRD-006 REQ-RV-3)',
+    rp.matrix.rows >= 4 && rp.matrix.names[0] === 'TLS 1.3' && rp.matrix.opened && rp.matrix.suites > 0, JSON.stringify(rp.matrix));
+  check('E2E-R.3', 'each version says what it is and whether that is right: an enabled old version "should be off", a disabled one "good"',
+    Object.entries(rp.matrix.states).every(([v, t]) => (/^(SSL|TLS 1\.[01])/.test(v) ? /Enabled · should be off|Disabled · good/.test(t) : /Enabled|Disabled|Not determined/.test(t)))
+    && /^Enabled: /.test(rp.matrix.summary), JSON.stringify({ states: rp.matrix.states, summary: rp.matrix.summary }));
+  check('E2E-R.2', 'the CBOM tab shows the endpoint\'s components with downloads (PRD-006 REQ-RV-5)',
+    rp.cbom.rows >= 3 && rp.cbom.counts >= 2 && rp.cbom.dl.includes('Download CycloneDX 1.7'), JSON.stringify(rp.cbom));
+  const pdfs = await js(`const out = {};
+    const scan = (await (await fetch('/api/v1/assets/${by[9443].id}')).json()).lastDone.id;
+    for (const k of ['full', 'tls', 'cert']) {
+      const r = await fetch('/api/v1/scans/' + scan + '/report.pdf?kind=' + k);
+      const b = new Uint8Array(await r.arrayBuffer());
+      out[k] = { status: r.status, magic: String.fromCharCode(...b.slice(0, 5)), size: b.length, name: r.headers.get('content-disposition') };
+    }
+    return out;`);
+  check('E2E-P.1', 'the full, TLS and certificate reports download as real PDF files',
+    ['full', 'tls', 'cert'].every((k) => pdfs[k].status === 200 && pdfs[k].magic === '%PDF-' && pdfs[k].size > 4000 && /\.pdf"$/.test(pdfs[k].name || '')), JSON.stringify(pdfs));
+  const viaDialog = await js(`window.__printed = false; window.print = () => { window.__printed = true; };
+    [...document.querySelectorAll('.page-head button')].find((b) => b.textContent.trim() === 'Download').click();
+    await new Promise((r) => setTimeout(r, 300));
+    const go = [...document.querySelectorAll('.modal button')].find((b) => b.textContent.trim() === 'Download');
+    go.click();
+    await new Promise((r) => setTimeout(r, 1500));
+    return { printed: window.__printed, modalOpen: !!document.querySelector('.modal'), toast: document.querySelector('.toast')?.textContent || '' };`);
+  check('E2E-P.2', 'Download → PDF saves a generated PDF; it never opens the print dialog', !viaDialog.printed && !viaDialog.modalOpen && /Downloaded/.test(viaDialog.toast), JSON.stringify(viaDialog));
+  await go('#/inventory/sources');
+  await sleep(1100);
+  const src = await js(`return { heads: [...document.querySelectorAll('main section h2')].map((x) => x.textContent), rows: document.querySelectorAll('.source-list li').length,
+    machines: document.querySelectorAll('.source-list a[href^="#/machines/"]').length }`);
+  check('E2E-F.10', 'Inventory → Sources lists endpoint scans, machines and imported CBOMs, each opening its own page',
+    ['Endpoint scans', 'Machine inventories', 'Imported CBOMs'].every((x) => src.heads.includes(x)) && src.rows >= 5 && src.machines >= 1, JSON.stringify(src));
+  await shot('inventory-sources');
+  await go('#/systems');
+  await sleep(900);
+  const sy = await js(`return { tabs: [...document.querySelectorAll('.tabs .tab')].map((t) => t.firstChild.textContent.trim()), menuCount: !!document.getElementById('nav-review-count') }`);
+  check('E2E-F.11', 'Systems has Migration order and Decisions tabs, and the menu entry carries the decision count', sy.tabs.join('|') === 'Migration order|Decisions' && sy.menuCount, JSON.stringify(sy));
+
+  // J9c (PRD-005 F-M6): every address the old menu used still lands on the page that replaced it.
+  const anyId = by[9440].id;
+  const moved = [['#/overview', '#/'], ['#/assets', '#/endpoints'], [`#/assets/${anyId}`, `#/endpoints/${anyId}`], [`#/reports/${anyId}`, `#/endpoints/${anyId}`],
+    ['#/reports?tab=findings', '#/findings'], ['#/reports?tab=activity', '#/endpoints?tab=activity'], ['#/reports?tab=endpoints', '#/endpoints'],
+    ['#/scans', '#/endpoints?tab=activity'], ['#/hosts', '#/machines'], ['#/imports', '#/inventory/sources'], ['#/inventory?tab=sources', '#/inventory/sources'],
+    ['#/cbom', '#/inventory'], ['#/certificates', '#/inventory/certificates'], ['#/review', '#/systems?tab=decisions'], ['#/estate', '#/systems']];
+  const wrong = [];
+  for (const [from, to] of moved) {
+    await go(from);
+    await sleep(350);
+    const at = await js(`return location.hash`);
+    if (at !== to) wrong.push(`${from}→${at}`);
+  }
+  check('F-M6', 'every old address lands on the page that replaced it', wrong.length === 0, wrong.join(' '));
+  // F-M4 and the inventory dashboard: figures first, lists one click deeper, downloads in the header.
+  await go('#/inventory');
+  await sleep(1200);
+  const inv = await js(`return { dl: [...document.querySelectorAll('.download-menu button')].map((b) => b.textContent),
+    tiles: document.querySelectorAll('.sumstrip .sumtile').length,
+    cards: [...document.querySelectorAll('.dcard h2')].map((x) => x.textContent), ring: !!document.querySelector('.dcard svg.ring'),
+    ranked: document.querySelectorAll('.rank-list .rank-row').length, bars: document.querySelectorAll('.dcard svg.hbar').length }`);
+  check('F-M4', 'Inventory opens on a dashboard with Download (PDF report and CBOM) in the page header', inv.dl.includes('Download PDF') && inv.dl.includes('Download CBOM') && inv.tiles === 4, JSON.stringify(inv));
+  check('E2E-D.1', 'the dashboard shows post-quantum status, what to replace first, protocols, certificates and sources, drawn as charts',
+    ['Post-quantum status', 'Replace first', 'Protocol versions', 'Certificates', 'Sources'].every((c) => inv.cards.includes(c)) && inv.ring && inv.ranked > 0 && inv.bars >= 3, JSON.stringify(inv));
+  const pdfInv = await js(`const r = await fetch('/api/v1/inventory/report.pdf', { headers: { 'X-Requested-With': 'cipherhorizon' } });
+    const b = new Uint8Array(await r.arrayBuffer()); return { status: r.status, type: r.headers.get('content-type'), magic: String.fromCharCode(...b.slice(0, 5)), size: b.length }`);
+  check('E2E-D.2', 'the inventory PDF report is a real PDF document', pdfInv.status === 200 && pdfInv.type === 'application/pdf' && pdfInv.magic === '%PDF-' && pdfInv.size > 4000, JSON.stringify(pdfInv));
+  await go('#/inventory/algorithms');
+  await sleep(900);
+  const lst = await js(`return { sub: [...document.querySelectorAll('.subnav a')].map((a) => a.textContent).join('|'), current: document.querySelector('.subnav a[aria-current=page]')?.textContent,
+    rows: document.querySelectorAll('main tbody tr').length, back: !!document.querySelector('main a[href="#/inventory"]') }`);
+  check('E2E-D.3', 'each list is a page of its own, one click from the dashboard, with a way back', lst.sub === 'Algorithms|Keys|Certificates|Protocols|Software|Sources' && lst.current === 'Algorithms' && lst.rows > 0 && lst.back, JSON.stringify(lst));
+  await go('#/inventory');
+  await sleep(900);
+  await shot('inventory');
   await go('#/nothing-here');
   await sleep(400);
   check('E2E-12.13', 'an unknown address gets a neutral explanation and a way back', /We could not find that page/.test(await js(`return document.querySelector('main').innerText`)));
@@ -414,51 +642,80 @@ async function main() {
     /L3/.test(about) && /own choice/.test(about) && /not a standard/.test(about) && !/grade|SSL Labs/i.test(about));
   await shot('about');
 
-  // J10b: the sidebar groups its links so the menu is not one flat list, and About is reachable
-  // both from the menu and from the Estate's collector card, not only from a "Sources" catch-all.
-  const navGroups = await js(`return [...document.querySelectorAll('.navgroup')].map((g) => g.textContent.trim())`);
-  check('E2E-14.1', 'the menu is organised into labelled groups', navGroups.length >= 2, JSON.stringify(navGroups));
-
-  // J10c: get the collector, from the About page and from the sidebar footer. The download works
-  // whether or not this server has a binary on disk to hand out; either way it says so honestly.
-  const dl = await js(`await new Promise((r) => setTimeout(r, 600));
-    return { hasBox: !!document.querySelector('.dlbox'), hasRow: !!document.querySelector('.dlrow'), text: document.querySelector('.dlbox')?.innerText || '' }`);
-  check('E2E-14.2', 'About offers to get the collector, one way or the other', dl.hasBox && (dl.hasRow || /none on disk|Build one/.test(dl.text)), JSON.stringify(dl));
-  if (dl.hasRow) {
-    await js(`document.querySelector('.dlrow .btn-primary')?.click()`);
-    await sleep(500);
-    check('E2E-14.3', 'downloading a collector binary succeeds with no server error', consoleErrors.every((e) => !/status of 5\d\d/.test(e)));
-  }
-  await clickText('Get the collector', "document.querySelector('.sidefoot')");
+  // J10b (PRD-005 REQ-NAV-3): About is reachable from the sidebar footer, the one link left there.
+  await go('#/');
   await sleep(400);
-  check('E2E-14.4', 'the sidebar footer opens the same collector dialog', (await js(`return document.querySelectorAll('.modal .steps .step').length`)) >= 3);
+  await js(`document.querySelector('.sidefoot a[href="#/about"]').click()`);
+  await sleep(500);
+  check('E2E-14.1', 'the sidebar footer leads to About', (await js(`return location.hash`)) === '#/about');
+  // J10c: About offers the inventory scripts: each can be read in place, its SHA-256 matches the text
+  // served, and it downloads as plain text. No unsigned program is offered for download.
+  const scripts = await js(`await new Promise((r) => setTimeout(r, 800));
+    const rows = [...document.querySelectorAll('.dlbox .scriptrow')];
+    const read = rows[1]?.querySelector('details.script-read');
+    if (read) { read.open = true; read.dispatchEvent(new Event('toggle')); }
+    await new Promise((r) => setTimeout(r, 800));
+    const text = read?.querySelector('pre')?.textContent || '';
+    const sha = rows[1]?.querySelector('.dlrow-sha')?.getAttribute('title') || '';
+    const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    return { rows: rows.length, names: rows.map((r) => r.querySelector('code')?.textContent), shown: text.slice(0, 40), match: digest === sha,
+      binaries: /collector\.exe|collector binary/i.test(document.querySelector('main').innerText) }`);
+  check('E2E-14.2', 'About offers the two inventory scripts, readable in place, with a SHA-256 that matches what is shown',
+    scripts.rows === 2 && scripts.names.join() === 'cipherhorizon-inventory.ps1,cipherhorizon-inventory.sh' && /^#!\/bin\/sh/.test(scripts.shown) && scripts.match && !scripts.binaries, JSON.stringify(scripts));
+  // A facts file, as the scripts write it, uploads through the same dialog and becomes a machine.
+  await go('#/machines');
+  await sleep(900);
+  const facts = ['cipherhorizon-machine-facts\t1', 'script\tlinux-sh\t1.0.0', 'host\tname\tfacts-host-01', 'host\tos\tlinux', 'host\tprivilege\tadmin',
+    'package-manager\tdpkg', 'package\tdpkg\topenssl\t3.5.1-1\tamd64', 'package\tdpkg\tlibgcrypt20\t1.11.0-7\tamd64'].join('\n') + '\n';
+  await clickText('Upload results');
+  await sleep(300);
+  await js(`const dt = new DataTransfer(); dt.items.add(new File([${JSON.stringify(facts)}], 'cipherhorizon-facts-facts-host-01.txt', { type: 'text/plain' }));
+    document.getElementById('cbom-file').files = dt.files; document.querySelector('.modal form').requestSubmit();`);
+  await sleep(1500);
+  const fh = await js(`return { hash: location.hash, text: document.querySelector('main').innerText }`);
+  check('E2E-14.3', 'a facts file from the inventory script uploads and shows the machine with post-quantum verdicts',
+    /#\/machines\/\d+/.test(fh.hash) && /facts-host-01/.test(fh.text) && /ML-KEM/.test(fh.text) && /quantum-vulnerable/.test(fh.text), fh.hash + ' ' + fh.text.slice(0, 120));
+  await shot('facts-host');
+  // REQ-INV-6: Inventory's "Add data" is the same dialog as the Scan page's link, collector how-to included.
+  await go('#/inventory');
+  await sleep(600);
+  await clickText('Add data');
+  await sleep(300);
+  await clickText('Show me how', "document.querySelector('.modal')");
+  await sleep(300);
+  check('E2E-14.4', 'Inventory → Add data → Show me how opens the collector steps', (await js(`return document.querySelectorAll('.modal .steps .step').length`)) >= 3);
   await clickText('Close', "document.querySelector('.modal')");
   await sleep(300);
 
   // J11: dark mode and a phone-sized screen (AC-11.x, NFR accessibility).
   await viewport(1280, 900, true);
-  await go('#/overview');
+  await go('#/');
   await sleep(900);
-  await shot('dashboard-dark');
-  await go(`#/assets/${by[9440].id}`);
+  await shot('overview-dark');
+  await go('#/inventory');
+  await sleep(900);
+  await shot('inventory-dark');
+  await go(`#/endpoints/${by[9440].id}`);
   await sleep(700);
-  await shot('asset-overview-dark');
+  await shot('report-dark');
   await viewport(390, 844, false, true);
-  await go('#/overview');
-  await sleep(900);
-  const overflow = await js(`return document.documentElement.scrollWidth - document.documentElement.clientWidth`);
-  check('NFR-a11y.1', 'no horizontal page scroll at 390 px wide (dashboard)', overflow <= 1, overflow);
-  const kp = await js(`const k = [...document.querySelectorAll('.grid.kpis .kpi')]; return { n: k.length, cols: new Set(k.map((e) => e.offsetLeft)).size }`);
-  check('E2E-12.14', 'KPI cards sit two per row on a phone', kp.n === 6 && kp.cols === 2, JSON.stringify(kp));
-  await shot('dashboard-mobile');
-  await go(`#/assets/${by[9440].id}`);
+  const over = {};
+  for (const [name, at] of [['overview', '#/'], ['endpoints', '#/endpoints'], ['machines', '#/machines'], ['findings', '#/findings'], ['inventory', '#/inventory'], ['systems', '#/systems'], ['reports', '#/reports']]) {
+    await go(at);
+    await sleep(800);
+    over[name] = await js(`return document.documentElement.scrollWidth - document.documentElement.clientWidth`);
+    await shot(`${name}-mobile`);
+  }
+  check('NFR-a11y.1', 'no horizontal page scroll at 390 px wide on any place of the menu', Object.values(over).every((o) => o <= 1), JSON.stringify(over));
+  await go('#/inventory');
+  await sleep(800);
+  const kp = await js(`const k = [...document.querySelectorAll('.sumstrip .sumtile')]; return { n: k.length, cols: new Set(k.map((e) => e.offsetLeft)).size }`);
+  check('E2E-12.14', 'the inventory summary sits two per row on a phone', kp.n === 4 && kp.cols === 2, JSON.stringify(kp));
+  await go(`#/endpoints/${by[9440].id}`);
   await sleep(700);
   const overflow2 = await js(`return document.documentElement.scrollWidth - document.documentElement.clientWidth`);
-  check('NFR-a11y.2', 'no horizontal page scroll at 390 px wide (endpoint page)', overflow2 <= 1, overflow2);
-  await shot('asset-overview-mobile');
-  await go('#/assets');
-  await sleep(700);
-  await shot('endpoints-mobile');
+  check('NFR-a11y.2', 'no horizontal page scroll at 390 px wide (report page)', overflow2 <= 1, overflow2);
+  await shot('report-mobile');
   await viewport(1280, 900);
 
   // The estate views (PRD-003 WP-8).

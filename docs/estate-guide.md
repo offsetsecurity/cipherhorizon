@@ -1,6 +1,6 @@
 # The estate: systems, matches and imports
 
-A guide for the person who runs CipherHorizon. It explains what the Estate page is telling you and how to act on it. The rules behind the order are in [methodology.md](methodology.md); file formats are in [importing.md](importing.md) and [exporting.md](exporting.md).
+A guide for the person who runs CipherHorizon. It explains what the **Systems** page (formerly *Estate*) is telling you and how to act on it. The rules behind the order are in [methodology.md](methodology.md); file formats are in [importing.md](importing.md) and [exporting.md](exporting.md).
 
 ## Systems
 
@@ -12,9 +12,9 @@ Open a system to see everything about it on one page: why it sits where it does,
 
 Owner, environment, exposure, criticality, how long its data must stay secret, and the identifiers a federal inventory asks for (FISMA identifier, FIPS 199 category, high value asset identifier, hosting). None can be observed by any tool, so none is ever filled in for you. **Empty means "not provided"**, and the system says so wherever it matters.
 
-Enter them on the system page, or edit `systems.csv` (Estate → *Export details*) and import it with the API. Every change is recorded with who, what and why, and the record cannot be edited or emptied.
+Enter them on the system page, or edit `systems.csv` (Systems → *Export details*) and import it with the API. Every change is recorded with who, what and why, and the record cannot be edited or emptied.
 
-## The Estate page
+## The Systems page
 
 Systems appear in the order to look at them. The order is decided by four published rules, applied in turn:
 

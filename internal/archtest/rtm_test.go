@@ -18,6 +18,8 @@ import (
 var prdPaths = []string{
 	"../../docs/product/PRD-003-cryptographic-estate-model.md",
 	"../../docs/product/PRD-004-tls-scanner-t1-pki-depth.md",
+	"../../docs/product/PRD-005-product-focus-and-flows.md",
+	"../../docs/product/PRD-006-self-evident-results-and-signatures.md",
 }
 
 const (

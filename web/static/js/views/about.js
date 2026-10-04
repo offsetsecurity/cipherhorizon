@@ -1,10 +1,10 @@
-// About: what this product is, how to get the collector, the readiness scale, how the TLS hygiene
+// About: what this product is, how to inventory a machine, the readiness scale, how the TLS hygiene
 // score works, and the limits of what is measured.
 import { h, brandMark } from '../dom.js';
 import { api } from '../api.js';
 import { LEVELS, levelClass } from '../charts.js';
 import { citations, button } from '../ui.js';
-import { collectorDownloadBlock, collectDialog } from '../guide.js';
+import { inventoryScriptsBlock, collectDialog } from '../guide.js';
 
 const MEANING = {
   '-1': 'The scan could not establish what the endpoint supports, so no level is given rather than a guess.',
@@ -30,17 +30,17 @@ export async function render(root) {
       brandMark('Hero', 'rgba(17,17,30,.14)')),
     h('div', null,
       h('h1', null, a.name || 'CipherHorizon'),
-      h('p', { class: 'about-hero-sub' }, 'A cryptographic inventory that ranks your systems for the move to post-quantum cryptography.'),
+      h('p', { class: 'about-hero-sub' }, 'Scans your TLS endpoints and collects your CBOMs into one cryptographic inventory, and tells you what is not ready for post-quantum.'),
       h('p', { class: 'muted mono small' }, `Version ${a.version}`))));
 
   root.appendChild(h('div', { class: 'callout' }, h('b', null, 'Use only on systems you are authorised to test. '), a.notice));
 
   root.appendChild(h('section', { class: 'card' },
     h('div', { class: 'row spread' },
-      h('div', null, h('h2', null, 'Get the collector'),
-        h('p', { class: 'text-2' }, 'The small program that inventories a machine’s cryptographic software and certificates. It is one file, reads no key material, starts no other program and makes no network connection.')),
+      h('div', null, h('h2', null, 'Inventory a machine'),
+        h('p', { class: 'text-2' }, 'Two short scripts, PowerShell for Windows and shell for Linux, list a machine’s cryptographic software and certificates in a plain-text file you can read before uploading. They read no key material and make no network connection. (The Go collector still exists for those who build it from source.)')),
       button('Full instructions', () => collectDialog(null))),
-    collectorDownloadBlock()));
+    inventoryScriptsBlock()));
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'PQC readiness levels'),
     h('p', { class: 'muted' }, 'This scale is this product’s own. Each fact behind a level is separately sourced from a standard, and shown with its evidence.'),

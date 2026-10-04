@@ -195,6 +195,11 @@ func bodyTypeOK(r *http.Request) bool {
 	if strings.HasPrefix(ct, "application/json") {
 		return true
 	}
+	// A machine inventory facts file is plain text. The X-Requested-With header is still
+	// required, so allowing text/plain here does not open the route to a cross-site form.
+	if r.URL.Path == "/api/v1/hosts/ingest" && strings.HasPrefix(ct, "text/plain") {
+		return true
+	}
 	return r.URL.Path == "/api/v1/systems/import.csv" && strings.HasPrefix(ct, "text/csv")
 }
 
@@ -293,6 +298,11 @@ func (s *Server) routes() {
 	handle("GET /api/v1/systems/{id}/links", s.systemLinks)
 	handle("GET /api/v1/estate", s.estateRanking)
 	handle("GET /api/v1/entities", s.listEntities)
+	handle("GET /api/v1/inventory", s.inventory)
+	handle("GET /api/v1/inventory/summary", s.inventorySummary)
+	handle("GET /api/v1/inventory/cbom", s.inventoryCBOM)
+	handle("GET /api/v1/inventory/dashboard", s.inventoryDashboard)
+	handle("GET /api/v1/inventory/report.pdf", s.inventoryPDF)
 	handle("GET /api/v1/graph/stats", s.graphStats)
 
 	handle("POST /api/v1/scans", s.scanMany)
@@ -303,6 +313,7 @@ func (s *Server) routes() {
 	handle("GET /api/v1/scans/{id}/report", s.report)
 	handle("GET /api/v1/scans/{id}/evaluation", s.evaluation)
 	handle("GET /api/v1/scans/{id}/cbom", s.scanCBOM)
+	handle("GET /api/v1/scans/{id}/report.pdf", s.scanPDF)
 
 	handle("GET /api/v1/export/assets.csv", s.exportCSV)
 
@@ -311,6 +322,9 @@ func (s *Server) routes() {
 	handle("GET /api/v1/hosts/{id}", s.getHost)
 	handle("GET /api/v1/hosts/{id}/snapshots/{snapshotId}/cbom", s.hostSnapshotCBOM)
 
+	handle("GET /api/v1/collector/scripts", s.listInventoryScripts)
+	handle("GET /api/v1/collector/signatures", s.listSignatures)
+	handle("GET /api/v1/collector/scripts/{name}", s.inventoryScript)
 	handle("GET /api/v1/collector/binaries", s.listCollectorBinaries)
 	handle("GET /api/v1/collector/binaries/{name}", s.downloadCollectorBinary)
 

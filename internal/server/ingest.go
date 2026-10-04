@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +15,9 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
+	"github.com/example/cipherhorizon/internal/cbom"
 	"github.com/example/cipherhorizon/internal/estate"
+	"github.com/example/cipherhorizon/internal/machinefacts"
 	"github.com/example/cipherhorizon/internal/pqc"
 	"github.com/example/cipherhorizon/internal/store"
 )
@@ -136,6 +139,26 @@ func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "could not read the request body")
 		return
 	}
+	// A facts file from an inventory script is turned into a CBOM here, by the collector's own
+	// sensors and knowledge, and from then on is handled like any collector upload.
+	if machinefacts.IsFacts(raw) {
+		facts, err := machinefacts.Parse(raw)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "not a valid inventory facts file: "+err.Error())
+			return
+		}
+		converted, err := machinefacts.ToCBOM(r.Context(), facts, machinefacts.Options{ToolVersion: s.cfg.Version, Now: s.cfg.Now})
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "could not inventory the facts file: "+err.Error())
+			return
+		}
+		var buf bytes.Buffer
+		if err := cbom.EncodeSpec(&buf, converted, cbom.Spec16, true); err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		raw = buf.Bytes()
+	}
 	var bom cdx.BOM
 	if err := cdx.NewBOMDecoder(strings.NewReader(string(raw)), cdx.BOMFileFormatJSON).Decode(&bom); err != nil {
 		writeErr(w, http.StatusBadRequest, "not a valid CycloneDX JSON document: "+err.Error())
@@ -188,6 +211,8 @@ type hostView struct {
 	Summary   *HostSummary `json:"summary"`
 	UpdatedAt *time.Time   `json:"snapshotAt"`
 	Snapshots int          `json:"snapshots"`
+	// SnapshotID is the latest upload, whose CBOM the Reports page offers.
+	SnapshotID int64 `json:"snapshotId,omitempty"`
 }
 
 func (s *Server) hostFor(a store.Asset, links map[int64][]int64) hostView {
@@ -199,6 +224,7 @@ func (s *Server) hostFor(a store.Asset, links map[int64][]int64) hostView {
 	hv.Snapshots = len(snaps)
 	at := snaps[0].At
 	hv.UpdatedAt = &at
+	hv.SnapshotID = snaps[0].ID
 	var sum HostSummary
 	if json.Unmarshal(snaps[0].Summary, &sum) == nil {
 		hv.Summary = &sum

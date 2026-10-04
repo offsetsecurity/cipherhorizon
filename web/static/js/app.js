@@ -2,27 +2,42 @@
 import { h, clear } from './dom.js';
 import { api, ApiError, setAuthHandler, setToken } from './api.js';
 import { modal, button, empty, notice, playEnter } from './ui.js';
-import { collectDialog } from './guide.js';
 
 const main = document.getElementById('main');
 const modalRoot = document.getElementById('modal-root');
 
+// The places of the menu and the detail pages under them (UX-DESIGN-005): one place per kind of
+// thing; a detail page lights up its home.
 const routes = [
-  [/^#\/?$/, 'estate', () => import('./views/estate.js')],
-  [/^#\/overview\/?$/, 'overview', () => import('./views/dashboard.js')],
-  [/^#\/systems\/(\d+)\/?$/, 'estate', () => import('./views/system.js')],
-  [/^#\/certificates\/?$/, 'certificates', () => import('./views/certificates.js')],
-  [/^#\/certificates\/([0-9a-fA-F]{64})\/?$/, 'certificates', () => import('./views/certificate.js')],
-  [/^#\/review\/?$/, 'review', () => import('./views/review.js')],
-  [/^#\/imports\/?$/, 'imports', () => import('./views/imports.js')],
-  [/^#\/(?:assets|endpoints)\/?$/, 'assets', () => import('./views/assets.js')],
-  [/^#\/(?:assets|endpoints)\/(\d+)\/?$/, 'assets', () => import('./views/asset.js')],
-  [/^#\/scans\/?$/, 'scans', () => import('./views/scans.js')],
-  [/^#\/hosts?\/?$/, 'hosts', () => import('./views/hosts.js')],
-  [/^#\/hosts?\/(\d+)\/?$/, 'hosts', () => import('./views/host.js')],
+  [/^#\/?$/, 'overview', () => import('./views/overview.js')],
+  [/^#\/endpoints\/?$/, 'endpoints', () => import('./views/endpoints.js')],
+  [/^#\/endpoints\/(\d+)\/?$/, 'endpoints', () => import('./views/asset.js')],
+  [/^#\/machines\/?$/, 'machines', () => import('./views/hosts.js')],
+  [/^#\/machines\/(\d+)\/?$/, 'machines', () => import('./views/host.js')],
   [/^#\/findings\/?$/, 'findings', () => import('./views/findings.js')],
-  [/^#\/cbom\/?$/, 'cbom', () => import('./views/cbom.js')],
+  [/^#\/inventory\/?$/, 'inventory', () => import('./views/inventory.js')],
+  [/^#\/inventory\/(algorithms|keys|certificates|protocols|software|sources)\/?$/, 'inventory', () => import('./views/inventory.js')],
+  [/^#\/certificates\/([0-9a-fA-F]{64})\/?$/, 'inventory', () => import('./views/certificate.js')],
+  [/^#\/systems\/?$/, 'systems', () => import('./views/systems.js')],
+  [/^#\/systems\/(\d+)\/?$/, 'systems', () => import('./views/system.js')],
+  [/^#\/reports\/?$/, 'reports', () => import('./views/reports.js')],
   [/^#\/about\/?$/, 'about', () => import('./views/about.js')],
+];
+
+// Addresses of earlier versions keep working (UX-DESIGN-005 §6): each is replaced by its new
+// place, without adding a history entry.
+const redirects = [
+  [/^#\/(?:assets|reports)\/(\d+)\/?$/, (m) => `#/endpoints/${m[1]}`],
+  [/^#\/assets\/?$/, () => '#/endpoints'],
+  [/^#\/overview\/?$/, () => '#/'],
+  [/^#\/scans\/?$/, () => '#/endpoints?tab=activity'],
+  [/^#\/hosts?\/(\d+)\/?$/, (m) => `#/machines/${m[1]}`],
+  [/^#\/hosts?\/?$/, () => '#/machines'],
+  [/^#\/imports\/?$/, () => '#/inventory/sources'],
+  [/^#\/cbom\/?$/, () => '#/inventory'],
+  [/^#\/certificates\/?$/, () => '#/inventory/certificates'],
+  [/^#\/review\/?$/, () => '#/systems?tab=decisions'],
+  [/^#\/estate\/?$/, () => '#/systems'],
 ];
 
 let cleanup = null;
@@ -36,6 +51,26 @@ async function route() {
   // otherwise be stranded on top of the new page.
   clear(modalRoot);
   const [hashPath, query = ''] = (location.hash || '#/').split('?');
+  // Inventory lists were tabs (?tab=…) before they became pages of their own.
+  const tab = /^#\/inventory\/?$/.test(hashPath) && new URLSearchParams(query).get('tab');
+  if (tab) {
+    location.replace(`#/inventory/${tab === 'tls' ? 'protocols' : tab}`);
+    return;
+  }
+  // Reports held the endpoints, the fleet's findings and the scan activity as tabs (PRD-005).
+  const old = /^#\/reports\/?$/.test(hashPath) && new URLSearchParams(query).get('tab');
+  if (old) {
+    location.replace({ findings: '#/findings', activity: '#/endpoints?tab=activity' }[old] || '#/endpoints');
+    return;
+  }
+  for (const [re, to] of redirects) {
+    const m = re.exec(hashPath);
+    if (m) {
+      const target = to(m);
+      location.replace(query && !target.includes('?') ? `${target}?${query}` : target);
+      return;
+    }
+  }
   const params = new URLSearchParams(query);
 
   let match = null;
@@ -43,13 +78,13 @@ async function route() {
     const m = re.exec(hashPath);
     if (m) { match = { nav, load, args: m.slice(1) }; break; }
   }
-  for (const a of document.querySelectorAll('#nav a')) {
+  for (const a of document.querySelectorAll('#nav a, .sidefoot a[data-route]')) {
     if (match && a.dataset.route === match.nav) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
   clear(main);
   if (!match) {
-    main.appendChild(notice('We could not find that page', 'The address may be mistyped, or the page may have moved. Everything is reachable from the menu.', button('Go to the estate', () => { location.hash = '#/'; }, 'primary')));
+    main.appendChild(notice('We could not find that page', 'The address may be mistyped, or the page may have moved. Everything is reachable from the menu.', button('Go to the overview', () => { location.hash = '#/'; }, 'primary')));
     return;
   }
   try {
@@ -67,11 +102,12 @@ async function route() {
       h('p', null, err instanceof ApiError ? err.message : `Unexpected error: ${err.message}`),
       button('Try again', route, 'primary')));
   }
-  main.focus({ preventScroll: true });
+  // Move focus to the new page, unless the page put it somewhere on purpose (the scan box).
+  if (!main.contains(document.activeElement) || document.activeElement === main) main.focus({ preventScroll: true });
   refreshReviewCount();
 }
 
-// The number of proposed matches waiting for a person, shown beside "Review" in the menu.
+// The number of match decisions waiting for a person, shown beside "Systems" in the menu.
 async function refreshReviewCount() {
   const el = document.getElementById('nav-review-count');
   if (!el) return;
@@ -84,7 +120,6 @@ async function refreshReviewCount() {
 }
 window.addEventListener('estate-changed', refreshReviewCount);
 
-document.getElementById('nav-collector')?.addEventListener('click', () => collectDialog(null));
 
 setAuthHandler(() => {
   if (document.querySelector('.modal[aria-label="Access token"]')) return;
@@ -98,6 +133,11 @@ setAuthHandler(() => {
 });
 
 window.addEventListener('hashchange', route);
+// "Scan a URL" is an action on every page, not a place (UX-DESIGN-005 principle 3).
+document.getElementById('nav-scan')?.addEventListener('click', async () => {
+  const { openScanDialog } = await import('./views/scan.js');
+  openScanDialog();
+});
 api.about().then((a) => {
   const el = document.getElementById('sidebar-version');
   if (el) el.textContent = /^\d/.test(a.version) ? `v${a.version}` : a.version;

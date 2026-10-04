@@ -51,14 +51,32 @@ func one(detail string) []hit { return []hit{{detail: detail}} }
 // names lists up to five suite names, then a count.
 func names(ss []tlsprobe.SuiteResult) string {
 	var out []string
-	for i, s := range ss {
-		if i == 5 {
-			out = append(out, fmt.Sprintf("and %d more", len(ss)-5))
+	seen := map[string]bool{}
+	for _, s := range ss {
+		if seen[s.Name] {
+			continue // the same suite accepted over several versions is named once
+		}
+		seen[s.Name] = true
+		if len(out) == 5 {
+			out = append(out, "and more")
 			break
 		}
 		out = append(out, s.Name)
 	}
 	return strings.Join(out, ", ")
+}
+
+// acceptedSuites describes matching suites: how many distinct ones, and over which versions.
+func acceptedSuites(m []tlsprobe.SuiteResult) string {
+	distinct := map[string]bool{}
+	var versions []string
+	for _, s := range m {
+		distinct[s.Name] = true
+		if !contains(versions, s.Version) {
+			versions = append(versions, s.Version)
+		}
+	}
+	return fmt.Sprintf("%d accepted suite(s) over %s: %s", len(distinct), strings.Join(versions, ", "), names(m))
 }
 
 func filter(ss []tlsprobe.SuiteResult, keep func(tlsprobe.SuiteResult) bool) []tlsprobe.SuiteResult {
@@ -76,7 +94,7 @@ func suiteRule(id, title string, sev Severity, cites []Citation, remed string, k
 		id: id, title: title, category: "cipher", severity: sev, evidence: Observed, citations: cites, remediation: remed,
 		check: func(c *ctx) []hit {
 			if m := filter(c.suites, keep); len(m) > 0 {
-				return one(fmt.Sprintf("%d accepted suite(s): %s", len(m), names(m)))
+				return one(acceptedSuites(m))
 			}
 			return nil
 		},
@@ -139,8 +157,8 @@ func certRule(id, title string, sev Severity, cites []Citation, remed string, fn
 			var hits []hit
 			for _, cr := range c.rep.Certificates {
 				leaf, ok := leafOf(cr)
-				if !ok {
-					continue
+				if !ok || cr.NoSNI {
+					continue // the no-SNI chain is described by CERT.NO-SNI-DIFFERENT, never judged as the endpoint's certificate
 				}
 				if detail, s, fire := fn(c, cr, leaf); fire {
 					hits = append(hits, hit{detail: detail, severity: s})
@@ -214,7 +232,7 @@ var rules = []rule{
 				return s.Kx == "RSA" || s.Kx == "DH" || s.Kx == "ECDH"
 			})
 			if len(m) > 0 {
-				return one(fmt.Sprintf("%d accepted suite(s): %s", len(m), names(m)))
+				return one(acceptedSuites(m))
 			}
 			return nil
 		},
@@ -230,7 +248,7 @@ var rules = []rule{
 				return s.IANARecommended == "D" && !specific
 			})
 			if len(m) > 0 {
-				return one(fmt.Sprintf("%d accepted suite(s): %s", len(m), names(m)))
+				return one(acceptedSuites(m))
 			}
 			return nil
 		},

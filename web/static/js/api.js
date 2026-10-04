@@ -73,6 +73,10 @@ export const api = {
 
   scanAsset: (id) => request('POST', `/api/v1/assets/${id}/scan`),
   scanMany: (body) => request('POST', '/api/v1/scans', body),
+  inventory: (kind, params = {}) => request('GET', `/api/v1/inventory?${new URLSearchParams({ kind, ...params })}`),
+  inventorySummary: () => request('GET', '/api/v1/inventory/summary'),
+  inventoryDashboard: () => request('GET', '/api/v1/inventory/dashboard'),
+  scanCBOM: (scanId, spec = '1.7') => request('GET', `/api/v1/scans/${scanId}/cbom?spec=${spec}`),
   scans: (query = '') => request('GET', `/api/v1/scans${query}`),
   scan: (id) => request('GET', `/api/v1/scans/${id}`),
   cancelScan: (id) => request('POST', `/api/v1/scans/${id}/cancel`),
@@ -85,7 +89,13 @@ export const api = {
 
   hosts: () => request('GET', '/api/v1/hosts'),
   host: (id) => request('GET', `/api/v1/hosts/${id}`),
-  ingest: (json, name) => request('POST', `/api/v1/hosts/ingest${name ? `?name=${encodeURIComponent(name)}` : ''}`, json),
+  // A CBOM (JSON) or a facts file written by an inventory script (plain text).
+  ingest: (text, name) => request('POST', `/api/v1/hosts/ingest${name ? `?name=${encodeURIComponent(name)}` : ''}`, text, false,
+    text.replace(/^\uFEFF/, '').startsWith('cipherhorizon-machine-facts\t') ? 'text/plain' : 'application/json'),
+  hostCBOM: (hostId, snapId) => request('GET', `/api/v1/hosts/${hostId}/snapshots/${snapId}/cbom`),
+  inventoryScripts: () => request('GET', '/api/v1/collector/scripts'),
+  inventorySignatures: () => request('GET', '/api/v1/collector/signatures'),
+  inventoryScript: (name) => request('GET', `/api/v1/collector/scripts/${encodeURIComponent(name)}`, null, true).then((r) => r.text()),
 
   collectorBinaries: () => request('GET', '/api/v1/collector/binaries'),
 

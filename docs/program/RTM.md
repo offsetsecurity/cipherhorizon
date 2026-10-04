@@ -85,7 +85,7 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-TSTG-4 | P0 | T1b | RESEARCH-004 | SR-21 | TestStagesRecorded, TestHSTSHeaderParsedInScan, TestHSTSNilWhenNotSpeakingHTTP, script:testing/e2e/t1-phase.mjs#T1-E2E.1 | done | default true on serve and tls scan; About, tls-scanning.md and CHANGELOG state it |
 | REQ-TSTG-5 | P0 | T1b | RESEARCH-004 | SR-19 | TestTargetOnlyTraffic, script:testing/pki/mutations.py | done | recording dialer and lookup; a 301 to another host is not followed |
 | REQ-TCRT-1 | P0 | T1b | RESEARCH-004 | — | TestExtensionFacts, TestRawChainStapleAndSCTs | done | IV class added (CA/B 2.23.140.1.2.3) |
-| REQ-TCRT-2 | P0 | T1b | RESEARCH-004 | — | TestNoSNIDifferent, TestRawChainStapleAndSCTs, TestT1TrustMatrix | done | deviation: report-level noSni = same, different or failed; a separate chain only when different (ENG-HANDOFF-003 §6) |
+| REQ-TCRT-2 | P0 | T1b | RESEARCH-004 | — | TestNoSNIDifferent, TestRawChainStapleAndSCTs, TestT1TrustMatrix | done | deviations V-1, V-9: report-level noSni = same, different or failed; a different chain is shown and noted (CERT.NO-SNI-DIFFERENT, info), never judged as the endpoint's certificate |
 | REQ-TCRT-3 | P0 | T1c | RESEARCH-004 | — | TestT1ChainMatrix, TestT1TrustMatrix, TestLifetimeTablePinned, script:testing/pki/mutations.py | done |  |
 | REQ-TCRT-4 | P0 | T1c | RESEARCH-004 | — | TestCertificateRules, TestT1ChainMatrix, script:testing/pki/mutations.py | done | EvaluateCertificate (estate certificates) uses the same scaling |
 | REQ-TCRT-5 | P0 | T1c | RESEARCH-004 | — | TestT1ChainMatrix | done |  |
@@ -143,6 +143,68 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-TNFR-5 | P0 | T1c | RESEARCH-004 | — | report:docs/program/QA-REPORT-003.md#budget | done | +1 connection (address targets), +2 (named targets) |
 | REQ-TNFR-6 | P0 | T1c | RESEARCH-004 | — | TestOpenAPIDescribesExactlyTheRegisteredRoutes | done | docs/tls-scanning.md, docs/methodology.md |
 | REQ-TNFR-7 | P1 | T1c | RESEARCH-004 | — | TestCertificateExtensionsOnlyIn17 | done | docs/cbom-model.md lists what has no field |
+
+## PRD-005 — Focused flows ([ENG-HANDOFF-004](../product/ENG-HANDOFF-004-focused-flows.md) work packages F1–F8; tests per [QA-PLAN-005](../product/QA-PLAN-005-focused-flows.md))
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-NAV-1 | P0 | F1 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M2, script:testing/e2e/journey.mjs#E2E-14.1 | done | menu Scan, Reports, Inventory, Systems; footer About (plus the vendor credit and version, unchanged) |
+| REQ-NAV-2 | P0 | F1 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M6, script:testing/e2e/estate-phase.mjs#E2E-27.1, script:testing/e2e/t1-phase.mjs#T1-E2E.4 | done | 11 old addresses checked; redirects keep the query (?scan=); detail pages mark their parent active |
+| REQ-NAV-3 | P1 | F1 | RESEARCH-005 | — | TestPrimarySurfacesSpeakTheUsersWords, report:docs/program/QA-REPORT-004.md#measures | done | brand line reads "TLS scanner and CBOM inventory", the short form of the PRD-005 §2 sentence (the space under the brand fits five words); the full sentence leads About and README |
+| REQ-NAV-4 | P1 | F1 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.11 | done | count beside Systems in the menu and on the Decisions tab |
+| REQ-HOME-1 | P0 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.0, script:testing/e2e/journey.mjs#F-M1 | done | input focused on load; Enter finds or adds the endpoint, scans and opens #/reports/N |
+| REQ-HOME-2 | P0 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.2 | done |  |
+| REQ-HOME-3 | P0 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.3 | done | a row with no result yet shows its scan status (failed, canceled, running) |
+| REQ-HOME-4 | P0 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-01.0, script:testing/e2e/journey.mjs#E2E-12.1 | done |  |
+| REQ-HOME-5 | P1 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.4 | done |  |
+| REQ-RPT-1 | P0 | F3 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.5 | done | the TLS overview dashboard was removed; its counts are the fleet summary |
+| REQ-RPT-2 | P0 | F3 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.5, script:testing/e2e/journey.mjs#F-M6 | done |  |
+| REQ-RPT-3 | P0 | F3 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.9, script:testing/e2e/t1-phase.mjs#T1-M5 | done | Download opens one dialog (PDF, JSON, CBOM) |
+| REQ-RPT-4 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.6 | done | checked at 1280x900, smaller than the 1440x900 the PRD names |
+| REQ-RPT-5 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.7, script:testing/e2e/t1-phase.mjs#T1-E2E.6, script:testing/e2e/t1-phase.mjs#T1-E2E.17 | done | native details elements; Expand all / Collapse all |
+| REQ-RPT-6 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.7, script:testing/e2e/journey.mjs#E2E-05.4 | done |  |
+| REQ-RPT-7 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.8 | done |  |
+| REQ-RPT-8 | P0 | F4 | RESEARCH-005 | — | report:docs/program/QA-REPORT-004.md#f-m3 | done | broken-chain 38.6 %, terrible-legacy 39.8 % (narrow margin), modern-hybrid 28.5 %; the two repeats removed (verdict sentence, IANA flag) stay visible in the section line and the IANA column |
+| REQ-RPT-9 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.9, script:testing/e2e/t1-phase.mjs#T1-E2E.16 | done |  |
+| REQ-INV-1 | P0 | F5 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M4, TestInventoryIsTheMergedCBOM | done | deviation: four tiles (algorithms, quantum-vulnerable, certificates, sources); protocol counts are in the API summary, not a tile |
+| REQ-INV-2 | P0 | F5 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M4 | done | deviation: tabs Algorithms, Keys, Certificates, Protocols, Software, Sources ("TLS" is named Protocols; Keys added because keys are a CBOM asset type); suites and groups appear as algorithms, as in the CBOM |
+| REQ-INV-3 | P0 | F5 | RESEARCH-005 | — | TestInventoryIsTheMergedCBOM | done | deviation: "where" lists endpoints, machines and imports (expandable), not systems; lastSeen per row; the source class is the place kind |
+| REQ-INV-4 | P0 | F5 | RESEARCH-005 | — | TestInventoryIsTheMergedCBOM | done | source values endpoint, machine, import |
+| REQ-INV-5 | P0 | F5 | RESEARCH-005 | — | TestInventoryIsTheMergedCBOM, TestOurOwnGoldenCBOMsValidateAgainstTheEmbeddedSchema | done | merged from the latest CBOM per endpoint (built from its scan) and per machine; 1.6 output strips every 1.7-only field; 413 above 20,000 components |
+| REQ-INV-6 | P0 | F5 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.10, script:testing/e2e/journey.mjs#E2E-12.1, script:testing/e2e/journey.mjs#E2E-14.4, script:testing/e2e/journey.mjs#E2E-10.1 | done | machine upload and the collector how-to live in Sources, Machines |
+| REQ-INV-7 | P1 | F5 | RESEARCH-005 | — | TestInventoryIsTheMergedCBOM | done | imported components keep an import-ID/ bom-ref prefix and the import as their place |
+| REQ-FSYS-1 | P0 | F6 | RESEARCH-005 | — | script:testing/e2e/estate-phase.mjs#E2E-20.1 | done | tab "Migration order" |
+| REQ-FSYS-2 | P0 | F6 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.11, script:testing/e2e/journey.mjs#F-M6 | done |  |
+| REQ-FSYS-3 | P1 | F6 | RESEARCH-005 | — | script:testing/e2e/estate-phase.mjs#E2E-22.3 | done |  |
+| REQ-LANG-1 | P0 | F7 | RESEARCH-005 | — | TestPrimarySurfacesSpeakTheUsersWords | done | checked files: index.html, scan.js, reports.js, inventory.js, systems.js; embedded older views keep some internal words (QA-REPORT-004 §5) |
+| REQ-LANG-2 | P0 | F7 | RESEARCH-005 | — | TestPrimarySurfacesSpeakTheUsersWords | done | with a negative control |
+| REQ-LANG-3 | P1 | F7 | RESEARCH-005 | — | report:docs/program/QA-REPORT-004.md#language | done | README first paragraph and the About hero line |
+| REQ-UNF-1 | P0 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M1 | done |  |
+| REQ-UNF-2 | P0 | F5 | RESEARCH-005 | — | TestOpenAPIDescribesExactlyTheRegisteredRoutes, TestEveryOpenAPIOperationIsComplete | done | three GET routes added; none changed |
+| REQ-UNF-3 | P0 | F8 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#NFR-a11y.1, script:testing/e2e/journey.mjs#NFR-a11y.2, script:testing/e2e/journey.mjs#E2E-12.14, script:testing/e2e/t1-phase.mjs#T1-E2E.14 | done |  |
+| REQ-UNF-4 | P0 | F5 | RESEARCH-005 | SR-02, SR-12 | TestNoInnerHTMLOrEval, TestPageHasNoInlineScriptOrStyle, script:testing/e2e/security.sh | done | inventory routes behind the token, Origin and Host checks (security.sh 75/75) |
+| REQ-UNF-5 | P0 | F8 | RESEARCH-005 | — | report:docs/program/QA-REPORT-004.md#look | done | screenshots reviewed; the generic dashboard is gone |
+
+## PRD-006 — Self-evident results, the CBOM up front, signature-driven inventory ([PRD-006](../product/PRD-006-self-evident-results-and-signatures.md); work packages R1 report, R2 evaluation, R3 signatures, R4 flow)
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-RV-1 | P0 | R1 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#E2E-F.9 | done | tabs Summary, Configuration, Weaknesses, CBOM, History; ?tab=report/findings/details/tls land on the nearest tab |
+| REQ-RV-2 | P0 | R1 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#E2E-05.2, script:testing/e2e/journey.mjs#E2E-F.6 | done | why it matters per category, urgency per severity (D6) |
+| REQ-RV-3 | P0 | R1 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#E2E-R.1, script:testing/e2e/t1-phase.mjs#T1-E2E.14 | done | matrix rows SSLv2..TLS 1.3; suites by strength drawn as an SVG bar; the PDF carries the same table |
+| REQ-RV-4 | P0 | R1 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#E2E-05.4, script:testing/e2e/journey.mjs#E2E-05.5, script:testing/e2e/t1-phase.mjs#T1-E2E.16 | done | every check, found or not; attacks table; score breakdown; the PDF lists every check too |
+| REQ-RV-5 | P0 | R1 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#E2E-R.2 | done | components table, counts by type, CycloneDX 1.7 and 1.6 downloads, link to Inventory |
+| REQ-RV-6 | P0 | R1 | PRD-006 §1 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.14, script:testing/e2e/journey.mjs#NFR-a11y.2, script:testing/e2e/journey.mjs#E2E-F.7 | done |  |
+| REQ-EV-1 | P0 | R2 | PRD-006 §1 | — | TestChecksListEveryRuleConsideredAndAgreeWithFindings | done | rules eval/5 |
+| REQ-EV-2 | P0 | R2 | PRD-006 §1 | — | report:docs/program/QA-REPORT-005.md#reeval | done | Runner.ReevaluateOutdated on start; verified on a copy of the owner database (4 results to eval/5) |
+| REQ-SG-1 | P0 | R3 | PRD-006 §1 | — | TestTheDatabaseIsValid | done | internal/signatures/signatures.json: 16 signatures (10 Windows, 6 Linux) and the SSH name map |
+| REQ-SG-2 | P0 | R3 | PRD-006 §1 | — | TestValidationRefusesWhatAnEngineMustNotDo, TestTheDatabaseIsValid | done | no command capability exists; key paths, unknown capabilities or interpretations, bad patterns and stray parameters are refused |
+| REQ-SG-3 | P0 | R3 | PRD-006 §1 | — | TestServedEnginesCarryTheirPlatformsSignatures, report:docs/program/QA-REPORT-005.md#engines | done | engines hold markers only; the PowerShell engine ran on Windows 11 (4 s); the shell engine is syntax-checked and run under Git Bash; real Linux not run here |
+| REQ-SG-4 | P0 | R3 | PRD-006 §1 | — | TestInventoryScriptsAndFactsUpload, script:testing/e2e/journey.mjs#E2E-14.2 | done | GET /api/v1/collector/signatures; the how-to lists every signature: what, from where, how, why |
+| REQ-SG-5 | P0 | R3 | PRD-006 §1 | — | TestSignatureFactsBecomeComponents, TestLinuxFactsBecomeTheCollectorsCBOM | done | library files through the knowledge base; Schannel, SSH, OpenSSL, crypto policy and programs as components; anything else as observed configuration |
+| REQ-SG-6 | P1 | R3 | PRD-006 §1 | — | TestSignatureFactsBecomeComponents | done | one coverage line per signature, including "not present" |
+| REQ-FL-1 | P0 | R4 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#F-M2, script:testing/e2e/estate-phase.mjs#E2E-20.1 | done | Systems in the sidebar footer with its decision count |
+| REQ-FL-2 | P1 | R4 | PRD-006 §1 | — | report:docs/program/QA-REPORT-005.md#flow | done | the CBOM tab links to Inventory; Inventory rows link to reports |
 
 ## Security requirements (SECARCH-001) coverage
 

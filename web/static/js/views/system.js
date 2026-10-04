@@ -2,7 +2,7 @@
 // who said what (PRD-003 REQ-UI-3). Sections on one page so nothing is hidden behind a tab.
 import { h, clear, fmtDate, relTime } from '../dom.js';
 import { api } from '../api.js';
-import { badge, button, toast, skeleton, levelBadge, bandBadge, confirmDialog } from '../ui.js';
+import { badge, button, toast, skeleton, levelBadge, bandBadge, confirmDialog, crumbs } from '../ui.js';
 import { collectDialog } from '../guide.js';
 import { coverageCard } from './host.js';
 import { importDialog, notInterpretedTable } from './imports.js';
@@ -78,7 +78,7 @@ function servicesTable(sys, endpointRows, hostRows) {
     const d = ep && ep.lastDone;
     const scanId = ep && ep.latest && validId(ep.latest.id) ? ep.latest.id : null;
     rows.push(h('tr', null,
-      h('td', { class: 'namecell' }, h('a', { href: a.kind === 'host' ? `#/hosts/${a.id}` : `#/assets/${a.id}` }, a.name || a.address)),
+      h('td', { class: 'namecell' }, h('a', { href: a.kind === 'host' ? `#/machines/${a.id}` : `#/endpoints/${a.id}` }, a.name || a.address)),
       h('td', null, a.kind === 'host' ? 'machine' : 'service', h('div', { class: 'muted small' }, a.address)),
       h('td', null, d ? [levelBadge(d.readinessLevel), ' ', bandBadge(d.band, d.score)] : ho && ho.summary
         ? `${ho.summary.vulnerable} quantum-vulnerable, ${ho.summary.safe} safe` : h('span', { class: 'muted' }, 'not yet observed')),
@@ -150,7 +150,7 @@ function anchorsCard(sys, data, reload) {
 
 export async function render(root, { args }) {
   const id = args[0];
-  if (!validId(id)) { location.hash = '#/'; return null; }
+  if (!validId(id)) { location.hash = '#/systems'; return null; }
   root.appendChild(skeleton(6));
   const [sys, list, est, certs, links, imports, audit, assets, hosts, anchors] = await Promise.all([
     api.system(id), api.systems(), api.estate(), api.systemCertificates(id), api.systemLinks(id), api.imports(), api.systemAudit(id), api.assets(), api.hosts(),
@@ -162,11 +162,12 @@ export async function render(root, { args }) {
   const endpointRows = new Map(assets.filter((a) => a.systemId === sys.id).map((a) => [a.id, a]));
   const hostRows = new Map(hosts.filter((x) => x.systemId === sys.id).map((x) => [x.id, x]));
 
+  root.appendChild(crumbs([['Systems', '#/systems'], [sys.name]]));
   root.appendChild(h('div', { class: 'page-head' },
     h('div', null, h('h1', null, sys.name),
       h('div', { class: 'sub' }, row ? `Place ${row.rank} of ${est.ranking.length} · ${row.tier}` : 'Not yet ranked'),
-      row && row.evidenceOnly ? h('div', { class: 'mt-sm' }, badge('based on evidence only', 'warn', row.basis)) : null),
-    h('div', { class: 'row' }, h('a', { class: 'btn btn-secondary', href: '#/' }, 'All systems'))));
+      row && row.evidenceOnly ? h('div', { class: 'mt-sm' }, badge('no owner details yet', 'warn', row.basis)) : null),
+    h('div')));
 
   const jump = (k) => (e) => {
     e.preventDefault();
@@ -202,7 +203,7 @@ export async function render(root, { args }) {
       h('div', { class: 'row' }, h('b', null, l.assetName), h('span', { class: 'muted' }, `→ ${l.systemName}`), strengthBadge(l.strength), stateBadge(l.state, l.stale)),
       h('ul', { class: 'why-list plain' }, (l.rules || []).map((r) => h('li', null, h('span', { class: 'why-rule' }, r.id), h('span', { class: 'why-text' }, r.detail)))),
       l.state === 'confirmed' && !l.decidedBy ? h('p', { class: 'hint' }, 'Joined automatically because the rules above matched from this product’s own scans and collectors.') : null,
-      l.state === 'proposed' ? h('a', { class: 'btn btn-sm btn-primary', href: '#/review' }, 'Decide in the review queue') : null,
+      l.state === 'proposed' ? h('a', { class: 'btn btn-sm btn-primary', href: '#/systems?tab=decisions' }, 'Decide in the review queue') : null,
       l.state === 'confirmed' ? button('Undo', () => undo(l), 'secondary', { class: 'btn btn-sm btn-secondary' }) : null)))
       : h('p', { class: 'hint' }, 'No matches proposed or made for this system.')));
 

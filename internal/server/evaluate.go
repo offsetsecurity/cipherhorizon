@@ -143,7 +143,7 @@ func resultOf(rep *tlsprobe.Report, ev eval.Evaluation) (store.Result, error) {
 	return store.Result{
 		Report: repJSON, Evaluation: evJSON, Band: ev.Hygiene.Band, Score: ev.Hygiene.Score, ReadinessLevel: ev.Readiness.Level,
 		HNDLExposed: ev.Readiness.HNDLExposed, Critical: ev.Counts[eval.Critical], High: ev.Counts[eval.High],
-		Medium: ev.Counts[eval.Medium], Incomplete: rep.Incomplete,
+		Medium: ev.Counts[eval.Medium], Low: ev.Counts[eval.Low], Info: ev.Counts[eval.Info], Incomplete: rep.Incomplete,
 	}, nil
 }
 
@@ -193,6 +193,34 @@ func (r *Runner) ReevaluateSystem(systemID int64, why string) int {
 	n := 0
 	for _, scanID := range latest {
 		if _, err := r.Reevaluate(scanID, why); err == nil {
+			n++
+		}
+	}
+	return n
+}
+
+// ReevaluateOutdated re-evaluates the latest completed scan of every endpoint whose
+// stored evaluation was made by an earlier rule set, so the current view never shows a
+// conclusion the current rules would not draw. Older scans keep the evaluation they
+// were given (history shows what was concluded then). It returns how many changed.
+func (r *Runner) ReevaluateOutdated() int {
+	latest, err := r.st.LatestDoneScans(0)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, scanID := range latest {
+		b, err := r.st.Evaluation(scanID)
+		if err != nil {
+			continue
+		}
+		var v struct {
+			Version string `json:"version"`
+		}
+		if json.Unmarshal(b, &v) != nil || v.Version == eval.Version {
+			continue
+		}
+		if _, err := r.Reevaluate(scanID, "rules updated"); err == nil {
 			n++
 		}
 	}

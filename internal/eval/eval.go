@@ -18,7 +18,13 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/3"
+const Version = "eval/6"
+
+// eval/6: a check that found nothing says what it confirmed (Check.Pass).
+// eval/5 (PRD-006): the evaluation lists every check it ran, found or not, so a report can
+// show what was evaluated and not only what failed.
+// eval/4 (PRD-005 follow-up): a vulnerabilities section with an exposed attack is never
+// "good", and each attack line states its result rather than only its condition.
 
 // Severity ranks a finding.
 type Severity string
@@ -107,9 +113,24 @@ type Evaluation struct {
 	ReferenceData   []RefInfo    `json:"referenceData"`
 	// DHGroup names the server's DHE prime when it is a published group.
 	DHGroup *DHGroupView `json:"dhGroup,omitempty"`
+
+	// Checks is every check this evaluation considered, with its result (PRD-006 REQ-EV-1).
+	Checks []Check `json:"checks"`
 	// LegacyReport is set when the report predates tls-report/2: the sections
 	// that need its data are marked not-collected.
 	LegacyReport bool `json:"legacyReport,omitempty"`
+}
+
+// Check is one check the evaluation ran. Title names what was looked for (a problem, as a
+// finding would be titled); Result is found, not-found or not-checked (its stage did not run).
+type Check struct {
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Section  string   `json:"section"`
+	Severity Severity `json:"severity"`
+	Result   string   `json:"result"`
+	// Pass says what was confirmed when the check found nothing.
+	Pass string `json:"pass,omitempty"`
 }
 
 // DHGroupView is a published Diffie-Hellman group the server's prime matched.
@@ -139,8 +160,24 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	}
 
 	var findings []Finding
+	var checks []Check
+	checkAt := map[string]int{}
 	for _, r := range allRules() {
-		for _, h := range r.check(c) {
+		if r.legacyOnly && !c.legacy || r.v2Only && c.legacy {
+			continue
+		}
+		hits := r.check(c)
+		i, seen := checkAt[r.id]
+		if !seen {
+			i = len(checks)
+			checkAt[r.id] = i
+			checks = append(checks, Check{ID: r.id, Title: r.title, Severity: r.severity, Result: "not-found", Pass: passText[r.id],
+				Section: sectionOf(Finding{ID: r.id, Category: r.category})})
+		}
+		if len(hits) > 0 {
+			checks[i].Result = "found"
+		}
+		for _, h := range hits {
 			sev := r.severity
 			if h.severity != "" {
 				sev = h.severity
@@ -160,7 +197,15 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	}
 
 	ready := assessReadiness(c)
-	findings = append(findings, pqcFindings(ready)...)
+	pf := pqcFindings(ready)
+	findings = append(findings, pf...)
+	for _, f := range pf {
+		checks = append(checks, Check{ID: f.ID, Title: f.Title, Severity: f.Severity, Result: "found", Section: SecKeyExchange})
+	}
+	if !containsCheck(checks, "PQC.HNDL-EXPOSED") && !containsCheck(checks, "PQC.NO-PQ-POSSIBLE") {
+		checks = append(checks, Check{ID: "PQC.HNDL-EXPOSED", Title: "Traffic is exposed to harvest-now-decrypt-later", Severity: Medium, Result: "not-found", Section: SecKeyExchange,
+			Pass: passText["PQC.HNDL-EXPOSED"]})
+	}
 
 	sort.SliceStable(findings, func(i, j int) bool {
 		if findings[i].Severity.Rank() != findings[j].Severity.Rank() {
@@ -184,6 +229,19 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 		ev.PKI = append(ev.PKI, ch.view)
 	}
 	ev.Sections = sections(c, findings)
+	// A check whose stage did not run was not checked, whatever its rule returned.
+	skipped := map[string]bool{}
+	for _, s := range ev.Sections {
+		if s.Status == StatusNotChecked || s.Status == StatusNotCollected {
+			skipped[s.ID] = true
+		}
+	}
+	for i := range checks {
+		if checks[i].Result == "not-found" && skipped[checks[i].Section] {
+			checks[i].Result = "not-checked"
+		}
+	}
+	ev.Checks = checks
 	ev.FixFirst = fixFirst(findings)
 	ev.Vulnerabilities = attacks(findings)
 	ev.ReferenceData = referenceData(in.Now)
@@ -228,4 +286,13 @@ func (c *ctx) inconclusive(v string) bool {
 		}
 	}
 	return true // never probed
+}
+
+func containsCheck(cs []Check, id string) bool {
+	for _, c := range cs {
+		if c.ID == id {
+			return true
+		}
+	}
+	return false
 }

@@ -52,7 +52,8 @@ type AttackView struct {
 	Name     string   `json:"name"`
 	Status   string   `json:"status"` // exposed | not-exposed | not-tested
 	Findings []string `json:"findings,omitempty"`
-	Why      string   `json:"why"`
+	Why      string   `json:"why"`             // the result for this endpoint, in a sentence
+	Needs    string   `json:"needs,omitempty"` // the condition the attack requires
 }
 
 // RefInfo is one bundled reference list as the evaluation used it.
@@ -167,6 +168,11 @@ func sections(c *ctx, findings []Finding) []Section {
 		default:
 			s.Status = StatusGood
 		}
+		// An attack the configuration makes possible is never "good", even when the finding
+		// behind it is informational (LUCKY13 on CBC suites, for instance).
+		if id == SecVulnerabilities && len(s.Findings) > 0 && s.Status == StatusGood {
+			s.Status = StatusAttention
+		}
 
 		if c.legacy {
 			switch id {
@@ -238,25 +244,27 @@ func fixFirst(findings []Finding) []string {
 
 // The attacks the vulnerabilities section lists, in order. Inferable ones are
 // exposed when a labelled finding is present; active-only ones are never
-// tested (decision D2: no exploit traffic).
-var inferableAttacks = []struct{ name, why string }{
-	{"DROWN", "SSLv2 accepted here, or this key served on an SSLv2 endpoint elsewhere in the estate"},
-	{"POODLE", "SSLv3 with CBC suites"},
-	{"BEAST", "TLS 1.0 with CBC suites"},
-	{"CRIME", "TLS-level compression"},
-	{"FREAK", "RSA export suites"},
-	{"Logjam", "DHE export suites, DH primes of 1024 bits or fewer, or a widely shared published prime"},
-	{"SWEET32", "64-bit block ciphers"},
-	{"RC4 biases", "RC4 suites"},
-	{"LUCKY13", "CBC suites (timing; mitigated in maintained libraries)"},
+// tested (decision D2: no exploit traffic). needs is the condition the attack
+// requires; Why states the result for this endpoint in a sentence, so a line
+// that says "not exposed" never reads like a finding.
+var inferableAttacks = []struct{ name, needs, note string }{
+	{"DROWN", "SSLv2 on this server, or its key on another SSLv2 server you scanned", ""},
+	{"POODLE", "SSLv3 with CBC suites", ""},
+	{"BEAST", "TLS 1.0 with CBC suites", ""},
+	{"CRIME", "TLS-level compression", ""},
+	{"FREAK", "RSA export suites", ""},
+	{"Logjam", "DHE export suites, a DH prime of 1024 bits or fewer, or a widely shared published prime", ""},
+	{"SWEET32", "64-bit block ciphers", ""},
+	{"RC4 biases", "RC4 suites", ""},
+	{"LUCKY13", "CBC suites", "a timing attack, mitigated in maintained TLS libraries"},
 }
 
 var activeOnlyAttacks = []struct{ name, why string }{
-	{"Heartbleed", "needs a malformed heartbeat request: exploit traffic, which this product never sends"},
-	{"CCS injection", "needs an out-of-order ChangeCipherSpec: exploit traffic"},
-	{"ROBOT", "needs thousands of crafted RSA key exchanges: exploit traffic"},
-	{"Ticketbleed", "needs a crafted session ticket: exploit traffic"},
-	{"Padding oracles", "need crafted records after the handshake: exploit traffic"},
+	{"Heartbleed", "Not tested: it needs a malformed heartbeat request, exploit traffic this product never sends."},
+	{"CCS injection", "Not tested: it needs an out-of-order ChangeCipherSpec, exploit traffic."},
+	{"ROBOT", "Not tested: it needs thousands of crafted RSA key exchanges, exploit traffic."},
+	{"Ticketbleed", "Not tested: it needs a crafted session ticket, exploit traffic."},
+	{"Padding oracles", "Not tested: they need crafted records after the handshake, exploit traffic."},
 }
 
 func attacks(findings []Finding) []AttackView {
@@ -270,9 +278,14 @@ func attacks(findings []Finding) []AttackView {
 	}
 	out := []AttackView{}
 	for _, a := range inferableAttacks {
-		v := AttackView{Name: a.name, Status: "not-exposed", Why: a.why}
+		v := AttackView{Name: a.name, Status: "not-exposed", Needs: a.needs,
+			Why: "Needs " + a.needs + "; not seen on this server."}
 		if ids := by[a.name]; len(ids) > 0 {
 			v.Status, v.Findings = "exposed", ids
+			v.Why = "Possible: the server accepts " + a.needs + "."
+			if a.note != "" {
+				v.Why = "Possible: the server accepts " + a.needs + " (" + a.note + ")."
+			}
 		}
 		out = append(out, v)
 	}

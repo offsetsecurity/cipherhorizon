@@ -1,12 +1,12 @@
 // The guided parts of the interface: where to begin, how to collect from a machine,
 // what to do next, and how complete an inventory is. Kept in one place so the same
 // words are used wherever a person is told what to do.
-import { h, svg, clear, fmtBytes, osPlatformLabel } from './dom.js';
+import { h, svg, clear, fmtBytes } from './dom.js';
 import { button, copyButton, modal, toast } from './ui.js';
 import { api } from './api.js';
 
-export const LINUX_CMD = 'sudo ./cipherhorizon-collector run -o host.cbom.json';
-export const WINDOWS_CMD = '.\\cipherhorizon-collector.exe run -o host.cbom.json';
+export const LINUX_CMD = 'sudo sh ./cipherhorizon-inventory.sh';
+export const WINDOWS_CMD = 'powershell -NoProfile -ExecutionPolicy Bypass -File .\\cipherhorizon-inventory.ps1';
 
 /** A command in a monospace block with a copy control. */
 export function commandBlock(cmd, label) {
@@ -18,62 +18,100 @@ function step(n, title, ...body) {
     h('div', { class: 'step-body' }, h('h3', null, title), ...body));
 }
 
-/** One collector binary this server offered: its platform, size, checksum, and a download button.
- * A download needs the server's access token, so this is a button that fetches and saves the file
- * (via api.download), never a plain link the browser would navigate to unauthenticated. */
-function binaryRow(b, primary) {
-  return h('div', { class: `dlrow${primary ? ' dlrow-primary' : ''}` },
+/** One inventory script: its platform, a download, its SHA-256, and its text to read in place.
+ * The scripts are plain text served by this server, so nobody has to trust an unsigned program:
+ * what they read is what runs. A download needs the server's access token, so it is a button
+ * that fetches and saves the file (api.download), not a link. */
+function scriptRow(s) {
+  const source = h('pre', { class: 'script-source' }, 'Loading…');
+  const read = h('details', { class: 'more script-read' }, h('summary', null, 'Read the script'), source);
+  read.addEventListener('toggle', () => {
+    if (!read.open || source.dataset.loaded) return;
+    api.inventoryScript(s.name).then((text) => { source.textContent = text; source.dataset.loaded = '1'; })
+      .catch((e) => { source.textContent = e.message; });
+  });
+  return h('div', { class: 'dlrow scriptrow' },
     h('div', { class: 'dlrow-main' },
-      h('span', { class: 'dlrow-os' }, osPlatformLabel(b.os)),
-      h('span', { class: 'dlrow-arch muted' }, b.arch),
-      h('span', { class: 'dlrow-size muted' }, fmtBytes(b.sizeBytes))),
+      h('span', { class: 'dlrow-os' }, s.platform),
+      h('code', { class: 'muted' }, s.name),
+      h('span', { class: 'dlrow-size muted' }, `${fmtBytes(s.size)} · ${s.signatures} signatures`)),
     h('div', { class: 'dlrow-actions' },
-      h('span', { class: 'dlrow-sha mono muted', title: b.sha256 }, `sha256:${b.sha256.slice(0, 12)}…`, copyButton(b.sha256, 'the SHA-256 checksum')),
-      button('Download', () => api.download(`/api/v1/collector/binaries/${encodeURIComponent(b.filename)}`, b.filename)
-        .then(() => toast(`Downloaded ${b.filename}`, 'success')).catch((e) => toast(e.message, 'error')), 'primary', { class: 'btn btn-sm btn-primary' })));
+      h('span', { class: 'dlrow-sha mono muted', title: s.sha256 }, `sha256:${s.sha256.slice(0, 12)}…`, copyButton(s.sha256, 'the SHA-256 checksum')),
+      button('Download', () => api.download(`/api/v1/collector/scripts/${encodeURIComponent(s.name)}?download=1`, s.name)
+        .then(() => toast(`Downloaded ${s.name}`, 'success')).catch((e) => toast(e.message, 'error')), 'primary', { class: 'btn btn-sm btn-primary' })),
+    read);
 }
 
-/** Whatever collector binary this server has on disk to hand out, fetched once and patched in: the
- * dialog around this is built synchronously (a modal's body cannot await), so the box starts as a
- * one-line placeholder and replaces itself when the check comes back. */
-export function collectorDownloadBlock() {
-  const box = h('div', { class: 'dlbox' }, h('p', { class: 'hint' }, 'Checking this server for a collector binary…'));
-  api.collectorBinaries().then(({ binaries }) => {
+/** Where a signature looks, in one line, from its parameters. */
+function whereOf(sig) {
+  const p = sig.params || {};
+  const list = (v) => (v || '').split('|').join(', ');
+  switch (sig.capability) {
+    case 'registry': return `${p.key}${p.depth && p.depth !== '0' ? ` (and ${p.depth} levels below)` : ''}: ${list(p.values)}`;
+    case 'certstore': return `${list(p.locations)} stores: ${list(p.stores)}`;
+    case 'file': return `${list(p.names)} under ${list(p.roots)}`;
+    case 'program': return `installed programs matching ${p.match}`;
+    case 'lines': return `${list(p.paths)}, lines matching ${p.match}`;
+    case 'package': return `packages matching ${p.match}`;
+    case 'certfiles': return list(p.dirs);
+    default: return '';
+  }
+}
+
+/** Everything the scripts collect, from the signature database (PRD-006 REQ-SG-4). */
+export function signaturesList() {
+  const box = h('details', { class: 'more signatures-list' }, h('summary', null, 'What the scripts collect, item by item'));
+  let loaded = false;
+  box.addEventListener('toggle', () => {
+    if (!box.open || loaded) return;
+    loaded = true;
+    api.inventorySignatures().then((db) => {
+      const per = (platform) => db.signatures.filter((x) => x.platform === platform);
+      box.append(
+        h('p', { class: 'hint' }, `Signature database ${db.version}. ${db.about}`),
+        ...['windows', 'linux'].map((pl) => h('div', null,
+          h('h4', null, pl === 'windows' ? `Windows (${per(pl).length})` : `Linux (${per(pl).length})`),
+          h('div', { class: 'tablewrap' }, h('table', { class: 'compact sigtable' },
+            h('thead', null, h('tr', null, ['What', 'From where', 'How', 'Why'].map((c) => h('th', { scope: 'col' }, c)))),
+            h('tbody', null, per(pl).map((x) => h('tr', null,
+              h('td', null, h('b', null, x.title), h('div', { class: 'hint mono' }, x.id)),
+              h('td', null, h('code', null, whereOf(x))),
+              h('td', { class: 'muted' }, x.how),
+              h('td', { class: 'muted' }, x.why)))))))));
+    }).catch((e) => { box.appendChild(h('p', { class: 'hint' }, e.message)); });
+  });
+  return box;
+}
+
+/** The inventory scripts this server hands out, fetched once and patched in (a modal's body
+ * is built synchronously, so the box starts as a placeholder). */
+export function inventoryScriptsBlock() {
+  const box = h('div', { class: 'dlbox' }, h('p', { class: 'hint' }, 'Loading the inventory scripts…'));
+  api.inventoryScripts().then(({ scripts }) => {
     clear(box);
-    if (!binaries.length) {
-      box.appendChild(h('p', { class: 'hint' },
-        'This server has none on disk to hand out. Build one with ', h('code', null, 'go build ./cmd/cipherhorizon-collector'),
-        ', or place a copy beside this server’s own binary (or in a ', h('code', null, 'collectors/'), ' folder next to it) and it appears here.'));
-      return;
-    }
-    const primary = binaries.find((x) => x.primary) || binaries[0];
-    const rest = binaries.filter((x) => x !== primary);
-    box.appendChild(binaryRow(primary, true));
-    if (rest.length) {
-      box.appendChild(h('details', { class: 'more' }, h('summary', null, `Other platforms (${rest.length})`),
-        h('div', { class: 'stack' }, rest.map((x) => binaryRow(x, false)))));
-    }
-  }).catch(() => { clear(box); box.appendChild(h('p', { class: 'hint' }, 'Could not check this server for a collector binary.')); });
+    for (const s of scripts) box.appendChild(scriptRow(s));
+    box.appendChild(signaturesList());
+  }).catch(() => { clear(box); box.appendChild(h('p', { class: 'hint' }, 'Could not load the inventory scripts from this server.')); });
   return box;
 }
 
 /** The three steps for inventorying a machine, with the exact commands. */
 export function collectSteps(onUpload) {
   const url = `${location.origin}/api/v1/hosts/ingest`;
-  const curl = `curl -X POST "${url}" -H "X-Requested-With: cipherhorizon" -H "Content-Type: application/json" ` +
-    '-H "Authorization: Bearer $CIPHERHORIZON_TOKEN" --data-binary @host.cbom.json';
+  const curl = `curl -X POST "${url}" -H "X-Requested-With: cipherhorizon" -H "Content-Type: text/plain" ` +
+    '-H "Authorization: Bearer $CIPHERHORIZON_TOKEN" --data-binary @cipherhorizon-facts-$(hostname).txt';
   return h('ol', { class: 'steps' },
-    step(1, 'Get the collector on the machine',
-      h('p', null, 'A separate, small program (about 4 MB): it only reads files, starts no other program and makes no network connection.'),
-      collectorDownloadBlock(),
-      h('p', { class: 'hint' }, 'Copy the file to the computer you want to inventory, by whatever means you already use to move files there.')),
-    step(2, 'Run it',
-      h('p', null, 'On Linux, as root:'), commandBlock(LINUX_CMD, 'Linux command'),
-      h('p', null, 'On Windows, in an Administrator PowerShell:'), commandBlock(WINDOWS_CMD, 'Windows command'),
-      h('p', { class: 'hint' }, 'Running with full rights lets it read more. Without them it still works, says so, and lists what it could not see.')),
+    step(1, 'Get the script for the machine',
+      h('p', null, 'A short script in plain text: PowerShell for Windows (5.1 or later), shell for Linux (Debian, Ubuntu, RHEL, Fedora, SUSE, Alpine). Each is a small engine with a few read-only capabilities; what it collects comes from this server’s signature database, written into the script and listed below. It installs nothing, changes nothing, runs no other program and makes no network connection.'),
+      inventoryScriptsBlock()),
+    step(2, 'Run it on the machine',
+      h('p', null, 'On Windows, in PowerShell (as Administrator for the fullest picture):'), commandBlock(WINDOWS_CMD, 'Windows command'),
+      h('p', null, 'On Linux (as root for the fullest picture):'), commandBlock(LINUX_CMD, 'Linux command'),
+      h('p', { class: 'hint' }, 'It writes ', h('code', null, 'cipherhorizon-facts-<machine>.txt'),
+        ': the machine’s name and operating system, its cryptographic packages and its public certificates. Plain text, one fact per line: open it and check what will leave the machine. Private keys are never read.')),
     step(3, 'Upload the file here',
-      h('p', null, 'Bring ', h('code', null, 'host.cbom.json'), ' back and upload it. Repeat whenever you want a fresh picture; each upload is kept so you can compare.'),
-      onUpload ? button('Upload CBOM', onUpload, 'primary') : null,
+      h('p', null, 'This server turns the facts into a CycloneDX CBOM with a post-quantum verdict for every algorithm. Upload again whenever you want a fresh picture; each upload is kept so you can compare.'),
+      onUpload ? button('Upload the file', onUpload, 'primary') : null,
       h('details', { class: 'more' }, h('summary', null, 'Automate the upload'),
         h('p', { class: 'hint' }, 'Any scheduler can send the file to this server. The two headers are required; the token is needed only if the server was started with one.'),
         commandBlock(curl, 'upload command'))));
@@ -117,7 +155,7 @@ export function getStarted({ onAddEndpoints, onUpload }) {
         'Point it at a website or any service that speaks TLS (for example example.com:443). It tests the connection, rates how ready it is for post-quantum cryptography, and tells you what to fix first.',
         button('Add endpoints', onAddEndpoints, 'primary')),
       card('inventory', 'Inventory a machine',
-        'Run a small program on a computer to list the cryptographic software installed on it, then upload the result here. It shows which algorithms a quantum computer could break.',
+        'Run a short script on a computer to list its cryptographic software and certificates, then upload the result here. It shows which algorithms a quantum computer could break.',
         button('Show me how', () => collectDialog(onUpload), 'primary'), button('Upload a CBOM', onUpload))),
     h('p', { class: 'hint start-foot' }, 'Everything stays on this machine. CipherHorizon makes no outside connections except the scans you start.'));
 }
@@ -133,7 +171,7 @@ export function getStartedEstate({ onAddEndpoints, onUpload, onImport }) {
     h('div', { class: 'grid three' },
       door('scan', 'Scan a service', 'Point it at a website or any service that speaks TLS. It tests the connection, records the certificate and key, and says whether recorded traffic could be read later.',
         button('Add endpoints', onAddEndpoints, 'primary')),
-      door('inventory', 'Inventory a machine', 'Run a small program on a computer to list its cryptographic software and certificates, then upload the result.',
+      door('inventory', 'Inventory a machine', 'Run a short script on a computer to list its cryptographic software and certificates, then upload the result.',
         button('Show me how', () => collectDialog(onUpload), 'primary')),
       door('import', 'Import a CBOM', 'Bring in a CycloneDX CBOM from another tool. You choose which system it belongs to, and it adds facts without overwriting what was observed.',
         button('Import a CBOM', onImport, 'primary'))),
@@ -150,10 +188,10 @@ export function nextStep(f, hosts, priority, handlers) {
     return { tone: 'bad', text: `${f.critical} critical finding${f.critical === 1 ? '' : 's'} need fixing first. They are the quickest way to reduce real risk.`, action: { label: 'Review findings', href: '#/findings' } };
   }
   if (f.hndlExposed) {
-    return { tone: 'warn', text: `${f.hndlExposed} endpoint${f.hndlExposed === 1 ? ' is' : 's are'} exposed to harvest-now-decrypt-later. Turn on a hybrid post-quantum key exchange (X25519MLKEM768) so today’s traffic stays private.`, action: { label: 'See which', href: '#/assets' } };
+    return { tone: 'warn', text: `${f.hndlExposed} endpoint${f.hndlExposed === 1 ? ' is' : 's are'} exposed to harvest-now-decrypt-later. Turn on a hybrid post-quantum key exchange (X25519MLKEM768) so today’s traffic stays private.`, action: { label: 'See which', href: '#/endpoints' } };
   }
   if (f.certsExpiring) {
-    return { tone: 'warn', text: `${f.certsExpiring} certificate${f.certsExpiring === 1 ? ' expires' : 's expire'} within 30 days. Renew ${f.certsExpiring === 1 ? 'it' : 'them'} before ${f.certsExpiring === 1 ? 'it' : 'they'} lapse${f.certsExpiring === 1 ? 's' : ''}.`, action: { label: 'See which', href: '#/assets' } };
+    return { tone: 'warn', text: `${f.certsExpiring} certificate${f.certsExpiring === 1 ? ' expires' : 's expire'} within 30 days. Renew ${f.certsExpiring === 1 ? 'it' : 'them'} before ${f.certsExpiring === 1 ? 'it' : 'they'} lapse${f.certsExpiring === 1 ? 's' : ''}.`, action: { label: 'See which', href: '#/endpoints' } };
   }
   if (!hosts.length) {
     return { tone: 'info', text: 'Endpoints look good. To see the cryptography inside your machines too, inventory one.', action: scanOrAdd('Show me how', handlers.collect) };

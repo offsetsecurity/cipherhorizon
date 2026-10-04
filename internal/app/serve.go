@@ -130,6 +130,9 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		Scan:     tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
 		CABundle: bundle,
 	})
+	if n := runner.ReevaluateOutdated(); n > 0 {
+		log.Info("re-evaluated the latest results with the current rules", "endpoints", n, "rules", eval.Version)
+	}
 	srv := server.New(server.Config{
 		Store: st, Runner: runner, Guard: guard,
 		Token: *token, AllowedHosts: allowedHosts,

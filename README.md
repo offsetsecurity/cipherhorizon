@@ -11,18 +11,20 @@
 > this notice). See [docs/engineering/BRANCHING.md](docs/engineering/BRANCHING.md#first-push).
 <!-- /placeholder-owner -->
 
-A vendor-neutral, open-source **active TLS/SSL scanner and cryptographic inventory** that rates every endpoint's
-posture and ranks your systems for the move to post-quantum cryptography. It scans your TLS endpoints, inventories
-the cryptography and certificates on your machines, imports CBOMs from other tools, joins what belongs together, and
-tells you which system to look at first and why.
+CipherHorizon scans your TLS endpoints and collects your CBOMs into one cryptographic inventory, and tells you what
+is not ready for post-quantum. Type an address and press Enter: you get a report that says what to fix first. Every
+scan, every machine you inventory and every CBOM you import joins one inventory of algorithms, keys,
+certificates and protocols, which you can download as a single CycloneDX CBOM. Open source and vendor-neutral.
 
 ![CipherHorizon: systems ranked with cited reasons; a scanned endpoint's PQC readiness and TLS hygiene score with every point explained; the fleet-wide TLS posture overview; the certificate inventory; and getting the collector from the About page](docs/img/demo.gif)
 
 - **Active TLS/SSL scanner and posture score**: protocol versions (SSLv2 to TLS 1.3), every cipher suite, key-exchange
   groups including post-quantum hybrids such as `X25519MLKEM768`, and certificates, each endpoint scored 0-100 (a
   **TLS hygiene** band) and rated **PQC readiness** L0-L4, with a cited finding and remediation for every point lost —
-  never a bare number. A fleet-wide **TLS overview** ranks every endpoint's problems worst first.
-- **Estate**: the home page. Systems in the order to look at them, by four published, cited rules (traffic exposed to
+  never a bare number. The report opens on what to fix first; every section is one line until you open it.
+- **One cryptographic inventory**: every algorithm, key, certificate and protocol your scans, machines and imported
+  CBOMs have seen, with its post-quantum status and where it was seen, downloadable as one CycloneDX CBOM.
+- **Systems** (secondary): systems in the order to look at them, by four published, cited rules (traffic exposed to
   later decryption against how long its data must stay secret, exposure and criticality, certificate and TLS defects,
   strength of evidence). No composite score: every row says which rule put it there and where it is from.
 - **Systems, certificates, review, imports**: a *system* is what an owner answers for. Its services, machines and
@@ -36,16 +38,15 @@ tells you which system to look at first and why.
 
 ### Start here
 
-1. Run `cipherhorizon serve` and open <http://127.0.0.1:8080>. The first screen offers three ways to begin: scan a service, inventory a machine, or import a CBOM.
-2. **Check a server's TLS:** choose *Add endpoints*, enter `example.com:443`, and scan it. You get a readiness
-   level, a hygiene score and a ranked list of what to fix.
-3. **Inventory a machine:** copy the small `cipherhorizon-collector` to it, run
-   `cipherhorizon-collector run -o host.cbom.json` (as Administrator or root for a fuller result), and upload the
-   file on the *Hosts* page. The page shows how complete the inventory is and what it could not see. On Windows it also
-   asks the operating system what cryptography it provides (CNG algorithms and providers, key storage providers and
-   the post-quantum parameter sets it accepts) and flags retired algorithms such as MD5 and RC4, with their sources.
+1. Run `cipherhorizon serve` and open <http://127.0.0.1:8080>. The first screen is a scan box.
+2. **Check a server's TLS:** type `example.com:443` and press Enter. You get its report: a readiness level, a hygiene
+   score and what to fix first. *Scan many endpoints* adds a list at once; every report stays under *Reports*.
+3. **Inventory a machine:** under *Inventory → Add data → Inventory a machine*, take the short inventory script for
+   the machine (PowerShell for Windows, shell for Linux; plain text you can read first), run it there, and upload
+   the `cipherhorizon-facts-<machine>.txt` it writes. The server turns those facts into a CBOM with a post-quantum
+   verdict for every algorithm, and the machine's page shows how complete the inventory is and what it could not see.
 
-The Estate names the next useful step, and the TLS overview shows a single **next step** for your endpoints. More detail: [How to start](#how-to-start) below.
+*Inventory* gathers everything, and **Download CBOM** there exports it as one document. More detail: [How to start](#how-to-start) below.
 
 **Status: pre-release, `0.x`.** Interfaces can still change between minor versions ([versioning policy](docs/engineering/RELEASING.md#versioning-policy)).
 The first tagged release (`0.1.0`) is written up in the [release report](docs/product/RELEASE-REPORT-001.md); the
@@ -75,13 +76,22 @@ sends a strict Content-Security-Policy and renders everything it received from a
 - **Go 1.25 or newer** to build. Nothing else: no C compiler, no Node, no database server.
 - A modern browser to use the UI. (Node 22+ is needed only to run the browser end-to-end test.)
 
-### Collecting from a machine (the small program)
+### Inventorying a machine (a script, nothing to install)
 
-To inventory a machine you do **not** need the whole product: copy the ~4 MB **`cipherhorizon-collector`** to it and run
-`cipherhorizon-collector run -o host.cbom.json`, then upload that file on the **Hosts** page of the machine that runs
-`cipherhorizon serve`. The collector is read-only, runs no subprocess and makes no network connection; it contains no
-web server, database or TLS scanner ([ADR-0011](docs/decisions/ADR-0011-separate-endpoint-collector.md)). Run it as
-Administrator (Windows) or root (Linux) for a fuller result.
+To inventory a machine you do **not** need to install anything on it. The server hands out two short scripts,
+`cipherhorizon-inventory.ps1` (Windows PowerShell 5.1+) and `cipherhorizon-inventory.sh` (POSIX shell: Debian,
+Ubuntu, RHEL, Fedora, SUSE, Alpine). Each is a small **engine** with a fixed set of read-only capabilities; **what** it
+collects comes from the server's **signature database** ([internal/signatures/signatures.json](internal/signatures/signatures.json)),
+written into the script when you download it and listed item by item in the UI (what, from where, how, why). To
+collect something new, add a signature: the engines do not change. The scripts install nothing, run no other
+program, make no network connection and never read a private key; they write a plain-text facts file you can read
+before uploading. The server interprets it with the same sensors and knowledge base as the Go collector
+([machine facts](internal/machinefacts/facts.go)).
+
+The Go **`cipherhorizon-collector`** still exists and sees more on Windows (CNG algorithms and providers, crypto DLLs
+by their import tables). It is not offered for download because an unsigned binary is hard to trust; build it from
+source (`go build ./cmd/cipherhorizon-collector`) if you want it
+([ADR-0011](docs/decisions/ADR-0011-separate-endpoint-collector.md)).
 
 ### Install
 
@@ -108,13 +118,15 @@ files next to it). Delete those to start over.
 
 ### First use
 
-1. Choose **Add endpoints**. Add one `host[:port]` (443 by default), or paste a list, one per line. A pasted URL is
-   reduced to its host and port, and one bad line never blocks the others.
-2. Choose **Scan all** (or **Scan** on a row). Open an endpoint to watch the stage, percentage, connection count and
-   log, and **Cancel** if you need to.
-3. Read the result: **PQC readiness**, **TLS hygiene**, the TLS details, and the findings with their sources.
-4. Scan again later (or set an automatic rescan) and open the **History** tab to compare two scans.
-5. **Hosts** takes a CBOM made by `cipherhorizon run` and shows a quantum verdict for each algorithm in it.
+1. On **Scan**, type one `host[:port]` (443 by default) and press Enter. The report opens and fills in as the scan
+   runs; **Cancel** stops it. For a list, choose *Scan many endpoints* and paste one per line: a pasted URL is reduced
+   to its host and port, and one bad line never blocks the others.
+2. Read the report: **PQC readiness**, **TLS hygiene**, **Fix first**, then one line per section. Sections with a
+   problem are open; *Why and sources* under a finding gives the evidence and citations.
+3. **Reports** lists every endpoint with its latest result. Scan again later (or set an automatic rescan) and open the
+   **History** tab of a report to compare two scans.
+4. **Inventory** merges every scan, machine inventory (from the inventory scripts, `cipherhorizon-collector run` or `cipherhorizon run`) and
+   imported CBOM into one table with a quantum verdict per algorithm, and **Download CBOM** exports it.
 
 Scan only systems you own or are authorised to test: a scan makes a few dozen to a few hundred short TLS
 handshakes per endpoint.

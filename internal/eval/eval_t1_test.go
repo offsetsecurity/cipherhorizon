@@ -1,6 +1,7 @@
 package eval_test
 
 import (
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -313,19 +314,62 @@ func TestT1TrustMatrix(t *testing.T) {
 		t.Errorf("expired: %v", t1IDs(ev))
 	}
 
-	// The no-SNI chain is judged on its own: only it is expired.
-	old := f.inter.Leaf(t, pkitest.LeafOpts{SCTs: sctOK, CN: "default.test", DNS: []string{"default.test"},
+	// The no-SNI chain is information, never the endpoint's certificate. Shaped like
+	// www.google.com: a trusted chain with SNI, and without SNI a self-signed placeholder
+	// for another name (here also expired). Nothing about it is scored or put first.
+	placeholderCA := pkitest.NewRoot(t, "invalid2.invalid", pkitest.CAOpts{})
+	placeholder := placeholderCA.Leaf(t, pkitest.LeafOpts{CN: "invalid2.invalid", DNS: []string{"invalid2.invalid"},
 		NotBefore: epoch.AddDate(0, -6, 0), NotAfter: epoch.AddDate(0, 0, -1)})
-	nosni := chainResult("no-sni", old, in)
-	nosni.NoSNI = true
-	ev = evalAt(v2(chainResult("tls-default", leaf, in), nosni), epoch, f.stores)
-	exp := findID(ev, "CERT.EXPIRED")
-	if len(exp) != 1 || !strings.Contains(exp[0].Detail, "[no-sni]") {
-		t.Errorf("no-SNI expiry: %+v", exp)
+	nosni := chainResult("no-sni", placeholder)
+	nosni.NoSNI, nosni.NameMatches = true, false
+	withSNI := v2(chainResult("tls-default", leaf, in))
+	base := evalAt(withSNI, epoch, f.stores)
+	both := v2(chainResult("tls-default", leaf, in), nosni)
+	ev = evalAt(both, epoch, f.stores)
+	for _, id := range []string{"CERT.EXPIRED", "CERT.UNTRUSTED", "CERT.NAME-MISMATCH", "CERT.CHAIN-INCOMPLETE", "CT.NO-SCTS"} {
+		if len(findID(ev, id)) != 0 {
+			t.Errorf("the no-SNI placeholder raised %s", id)
+		}
+	}
+	note := findID(ev, "CERT.NO-SNI-DIFFERENT")
+	if len(note) != 1 || note[0].Severity != eval.Info || !strings.Contains(note[0].Detail, "invalid2.invalid") ||
+		!strings.Contains(note[0].Detail, "not trusted") || !strings.Contains(note[0].Detail, "expired") {
+		t.Errorf("no-SNI note: %+v", note)
+	}
+	if ev.Hygiene.Score != base.Hygiene.Score || strings.Join(ev.FixFirst, ",") != strings.Join(base.FixFirst, ",") {
+		t.Errorf("the no-SNI chain changed the score (%d vs %d) or Fix first (%v vs %v)", ev.Hygiene.Score, base.Hygiene.Score, ev.FixFirst, base.FixFirst)
 	}
 	if len(ev.PKI) != 2 || !ev.PKI[1].NoSNI {
 		t.Errorf("PKI views: %d", len(ev.PKI))
 	}
+
+	// A served cross-signed root: the store validates the path through its own copy of the
+	// root, so the cross-signer's absence is not reported as a missing or unknown issuer.
+	oldRoot := pkitest.NewRoot(t, "Old Root", pkitest.CAOpts{})
+	crossCert := crossSign(t, oldRoot, f.root)
+	ev = evalAt(v2(chainResult("tls-default", leaf, in, crossCert)), epoch, f.stores)
+	if v := ev.PKI[0]; !v.Trust[0].Trusted || v.Served.Missing != nil {
+		t.Errorf("cross-signed root: trusted=%v missing=%+v", v.Trust[0].Trusted, v.Served.Missing)
+	}
+	if len(findID(ev, "CERT.UNTRUSTED")) != 0 || len(findID(ev, "CERT.CHAIN-INCOMPLETE")) != 0 {
+		t.Errorf("cross-signed root raised trust findings: %v", t1IDs(ev))
+	}
+}
+
+// crossSign issues a certificate for subject's name and key, signed by issuer: a cross-sign.
+func crossSign(t *testing.T, issuer, subject *pkitest.CA) *x509.Certificate {
+	t.Helper()
+	tmpl := *subject.Cert
+	tmpl.Raw, tmpl.RawTBSCertificate, tmpl.Signature, tmpl.AuthorityKeyId = nil, nil, nil, nil
+	der, err := x509.CreateCertificate(rand.Reader, &tmpl, issuer.Cert, subject.Cert.PublicKey, issuer.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
 }
 
 func TestT1RevocationMatrix(t *testing.T) {
@@ -593,6 +637,9 @@ func t1Firing(t *testing.T) []eval.Evaluation {
 		chainResult("f", f.inter.Leaf(t, pkitest.LeafOpts{EKU: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}}), in),
 		chainResult("g", f.inter.Leaf(t, pkitest.LeafOpts{RSAExponent: 3}), in),
 	)
+	ph := chainResult("no-sni", pkitest.NewRoot(t, "Placeholder", pkitest.CAOpts{}).Cert)
+	ph.NoSNI = true
+	rep.Certificates = append(rep.Certificates, ph)
 	rep.DH = &tlsprobe.DHResult{PrimeBits: 1024, PrimeSHA256: "3f35a3f5f6c4376a744acad409bb22f8d897f949d2311d885adaa890981b67a0"}
 	rep.Suites = append(rep.Suites, suite("TLSv1.2", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", "ECDHE", "RSA", "AES", "CBC", 128, 128, false, true))
 	rep.HSTSHeader = tlsprobe.ParseHSTS([]string{"max-age=0", "max-age=1"})

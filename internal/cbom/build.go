@@ -181,8 +181,10 @@ func Encode(w io.Writer, bom *cdx.BOM, pretty bool) error {
 	return cdx.NewBOMEncoder(w, cdx.BOMFileFormatJSON).SetPretty(pretty).SetEscapeHTML(false).Encode(out)
 }
 
-// strip17Only returns a copy of bom without the fields only CycloneDX 1.7 defines
-// (certificateExtensions), for a 1.6 document.
+// strip17Only returns a copy of bom without the fields only CycloneDX 1.7 defines, for a 1.6
+// document. Our own builders put only certificateExtensions there; a merged inventory can also
+// carry an imported 1.7 document's fields (algorithmFamily, ellipticCurve, relatedCryptographicAssets,
+// fingerprints, certificate dates), which 1.6 does not allow.
 func strip17Only(bom *cdx.BOM) *cdx.BOM {
 	out := *bom
 	var fix func(cs []cdx.Component) []cdx.Component
@@ -193,11 +195,29 @@ func strip17Only(bom *cdx.BOM) *cdx.BOM {
 				sub := fix(*c.Components)
 				c.Components = &sub
 			}
-			if c.CryptoProperties != nil && c.CryptoProperties.CertificateProperties != nil && c.CryptoProperties.CertificateProperties.CertificateExtensions != nil {
+			if c.CryptoProperties != nil {
 				cp := *c.CryptoProperties
-				p := *cp.CertificateProperties
-				p.CertificateExtensions = nil
-				cp.CertificateProperties = &p
+				if ap := cp.AlgorithmProperties; ap != nil {
+					a := *ap
+					a.AlgorithmFamily, a.EllipticCurve = "", ""
+					cp.AlgorithmProperties = &a
+				}
+				if p := cp.CertificateProperties; p != nil {
+					q := *p
+					q.CertificateExtensions, q.RelatedCryptographicAssets, q.Fingerprint, q.CertificateState = nil, nil, nil, nil
+					q.CertificateFileExtension, q.CreationDate, q.ActivationDate, q.DeactivationDate, q.RevocationDate, q.DestructionDate = "", "", "", "", "", ""
+					cp.CertificateProperties = &q
+				}
+				if p := cp.ProtocolProperties; p != nil {
+					q := *p
+					q.RelatedCryptographicAssets = nil
+					cp.ProtocolProperties = &q
+				}
+				if p := cp.RelatedCryptoMaterialProperties; p != nil {
+					q := *p
+					q.Fingerprint, q.RelatedCryptographicAssets = nil, nil
+					cp.RelatedCryptoMaterialProperties = &q
+				}
 				c.CryptoProperties = &cp
 			}
 			res[i] = c
@@ -298,6 +318,9 @@ func sortedUnion(a, b map[string]map[string]struct{}) []string {
 	}
 	return sortedKeys(seen)
 }
+
+// RandomSerial is randomSerial for documents assembled outside Build (the merged inventory CBOM).
+func RandomSerial() string { return randomSerial() }
 
 // randomSerial returns a random (version 4) UUID as a "urn:uuid:..." value: the CycloneDX
 // serial number. It uses crypto/rand directly rather than a UUID library, because the usual

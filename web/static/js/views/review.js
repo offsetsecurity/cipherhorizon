@@ -31,7 +31,7 @@ function linkCard(l, reload) {
       strengthBadge(l.strength), stateBadge(l.state, l.stale),
       l.competes ? badge(`${l.competes} other proposal${l.competes === 1 ? '' : 's'} for this endpoint`, 'warn') : null,
       l.ambiguous ? badge('ambiguous', 'warn', 'More than one system matches; none is joined automatically') : null),
-    h('p', { class: 'hint' }, `${l.assetKind === 'host' ? 'Host' : 'Service'} ${l.assetAddress}`),
+    h('p', { class: 'hint' }, `${l.assetKind === 'host' ? 'Machine' : 'Endpoint'} ${l.assetAddress}`),
     ruleHits(l),
     l.decidedAt ? h('p', { class: 'hint' }, `${l.state} by ${l.decidedBy || 'unknown'} on ${fmtDate(l.decidedAt)}${l.reason ? `: ${l.reason}` : ''}`) : null,
     l.stale ? h('p', { class: 'callout', role: 'note' }, 'The evidence for this join is no longer observed. It has not been undone; review whether it still holds.') : null,
@@ -41,19 +41,19 @@ function linkCard(l, reload) {
       validId(l.systemId) ? h('a', { class: 'btn btn-secondary', href: systemHref(l.systemId) }, 'Open the system') : null));
 }
 
-export async function render(root) {
+export async function render(root, ctx = {}) {
   root.appendChild(skeleton(4));
   const all = await api.links('all');
   clear(root);
-  const reload = () => { root.replaceChildren(); return render(root).then(() => window.dispatchEvent(new Event('estate-changed'))); };
-  root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Review'),
-    h('div', { class: 'sub' }, 'Which service belongs to which system: the matches the product found, for a person to decide'))));
+  const reload = () => { root.replaceChildren(); return render(root, ctx).then(() => window.dispatchEvent(new Event('estate-changed'))); };
+  root.appendChild(h('div', { class: 'page-head' }, ctx.embedded ? h('div') : h('div', null, h('h1', null, 'Decisions'),
+    h('div', { class: 'sub' }, 'Which endpoint or machine belongs to which system: matches the product found, for you to confirm'))));
 
   const proposed = all.filter((l) => l.state === 'proposed').sort((a, b) => (RANK[a.strength] ?? 3) - (RANK[b.strength] ?? 3) || a.id - b.id);
   const stale = all.filter((l) => l.state === 'confirmed' && l.stale);
   const decided = all.filter((l) => l.state !== 'proposed' && !(l.state === 'confirmed' && l.stale));
 
-  root.appendChild(h('p', { class: 'text-2' }, 'The product matches a service to a machine only by three rules: the same certificate, the same name, or a name the certificate lists. A match it is sure of, from its own scans and collectors, is joined automatically and shown below as confirmed, with the reason. Everything else waits here.'));
+  root.appendChild(h('p', { class: 'text-2' }, 'The product matches an endpoint to a machine only by three rules: the same certificate, the same name, or a name the certificate lists. A match it is sure of, from its own scans and collectors, is joined automatically and shown below as confirmed, with the reason. Everything else waits here.'));
 
   root.appendChild(h('h2', null, `Waiting for a decision (${proposed.length})`));
   if (proposed.length) root.appendChild(h('div', { class: 'stack' }, proposed.map((l) => linkCard(l, reload))));

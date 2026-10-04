@@ -12,6 +12,72 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
+- **Reports show everything that was evaluated** (PRD-006). An endpoint report has five tabs: **Summary** (the
+  verdict, "N checks run: F found a problem, P found none", and action items in plain words: why it matters, how
+  urgent, what to do), **Configuration** (a matrix of every TLS version, SSLv2 to TLS 1.3, with the suites each one
+  ran by strength, forward secrecy and key-exchange groups; open a version to see its suites; then the certificate,
+  key exchange, features and HTTP), **Weaknesses** (every check run, found or not, with evidence, sources and triage;
+  the published attacks; how the score was worked out), **CBOM** (the endpoint's CycloneDX CBOM as a table, with
+  1.7/1.6 downloads) and **History**. The evaluation records every check it considered (`checks`, rules `eval/5`);
+  the PDF adds the version table and the full check list.
+- **Machine inventory is signature-driven.** The PowerShell and shell scripts are now small engines with a fixed set
+  of read-only capabilities (registry values, certificate stores, files by name, installed programs, matching config
+  lines, packages, certificate files; none runs a command). What they collect is a **signature database**
+  (`internal/signatures/signatures.json`): 16 signatures, among them Windows Schannel protocols, ciphers and suite
+  order, .NET TLS settings, crypto libraries shipped with applications, OpenSSH server algorithms and host key types,
+  OpenSSL defaults and the system crypto policy. The server embeds the current signatures in each script it hands
+  out, publishes the database (`GET /api/v1/collector/signatures`) and lists every item (what, from where, how, why)
+  next to the downloads. Facts carry their signature; library files go through the collector's knowledge base (an
+  application's OpenSSL 3.5 shows as able to do ML-KEM), configuration becomes CBOM components, and a signature
+  without its own interpreter is still recorded. The machine page shows the configuration found and the software and
+  libraries with versions and paths.
+
+- **Inventory a machine with a script, not a program.** Two short, readable scripts replace the collector download:
+  `cipherhorizon-inventory.ps1` (Windows PowerShell 5.1+) and `cipherhorizon-inventory.sh` (POSIX shell: Debian,
+  Ubuntu, RHEL, Fedora, SUSE, Alpine). The UI shows each one's text and SHA-256 before you download it
+  (`GET /api/v1/collector/scripts`, `/api/v1/collector/scripts/{name}`). They are read-only, install nothing, make no
+  network connection and never read a private key; they write a plain-text facts file (host, OS, crypto-relevant
+  packages, public certificates; certificate files contribute their CERTIFICATE blocks only). Uploading it
+  (`POST /api/v1/hosts/ingest`, now also `text/plain`) runs the collector's own sensors and knowledge base on those
+  facts, so the result is the same CBOM. The knowledge base now also recognises RPM and Alpine package names
+  (`openssl-libs`, `gnutls`, `nss`, `krb5-libs`, …). The Go collector stays buildable from source; it is no longer
+  offered as an unsigned download.
+
+- **Real PDF reports.** *Download → PDF* on a report now saves a formatted A4 document made by the server
+  (`GET /api/v1/scans/{id}/report.pdf?kind=full|tls|cert`) instead of opening the browser's print dialog: a cover with
+  the endpoint and scan, summary figures, Fix first, a section-by-section table, every section with its facts and
+  tables (chain as served, trust per store, suites, groups, features, attacks), every finding with its fix, evidence
+  and linked sources, how the TLS hygiene score was worked out and how the scan was done; page numbers and a PDF
+  outline. The certificate report adds every field of every certificate. **Inventory → Download → PDF** gives the
+  inventory report (`GET /api/v1/inventory/report.pdf`). Written by a small PDF writer in the module (standard fonts,
+  no new dependency).
+- **The Inventory is a dashboard.** It opens on figures, not tables: post-quantum status (a ring), what to replace
+  first (quantum-vulnerable algorithms and keys, most used first), algorithms by purpose, protocol versions,
+  certificate expiry and the most recent sources (`GET /api/v1/inventory/dashboard`). Each list is a page of its own,
+  one click deeper (`#/inventory/algorithms`, `/keys`, `/certificates`, `/protocols`, `/software`, `/sources`);
+  certificate keys are named by their common name. The lists now include imported CBOMs, marked as such.
+
+- **A focused product: scan, reports, inventory** (PRD-005, ENG-HANDOFF-004). The interface is reorganised around
+  the two jobs the product does. The menu has four entries: **Scan** (the home page: type an address, press Enter, get
+  the report), **Reports** (every endpoint with its latest report, a fleet summary, and the fleet's findings and scan
+  activity as tabs), **Inventory** and **Systems**. Old addresses redirect to their new place.
+  - **Inventory**: every algorithm, key, certificate, protocol and software component seen by your scans, your
+    machines and (optionally) imported CBOMs, with its post-quantum status, where it was seen and when; filters by
+    name, quantum-vulnerable and source; **Download CBOM** exports the whole inventory as one CycloneDX 1.7 (or 1.6)
+    document, each component carrying `cipherhorizon:seen-in`. New read-only routes `GET /api/v1/inventory`,
+    `/api/v1/inventory/summary` and `/api/v1/inventory/cbom` (behind the usual token and Origin checks).
+  - **Add data**: one dialog for the three ways in (scan an endpoint, inventory a machine, import a CBOM); machine
+    uploads and imports are listed under Inventory → Sources.
+  - **Reports read in seconds**: the summary and *Fix first* on the first screen, then one line per section (name,
+    status, one sentence); sections with a problem are open, the rest closed; evidence and citations behind *Why and
+    sources*; *How we tested* in one *About this report* at the end. A report shows about 40 % of the words it did,
+    and nothing is lost when everything is expanded. **Download** and **Copy link** sit at the top.
+  - The fleet **Findings** list is one line per problem with how many endpoints and machines have it (3,302 words
+    before, about 300 now).
+  - **Systems** (formerly the Estate home page) keeps the ranked order and the match **Decisions** as a tab; "based
+    on evidence only" reads "no owner details yet".
+  - A test keeps internal words (estate, asset, service, host, ...) off the primary pages.
+
 - **TLS scanner, phase T1: PKI depth and a self-explaining endpoint page** (PRD-004, ENG-HANDOFF-003). Scans now
   produce `tls-report/2` (a superset of `/1`): each part of the scan is a named **stage** that records whether it
   ran, why not, what it sent and how many connections it made; each served chain is kept **as served** (raw
@@ -30,6 +96,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
     sources, logs named from the bundled CT log list);
   - **DH groups** matched against the RFC 2409/3526/5114/7919 primes (a shared ≤ 1024-bit group is Logjam);
   - **HSTS** syntax, max-age 0, under a year, duplicates, no includeSubDomains;
+  - the certificate served **without SNI** is shown in its own tab and noted (`CERT.NO-SNI-DIFFERENT`, info), but never
+    scored as the endpoint's certificate: large sites deliberately serve a placeholder there;
   - **attack names as labels** on the finding that enables them (FREAK, Logjam, DROWN, POODLE, BEAST, SWEET32,
     CRIME, LUCKY13, RC4), never counted twice; a key served on an **SSLv2 endpoint anywhere in the estate** is
     reported on every endpoint that serves it; active-only attacks are listed as *not tested by design*.
@@ -136,6 +204,34 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Changed
 
+- **Navigation rebuilt around one place per kind of thing** ([UX-DESIGN-005](docs/product/UX-DESIGN-005-navigation.md)).
+  A **Scan a URL** button tops the sidebar on every page. The menu is **Overview**; *Results*: **Endpoints**,
+  **Machines**, **Findings**, **Inventory**; *Plan & share*: **Systems**, **Reports**. Overview keeps the scan box on
+  top and adds six tiles (endpoints, machines, findings, post-quantum, inventory, next certificate expiry), the latest
+  results and what to fix first. **Reports** is now the documents page: the inventory PDF and CBOM, the security, TLS
+  and certificate PDFs and the CBOM of every endpoint, each machine's CBOM, the endpoint and system CSVs and the OMB
+  M-23-02 files, each one click away. Machines and Findings have their own pages (they were under Inventory › Sources
+  and a Reports tab); scan activity is a tab of Endpoints. Detail pages start with a breadcrumb and light up their home
+  in the menu. Old addresses (`#/reports/N`, `#/hosts/N`, `#/reports?tab=findings`, …) still land.
+- **Results say what happened, not only what was looked for.** A check that passed states what it confirmed ("The
+  certificate has not expired", "TLS 1.0 is switched off") instead of "Certificate has expired: not found" (rules
+  `eval/6`, `Check.pass`); Weaknesses groups each area into Found, Passed and Not run, with a filter for each and a
+  visible Details toggle on every finding. In Configuration each TLS version says its state and whether that is right
+  ("Enabled · should be off", "Disabled · good", "Disabled · should be on"), under a one-line summary of what is
+  enabled; each enabled version has a "Show suites" toggle. The PDF uses the same words.
+- **Reports list.** Five tiles answer the first questions (endpoints, post-quantum, TLS hygiene, findings, the next
+  certificate expiry); the add, scan and export actions sit with the filter; a whole row opens its report, and each
+  row has an "Open report" button; certificate expiry reads "44 days left".
+
+- **The endpoint report is reorganised** (UX-DESIGN-004). Three tabs: **Summary** says whether the endpoint is OK and
+  what to fix (a headline such as "7 things to fix", the four figures, then every finding to act on once, worst first,
+  each opening to its fix, what was seen, its sources and triage; informational notes in a closed list; then one
+  checklist row per area); **Details** shows what the server accepts, one card of facts and tables per area, never a
+  finding card (a card names its issues and links back to them); **History**. The Findings tab is gone (its address
+  opens the Summary's fix list). The header keeps *Scan again* and *Download*; copy link, rescan schedule, edit, link
+  to a machine and delete are in one *More* menu. The Vulnerabilities card is one table (attack, possible here or
+  not, why), without internal rule IDs.
+
 - **The HTTP check (HSTS) is on by default**, on `serve` and on `tls scan`; `--http-checks=false` turns it off. It
   still sends one `GET /`, reads at most 8 KiB and follows no redirect; a skipped HTTP section says why.
 - `CERT.UNTRUSTED` fires only when no bundled store and no private anchor trusts the chain; when stores disagree,
@@ -160,7 +256,29 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - The sidebar no longer names Offset Security under the CipherHorizon wordmark; the credit stays once, in the
   sidebar footer, where it already was.
 
+### Removed
+
+- The TLS overview dashboard page and the old stand-alone CBOM page (PRD-005). Their addresses redirect to Reports
+  and Inventory; their counts live in the Reports fleet summary and the Inventory summary.
+
 ### Fixed
+
+- The Reports list showed "none" under Findings for an endpoint whose findings were all medium or low (Google: 4
+  medium and 3 low). It now counts every severity, and says "No problems" only when there are none. The database
+  gains low and informational counts (migration 8, filled from stored evaluations; a backup is kept as for every
+  migration).
+
+- A Vulnerabilities section showed a green "Good" while listing an attack as exposed (LUCKY13 on CBC suites, whose
+  finding is informational). Such a section is now "Needs attention", and each attack line states its result
+  ("Possible: the server accepts CBC suites…" / "Needs TLS 1.0 with CBC suites; not seen on this server.") instead
+  of only its condition, which read like a finding ("BEAST — TLS 1.0 with CBC suites"). Rules are `eval/4`; on
+  start the server re-evaluates each endpoint's latest result made by older rules, so existing reports change
+  without a rescan.
+- Finding details named the same cipher suite once per protocol version ("3DES, 3DES, 3DES"); they now name each
+  suite once and say which versions accept it.
+- A failed scan with no earlier result showed an empty chart around the error. It now shows one card: why the scan
+  failed in plain words (nothing listening, name does not resolve, no answer, not TLS), the technical message, and
+  *Scan again*.
 
 - A scan could be seen as finished a moment before its certificates and proposed joins were derived from it; they are now derived in the same transaction as the result.
 - The About page's brand mark was invisible (built with the HTML-element builder instead of the SVG one, so

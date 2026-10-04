@@ -12,8 +12,8 @@ export const validId = (s) => ID_RE.test(String(s));
 /** True when s is a 64-digit SHA-256 fingerprint. */
 export const validFingerprint = (s) => FP_RE.test(String(s));
 
-export const systemHref = (id) => (validId(id) ? `#/systems/${id}` : '#/');
-export const certHref = (fp) => (validFingerprint(fp) ? `#/certificates/${String(fp).toLowerCase()}` : '#/certificates');
+export const systemHref = (id) => (validId(id) ? `#/systems/${id}` : '#/systems');
+export const certHref = (fp) => (validFingerprint(fp) ? `#/certificates/${String(fp).toLowerCase()}` : '#/inventory/certificates');
 
 /** The reasons behind a position: the rule, what it found, and where it is cited. */
 export function reasonList(reasons) {

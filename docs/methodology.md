@@ -106,6 +106,7 @@ lifetime limit and the CT requirement. The readiness level is unaffected by trus
 | `CERT.CLIENTAUTH-EKU` | info | public, and a chain certificate also allows clientAuth | Chrome Root Program Policy |
 | `CERT.PARTIAL-TRUST` | medium | some bundled stores trust it and others do not (constraints named) | RFC 5280 §6 |
 | `CERT.WEAK-EXPONENT` | low | RSA public exponent below 65537 | CA/B Forum BR §6.1.6 |
+| `CERT.NO-SNI-DIFFERENT` | info | without SNI the server presents another certificate (described, never judged as the endpoint's certificate: many sites serve a placeholder there on purpose) | RFC 6066 §3 |
 | `OCSP.REVOKED` | critical | the valid stapled response says revoked | RFC 6960 |
 | `OCSP.MISMATCH` | high | the staple is for another certificate, unusable, or its signature fails | RFC 6960 §3.2 |
 | `OCSP.STALE` | medium | the staple's nextUpdate has passed | RFC 6960 §4.2.2.1 |

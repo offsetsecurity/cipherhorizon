@@ -5,9 +5,9 @@ import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, s
 
 const FILTERS = [['', 'All'], ['running', 'Running'], ['queued', 'Queued'], ['done', 'Done'], ['failed', 'Failed'], ['canceled', 'Canceled']];
 
-export async function render(root) {
+export async function render(root, ctx = {}) {
   let stopped = false, timer = null, status = '';
-  const head = h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Scans'), h('div', { class: 'sub' }, 'Every scan, newest first')));
+  const head = h('div', { class: 'page-head' }, ctx.embedded ? h('div') : h('div', null, h('h1', null, 'Scans'), h('div', { class: 'sub' }, 'Every scan, newest first')));
   const bar = h('div', { class: 'toolbar' });
   const list = h('div');
   root.append(head, bar, list);
@@ -23,7 +23,7 @@ export async function render(root) {
     clear(list);
     if (!scans.length) {
       list.appendChild(empty(status ? 'No scans with this status' : 'No scans yet', status ? null : 'Scans appear here once you scan an endpoint.',
-        status ? null : button('Go to endpoints', () => { location.hash = '#/assets'; }, 'primary')));
+        status ? null : button('Go to endpoints', () => { location.hash = '#/endpoints'; }, 'primary')));
       return;
     }
     list.appendChild(h('div', { class: 'tablewrap' }, h('table', null,
@@ -31,7 +31,7 @@ export async function render(root) {
       h('tbody', null, scans.map((s) => {
         const active = s.status === 'queued' || s.status === 'running';
         return h('tr', null,
-          h('td', { class: 'namecell' }, h('a', { href: `#/assets/${s.assetId}${s.status === 'done' ? `?scan=${s.id}` : ''}` }, s.assetName),
+          h('td', { class: 'namecell' }, h('a', { href: `#/endpoints/${s.assetId}${s.status === 'done' ? `?scan=${s.id}` : ''}` }, s.assetName),
             h('div', { class: 'sub' }, s.assetAddress)),
           h('td', null, statusPill(s.status), active ? progressBar(s.progressPct) : null,
             s.error ? h('div', { class: 'hint' }, s.error) : null),

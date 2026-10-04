@@ -1,7 +1,7 @@
 // One host: what its CBOM says, algorithm by algorithm, with sources.
 import { h, clear, fmtDate } from '../dom.js';
 import { api } from '../api.js';
-import { badge, citations, button, empty, toast, modal } from '../ui.js';
+import { badge, citations, button, empty, toast, modal, crumbs } from '../ui.js';
 import { collectDialog, accessState, privilegeLabel, sensorLabel, osLabel } from '../guide.js';
 import { uploadDialog } from './hosts.js';
 
@@ -12,14 +12,14 @@ export function coverageCard(cov, onUpload) {
   if (!cov) {
     return h('section', { class: 'card coverage' }, head,
       h('p', { class: 'text-2' }, 'This CBOM does not record how much of the machine was read, so treat the list below as what was found, not as everything that exists. ',
-        'The CipherHorizon collector records this; upload one to see it here.'),
+        'The CipherHorizon inventory script records this; upload a fresh inventory to see it here.'),
       h('div', { class: 'row' }, button('How do I collect?', () => collectDialog(onUpload))));
   }
   const rows = [['System', osLabel(cov.os) || 'Not recorded'], ['Ran as', privilegeLabel(cov.privilege)]];
   if (cov.redacted) rows.push(['Host name', 'A stable label: the real name was withheld on request']);
   const limited = acc.tone === 'warn';
   return h('section', { class: 'card coverage' }, head,
-    h('p', { class: 'hint' }, 'How much of this machine the collector could see. A list is only as complete as the places it was allowed to look.'),
+    h('p', { class: 'hint' }, 'How much of this machine the inventory could see. A list is only as complete as the places it was allowed to look.'),
     h('dl', { class: 'facts' }, rows.map(([k, v]) => h('div', null, h('dt', null, k), h('dd', null, v)))),
     cov.note ? h('div', { class: 'callout' }, cov.note) : null,
     limited ? h('div', { class: 'row' }, button('How do I run it with full rights?', () => collectDialog(onUpload))) : null,
@@ -85,7 +85,7 @@ async function linkedAssetsCard(linkedIds, hostId, onDone) {
     rows.filter(Boolean).length
       ? h('ul', { class: 'stack' }, rows.filter(Boolean).map((a) => h('li', { class: 'row' },
           h('span', { class: 'kind-badge' }, 'Endpoint'),
-          h('a', { href: `#/assets/${a.id}` }, a.name),
+          h('a', { href: `#/endpoints/${a.id}` }, a.name),
           button('Unlink', async () => { try { await api.unlinkAsset(hostId, a.id); toast('Unlinked'); onDone(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' }))))
       : h('p', { class: 'muted' }, 'Not linked to any TLS endpoint yet.'));
 }
@@ -95,7 +95,7 @@ export async function render(root, { args }) {
   let data;
   try { data = await api.host(id); } catch (e) {
     if (e.status === 404) {
-      root.appendChild(empty('This host no longer exists', null, button('Back to hosts', () => { location.hash = '#/hosts'; }, 'primary')));
+      root.appendChild(empty('This host no longer exists', null, button('Back to sources', () => { location.hash = '#/inventory/sources'; }, 'primary')));
       return null;
     }
     throw e;
@@ -104,14 +104,14 @@ export async function render(root, { args }) {
   const s = host.summary;
   const reload = () => window.dispatchEvent(new HashChangeEvent('hashchange'));
 
-  root.appendChild(h('p', null, h('a', { href: '#/hosts' }, '← Hosts')));
+  root.appendChild(crumbs([['Machines', '#/machines'], [host.name]]));
   root.appendChild(h('div', { class: 'page-head' },
     h('div', null, h('h1', null, host.name),
       h('div', { class: 'sub' }, s ? `Collected by ${s.producer || 'an unknown producer'} · uploaded ${fmtDate(host.snapshotAt)}` : 'No CBOM uploaded')),
     h('div', { class: 'row' },
       history.length ? button('Download CBOM', () => api.download(`/api/v1/hosts/${id}/snapshots/${history[0].id}/cbom?download=1`, `host-${id}-cbom.json`)
         .catch((e) => toast(e.message, 'error'))) : null,
-      button('Upload a newer CBOM', () => uploadDialog(reload), 'primary'))));
+      button('Upload a newer inventory', () => uploadDialog(reload), 'primary'))));
 
   if (!s) {
     root.appendChild(empty('No CBOM for this host yet', 'Upload a CycloneDX CBOM to see this host’s algorithms and post-quantum verdicts.',
@@ -143,6 +143,47 @@ export async function render(root, { args }) {
               `Matched by ${a.matchedBy}`))),
         h('td', null, a.class === 'quantum-vulnerable' ? badge('▲ quantum-vulnerable', 'warn') : badge('✓ quantum-safe', 'good')),
         h('td', null, providers(a.providedBy))))))) : h('p', { class: 'muted' }, 'No algorithms were found in this CBOM.')));
+
+  // What the inventory found besides algorithms: configuration (Windows Schannel, SSH, OpenSSL)
+  // and the software and libraries that bring their own cryptography, from this machine's CBOM.
+  const extra = h('div');
+  root.appendChild(extra);
+  if (history.length) {
+    api.hostCBOM(id, history[0].id).then((bom) => {
+      const comps = bom.components || [];
+      const props = (c) => (c.properties || []).filter((p) => !/^cipherhorizon:pqc:/.test(p.name))
+        .map((p) => [p.name.replace(/^cipherhorizon:/, ''), p.value]);
+      const protocols = comps.filter((c) => c.cryptoProperties && c.cryptoProperties.assetType === 'protocol');
+      if (protocols.length) {
+        extra.appendChild(h('section', { class: 'card' }, h('h2', null, 'Configuration found'),
+          h('p', { class: 'hint' }, 'Settings that decide which versions, suites and algorithms programs on this machine use. A setting that is not listed is at its default.'),
+          protocols.map((c) => {
+            const ps = props(c);
+            const source = (ps.find(([k]) => k === 'config-source') || [])[1];
+            const suites = (c.cryptoProperties.protocolProperties || {}).cipherSuites || [];
+            return h('div', { class: 'config-block' },
+              h('h3', null, c.name), source ? h('div', { class: 'hint mono' }, source) : null,
+              h('dl', { class: 'kv' }, ps.filter(([k]) => k !== 'config-source').flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
+              suites.length ? h('details', { class: 'more' }, h('summary', null, `Cipher suite order (${suites.length})`),
+                h('ol', { class: 'suite-order' }, suites.map((x) => h('li', null, h('code', null, x.name))))) : null);
+          })));
+      }
+      const software = comps.filter((c) => c.type === 'library' || c.type === 'application');
+      if (software.length) {
+        const where = (c) => {
+          const occ = (((c.evidence || {}).occurrences) || []).map((o) => o.location);
+          return occ.length ? occ.join(', ') : ((props(c).find(([k]) => k === 'path') || [])[1] || '');
+        };
+        extra.appendChild(h('section', { class: 'card' }, h('h2', null, `Software and libraries (${software.length})`),
+          h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
+            h('thead', null, h('tr', null, ['Name', 'Version', 'Where', 'Found by'].map((x) => h('th', { scope: 'col' }, x)))),
+            h('tbody', null, software.map((c) => h('tr', null,
+              h('td', null, h('b', null, c.name)), h('td', null, c.version || '—'),
+              h('td', { class: 'muted' }, where(c)),
+              h('td', { class: 'muted' }, (props(c).find(([k]) => k === 'collector' || k === 'collected-by') || [])[1] || ''))))))));
+      }
+    }).catch(() => {});
+  }
 
   root.appendChild(await linkedAssetsCard(host.linkedAssetIds || [], id, reload));
 

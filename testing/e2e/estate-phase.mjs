@@ -27,14 +27,14 @@ export async function estatePhase(t) {
   const submitDialog = () => js(`document.querySelector('.modal form').requestSubmit();`);
   const text = () => js(`return document.querySelector('main').innerText`);
 
-  // ---- E1: the Estate is the home page, ranked, and every row says why ---------------------------------
-  await go('#/');
+  // ---- E1: Systems ranks every system, and every row says why (secondary since PRD-005) ---------------------
+  await go('#/systems');
   await sleep(1200);
   const est = await api('/api/v1/estate');
   const e1 = await js(`return { rows: document.querySelectorAll('main tbody tr:not(.why-row)').length,
-    head: document.querySelector('h1')?.innerText, nav: document.querySelector('#nav a[aria-current=page]')?.innerText.trim(),
+    head: document.querySelector('h1')?.innerText, nav: document.querySelector('#nav a[aria-current=page], .sidefoot a[aria-current=page]')?.innerText.trim(),
     marker: document.querySelectorAll('main .badge').length, bad: /\\bgrade\\b/i.test(document.querySelector('main').innerText) }`);
-  check('E2E-20.1', 'the estate is the home page and lists every system in rank order', e1.head === 'Estate' && e1.rows === est.ranking.length && e1.rows >= 3 && /Estate/.test(e1.nav), JSON.stringify(e1));
+  check('E2E-20.1', 'Systems lists every system in rank order, its sidebar link marked as the current page', e1.head === 'Systems' && e1.rows === est.ranking.length && e1.rows >= 3 && /Systems/.test(e1.nav), JSON.stringify(e1));
   check('E2E-20.2', 'no letter grade is offered anywhere on the estate', !e1.bad);
   await js(`document.querySelector('main tbody tr button')?.click()`);
   await sleep(200);
@@ -83,10 +83,10 @@ export async function estatePhase(t) {
   await shot('import-result', { full: false });
   await clickText('Close', "document.querySelector('.modal')");
   await sleep(300);
-  await go('#/');
+  await go('#/systems');
   await sleep(1000);
   const listed = await js(`return [...document.querySelectorAll('main tbody tr')].find((r) => r.innerText.includes('imported-lens-host'))?.innerText || ''`);
-  check('E2E-22.3', 'the imported system is ranked and labelled as known only from an import', /imported only/.test(listed) && /evidence only/.test(listed), listed);
+  check('E2E-22.3', 'the imported system is ranked and labelled as known only from an import', /imported only/.test(listed) && /no owner details yet/.test(listed), listed);
   // Re-importing the same bytes is a duplicate, not a second copy.
   const lensSystem = (await api('/api/v1/systems')).systems.find((x) => x.name === 'imported-lens-host');
   const dup = await (await post(`/api/v1/imports?system=${lensSystem.id}`, readFileSync(FIXTURE, 'utf8'))).json();
@@ -155,7 +155,7 @@ export async function estatePhase(t) {
   if (hostileSystem) {
     await patch(`/api/v1/systems/${hostileSystem.id}`, { owner: HOSTILE, notes: `${HOSTILE}\n${RTL}\n${LONG}`, hostingProvider: RTL, fismaId: LONG.slice(0, 100) });
   }
-  const views = [['estate', '#/'], ['system', hostileSystem ? `#/systems/${hostileSystem.id}` : '#/'], ['certificates', '#/certificates'], ['review', '#/review'], ['imports', '#/imports']];
+  const views = [['estate', '#/systems'], ['system', hostileSystem ? `#/systems/${hostileSystem.id}` : '#/systems'], ['certificates', '#/certificates'], ['review', '#/review'], ['imports', '#/imports']];
   const fp = 'cd'.repeat(32);
   views.push(['certificate', `#/certificates/${fp}`]);
   await js('window.__xss = undefined');
@@ -167,14 +167,14 @@ export async function estatePhase(t) {
     const needsText = name !== 'review';
     check(`E2E-26.${name}`, `hostile text in the ${name} view is shown as text and never becomes markup or script`, v.fired === null && v.injected === 0 && (!needsText || v.shown || name === 'certificates') && v.overflow <= 1, JSON.stringify(v));
   }
-  await go(hostileSystem ? `#/systems/${hostileSystem.id}` : '#/');
+  await go(hostileSystem ? `#/systems/${hostileSystem.id}` : '#/systems');
   await sleep(1000);
   await shot('hostile-system');
 
   // ---- E8: layout in dark mode and at phone width on every new view ------------------------------------------
   for (const [dark, w, label] of [[true, 1280, 'dark'], [false, 390, 'phone']]) {
     await viewport(w, w === 390 ? 844 : 900, dark, w === 390);
-    for (const [name, hash] of [['estate', '#/'], ['system', `#/systems/${target.systemId}`], ['certificates', '#/certificates'], ['review', '#/review'], ['imports', '#/imports']]) {
+    for (const [name, hash] of [['estate', '#/systems'], ['system', `#/systems/${target.systemId}`], ['certificates', '#/certificates'], ['review', '#/review'], ['imports', '#/imports']]) {
       await go(hash);
       await sleep(900);
       const o = await js(`return document.documentElement.scrollWidth - document.documentElement.clientWidth`);
@@ -185,7 +185,7 @@ export async function estatePhase(t) {
   await viewport(1280, 900);
 
   // ---- E9: accessibility basics on the new views and the old addresses still work -------------------------------
-  for (const [name, hash] of [['estate', '#/'], ['system', `#/systems/${target.systemId}`], ['certificates', '#/certificates'], ['review', '#/review'], ['imports', '#/imports']]) {
+  for (const [name, hash] of [['estate', '#/systems'], ['system', `#/systems/${target.systemId}`], ['certificates', '#/certificates'], ['review', '#/review'], ['imports', '#/imports']]) {
     await go(hash);
     await sleep(900);
     const unnamed = await js(`return [...document.querySelectorAll('main button, main input, main select, main textarea, main a')].filter((e) => !e.closest('[hidden]') && !(e.textContent.trim() || e.getAttribute('aria-label') || e.labels?.length || e.getAttribute('title'))).length`);
@@ -193,5 +193,5 @@ export async function estatePhase(t) {
   }
   await go('#/cbom');
   await sleep(500);
-  check('E2E-27.1', 'the old CBOM address still opens, though it is no longer in the menu', /CBOM/.test(await js(`return document.querySelector('h1')?.innerText || ''`)) && !(await js(`return [...document.querySelectorAll('#nav a')].some((a) => a.textContent.trim() === 'CBOM')`)));
+  check('E2E-27.1', 'the old CBOM address opens Inventory, where the CBOM download now lives', (await js(`return location.hash`)) === '#/inventory' && (await js(`return !!document.querySelector('.download-menu')`)));
 }

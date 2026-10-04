@@ -65,7 +65,8 @@ and the script are committed.
 | ocsp-url-no-staple | OCSP.NO-STAPLE (low) |
 | crl-only-no-staple | nothing |
 | scts-embedded / scts-tls / none-public | none / none / CT.NO-SCTS |
-| nosni-expired | CERT.EXPIRED on the no-SNI chain only |
+| nosni placeholder (self-signed, other name, expired) beside a trusted SNI chain | only CERT.NO-SNI-DIFFERENT (info); score and Fix first unchanged |
+| served cross-signed root | trusted; no missing or unknown issuer shown |
 | no-serverauth-eku | CERT.NO-SERVERAUTH |
 | public-clientauth | CERT.CLIENTAUTH-EKU |
 | lifetime 47 d with 20 d left | nothing |

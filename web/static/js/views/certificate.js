@@ -2,19 +2,19 @@
 // details exist in the estate; the wording about keys says what the sensors actually check.
 import { h, clear, fmtDate } from '../dom.js';
 import { api } from '../api.js';
-import { badge, skeleton, citations } from '../ui.js';
+import { badge, skeleton, citations, crumbs } from '../ui.js';
 import { validFingerprint, systemHref, keyText, expiryBadge, classLabel, keyAssociation, validId } from '../estate-ui.js';
 
 export async function render(root, { args }) {
   const fp = String(args[0] || '').toLowerCase();
-  if (!validFingerprint(fp)) { location.hash = '#/certificates'; return null; }
+  if (!validFingerprint(fp)) { location.hash = '#/inventory/certificates'; return null; }
   root.appendChild(skeleton(4));
   const d = await api.certificate(fp);
   clear(root);
   const c = d.certificate;
+  root.appendChild(crumbs([['Inventory', '#/inventory'], ['Certificates', '#/inventory/certificates'], [c.name || 'Certificate']]));
   root.appendChild(h('div', { class: 'page-head' },
-    h('div', null, h('h1', null, c.name || 'Certificate'), h('div', { class: 'sub' }, `${c.role} certificate`)),
-    h('div', { class: 'row' }, h('a', { class: 'btn btn-secondary', href: '#/certificates' }, 'All certificates'))));
+    h('div', null, h('h1', null, c.name || 'Certificate'), h('div', { class: 'sub' }, `${c.role} certificate`))));
   root.appendChild(h('section', { class: 'card' },
     h('dl', { class: 'facts' },
       h('div', null, h('dt', null, 'Subject'), h('dd', null, c.subject || 'not recorded')),

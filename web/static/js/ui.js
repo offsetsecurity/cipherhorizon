@@ -358,3 +358,12 @@ export function copyButton(value, label) {
   });
   return btn;
 }
+
+/**
+ * crumbs says where a detail page lives (UX-DESIGN-005): its home in the menu, then the page.
+ * parts: [[label, href], …, [label]]; the last part is the current page.
+ */
+export function crumbs(parts) {
+  return h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('ol', null, parts.map(([label, href], i) =>
+    h('li', null, href && i < parts.length - 1 ? h('a', { href }, label) : h('span', { 'aria-current': 'page' }, label)))));
+}

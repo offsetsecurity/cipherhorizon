@@ -123,6 +123,17 @@ carry the evaluation, which now includes the sections, *Fix first*, the PKI view
 6. The CBOM gap list first claimed CycloneDX had no field for certificate extensions; the vendored 1.7 schema has
    `certificateExtensions`, so the 1.7 CBOM now carries them (`TestCertificateExtensionsOnlyIn17`).
 
+## 5a. Found after the report: a real public site (2026-10-03)
+
+The owner scanned `www.google.com` and the result said the certificate was not trusted and did not match, with TLS
+hygiene 8. The real chain (Google Trust Services WR2) was trusted by both stores. Both high findings came from the
+**no-SNI handshake**, to which Google deliberately answers with a self-signed `invalid2.invalid` placeholder. Fixed
+(ENG-HANDOFF-003 V-9): that chain is described, not judged; a trusted chain shows no missing issuer when the server
+also sends a cross-signed root. Re-judged from the stored report: Certificates *Good*, TLS hygiene 48 (*Weak*), from
+TLS 1.0, TLS 1.1, 3DES and RSA key-transport suites the server does accept. Tests: `TestT1TrustMatrix` (placeholder
+beside a trusted chain; cross-signed root). Lesson: hermetic fixtures did not include a site that answers no-SNI
+clients on purpose; the fixture matrix now does.
+
 ## 6. Known limits and open items
 
 - **Deferred (P1):** REQ-TCRT-6 beyond the exponent check (ROCA fingerprint, Debian weak-key list, shared modulus across

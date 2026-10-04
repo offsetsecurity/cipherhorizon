@@ -80,13 +80,13 @@ export function importDialog(onDone) {
   }, { wide: true });
 }
 
-export async function render(root) {
+export async function render(root, ctx = {}) {
   root.appendChild(skeleton(4));
   const list = await api.imports();
   clear(root);
-  const reload = () => { root.replaceChildren(); return render(root); };
+  const reload = () => { root.replaceChildren(); return render(root, ctx); };
   root.appendChild(h('div', { class: 'page-head' },
-    h('div', null, h('h1', null, 'Imports'), h('div', { class: 'sub' }, 'Documents from other tools, and where their facts went')),
+    ctx.embedded ? h('div') : h('div', null, h('h1', null, 'Imported CBOMs'), h('div', { class: 'sub' }, 'Documents from other tools, and where their facts went')),
     h('div', { class: 'row' }, button('Import a CBOM', () => importDialog(reload), 'primary'))));
   if (!list.length) {
     root.appendChild(empty('Nothing imported yet', 'Import a CycloneDX CBOM from another tool. Its facts join the system you choose, marked as imported, and never overwrite what was observed.', button('Import a CBOM', () => importDialog(reload), 'primary')));

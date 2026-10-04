@@ -56,6 +56,10 @@
     },
     {
       "name": "collector"
+    },
+    {
+      "name": "inventory",
+      "description": "The cryptographic inventory across scans, machines and imported CBOMs (PRD-005)."
     }
   ],
   "paths": {
@@ -1957,6 +1961,55 @@
         }
       }
     },
+    "/api/v1/scans/{id}/report.pdf": {
+      "get": {
+        "summary": "The scan as a formatted A4 PDF report: kind=full (summary, Fix first, every section and finding with sources, how it was tested), tls (the TLS configuration sections) or cert (certificates, trust, revocation and every certificate field).",
+        "tags": [
+          "export"
+        ],
+        "operationId": "get_scans_id_report_pdf",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "full",
+                "tls",
+                "cert"
+              ],
+              "default": "full"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
     "/api/v1/export/assets.csv": {
       "get": {
         "summary": "Endpoints and their latest results as CSV.",
@@ -1983,7 +2036,7 @@
     },
     "/api/v1/hosts/ingest": {
       "post": {
-        "summary": "Upload a host CBOM from the collector.",
+        "summary": "Upload a host CBOM from the collector. Also accepts the plain-text facts file an inventory script writes (Content-Type: text/plain); the server turns it into a CBOM with the collector's own sensors and knowledge.",
         "tags": [
           "hosts"
         ],
@@ -2004,6 +2057,11 @@
             "application/json": {
               "schema": {
                 "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
               }
             }
           }
@@ -2156,6 +2214,102 @@
           },
           "404": {
             "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/collector/scripts": {
+      "get": {
+        "summary": "The machine inventory scripts (PowerShell for Windows, shell for Linux): name, platform, the command that runs each, size and SHA-256 of the text served.",
+        "tags": [
+          "collector"
+        ],
+        "operationId": "get_collector_scripts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/collector/scripts/{name}": {
+      "get": {
+        "summary": "One inventory script as plain text, to read or to save (download=1). The X-Content-SHA256 header carries its SHA-256.",
+        "tags": [
+          "collector"
+        ],
+        "operationId": "get_collector_scripts_name",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1 sends the text as an attachment."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/collector/signatures": {
+      "get": {
+        "summary": "The signature database: everything the inventory scripts collect, with the capability each uses, its parameters, why it is collected and how the server interprets it.",
+        "tags": [
+          "collector"
+        ],
+        "operationId": "get_collector_signatures",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
           }
         }
       }
@@ -2471,6 +2625,234 @@
           },
           "404": {
             "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory": {
+      "get": {
+        "summary": "Inventory rows of one kind, read from the merged CBOM: name, detail, cited quantum status, the endpoints, machines and imports it was seen in (places, each with when it reported) and lastSeen.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "Entity kind (default algorithm)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "algorithm",
+                "key",
+                "protocol",
+                "software"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Name contains",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "vulnerable",
+            "in": "query",
+            "required": false,
+            "description": "1: only quantum-vulnerable",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Seen in this kind of source",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "endpoint",
+                "machine",
+                "import"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/summary": {
+      "get": {
+        "summary": "Counts for the inventory summary: algorithms, keys, protocols, software, quantum-vulnerable and quantum-safe algorithms, certificates and those expiring within 30 days, endpoints, machines and imports.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory_summary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cbom": {
+      "get": {
+        "summary": "The whole current inventory as one CycloneDX CBOM: the latest CBOM of every endpoint and machine merged by bom-ref, each cryptographic component with cipherhorizon:seen-in; imported CBOMs only with imported=1. At most 20,000 components.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory_cbom",
+        "parameters": [
+          {
+            "name": "spec",
+            "in": "query",
+            "required": false,
+            "description": "CycloneDX version (default 1.7)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1.6",
+                "1.7"
+              ]
+            }
+          },
+          {
+            "name": "imported",
+            "in": "query",
+            "required": false,
+            "description": "1: include imported CBOMs",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "description": "1: send as an attachment",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CycloneDX JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "413": {
+            "description": "More than 20,000 components"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/dashboard": {
+      "get": {
+        "summary": "Every figure of the Inventory dashboard, from the merged CBOM (imported CBOMs included) and the certificate store: totals, post-quantum split, what to replace first, algorithms by purpose, protocol versions, software, certificate expiry and sources.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory_dashboard",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "413": {
+            "description": "The inventory is too large to merge"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/report.pdf": {
+      "get": {
+        "summary": "The whole inventory as a formatted A4 PDF report: post-quantum status, what to replace first, protocol versions, certificates, every algorithm, key and software component, and the sources.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory_report_pdf",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "413": {
+            "description": "The inventory is too large to merge"
           }
         }
       }
