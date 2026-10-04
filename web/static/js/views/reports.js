@@ -62,7 +62,7 @@ export async function render(root) {
       h('thead', null, h('tr', null, ['Machine', 'Quantum-vulnerable', 'Uploaded', 'CBOM'].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, withSnap.map((x) => h('tr', null,
         h('td', { class: 'namecell' }, h('a', { href: `#/machines/${x.id}` }, x.name)),
-        h('td', null, x.summary ? String(x.summary.vulnerable) : '–'),
+        h('td', null, x.summary ? String(x.summary.vulnerable) : '·'),
         h('td', { class: 'muted nowrap', title: fmtDate(x.snapshotAt) }, relTime(x.snapshotAt)),
         h('td', null, dl('CycloneDX', `/api/v1/hosts/${x.id}/snapshots/${x.snapshotId}/cbom`, `${stemOf(x.name)}-cbom.json`)))))))
       : h('p', { class: 'muted' }, 'No machine inventoried yet. ', h('a', { href: '#/machines' }, 'Add a machine'), '.')));

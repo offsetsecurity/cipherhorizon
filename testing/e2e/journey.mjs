@@ -13,6 +13,8 @@ import { mkdirSync, writeFileSync, mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { estatePhase } from './estate-phase.mjs';
+import { authFetch as fetch } from './authfetch.mjs';
+import { firstRun, authPhase } from './auth-phase.mjs';
 import { t1Phase } from './t1-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
@@ -110,6 +112,9 @@ async function main() {
   await connect();
   await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable');
   await viewport(1280, 900);
+
+  // J0 (ADR-0018): first-run setup through the gate; everything after runs signed in.
+  await firstRun({ check, js, go, sleep, shot });
 
   // J1 (UX-DESIGN-005): the first screen is the Overview with the scan box on top; one action
   // (type an address, press Enter) gives a report; a bad address is refused inline.
@@ -283,9 +288,14 @@ async function main() {
   await shot('asset-terrible-legacy-report');
   // Action items: each finding once, in plain words (PRD-006 REQ-RV-2).
   const fnd = await js(`const rows = [...document.querySelectorAll('#fix .action')];
-    return { rows: rows.length, why: rows.filter((r) => /Why it matters:/.test(r.innerText) && /What to do:/.test(r.innerText)).length,
+    const groups = [...document.querySelectorAll('#fix .action-group')];
+    return { rows: rows.length, todo: rows.filter((r) => /What to do:/.test(r.innerText)).length,
+      groups: groups.length, groupWhy: groups.filter((g) => /Why it matters:/.test(g.querySelector('.action-group-head')?.innerText || '')).length,
+      whys: groups.map((g) => g.querySelector('.action-why')?.textContent),
       titles: rows.map((r) => r.querySelector('.action-title').textContent) }`);
-  check('E2E-05.2', 'action items list each finding once, each with why it matters and what to do', fnd.rows > 0 && fnd.why === fnd.rows && new Set(fnd.titles).size === fnd.titles.length, JSON.stringify(fnd).slice(0, 160));
+  check('E2E-05.2', 'action items list each finding once with what to do, grouped so each reason (why it matters) is said once',
+    fnd.rows > 0 && fnd.todo === fnd.rows && fnd.groups > 0 && fnd.groupWhy === fnd.groups && new Set(fnd.whys).size === fnd.whys.length
+    && new Set(fnd.titles).size === fnd.titles.length, JSON.stringify(fnd).slice(0, 200));
   await shot('asset-terrible-legacy-findings');
   await js(`[...document.querySelectorAll('.tab')].find((t) => t.textContent === 'Weaknesses').click()`);
   await sleep(400);
@@ -464,11 +474,13 @@ async function main() {
   await go('#/');
   await sleep(1200);
   const home = await js(`const rows = [...document.querySelectorAll('.recent-row')];
-    const tiles = [...document.querySelectorAll('.fleet-tile')];
+    const tiles = [...document.querySelectorAll('.statusband .stat')];
     return { rows: rows.length, verdicts: rows.filter((r) => r.querySelector('.lvbadge, .badge, .pill')).length, links: rows.every((r) => /^#[/]endpoints[/][0-9]+$/.test(r.getAttribute('href'))),
-      tiles: tiles.map((t) => t.querySelector('.fleet-label')?.textContent + '>' + t.getAttribute('href')), fix: document.querySelectorAll('.firstfix li').length }`);
+      tiles: tiles.map((t) => t.querySelector('.stat-label')?.textContent + '>' + t.getAttribute('href')), fix: document.querySelectorAll('.firstfix li').length,
+      scale: [...document.querySelectorAll('.hero-scale .level-code')].map((x) => x.textContent).join('') }`);
   check('E2E-F.3', 'Overview lists the latest results, each with its verdict and a link to its report, and what to fix first', home.rows >= 1 && home.rows <= 6 && home.verdicts === home.rows && home.links && home.fix > 0, JSON.stringify(home).slice(0, 300));
-  check('E2E-F.4', 'Overview has one tile per question, each opening its place: endpoints, machines, findings, post-quantum, inventory, certificates',
+  check('E2E-F.4', 'Overview has one status band with a figure per question, each opening its place, and the readiness scale L4 to L0 as the legend (DESIGN.md §8)',
+    home.scale === 'L4L3L2L1L0' &&
     home.tiles.join('|') === 'Endpoints>#/endpoints|Machines>#/machines|Findings>#/findings|Post-quantum>#/endpoints|Inventory>#/inventory|Next certificate expiry>#/inventory/certificates', home.tiles.join('|'));
   await go('#/endpoints');
   await sleep(900);
@@ -721,6 +733,7 @@ async function main() {
   // The estate views (PRD-003 WP-8).
   await t1Phase({ check, js, go, sleep, shot, api, BASE, CONTROL, viewport });
   await estatePhase({ check, js, go, sleep, shot, api, BASE, send, viewport, clickText });
+  await authPhase({ check, js, go, sleep, shot, api });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');
@@ -739,6 +752,7 @@ async function main() {
   const unexpected = consoleErrors.filter((e) => !expected.test(e));
   check('NFR-sec.csp', 'no script exceptions, CSP violations or server errors during the whole journey', unexpected.length === 0, unexpected.slice(0, 3).join(' | '));
   console.log(`      (${consoleErrors.length - unexpected.length} expected 4xx response(s) logged by the browser from the negative tests)`);
+  if (process.env.SHOW4XX) for (const e of consoleErrors) console.log(`        ${e.slice(0, 160)}`);
 
   const failed = results.filter((r) => !r.ok);
   writeFileSync(join(OUT, 'results.json'), JSON.stringify({ base: BASE, browser: BROWSER, when: new Date().toISOString(), passed: results.length - failed.length, failed: failed.length, results }, null, 2));

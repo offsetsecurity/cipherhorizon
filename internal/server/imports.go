@@ -65,7 +65,7 @@ func (s *Server) importDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	rec, dup, err := s.cfg.Store.AddImport(store.ImportInput{
 		Raw: raw, SHA256: doc.SHA256, SpecVersion: doc.SpecVersion, Profile: doc.Profile.ID, Kind: doc.Profile.Kind,
-		ToolName: doc.ToolName, ToolVersion: doc.ToolVersion, SubjectClaim: doc.SubjectClaim, SubmittedBy: s.actor(),
+		ToolName: doc.ToolName, ToolVersion: doc.ToolVersion, SubjectClaim: doc.SubjectClaim, SubmittedBy: s.actor(r),
 		SystemID: systemID, NewSystemName: newName,
 	})
 	switch {
@@ -115,7 +115,7 @@ func (s *Server) withdrawImport(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "reason is over 200 characters or contains a control character")
 		return
 	}
-	if err := s.cfg.Store.WithdrawImport(id, s.actor(), reason); err != nil {
+	if err := s.cfg.Store.WithdrawImport(id, s.actor(r), reason); err != nil {
 		storeErr(w, err)
 		return
 	}

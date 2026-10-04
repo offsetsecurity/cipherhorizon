@@ -210,6 +210,7 @@ export async function render(root, { args, query }) {
     });
   };
 
+  const capitalFirst = (t) => t.charAt(0).toUpperCase() + t.slice(1);
   const paint = () => {
     const a = asset;
     const active = a.latest && (a.latest.status === 'queued' || a.latest.status === 'running');
@@ -218,10 +219,10 @@ export async function render(root, { args, query }) {
     const scanned = a.lastDone ? `scanned ${relTime(a.lastDone.finishedAt)}` : 'not scanned yet';
     head.appendChild(h('div', { class: 'page-head report-head' },
       h('div', null, h('h1', null, a.name),
-        h('div', { class: 'sub' }, h('code', null, a.address), h('span', { class: 'muted' }, ` · ${scanned}`),
+        h('div', { class: 'sub' }, a.name !== a.address ? [h('code', null, a.address), ' · '] : null, h('span', { class: 'muted' }, capitalFirst(scanned)),
           a.tags.length ? h('span', null, ' ', a.tags.map((t) => h('span', { class: 'tag' }, t))) : null),
         linkedAssets.length ? h('div', { class: 'sub' }, 'Same machine as ', linkedAssets.map((x, i) => [i ? ', ' : '',
-          h('a', { href: `#/${x.kind === 'host' ? 'hosts' : 'reports'}/${x.id}` }, x.name)])) : null,
+          h('a', { href: `#/${x.kind === 'host' ? 'machines' : 'endpoints'}/${x.id}` }, x.name)])) : null,
         a.notes ? h('p', { class: 'muted' }, a.notes) : null),
       h('div', { class: 'row' },
         button(active ? 'Scanning…' : 'Scan again', startScan, 'primary', { class: 'btn btn-primary', disabled: active }),
@@ -262,7 +263,7 @@ export async function render(root, { args, query }) {
     if (!sectioned) {
       body.appendChild(h('div', { class: 'callout info', role: 'status' },
         h('b', null, `Evaluated by an earlier version (${ev.version}). `),
-        'Re-evaluate to judge the stored report with the current rules — sections, per-store trust and “Fix first” — without a new scan.',
+        'Re-evaluate to judge the stored report with the current rules (sections, per-store trust and the action items) without a new scan.',
         viewScanId ? null : h('span', null, ' ', button('Re-evaluate', reevaluate, 'secondary', { class: 'btn btn-sm' }))));
     }
     const tabs = sectioned
@@ -297,7 +298,7 @@ export async function render(root, { args, query }) {
         }
         const sel = h('select', { 'aria-label': 'Machine to link' }, choices.map((hh) => h('option', { value: hh.id }, hh.name)));
         body2.append(
-          h('p', { class: 'muted' }, 'Record that this endpoint and a host are the same machine. This is never guessed — only what you confirm here.'),
+          h('p', { class: 'muted' }, 'Record that this endpoint and a host are the same machine. This is never guessed: only what you confirm here counts.'),
           h('label', { for: 'link-host' }, 'Host'), sel,
           h('div', { class: 'row end' }, button('Cancel', close), button('Link', async () => {
             try { await api.linkAsset(id, Number(sel.value)); toast('Linked'); close(); await refresh(); } catch (e) { toast(e.message, 'error'); }
@@ -374,7 +375,7 @@ export async function render(root, { args, query }) {
     }
     const tone = { good: 'lv3', ok: 'lv2', warn: 'lv1', bad: 'lv0', neutral: 'lvu' }[bandTone(g.band)];
     return h('div', null,
-      h('div', { class: 'row' }, h('div', { class: `bigLevel ${tone}` }, g.score < 0 ? '–' : String(g.score), h('small', null, g.band)),
+      h('div', { class: 'row' }, h('div', { class: `bigLevel ${tone}` }, g.score < 0 ? '·' : String(g.score), h('small', null, g.band)),
         h('div', null, h('div', null, h('b', null, g.score < 0 ? 'Not rated' : `${g.score} out of 100`)),
           h('div', { class: 'muted' }, 'how well the endpoint is configured; this product’s own score'))),
       h('h3', null, 'How it was scored'),
@@ -412,7 +413,7 @@ export async function render(root, { args, query }) {
         h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
           h('thead', null, h('tr', null, ['#', 'Suite', 'Cipher', 'Key exchange', 'Flags', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
           h('tbody', null, rows.map((s) => h('tr', null,
-            h('td', { class: 'num' }, s.rank || '–'), h('td', null, h('code', null, s.name)),
+            h('td', { class: 'num' }, s.rank || '·'), h('td', null, h('code', null, s.name)),
             h('td', null, s.cipher === 'NULL' ? 'none' : `${s.cipher}-${s.keyBits} ${s.mode}`),
             h('td', null, s.kx || 'TLS 1.3'),
             h('td', null, suiteFlags(s)),
@@ -428,7 +429,7 @@ export async function render(root, { args, query }) {
             h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
               h('thead', null, h('tr', null, ['#', 'Group', 'Post-quantum', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
               h('tbody', null, rep.groups.filter((g) => g.version === v).map((g) => h('tr', null,
-                h('td', { class: 'num' }, g.rank || '–'), h('td', null, h('code', null, g.name)),
+                h('td', { class: 'num' }, g.rank || '·'), h('td', null, h('code', null, g.name)),
                 h('td', null, g.pq ? badge(g.hybrid ? 'Hybrid post-quantum' : 'Post-quantum', g.obsolete ? 'warn' : 'good') : h('span', { class: 'muted' }, 'classical'),
                   g.obsolete ? badge('obsolete draft', 'warn') : null),
                 h('td', null, badge(ianaLabel(g.ianaRecommended), g.ianaRecommended === 'Y' ? 'good' : g.ianaRecommended === 'D' ? 'bad' : 'neutral')))))))); })));
@@ -560,8 +561,8 @@ export async function render(root, { args, query }) {
         h('thead', null, h('tr', null, ['When', 'Status', 'Readiness', 'TLS hygiene', 'Findings', ''].map((c) => h('th', { scope: 'col' }, c)))),
         h('tbody', null, history.slice().reverse().map((p) => h('tr', null,
           h('td', null, fmtDate(p.at)), h('td', null, statusPill(p.status), p.error ? h('div', { class: 'hint' }, p.error) : null),
-          h('td', null, p.status === 'done' ? levelBadge(p.readinessLevel) : '–'), h('td', null, p.status === 'done' ? bandBadge(p.band, p.score) : '–'),
-          h('td', null, p.status === 'done' ? `${p.critical} critical, ${p.high} high` : '–'),
+          h('td', null, p.status === 'done' ? levelBadge(p.readinessLevel) : '·'), h('td', null, p.status === 'done' ? bandBadge(p.band, p.score) : '·'),
+          h('td', null, p.status === 'done' ? `${p.critical} critical, ${p.high} high` : '·'),
           h('td', null, p.status === 'done' ? h('a', { href: `#/endpoints/${id}?scan=${p.scanId}` }, 'Open') : null))))))));
     return wrap;
   };
@@ -607,7 +608,7 @@ function suiteFlags(s) {
   if (s.blockBits === 64 && !s.export) out.push(badge('64-bit block', 'warn'));
   if (s.kx && !s.ephemeral && ['RSA', 'DH', 'ECDH'].includes(s.kx)) out.push(badge('no forward secrecy', 'warn'));
   if (s.aead) out.push(badge('AEAD', 'good'));
-  return out.length ? out.map((b) => h('span', null, b, ' ')) : h('span', { class: 'muted' }, '–');
+  return out.length ? out.map((b) => h('span', null, b, ' ')) : h('span', { class: 'muted' }, '·');
 }
 
 function scheduleSelect(a) {

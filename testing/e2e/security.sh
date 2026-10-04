@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Live security checks against the built binary (QA-PLAN-001, "Security"). Needs a
-# server WITHOUT a token already running on 127.0.0.1:8080 for the DNS-rebinding checks
-# (override with OPEN=http://host:port); run from the repository root after building dist/.
+# Live security checks against the built binary (QA-PLAN-001, "Security"; ADR-0018 for sign-in).
+# Starts its own servers on 127.0.0.1:8081-8088; run from the repository root after building dist/.
 BIN=${BIN:-dist/cipherhorizon.exe}
 WORK=$(mktemp -d)
 TOKEN=qa-secret-token-0123456789
@@ -12,10 +11,12 @@ check() { # name expected actual
 }
 code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 
-echo "== refusing to expose the server without a token =="
+echo "== refusing to expose sign-in over plain HTTP, or the server without sign-in (ADR-0018) =="
 "$BIN" serve --addr 0.0.0.0:8082 --db "$WORK/sec-refuse.db" > "$WORK/refuse.out" 2>&1; rc=$?
-check "serve --addr 0.0.0.0:8082 without token exits non-zero" 1 "$rc"
-grep -q "without an access token" "$WORK/refuse.out" && echo "PASS  message explains why" && pass=$((pass+1)) || { echo "FAIL  message"; fail=$((fail+1)); }
+check "serve --addr 0.0.0.0:8082 over plain HTTP exits non-zero" 1 "$rc"
+grep -q "over plain HTTP" "$WORK/refuse.out" && echo "PASS  message explains why" && pass=$((pass+1)) || { echo "FAIL  message"; fail=$((fail+1)); }
+"$BIN" serve --addr 0.0.0.0:8082 --no-login --db "$WORK/sec-refuse2.db" > "$WORK/refuse2.out" 2>&1; rc=$?
+check "serve --no-login on a network address exits non-zero" 1 "$rc"
 
 "$BIN" serve --addr 127.0.0.1:8083 --token a --db "$WORK/sec-short.db" > "$WORK/short.out" 2>&1; rc=$?
 check "a one-character token is refused (SEC-03)" 1 "$rc"
@@ -107,10 +108,66 @@ esac
 
 kill $SRV 2>/dev/null; taskkill //F //PID $SRV >/dev/null 2>&1
 
-echo "== DNS rebinding (server without a token) =="
-check "Host: evil.example -> 421"  421 "$(code -H 'Host: evil.example' ${OPEN:-http://127.0.0.1:8080}/api/v1/assets)"
-check "Host: 127.0.0.1:8080 -> 200" 200 "$(code ${OPEN:-http://127.0.0.1:8080}/api/v1/assets)"
-check "Host: localhost:8080 -> 200" 200 "$(code -H 'Host: localhost:8080' ${OPEN:-http://127.0.0.1:8080}/api/v1/assets)"
+echo "== sign-in (ADR-0018) =="
+L=http://127.0.0.1:8085
+"$BIN" serve --addr 127.0.0.1:8085 --db "$WORK/login.db" > "$WORK/login.log" 2>&1 &
+LSRV=$!
+sleep 2
+CODE=$(grep -oE '[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}' "$WORK/login.log" | head -1)
+check "the setup code is printed in the server log" 1 "$([ -n "$CODE" ] && echo 1 || echo 0)"
+check "no session -> 401"                     401 "$(code $L/api/v1/assets)"
+check "the UI shell loads without a session"  200 "$(code $L/)"
+check "auth state is public"                  200 "$(code $L/api/v1/auth/state)"
+J=(-H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json')
+check "setup with a wrong code -> 403"        403 "$(code -X POST "${J[@]}" -d '{"code":"AAAA-AAAA-AAAA","username":"ana","password":"violet amber harbour"}' $L/api/v1/auth/setup)"
+check "setup without X-Requested-With -> 403" 403 "$(code -X POST -H 'Content-Type: application/json' -d "{\"code\":\"$CODE\",\"username\":\"ana\",\"password\":\"violet amber harbour\"}" $L/api/v1/auth/setup)"
+SH=$(curl -s -D - -o /dev/null -c "$WORK/jar" -X POST "${J[@]}" -d "{\"code\":\"$CODE\",\"username\":\"ana\",\"password\":\"violet amber harbour\"}" $L/api/v1/auth/setup)
+echo "$SH" | grep -qi '^HTTP/1.1 201' && { echo "PASS  setup with the code -> 201"; pass=$((pass+1)); } || { echo "FAIL  setup: $(echo "$SH" | head -1)"; fail=$((fail+1)); }
+CK=$(echo "$SH" | grep -i '^set-cookie: ch_session=' | tr 'A-Z' 'a-z')
+for want in httponly "samesite=strict" "path=/"; do
+  echo "$CK" | grep -q "$want" && { echo "PASS  session cookie: $want"; pass=$((pass+1)); } || { echo "FAIL  session cookie lacks $want: $CK"; fail=$((fail+1)); }
+done
+check "a second setup -> 409"                 409 "$(code -X POST "${J[@]}" -d "{\"code\":\"$CODE\",\"username\":\"eve\",\"password\":\"violet amber harbour\"}" $L/api/v1/auth/setup)"
+check "with the session -> 200"               200 "$(code -b "$WORK/jar" $L/api/v1/assets)"
+check "login without X-Requested-With -> 403 (login forgery)" 403 "$(code -X POST -H 'Content-Type: application/json' -d '{"username":"ana","password":"violet amber harbour"}' $L/api/v1/auth/login)"
+check "login as a form post -> 403"           403 "$(code -X POST -H 'Content-Type: application/x-www-form-urlencoded' -d 'username=ana&password=x' $L/api/v1/auth/login)"
+M1=$(curl -s -X POST "${J[@]}" -d '{"username":"ana","password":"wrong password here"}' $L/api/v1/auth/login)
+M2=$(curl -s -X POST "${J[@]}" -d '{"username":"nobody-here","password":"wrong password here"}' $L/api/v1/auth/login)
+check "a wrong password and an unknown account answer alike" 1 "$([ "$M1" = "$M2" ] && echo 1 || echo 0)"
+check "a password is never in the log"        0 "$(grep -c 'violet\|wrong password here' "$WORK/login.log")"
+curl -s -o /dev/null -b "$WORK/jar" -X POST -H 'X-Requested-With: cipherhorizon' $L/api/v1/auth/logout
+check "after sign-out the old cookie -> 401"  401 "$(code -b "$WORK/jar" $L/api/v1/assets)"
+for i in $(seq 1 20); do curl -s -o /dev/null -X POST "${J[@]}" -d "{\"username\":\"guess$i\",\"password\":\"guessing password\"}" $L/api/v1/auth/login; done
+check "one address guessing is rate-limited -> 429" 429 "$(code -X POST "${J[@]}" -d '{"username":"ana","password":"violet amber harbour"}' $L/api/v1/auth/login)"
+kill $LSRV 2>/dev/null; taskkill //F //PID $LSRV >/dev/null 2>&1
+
+if command -v openssl >/dev/null 2>&1; then
+  echo "== HTTPS (--tls-cert/--tls-key) =="
+  MSYS2_ARG_CONV_EXCL="/CN" openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 2 -subj "/CN=127.0.0.1" \
+    -keyout "$WORK/key.pem" -out "$WORK/cert.pem" >/dev/null 2>&1
+  "$BIN" serve --addr 127.0.0.1:8087 --tls-cert "$WORK/cert.pem" --tls-key "$WORK/key.pem" --db "$WORK/tls.db" > "$WORK/tls.log" 2>&1 &
+  TSRV=$!
+  sleep 2
+  check "HTTPS health -> 200" 200 "$(curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:8087/api/v1/health)"
+  check "plain HTTP to the TLS port is refused" 1 "$([ "$(code http://127.0.0.1:8087/api/v1/health)" != 200 ] && echo 1 || echo 0)"
+  check "TLS 1.1 is refused" 1 "$(curl -sk --tlsv1.1 --tls-max 1.1 -o /dev/null https://127.0.0.1:8087/api/v1/health && echo 0 || echo 1)"
+  TC=$(grep -oE '[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}' "$WORK/tls.log" | head -1)
+  TCK=$(curl -sk -D - -o /dev/null -X POST "${J[@]}" -d "{\"code\":\"$TC\",\"username\":\"ana\",\"password\":\"violet amber harbour\"}" https://127.0.0.1:8087/api/v1/auth/setup | grep -i '^set-cookie: ch_session=' | tr 'A-Z' 'a-z')
+  echo "$TCK" | grep -q "secure" && { echo "PASS  over HTTPS the session cookie is Secure"; pass=$((pass+1)); } || { echo "FAIL  cookie over HTTPS: $TCK"; fail=$((fail+1)); }
+  kill $TSRV 2>/dev/null; taskkill //F //PID $TSRV >/dev/null 2>&1
+else
+  echo "      (openssl not found: the HTTPS checks were skipped)"
+fi
+
+echo "== DNS rebinding (server without sign-in, --no-login) =="
+O=http://127.0.0.1:8088
+"$BIN" serve --addr 127.0.0.1:8088 --no-login --db "$WORK/open.db" > "$WORK/open.log" 2>&1 &
+OSRV=$!
+sleep 2
+check "Host: evil.example -> 421"  421 "$(code -H 'Host: evil.example' $O/api/v1/assets)"
+check "Host: 127.0.0.1:8088 -> 200" 200 "$(code $O/api/v1/assets)"
+check "Host: localhost:8088 -> 200" 200 "$(code -H 'Host: localhost:8088' $O/api/v1/assets)"
+kill $OSRV 2>/dev/null; taskkill //F //PID $OSRV >/dev/null 2>&1
 
 echo
 echo "SUMMARY: $pass passed, $fail failed"

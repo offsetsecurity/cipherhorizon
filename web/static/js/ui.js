@@ -37,7 +37,7 @@ const BAND_TONE = { Strong: 'good', Sound: 'ok', Fair: 'warn', Weak: 'bad', Brok
 export const bandTone = (band) => BAND_TONE[band] || 'neutral';
 
 export function bandBadge(band, score) {
-  if (!band) return badge('–', 'none');
+  if (!band) return badge('·', 'none');
   const rated = typeof score === 'number' && score >= 0;
   return h('span', { class: `badge band tone-${bandTone(band)}`, title: `TLS hygiene: ${band}${rated ? `, ${score} out of 100` : ''}` },
     band, rated ? h('span', { class: 'band-n' }, ` ${score}`) : null);
@@ -71,7 +71,7 @@ export function citations(list) {
 
 export function certExpiry(iso) {
   const d = daysUntil(iso);
-  if (d === null) return h('span', { class: 'muted' }, '–');
+  if (d === null) return h('span', { class: 'muted' }, '·');
   if (d < 0) return badge(`expired ${-d} d ago`, 'bad');
   if (d <= 30) return badge(`${d} d left`, 'warn');
   return h('span', { class: 'muted' }, `${d} d`);
@@ -109,9 +109,9 @@ function certCard(c, role, idx, opts) {
   const warnings = certWarnings(c, idx === 0 && chainLenOf(opts) === 1 && c.selfSigned);
   const status = warnings.length ? 'warn' : 'trusted';
   const detail = h('div', { class: 'certcard-detail', hidden: true, onclick: (e) => e.stopPropagation() });
-  const field = (label, value) => h('div', { class: 'certfield' }, h('dt', null, label), h('dd', null, value || '–'));
-  const fieldCopy = (label, value) => h('div', { class: 'certfield' }, h('dt', null, label), h('dd', { class: 'copyable' }, value || '–', value ? copyButton(value, label.toLowerCase()) : null));
-  const fieldProse = (label, value) => h('div', { class: 'certfield' }, h('dt', null, label), h('dd', { class: 'prose' }, value || '–'));
+  const field = (label, value) => h('div', { class: 'certfield' }, h('dt', null, label), h('dd', null, value || '·'));
+  const fieldCopy = (label, value) => h('div', { class: 'certfield' }, h('dt', null, label), h('dd', { class: 'copyable' }, value || '·', value ? copyButton(value, label.toLowerCase()) : null));
+  const fieldProse = (label, value) => h('div', { class: 'certfield' }, h('dt', null, label), h('dd', { class: 'prose' }, value || '·'));
   detail.append(...[
     fieldProse('Subject', c.subject),
     fieldProse('Issuer', c.issuer),
@@ -183,7 +183,7 @@ export function certChain(c, opts = {}) {
         card);
     }));
   const issues = [];
-  if (!opts.noTrust && !c.trusted && chain.length === 1 && !chain[0].selfSigned) issues.push('Only one certificate was presented and it is not self-signed — an intermediate certificate may be missing.');
+  if (!opts.noTrust && !c.trusted && chain.length === 1 && !chain[0].selfSigned) issues.push('Only one certificate was presented and it is not self-signed: an intermediate certificate may be missing.');
   if (!opts.noTrust && c.trustError) issues.push(c.trustError);
   return h('div', { class: 'mt' }, summary, rail,
     issues.length ? h('div', { class: 'certwarn mt-sm' }, iconWarn(), h('div', null, issues.map((w) => h('div', null, w)))) : null);

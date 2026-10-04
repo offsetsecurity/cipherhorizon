@@ -63,6 +63,8 @@ const WHY = {
   http: 'Without HSTS a browser may first connect over plain HTTP, where traffic can be intercepted or changed.',
   vulnerability: 'This configuration makes a published attack possible.',
 };
+const GROUP_WORD = { protocol: 'Protocol versions', cipher: 'Cipher suites', 'key-exchange': 'Key exchange', pqc: 'Post-quantum',
+  certificate: 'Certificate', revocation: 'Revocation', feature: 'Protocol features', http: 'HTTP security', vulnerability: 'Published attacks' };
 const URGENCY = { critical: 'Fix now', high: 'Fix soon', medium: 'Plan a fix', low: 'When convenient', info: 'For information' };
 const whyOf = (f) => (f.section === 'http' || f.section === 'revocation' ? WHY[f.section] : null) || WHY[f.category] || WHY.vulnerability;
 
@@ -136,15 +138,24 @@ export function summaryView(ctx) {
   if (!act.length) {
     items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
   } else {
-    items.appendChild(h('ol', { class: 'actions' }, act.map((f) => h('li', { class: `action sev-${f.severity}`, id: `issue-${f.id}` },
-      h('div', { class: 'action-head' },
-        sevBadge(f.severity), h('span', { class: `urgency u-${f.severity}` }, URGENCY[f.severity]),
-        h('span', { class: 'action-title' }, f.title),
-        f.availability ? badge('clients fail to connect', 'bad', 'Clients that hit this refuse the connection') : null,
-        ctx.triage && ctx.triage[f.id] ? badge(ctx.triage[f.id].status === 'accepted-risk' ? 'accepted risk' : 'acknowledged', 'neutral') : null),
-      h('p', { class: 'action-why' }, h('b', null, 'Why it matters: '), whyOf(f)),
-      h('p', { class: 'action-fix' }, h('b', null, 'What to do: '), f.remediation),
-      h('a', { href: `#chk-${f.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); ctx.goIssue(f.id); } }, 'Evidence and sources →')))));
+    // Findings that matter for the same reason share it: the reason is said once per group, each
+    // finding then says only what to do (DESIGN.md: no repeated copy).
+    const groups = [];
+    for (const f of act) {
+      const why = whyOf(f);
+      let g = groups.find((x) => x.why === why);
+      if (!g) groups.push(g = { why, label: GROUP_WORD[f.section === 'http' || f.section === 'revocation' ? f.section : f.category] || 'Other', items: [] });
+      g.items.push(f);
+    }
+    items.appendChild(h('div', { class: 'action-groups' }, groups.map((g) => h('div', { class: 'action-group' },
+      h('div', { class: 'action-group-head' }, h('h3', null, g.label), h('p', { class: 'action-why' }, h('b', null, 'Why it matters: '), g.why)),
+      h('ol', { class: 'actions' }, g.items.map((f) => h('li', { class: `action sev-${f.severity}`, id: `issue-${f.id}` },
+        h('div', { class: 'action-head' },
+          sevBadge(f.severity), h('span', { class: 'action-title' }, f.title), h('span', { class: `urgency u-${f.severity}` }, URGENCY[f.severity]),
+          f.availability ? badge('clients fail to connect', 'bad', 'Clients that hit this refuse the connection') : null,
+          ctx.triage && ctx.triage[f.id] ? badge(ctx.triage[f.id].status === 'accepted-risk' ? 'accepted risk' : 'acknowledged', 'neutral') : null),
+        h('p', { class: 'action-fix' }, h('b', null, 'What to do: '), f.remediation),
+        h('a', { href: `#chk-${f.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); ctx.goIssue(f.id); } }, 'Evidence and sources'))))))));
   }
   wrap.appendChild(items);
 
@@ -199,7 +210,7 @@ function versionVerdict(v, on, unknown, modernOn) {
     return ['good', '✔', 'Enabled', v === 'TLSv1.3' ? 'recommended' : 'fine'];
   }
   if (v === 'TLSv1.3') return ['warn', '▲', 'Disabled', 'should be on'];
-  if (v === 'TLSv1.2') return modernOn ? ['neutral', '–', 'Disabled', 'fine, TLS 1.3 is on'] : ['bad', '✖', 'Disabled', 'no modern version is on'];
+  if (v === 'TLSv1.2') return modernOn ? ['neutral', '·', 'Disabled', 'fine, TLS 1.3 is on'] : ['bad', '✖', 'Disabled', 'no modern version is on'];
   return ['good', '✔', 'Disabled', 'good'];
 }
 
@@ -249,7 +260,7 @@ function protocolMatrix(ctx) {
     const suiteRows = vs.map((s) => {
       const st = suiteStrength(s);
       const [, word, tone] = STRENGTHS.find(([k]) => k === st);
-      return h('tr', null, h('td', { class: 'num' }, s.rank || '–'), h('td', null, h('code', null, s.name)),
+      return h('tr', null, h('td', { class: 'num' }, s.rank || '·'), h('td', null, h('code', null, s.name)),
         h('td', null, s.cipher === 'NULL' ? 'none' : `${s.cipher}-${s.keyBits} ${s.mode}`), h('td', null, s.kx || 'TLS 1.3'),
         h('td', null, badge(word, tone)), h('td', { class: 'muted' }, ianaLabel(s.ianaRecommended)));
     });
@@ -437,7 +448,7 @@ export function cbomView(ctx) {
       h('div', { class: 'cbom-count' }, h('b', null, String(counts[k])), h('span', null, w)))));
     const order = { algorithm: 0, 'related-crypto-material': 1, certificate: 2, protocol: 3 };
     const q = (c) => prop(c, 'cipherhorizon:pqc:status');
-    const qBadge = (s) => (s === 'quantum-vulnerable' ? badge('✖ quantum-vulnerable', 'bad') : s === 'quantum-safe' ? badge('✔ quantum-safe', 'good') : h('span', { class: 'muted' }, '—'));
+    const qBadge = (s) => (s === 'quantum-vulnerable' ? badge('✖ quantum-vulnerable', 'bad') : s === 'quantum-safe' ? badge('✔ quantum-safe', 'good') : h('span', { class: 'muted' }, '·'));
     const detail = (c) => {
       const cp = c.cryptoProperties;
       const a = cp.algorithmProperties, p = cp.protocolProperties, k = cp.relatedCryptoMaterialProperties, ce = cp.certificateProperties;
@@ -451,7 +462,7 @@ export function cbomView(ctx) {
       h('thead', null, h('tr', null, ['Name', 'Type', 'Detail', 'Post-quantum'].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, comps.slice().sort((x, y) => (order[type(x)] - order[type(y)]) || x.name.localeCompare(y.name)).map((c) => h('tr', null,
         h('td', null, h('b', { title: c.name }, cbomName(c))), h('td', { class: 'muted' }, (ASSET_WORD[type(c)] || type(c)).replace(/s$/, '')),
-        h('td', { class: 'muted' }, detail(c)), h('td', null, type(c) === 'algorithm' || type(c) === 'related-crypto-material' ? qBadge(q(c)) : h('span', { class: 'muted' }, '—'))))))));
+        h('td', { class: 'muted' }, detail(c)), h('td', null, type(c) === 'algorithm' || type(c) === 'related-crypto-material' ? qBadge(q(c)) : h('span', { class: 'muted' }, '·'))))))));
     body.appendChild(h('p', { class: 'hint' }, `${comps.length} cryptographic components; CycloneDX ${bom.specVersion}, serial ${bom.serialNumber || ''}.`));
   }).catch((e) => { clear(body); body.appendChild(h('p', { class: 'callout bad' }, e.message)); });
   return wrap;
@@ -473,12 +484,12 @@ function summaryStrip(ctx, sections) {
     const left = cr ? daysUntil(cr.chain[0].notAfter) : null;
     const trusted = (pki.trust || []).filter((t) => t.trusted).length + (pki.private && pki.private.trusted ? 1 : 0);
     const total = (pki.trust || []).length + (pki.private ? 1 : 0);
-    certHead = left === null ? '–' : left < 0 ? 'Expired' : `${left} days left`;
+    certHead = left === null ? '·' : left < 0 ? 'Expired' : `${left} days left`;
     certSub = `trusted by ${trusted} of ${total} ${total === 1 ? 'store' : 'stores'}`;
     certTone = left !== null && left < 0 || trusted === 0 ? 'lv0' : left !== null && left <= 30 ? 'lv1' : 'lv3';
   } else if (ctx.rep.certificates && ctx.rep.certificates.length) {
     const left = daysUntil(ctx.rep.certificates[0].chain[0].notAfter);
-    certHead = left === null ? '–' : left < 0 ? 'Expired' : `${left} days left`;
+    certHead = left === null ? '·' : left < 0 ? 'Expired' : `${left} days left`;
     certSub = 'trust not analysed by this scan version';
   }
   // Each figure opens the Details card it summarises.
@@ -490,7 +501,7 @@ function summaryStrip(ctx, sections) {
   const tone = { good: 'lv3', ok: 'lv2', warn: 'lv1', bad: 'lv0', neutral: 'lvu' }[bandTone(g ? g.band : '')];
   return h('div', { class: 'sumstrip', role: 'group', 'aria-label': 'Summary' },
     tile('#sec-key-exchange', `bigLevel ${levelClass(r.level)}`, r.level < 0 ? '?' : `L${r.level}`, 'PQC readiness', r.label || levelName(r.level)),
-    tile('#sec-details', `bigLevel ${tone}`, g && g.score >= 0 ? String(g.score) : '–', 'TLS hygiene', g ? g.band : 'Not rated'),
+    tile('#sec-details', `bigLevel ${tone}`, g && g.score >= 0 ? String(g.score) : '·', 'TLS hygiene', g ? g.band : 'Not rated'),
     tile('#sec-certificates', `bigLevel ${certTone}`, certHead, 'Certificate', certSub),
     tile(notChecked.length ? `#sec-${notChecked[0].id}` : '#sec-details', `bigLevel ${notChecked.length ? 'lv1' : 'lv3'}`,
       String(notChecked.length), 'Not checked', notChecked.length ? notChecked.map((s) => (SECTIONS.find(([id]) => id === s.id) || [0, s.id])[1]).join(', ') : 'every section ran'));
@@ -592,7 +603,7 @@ function servedDiagram(v, cr) {
   }
   return h('div', null, h('ol', { class: 'served' }, items),
     h('p', { class: 'hint' }, `${plural(cr.chain.length, 'certificate')}, ${v.served.sizeBytes.toLocaleString()} bytes`,
-      v.served.sizeBytes > 4096 ? ' — more than fits a typical first round trip; trim extra certificates.' : '.'));
+      v.served.sizeBytes > 4096 ? ': more than fits a typical first round trip; trim extra certificates.' : '.'));
 }
 
 function validityBar(leaf, lifetime) {
@@ -695,7 +706,7 @@ function protocolsBody(ctx) {
   ];
   const lead = h('div', { class: 'pillrow', role: 'list' }, rep.protocols.map((p) => h('span', { role: 'listitem',
     class: `protopill ${p.evidence === 'inconclusive' ? 'p-unknown' : p.supported ? (legacyVersion(p.version) ? 'p-bad' : 'p-on') : 'p-off'}` },
-  h('b', null, p.version), ' ', p.evidence === 'inconclusive' ? '? unknown' : p.supported ? '✔ yes' : '— no')));
+  h('b', null, p.version), ' ', p.evidence === 'inconclusive' ? '? unknown' : p.supported ? '✔ yes' : '✖ no')));
   const all = h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
     h('thead', null, h('tr', null, ['Version', 'Supported', 'Evidence', 'Detail'].map((c) => h('th', { scope: 'col' }, c)))),
     h('tbody', null, rep.protocols.map((p) => h('tr', null, h('td', null, h('b', null, p.version)),
@@ -720,7 +731,7 @@ function suiteProblems(s) {
 function suiteTable(rows) {
   return h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
     h('thead', null, h('tr', null, ['Version', '#', 'Suite', 'Cipher', 'Key exchange', 'Flags', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
-    h('tbody', null, rows.map((s) => h('tr', null, h('td', null, s.version), h('td', { class: 'num' }, s.rank || '–'), h('td', null, h('code', null, s.name)),
+    h('tbody', null, rows.map((s) => h('tr', null, h('td', null, s.version), h('td', { class: 'num' }, s.rank || '·'), h('td', null, h('code', null, s.name)),
       h('td', null, s.cipher === 'NULL' ? 'none' : `${s.cipher}-${s.keyBits} ${s.mode}`), h('td', null, s.kx || 'TLS 1.3'),
       h('td', null, suiteProblems(s).filter(([t]) => t !== 'IANA discouraged').map(([t, k]) => h('span', null, badge(t, k), ' ')), s.aead ? badge('AEAD', 'good') : null),
       h('td', null, badge(ianaLabel(s.ianaRecommended), s.ianaRecommended === 'Y' ? 'good' : s.ianaRecommended === 'D' ? 'bad' : 'neutral')))))));
@@ -736,7 +747,7 @@ function suitesBody(ctx) {
   const order = (rep.preference || []).filter((p) => p.subject === 'suites').map((p) => `${p.version}: ${{ server: 'server decides', client: 'client decides', mixed: 'depends on the offer', unknown: 'not determined' }[p.order]}`);
   const facts = [
     `${plural(suites.length, 'suite')} accepted: ${aead} AEAD${cbc ? `, ${cbc} CBC` : ''}${problem.length ? `, ${problem.length} with a weakness` : ''}.`,
-    order.length ? `Order — ${order.join('; ')}.` : null,
+    order.length ? `Order: ${order.join('; ')}.` : null,
   ];
   const lead = problem.length ? h('div', null, h('h3', null, 'Suites with a weakness'), suiteTable(problem)) : null;
   return { facts, lead, all: fine.length ? h('div', null, h('p', { class: 'hint' }, 'Suites with no weakness flagged:'), suiteTable(fine)) : null };
@@ -766,7 +777,7 @@ function keyExchangeBody(ctx) {
     h('p', { class: 'hint' }, 'The level scale is this product’s own; each fact above cites its standard.'));
   const gv = [...new Set(groups.map((g) => g.version))];
   const groupRow = (g) => h('tr', null,
-    h('td', { class: 'num' }, g.rank || '–'),
+    h('td', { class: 'num' }, g.rank || '·'),
     h('td', null, h('code', null, g.name)),
     h('td', null, g.pq ? badge(g.hybrid ? 'hybrid post-quantum' : 'post-quantum', g.obsolete ? 'warn' : 'good') : h('span', { class: 'muted' }, 'classical'),
       g.obsolete ? badge('obsolete draft', 'warn') : null),
@@ -853,7 +864,7 @@ function aboutReport(ctx, stages) {
   const how = Object.entries(STAGE_TITLE).map(([k, title]) => {
     const st = stages[k];
     if (!st) return null;
-    return h('li', null, h('b', null, `${title}: `), st.outcome === 'skipped' ? `not run — ${st.reason || st.reasonCode}` : (st.probes || []).join('; '),
+    return h('li', null, h('b', null, `${title}: `), st.outcome === 'skipped' ? `not run: ${st.reason || st.reasonCode}` : (st.probes || []).join('; '),
       st.connections ? h('span', { class: 'muted' }, ` (${plural(st.connections, 'connection')})`) : null,
       (st.inconclusive || []).length ? h('div', { class: 'hint' }, `Inconclusive: ${st.inconclusive.join('; ')}`) : null);
   }).filter(Boolean);

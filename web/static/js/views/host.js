@@ -28,7 +28,7 @@ export function coverageCard(cov, onUpload) {
       h('tbody', null, cov.sensors.map((s) => h('tr', null,
         h('td', null, sensorLabel(s.sensor)),
         h('td', null, badge(s.status, s.status === 'complete' ? 'good' : s.status === 'partial' ? 'warn' : 'none')),
-        h('td', { class: 'muted' }, [s.scope, s.reason && `reason: ${s.reason}`, s.denied ? `${s.denied} location(s) not readable` : ''].filter(Boolean).join(' · ') || '–')))))) : null,
+        h('td', { class: 'muted' }, [s.scope, s.reason && `reason: ${s.reason}`, s.denied ? `${s.denied} location(s) not readable` : ''].filter(Boolean).join(' · ') || '·')))))) : null,
     cov.notSeen.length ? h('details', { class: 'more' }, h('summary', null, `What this inventory cannot see (${cov.notSeen.length})`),
       h('ul', null, cov.notSeen.map((n) => h('li', null, n)))) : null);
 }
@@ -49,7 +49,7 @@ function legacyCard(items) {
 /** "a, b and 3 more", from a list that may repeat itself. */
 function providers(list) {
   const uniq = [...new Set(list || [])];
-  if (!uniq.length) return h('span', { class: 'muted' }, '–');
+  if (!uniq.length) return h('span', { class: 'muted' }, '·');
   const shown = uniq.slice(0, 3).join(', ');
   return h('span', { class: 'muted', title: uniq.join('\n') }, uniq.length > 3 ? `${shown} and ${uniq.length - 3} more` : shown);
 }
@@ -67,7 +67,7 @@ function linkDialog(hostId, alreadyLinked, onDone) {
       }
       const sel = h('select', { 'aria-label': 'Endpoint to link' }, choices.map((e) => h('option', { value: e.id }, `${e.name} (${e.address})`)));
       body.append(
-        h('p', { class: 'muted' }, 'Record that this host and a TLS endpoint are the same machine. This is never guessed — only what you confirm here.'),
+        h('p', { class: 'muted' }, 'Record that this host and a TLS endpoint are the same machine. This is never guessed: only what you confirm here counts.'),
         h('label', { for: 'link-target' }, 'TLS endpoint'), sel,
         h('div', { class: 'row end' }, button('Cancel', close), button('Link', async () => {
           try { await api.linkAsset(hostId, Number(sel.value)); toast('Linked'); close(); onDone(); } catch (e) { toast(e.message, 'error'); }
@@ -139,7 +139,7 @@ export async function render(root, { args }) {
         h('td', null, h('b', null, a.name), a.oid ? h('div', { class: 'hint' }, `OID ${a.oid}`) : null,
           h('details', { class: 'why' }, h('summary', null, 'Why this verdict'),
             h('p', null, a.rationale), citations(a.basis),
-            h('div', { class: 'hint', title: 'The rule that identified this algorithm: an exact OID match, an OID family match, or an exact catalogue name match — never a guess from a similar-looking name.' },
+            h('div', { class: 'hint', title: 'The rule that identified this algorithm: an exact OID match, an OID family match, or an exact catalogue name match, never a guess from a similar-looking name.' },
               `Matched by ${a.matchedBy}`))),
         h('td', null, a.class === 'quantum-vulnerable' ? badge('▲ quantum-vulnerable', 'warn') : badge('✓ quantum-safe', 'good')),
         h('td', null, providers(a.providedBy))))))) : h('p', { class: 'muted' }, 'No algorithms were found in this CBOM.')));
@@ -178,7 +178,7 @@ export async function render(root, { args }) {
           h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
             h('thead', null, h('tr', null, ['Name', 'Version', 'Where', 'Found by'].map((x) => h('th', { scope: 'col' }, x)))),
             h('tbody', null, software.map((c) => h('tr', null,
-              h('td', null, h('b', null, c.name)), h('td', null, c.version || '—'),
+              h('td', null, h('b', null, c.name)), h('td', null, c.version || '·'),
               h('td', { class: 'muted' }, where(c)),
               h('td', { class: 'muted' }, (props(c).find(([k]) => k === 'collector' || k === 'collected-by') || [])[1] || ''))))))));
       }

@@ -5,6 +5,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { authFetch as fetch } from './authfetch.mjs';
 
 const FIXTURE = new URL('../../testdata/interop/cbomlens-like-1.7.json', import.meta.url);
 const HOSTILE = '<img src=x onerror=window.__xss=1><script>window.__xss=2</script>';

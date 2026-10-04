@@ -65,8 +65,11 @@ cryptographic estate model above it is written up in [QA-REPORT-002](docs/progra
 | Config | YAML (`go.yaml.in/yaml/v3`) for the host inventory command. |
 | Tests and tooling | `go test` (unit, integration against in-process servers, fuzzing), `golangci-lint`, and a browser end-to-end script (Node 22+, no dependencies, drives Chrome/Edge over the DevTools protocol). GitHub Actions for CI. |
 
-Security choices worth knowing: the server binds to loopback and needs an access token for anything else; scan
-targets are checked in the dialer against link-local, cloud-metadata and (by default) loopback addresses; the UI
+Security choices worth knowing: **sign-in is required** — accounts with administrator, analyst and viewer roles,
+passwords stored as salted PBKDF2-SHA256 hashes, server-side sessions in an HttpOnly, SameSite=Strict cookie that
+end after 30 minutes idle or 12 hours, lockout and rate limits against guessing, and a sign-in log
+([ADR-0018](docs/decisions/ADR-0018-accounts-and-sign-in.md)); the server serves HTTPS itself (`--tls-cert`) and
+refuses plain HTTP beyond loopback unless a TLS proxy is in front; scan targets are checked in the dialer against link-local, cloud-metadata and (by default) loopback addresses; the UI
 sends a strict Content-Security-Policy and renders everything it received from a scanned server as text.
 
 ## How to start
@@ -98,9 +101,9 @@ source (`go build ./cmd/cipherhorizon-collector`) if you want it
 Download an archive for Linux, macOS or Windows (amd64/arm64) from the
 [Releases](../../releases) page, verify it ([how](docs/engineering/DISTRIBUTION.md#verifying-a-download)),
 extract it and run `cipherhorizon serve`. Or use the container image once one is published
-(`docker run -p 8080:8080 -e CIPHERHORIZON_TOKEN=... -v data:/data ghcr.io/<owner>/cipherhorizon:<version>`),
-or build one locally with `docker compose up -d` (reads [docker-compose.yml](docker-compose.yml); put a token in
-a `.env` file next to it first — the file's own comment shows how) or plain `docker build .`, or
+(`docker run -p 127.0.0.1:8080:8080 -v data:/data ghcr.io/<owner>/cipherhorizon:<version>`),
+or build one locally with `docker compose up -d` (reads [docker-compose.yml](docker-compose.yml); `docker compose
+logs` shows the first-run setup code) or plain `docker build .`, or
 `go install github.com/<owner>/cipherhorizon/cmd/cipherhorizon@<version>`. What each release contains and how
 it is built and signed: [docs/engineering/DISTRIBUTION.md](docs/engineering/DISTRIBUTION.md).
 
@@ -148,20 +151,30 @@ certificates, so their TLS hygiene scores include the untrusted-certificate find
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--addr` | `127.0.0.1:8080` | Address to listen on. Any address other than loopback needs a token. |
+| `--addr` | `127.0.0.1:8080` | Address to listen on. Beyond loopback it needs HTTPS (`--tls-cert`) or `--plain-http`. |
 | `--db` | `cipherhorizon.db` | SQLite file (created if missing). |
-| `--token`, env `CIPHERHORIZON_TOKEN` | none | Require `Authorization: Bearer <token>` on every API call; the UI asks for it once per browser tab. |
+| `--tls-cert`, `--tls-key` | none | Serve HTTPS (TLS 1.2 and 1.3; Go offers the hybrid post-quantum key exchange first). |
+| `--plain-http` | off | Allow plain HTTP beyond loopback because a TLS-terminating proxy is in front (or the port is published only on this host). |
+| `--session-idle`, `--session-max` | 30m, 12h | Sign a browser out after this long idle, and after this long in any case. |
+| `--no-login` | off | No accounts or sign-in: one local operator. Loopback only. |
+| `--token`, env `CIPHERHORIZON_TOKEN` | none | An automation token: scripts and CI may call the API with `Authorization: Bearer <token>`, acting as an analyst. |
 | `--allow-loopback` | off | Let scans target loopback addresses (for testing). |
-| `--allowed-host` | none | Extra `Host` header accepted when no token is set (repeatable). |
+| `--allowed-host` | none | Extra `Host` header accepted in `--no-login` mode (repeatable). |
 | `--max-concurrent-scans` | 2 | Scans that may run at once. |
 | `--concurrency` | 4 | Connections in flight to one endpoint at once. |
 | `--timeout` | 8s | Per-connection timeout during a scan. |
 
-To use it from other machines, set a token and put it behind a TLS-terminating reverse proxy; the server itself
-speaks plain HTTP.
+**First run.** The server prints a one-time setup code in its log. Open the UI, enter the code and create the
+administrator; the administrator then adds the other accounts under **Users** (each gets a temporary password it
+must replace at first sign-in). Locked out? On the server's console:
+`cipherhorizon user reset-password --db cipherhorizon.db NAME` (the password is read from standard input), or
+`user unlock`, `user add`, `user list`.
+
+To use it from other machines, serve HTTPS directly or put it behind a TLS-terminating reverse proxy:
 
 ```sh
-CIPHERHORIZON_TOKEN='a-long-random-secret' ./cipherhorizon serve --addr 0.0.0.0:8080
+./cipherhorizon serve --addr 0.0.0.0:8443 --tls-cert server.crt --tls-key server.key
+./cipherhorizon serve --addr 0.0.0.0:8080 --plain-http     # only behind a TLS proxy
 ```
 
 ### Command line

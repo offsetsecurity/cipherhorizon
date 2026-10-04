@@ -18,3 +18,6 @@ func SetAuthFailDelay(d time.Duration) (restore func()) {
 	authFailDelay = d
 	return func() { authFailDelay = old }
 }
+
+// PublicAPI reports whether a route answers without a principal (ADR-0018).
+func PublicAPI(path string) bool { return publicAPI(path) }

@@ -35,11 +35,11 @@ export async function render(root, ctx = {}) {
             h('div', { class: 'sub' }, s.assetAddress)),
           h('td', null, statusPill(s.status), active ? progressBar(s.progressPct) : null,
             s.error ? h('div', { class: 'hint' }, s.error) : null),
-          h('td', null, s.status === 'done' ? levelBadge(s.readinessLevel) : '–'),
-          h('td', null, s.status === 'done' ? bandBadge(s.band, s.score) : '–'),
+          h('td', null, s.status === 'done' ? levelBadge(s.readinessLevel) : '·'),
+          h('td', null, s.status === 'done' ? bandBadge(s.band, s.score) : '·'),
           h('td', { class: 'muted' }, s.trigger),
           h('td', { class: 'muted', title: fmtDate(s.startedAt || s.queuedAt) }, relTime(s.startedAt || s.queuedAt)),
-          h('td', { class: 'muted' }, s.startedAt ? duration(s.startedAt, s.finishedAt) : '–'),
+          h('td', { class: 'muted' }, s.startedAt ? duration(s.startedAt, s.finishedAt) : '·'),
           h('td', null, active ? button('Cancel', async () => {
             try { await api.cancelScan(s.id); toast('Scan canceled'); load(); } catch (e) { toast(e.message, 'error'); }
           }, 'secondary', { class: 'btn btn-secondary btn-sm' }) : null));

@@ -32,7 +32,8 @@ func (l *lockedBuf) String() string {
 	return l.b.String()
 }
 
-func TestServeRefusesNetworkBindWithoutToken(t *testing.T) {
+// ADR-0018: on the network, passwords and session cookies need TLS (or a proxy that provides it).
+func TestServeRefusesNetworkBindOverPlainHTTP(t *testing.T) {
 	t.Setenv("CIPHERHORIZON_TOKEN", "")
 	for _, addr := range []string{":0", "0.0.0.0:0", "192.0.2.1:0", "[::]:0"} {
 		var errb bytes.Buffer
@@ -41,7 +42,7 @@ func TestServeRefusesNetworkBindWithoutToken(t *testing.T) {
 		if code != app.ExitFatal {
 			t.Errorf("%s: exit %d, want fatal", addr, code)
 		}
-		if !strings.Contains(errb.String(), "without an access token") {
+		if !strings.Contains(errb.String(), "over plain HTTP") || !strings.Contains(errb.String(), "--tls-cert") {
 			t.Errorf("%s: message does not say why: %q", addr, errb.String())
 		}
 	}

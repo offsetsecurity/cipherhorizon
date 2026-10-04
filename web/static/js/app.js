@@ -1,6 +1,7 @@
 // Application shell: a hash router, the navigation state and the access-token prompt.
 import { h, clear } from './dom.js';
-import { api, ApiError, setAuthHandler, setToken } from './api.js';
+import { api, ApiError, setAuthHandler } from './api.js';
+import { session, showLogin, showSetup, showChangePassword, hideGate, accountChip } from './auth.js';
 import { modal, button, empty, notice, playEnter } from './ui.js';
 
 const main = document.getElementById('main');
@@ -22,6 +23,8 @@ const routes = [
   [/^#\/systems\/(\d+)\/?$/, 'systems', () => import('./views/system.js')],
   [/^#\/reports\/?$/, 'reports', () => import('./views/reports.js')],
   [/^#\/about\/?$/, 'about', () => import('./views/about.js')],
+  [/^#\/account\/?$/, 'account', () => import('./views/account.js')],
+  [/^#\/users\/?$/, 'users', () => import('./views/users.js')],
 ];
 
 // Addresses of earlier versions keep working (UX-DESIGN-005 §6): each is replaced by its new
@@ -44,6 +47,7 @@ let cleanup = null;
 let generation = 0;
 
 async function route() {
+  if (document.body.classList.contains('gated')) return; // signed out: the gate is showing
   const gen = ++generation;
   if (cleanup) { try { cleanup(); } catch { /* ignore */ } cleanup = null; }
   // A modal left open across a route change (e.g. the browser's Back button while a
@@ -121,15 +125,39 @@ async function refreshReviewCount() {
 window.addEventListener('estate-changed', refreshReviewCount);
 
 
+// Signing in (ADR-0018). The server says whether anyone is signed in; until someone is, the gate
+// replaces the application. A session that ends later (idle, signed out elsewhere) brings it back.
+async function boot() {
+  let st;
+  try {
+    st = await api.authState();
+  } catch (e) {
+    clear(main).appendChild(notice('Cannot reach the server', e.message, button('Try again', boot, 'primary')));
+    return;
+  }
+  const min = st.passwordMinLength || 12;
+  if (st.setupRequired) { showSetup(start, min); return; }
+  if (st.loginRequired && !st.user) { showLogin(start); return; }
+  start(st.user, min);
+}
+
+function start(user, min = 12) {
+  if (user && user.mustChangePassword) { showChangePassword(boot, min); return; }
+  session.user = user;
+  hideGate();
+  accountChip(document.getElementById('account-chip'), user);
+  api.about().then((a) => {
+    const el = document.getElementById('sidebar-version');
+    if (el) el.textContent = /^\d/.test(a.version) ? `v${a.version}` : a.version;
+  }).catch(() => { /* the version label is decoration: never block on it */ });
+  route();
+}
+
 setAuthHandler(() => {
-  if (document.querySelector('.modal[aria-label="Access token"]')) return;
-  modal('Access token', (close) => {
-    const input = h('input', { type: 'password', autocomplete: 'off', 'aria-label': 'Access token' });
-    const form = h('form', { class: 'modal-body', onsubmit: (e) => { e.preventDefault(); setToken(input.value.trim()); close(); route(); } },
-      h('p', null, 'This server requires an access token. It is kept only for this browser tab.'),
-      input, h('div', { class: 'row end' }, h('button', { type: 'submit', class: 'btn btn-primary' }, 'Continue')));
-    return form;
-  });
+  if (document.body.classList.contains('gated')) return;
+  session.user = null;
+  clear(modalRoot);
+  showLogin(start, 'Your session ended (signed out, or idle too long). Sign in again to continue.');
 });
 
 window.addEventListener('hashchange', route);
@@ -138,9 +166,5 @@ document.getElementById('nav-scan')?.addEventListener('click', async () => {
   const { openScanDialog } = await import('./views/scan.js');
   openScanDialog();
 });
-api.about().then((a) => {
-  const el = document.getElementById('sidebar-version');
-  if (el) el.textContent = /^\d/.test(a.version) ? `v${a.version}` : a.version;
-}).catch(() => { /* the version label is decoration: never block on it */ });
-route();
+boot();
 export { api };

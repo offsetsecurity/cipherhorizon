@@ -36,8 +36,8 @@ classification logic (`internal/cbom`, `internal/pqc`), and the endpoint collect
 (`cmd/cipherhorizon-collector`, `internal/sense`, `internal/discover`) — a file it should never open, a value it
 should have tokenised, or a hostile file name that changes its behaviour is in scope.
 
-Out of scope: vulnerabilities that require the attacker to already have the API's access token or shell
-access to the machine running it; findings from automated scanners with no working proof of concept; a target
+Out of scope: vulnerabilities that require the attacker to already have an administrator account, the
+automation token, or shell access to the machine running it; findings from automated scanners with no working proof of concept; a target
 server's own TLS misconfiguration (that is what this tool is *for* reporting, not a vulnerability in it).
 
 **Never test against a target you do not own or are not authorised to test.** `cmd/demo-targets` (see
@@ -48,10 +48,18 @@ use it, or your own infrastructure, instead of a third party's.
 
 These are deliberate for a self-hosted, single-team tool, and are stated so nobody has to discover them:
 
-- **One shared bearer token, no user accounts, roles or audit log.** Anyone who holds the token can do
-  everything. The token must be at least 16 characters; failed attempts are logged (never the value) and
-  delayed. Treat it like a password and put a TLS-terminating reverse proxy in front if the server is shared:
-  the server itself speaks plain HTTP.
+- **Accounts and sessions are local to the server** ([ADR-0018](docs/decisions/ADR-0018-accounts-and-sign-in.md)).
+  Passwords are salted PBKDF2-SHA256 hashes (600,000 iterations); sessions are random 256-bit tokens kept only as
+  their SHA-256, in an HttpOnly, SameSite=Strict cookie (Secure over HTTPS), ending after 30 minutes idle or
+  12 hours. Five wrong passwords lock an account for 15 minutes; twenty failures from one address within
+  15 minutes get 429. There is no single sign-on and no second factor yet; use a reverse proxy that adds them if
+  you need them now. Whoever can read the server's log during first run can claim the administrator account with
+  the setup code it prints; whoever can run `cipherhorizon user` on the server can reset any password (they could
+  read the database anyway).
+- **The automation token** (`--token`) acts as an analyst on the API for scripts and CI. It must be at least 16
+  characters; failed attempts are logged (never the value) and delayed. Treat it like a password.
+- **Plain HTTP is refused beyond loopback** unless `--plain-http` says a TLS-terminating proxy is in front; with
+  `--tls-cert/--tls-key` the server speaks TLS 1.2 and 1.3 itself.
 - **The database holds reconnaissance data** (every scanned endpoint, every host inventory, the raw uploaded
   CBOMs). It is created owner-only on Linux and macOS; on Windows the profile's ACL applies. Back it up and
   protect the backup as you would the inventory itself.

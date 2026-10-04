@@ -54,7 +54,7 @@ export async function render(root, ctx = {}) {
       collectSteps(open)));
     return null;
   }
-  const dash = h('span', { class: 'muted' }, '–');
+  const dash = h('span', { class: 'muted' }, '·');
   root.appendChild(h('div', { class: 'tablewrap' }, h('table', null,
     h('thead', null, h('tr', null, ['Machine', 'System', 'Access', 'Quantum-vulnerable', 'Quantum-safe', 'Components', 'Last upload'].map((c) => h('th', { scope: 'col' }, c)))),
     h('tbody', null, hosts.map((x) => {

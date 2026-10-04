@@ -194,7 +194,7 @@ func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(strings.ToLower(sum.Producer), "cipherhorizon") {
 		class = estate.ClassCollector
 	}
-	id, err := s.cfg.Store.AddHostSnapshotAs(asset.ID, raw, sumJSON, class, s.actor())
+	id, err := s.cfg.Store.AddHostSnapshotAs(asset.ID, raw, sumJSON, class, s.actor(r))
 	if err != nil {
 		storeErr(w, err)
 		return

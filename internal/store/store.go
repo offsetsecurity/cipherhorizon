@@ -312,6 +312,44 @@ var migrations = []string{
 	// (not only the critical, high and medium ones). Filled from the stored evaluations.
 	`ALTER TABLE scans ADD COLUMN low INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE scans ADD COLUMN info INTEGER NOT NULL DEFAULT 0;`,
+	// 9: accounts and sign-in (ADR-0018). A password is stored only as a salted PBKDF2 hash; a
+	// session only as the SHA-256 of its token, so a copy of the database signs nobody in.
+	`CREATE TABLE users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+		display_name TEXT NOT NULL DEFAULT '',
+		role TEXT NOT NULL CHECK (role IN ('admin','analyst','viewer')),
+		password_hash TEXT NOT NULL,
+		disabled INTEGER NOT NULL DEFAULT 0,
+		must_change INTEGER NOT NULL DEFAULT 0,
+		failed_count INTEGER NOT NULL DEFAULT 0,
+		locked_until TEXT,
+		created_at TEXT NOT NULL,
+		created_by TEXT NOT NULL DEFAULT '',
+		password_changed_at TEXT NOT NULL,
+		last_login_at TEXT
+	);
+	CREATE TABLE sessions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		token_hash TEXT NOT NULL UNIQUE,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		created_at TEXT NOT NULL,
+		last_seen_at TEXT NOT NULL,
+		expires_at TEXT NOT NULL,
+		client TEXT NOT NULL DEFAULT '',
+		user_agent TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX sessions_user ON sessions(user_id);
+	CREATE TABLE auth_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		at TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		username TEXT NOT NULL DEFAULT '',
+		actor TEXT NOT NULL DEFAULT '',
+		client TEXT NOT NULL DEFAULT '',
+		detail TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX auth_events_at ON auth_events(at);`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same

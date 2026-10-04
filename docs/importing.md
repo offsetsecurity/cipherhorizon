@@ -7,7 +7,7 @@ cipherhorizon import --server http://127.0.0.1:8080 --new-system "billing-api" b
 cipherhorizon import --system 12 scan.json        # attach to an existing system
 ```
 
-The token comes from `--token` or `CIPHERHORIZON_TOKEN`. The same operation is `POST /api/v1/imports?system=ID` (or `newSystem=NAME`) with the document as the body.
+The token is the server's automation token (`--token` or `CIPHERHORIZON_TOKEN`; it acts as an analyst, see ADR-0018). The same operation is `POST /api/v1/imports?system=ID` (or `newSystem=NAME`) with the document as the body.
 
 ## You say which system it describes
 

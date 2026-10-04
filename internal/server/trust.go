@@ -66,7 +66,7 @@ func (s *Server) addTrustAnchors(w http.ResponseWriter, r *http.Request) {
 	for _, c := range certs {
 		in = append(in, store.AnchorCert{SHA256: c.SHA, Subject: clip(c.Cert.Subject.String(), 300), NotAfter: c.Cert.NotAfter, DER: c.Cert.Raw})
 	}
-	added, err := s.cfg.Store.AddTrustAnchors(id, in, s.actor())
+	added, err := s.cfg.Store.AddTrustAnchors(id, in, s.actor(r))
 	switch {
 	case errors.Is(err, store.ErrTooManyAnchors):
 		writeErr(w, http.StatusConflict, err.Error())
@@ -100,7 +100,7 @@ func (s *Server) removeTrustAnchor(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "fingerprint must be 64 lower-case hex characters")
 		return
 	}
-	if err := s.cfg.Store.RemoveTrustAnchor(id, fp, s.actor()); err != nil {
+	if err := s.cfg.Store.RemoveTrustAnchor(id, fp, s.actor(r)); err != nil {
 		storeErr(w, err)
 		return
 	}

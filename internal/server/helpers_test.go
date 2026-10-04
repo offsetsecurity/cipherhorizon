@@ -44,6 +44,8 @@ type envCfg struct {
 	sched         time.Duration
 	clock         *fakeClock
 	allowedHosts  []string
+	login         bool
+	setupCode     string
 }
 
 type envOpt func(*envCfg)
@@ -53,6 +55,16 @@ func noLoopback() envOpt                   { return func(c *envCfg) { c.allowLoo
 func withWorkers(n int) envOpt             { return func(c *envCfg) { c.workers = n } }
 func withClock(fc *fakeClock) envOpt       { return func(c *envCfg) { c.clock = fc } }
 func withScheduler(d time.Duration) envOpt { return func(c *envCfg) { c.sched = d } }
+
+// withLogin turns accounts on (ADR-0018), with this first-run setup code.
+func withLogin(code string) envOpt { return func(c *envCfg) { c.login, c.setupCode = true, code } }
+
+func nowOf(c *fakeClock) func() time.Time {
+	if c == nil {
+		return nil
+	}
+	return c.Now
+}
 
 // env is a complete server: real store, real scanner, real HTTP.
 type env struct {
@@ -88,7 +100,8 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	runner.Start(ctx)
 
 	srv := server.New(server.Config{Store: st, Runner: runner, Guard: guard, Token: cfg.token, AllowedHosts: cfg.allowedHosts,
-		Version: "test", RegistryRetrieved: "2026-09-21", EvalVersion: "eval/1", MaxConcurrentScans: cfg.workers})
+		Version: "test", RegistryRetrieved: "2026-09-21", EvalVersion: "eval/1", MaxConcurrentScans: cfg.workers,
+		RequireLogin: cfg.login, SetupCode: cfg.setupCode, Now: nowOf(cfg.clock)})
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() {
 		ts.Close()

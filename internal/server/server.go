@@ -30,6 +30,17 @@ type Config struct {
 	// AllowedHosts are extra Host header values accepted when no token is set.
 	AllowedHosts []string
 
+	// RequireLogin turns on accounts (ADR-0018): every API call needs a signed-in session or
+	// the automation Token. Off, the server is the single-user loopback tool it was.
+	RequireLogin bool
+	// SetupCode is the one-time code that creates the first administrator; printed by serve.
+	SetupCode string
+	// SecureCookies marks the session cookie Secure on every response. Without it the cookie is
+	// Secure when the request came over TLS or a proxy sent X-Forwarded-Proto: https.
+	SecureCookies bool
+	// SessionIdle and SessionMax end a session after inactivity and in any case (defaults 30 min, 12 h).
+	SessionIdle, SessionMax time.Duration
+
 	Version            string
 	RegistryRetrieved  string
 	EvalVersion        string
@@ -46,6 +57,7 @@ type Server struct {
 	log     *slog.Logger
 
 	routeTable []string
+	failures   limiter
 }
 
 // New builds the server.
@@ -58,7 +70,8 @@ func New(cfg Config) *Server {
 	}
 	s := &Server{cfg: cfg, mux: http.NewServeMux(), log: cfg.Log}
 	s.routes()
-	s.handler = s.recoverer(s.secureHeaders(s.hostCheck(s.auth(s.mutationGuard(s.mux)))))
+	// Who is calling is decided before the forgery guard; what they may do, after it.
+	s.handler = s.recoverer(s.secureHeaders(s.hostCheck(s.auth(s.mutationGuard(s.roles(s.mux))))))
 	return s
 }
 
@@ -122,7 +135,7 @@ func (s *Server) hostCheck(next http.Handler) http.Handler {
 		allowed[strings.ToLower(hostOnly(h))] = true
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.cfg.Token == "" && !allowed[strings.ToLower(hostOnly(r.Host))] {
+		if s.cfg.Token == "" && !s.cfg.RequireLogin && !allowed[strings.ToLower(hostOnly(r.Host))] {
 			writeErr(w, http.StatusMisdirectedRequest, "unexpected Host header; start the server with --allowed-host to permit it")
 			return
 		}
@@ -134,25 +147,7 @@ func (s *Server) hostCheck(next http.Handler) http.Handler {
 // answered, which makes guessing a token over the network slow.
 var authFailDelay = 250 * time.Millisecond
 
-func (s *Server) auth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.cfg.Token != "" && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/v1/health" {
-			// The scheme is required: a bare token is not accepted.
-			got, hasScheme := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if !hasScheme || subtle.ConstantTimeCompare([]byte(got), []byte(s.cfg.Token)) != 1 {
-				// Record who tried (never what they sent) and slow the guessing down.
-				s.log.Warn("authentication failed", "method", r.Method, "path", r.URL.Path, "remote", r.RemoteAddr)
-				select {
-				case <-time.After(authFailDelay):
-				case <-r.Context().Done():
-				}
-				writeErr(w, http.StatusUnauthorized, "a valid bearer token is required")
-				return
-			}
-		}
-		next.ServeHTTP(w, r)
-	})
-}
+func constEq(a, b string) bool { return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1 }
 
 // mutationGuard protects state-changing requests from cross-site forgery
 // (AC-11.3): they must carry a custom header (which a foreign page cannot add
@@ -250,6 +245,23 @@ func (s *Server) routes() {
 		s.routeTable = append(s.routeTable, pattern)
 	}
 	handle("GET /api/v1/health", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
+
+	// Sign-in and accounts (ADR-0018).
+	handle("GET /api/v1/auth/state", s.authState)
+	handle("POST /api/v1/auth/setup", s.authSetup)
+	handle("POST /api/v1/auth/login", s.authLogin)
+	handle("POST /api/v1/auth/logout", s.authLogout)
+	handle("GET /api/v1/auth/me", s.authMe)
+	handle("POST /api/v1/auth/password", s.authPassword)
+	handle("GET /api/v1/auth/sessions", s.authSessions)
+	handle("DELETE /api/v1/auth/sessions/{id}", s.authEndSession)
+	handle("GET /api/v1/auth/events", s.authEvents)
+	handle("GET /api/v1/users", s.listUsers)
+	handle("POST /api/v1/users", s.createUser)
+	handle("PATCH /api/v1/users/{id}", s.patchUser)
+	handle("DELETE /api/v1/users/{id}", s.deleteUser)
+	handle("POST /api/v1/users/{id}/password", s.resetUserPassword)
+	handle("POST /api/v1/users/{id}/unlock", s.unlockUser)
 	handle("GET /api/v1/about", s.about)
 	handle("GET /api/v1/openapi.json", s.openAPIDoc)
 	handle("GET /api/v1/summary", s.summary)

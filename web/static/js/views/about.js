@@ -66,7 +66,7 @@ export async function render(root) {
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'HTTP-layer check (HSTS)'),
     h('p', null, 'Every other check in this tool exchanges only TLS handshake messages: no application data is sent. This one is the exception: ',
-      h('b', null, 'it sends one real HTTP request'), ' — a plain ', h('code', null, 'GET /'), ' — to each scanned target after the handshake, and reads only the ',
+      h('b', null, 'it sends one real HTTP request'), ' (a plain ', h('code', null, 'GET /'), ') to each scanned target after the handshake, and reads only the ',
       h('code', null, 'Strict-Transport-Security'), ' response header (at most 8 KiB, no body kept, no redirect followed).'),
     h('p', null, 'It is on by default. This installation has it ', a.httpChecks ? h('b', null, 'enabled') : h('b', null, 'disabled'), ' for every scan (server-wide ',
       h('code', null, '--http-checks=false'), ' turns it off). The CLI’s ', h('code', null, 'tls scan'), ' has the same flag, also on by default.')));

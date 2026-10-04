@@ -2856,6 +2856,414 @@
           }
         }
       }
+    },
+    "/api/v1/auth/state": {
+      "get": {
+        "summary": "Whether sign-in or first-run setup is needed, and who is signed in (public)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "get_auth_state"
+      }
+    },
+    "/api/v1/auth/setup": {
+      "post": {
+        "summary": "Create the first administrator with the one-time setup code printed in the server log (public; only while no account exists)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created and signed in"
+          },
+          "403": {
+            "description": "Wrong setup code"
+          },
+          "409": {
+            "description": "Setup already complete"
+          },
+          "429": {
+            "description": "Too many failed attempts"
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "operationId": "post_auth_setup"
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Sign in with username and password; sets an HttpOnly, SameSite=Strict session cookie (public)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed in"
+          },
+          "401": {
+            "description": "Wrong username or password, disabled or locked"
+          },
+          "429": {
+            "description": "Too many failed attempts"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "operationId": "post_auth_login"
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "summary": "Sign out this browser",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          }
+        },
+        "operationId": "post_auth_logout"
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "summary": "The signed-in account",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          }
+        },
+        "operationId": "get_auth_me"
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "summary": "Change your password (ends your other sessions)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Changed"
+          },
+          "403": {
+            "description": "Current password wrong"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "operationId": "post_auth_password"
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "get": {
+        "summary": "Your signed-in sessions",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          }
+        },
+        "operationId": "get_auth_sessions"
+      }
+    },
+    "/api/v1/auth/sessions/{id}": {
+      "delete": {
+        "summary": "End one of your sessions",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "delete_auth_sessions_id"
+      }
+    },
+    "/api/v1/auth/events": {
+      "get": {
+        "summary": "Sign-in audit trail, newest first (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          }
+        },
+        "operationId": "get_auth_events"
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "summary": "Accounts (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          }
+        },
+        "operationId": "get_users"
+      },
+      "post": {
+        "summary": "Add an account with a temporary password (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "409": {
+            "description": "Username taken"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "operationId": "post_users"
+      }
+    },
+    "/api/v1/users/{id}": {
+      "patch": {
+        "summary": "Change an account's name, role or enabled state (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "patch_users_id"
+      },
+      "delete": {
+        "summary": "Delete an account (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "delete_users_id"
+      }
+    },
+    "/api/v1/users/{id}/password": {
+      "post": {
+        "summary": "Set a temporary password; the owner must change it at next sign-in (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "post_users_id_password"
+      }
+    },
+    "/api/v1/users/{id}/unlock": {
+      "post": {
+        "summary": "Clear a lockout (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "post_users_id_unlock"
+      }
     }
   },
   "components": {

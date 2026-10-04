@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/example/cipherhorizon/internal/server"
 )
 
 type openAPIDoc struct {
@@ -104,7 +106,7 @@ func TestEveryOpenAPIOperationIsComplete(t *testing.T) {
 					t.Errorf("%s: path parameter %s is not declared", where, seg)
 				}
 			}
-			if strings.ToUpper(m) != "GET" || p == "/api/v1/health" {
+			if strings.ToUpper(m) != "GET" || server.PublicAPI(p) {
 				continue
 			}
 			if _, ok := o.Responses["401"]; !ok {

@@ -47,7 +47,7 @@ export async function render(root, { args }) {
         h('td', { class: 'namecell' }, validId(p.systemId) ? h('a', { href: systemHref(p.systemId) }, p.systemName) : p.systemName),
         h('td', null, classLabel(p.sourceClass), h('div', { class: 'muted small' }, p.stream)),
         h('td', null, p.method, h('div', { class: 'muted small' }, `${p.rung}; ${p.methodQuality}`)),
-        h('td', null, p.position || p.location || h('span', { class: 'muted' }, '–')),
+        h('td', null, p.position || p.location || h('span', { class: 'muted' }, '·')),
         h('td', null, p.privateKey ? keyAssociation(p.privateKey) : h('span', { class: 'muted' }, 'not applicable')),
         h('td', { class: 'muted' }, fmtDate(p.observedAt)))))))));
   return null;

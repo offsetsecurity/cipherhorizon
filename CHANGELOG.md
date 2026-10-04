@@ -12,6 +12,33 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
+- **Sign-in and accounts** ([ADR-0018](docs/decisions/ADR-0018-accounts-and-sign-in.md)).
+  - **Accounts** with administrator, analyst and viewer roles, enforced on every API route.
+  - **Passwords** are salted PBKDF2-SHA256 hashes (600,000 iterations, Go standard library).
+  - **Sessions** are server-side, in an HttpOnly, SameSite=Strict cookie (Secure over HTTPS) that is stored only
+    as its hash. They end after 30 minutes idle or 12 hours, at sign-out, and on a password change (other
+    sessions).
+  - **Against guessing:** lockout after five wrong passwords, a per-address rate limit, and one generic error.
+  - **First run:** the administrator is created with a one-time setup code printed in the server log.
+  - **Administrator-made accounts** get a temporary password that must be replaced first.
+  - **Pages and log:** Account (password, active sessions) and Users (accounts, sign-in log), plus a sign-in log
+    that never holds a password.
+  - **Console recovery:** `cipherhorizon user list|add|reset-password|unlock`.
+  - **HTTPS:** served directly with `--tls-cert/--tls-key` (TLS 1.2+); plain HTTP is refused beyond loopback
+    unless `--plain-http` (TLS proxy in front).
+  - **Defaults:** sign-in is on; `--no-login` keeps the single-user loopback mode. `--token` remains an
+    automation token for scripts and CI.
+- **Visual redesign** to a written design system, [DESIGN.md](DESIGN.md) (audit:
+  [UX-AUDIT-006](docs/product/UX-AUDIT-006-visual-redesign.md)).
+  - One flat accent taken from the logo, cool graphite neutrals, and hairlines instead of shadows.
+  - One radius system (6/8/12, 4 for badges).
+  - Sentence-case labels; mono for machine values.
+  - A left-aligned Overview hero with the post-quantum readiness scale as its legend.
+  - Status bands instead of grids of identical cards.
+  - Report action items grouped so each reason is said once.
+  - Calmer motion (one page fade, colour-only hover, loops only while a scan runs).
+  - No em-dashes in the interface. Light and dark tuned for WCAG AA.
+
 - **Reports show everything that was evaluated** (PRD-006). An endpoint report has five tabs: **Summary** (the
   verdict, "N checks run: F found a problem, P found none", and action items in plain words: why it matters, how
   urgent, what to do), **Configuration** (a matrix of every TLS version, SSLv2 to TLS 1.3, with the suites each one
@@ -257,6 +284,10 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   sidebar footer, where it already was.
 
 ### Removed
+
+- The browser no longer asks for, or keeps, the API token (it was readable by scripts in session storage); browsers
+  sign in instead.
+- Gradient buttons, glows, the radial page wash, hover lifts and the bobbing empty-state icon.
 
 - The TLS overview dashboard page and the old stand-alone CBOM page (PRD-005). Their addresses redirect to Reports
   and Inventory; their counts live in the Reports fleet summary and the Inventory summary.

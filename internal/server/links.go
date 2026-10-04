@@ -51,7 +51,7 @@ func (s *Server) confirmLink(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "reason is over 200 characters or contains a control character")
 		return
 	}
-	l, err := s.cfg.Store.ConfirmLink(id, s.actor(), reason)
+	l, err := s.cfg.Store.ConfirmLink(id, s.actor(r), reason)
 	if err != nil {
 		systemErr(w, err)
 		return
@@ -69,7 +69,7 @@ func (s *Server) rejectLink(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "reason is over 200 characters or contains a control character")
 		return
 	}
-	l, err := s.cfg.Store.RejectLink(id, s.actor(), reason)
+	l, err := s.cfg.Store.RejectLink(id, s.actor(r), reason)
 	if err != nil {
 		systemErr(w, err)
 		return

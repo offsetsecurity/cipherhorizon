@@ -40,9 +40,12 @@ COPY --from=build --chown=65532:65532 /out/data /data
 VOLUME ["/data"]
 WORKDIR /data
 EXPOSE 8080
-# Listening beyond loopback requires an access token: pass CIPHERHORIZON_TOKEN (or --token).
+# Sign-in is required (ADR-0018): on first start the log prints a one-time setup code for the
+# administrator (`docker logs cipherhorizon`). --plain-http is right when the port is published
+# only on the host (as docker-compose.yml does) or a TLS-terminating proxy is in front; to serve
+# HTTPS directly, mount a certificate and override CMD with --tls-cert/--tls-key instead.
 ENTRYPOINT ["/cipherhorizon"]
-CMD ["serve", "--addr", "0.0.0.0:8080", "--db", "/data/cipherhorizon.db"]
+CMD ["serve", "--addr", "0.0.0.0:8080", "--plain-http", "--db", "/data/cipherhorizon.db"]
 # The base image has no shell, curl or wget, so the binary checks its own /api/v1/health.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
   CMD ["/cipherhorizon", "healthcheck", "--addr", "127.0.0.1:8080"]

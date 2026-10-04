@@ -4,6 +4,7 @@
 // line in every section (sections are one-line disclosures since PRD-005), Not checked reasons, the trust row per store, the private CA bundle flow
 // (trust changes without a rescan), hostile target text in every new section, and the click budget.
 // Open every section and every disclosure inside it, so the checks read the whole report.
+import { authFetch as fetch } from './authfetch.mjs';
 const OPEN_ALL = `const det = [...document.querySelectorAll('.tab')].find((t) => t.textContent === 'Configuration');
   if (det && det.getAttribute('aria-selected') !== 'true') { det.click(); await new Promise((r) => setTimeout(r, 400)); }
   document.querySelectorAll('#main details').forEach((d) => { d.open = true; });`;

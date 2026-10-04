@@ -37,8 +37,8 @@ func TestEveryAPIRouteRequiresTheToken(t *testing.T) {
 	e := newEnv(t, withToken("s3cret-token-0123456789"))
 	for _, r := range e.srv.Routes() {
 		method, path := splitRoute(t, r)
-		if path == "/api/v1/health" {
-			continue // the one route a load balancer must be able to reach
+		if server.PublicAPI(path) {
+			continue // health (for a load balancer) and the sign-in routes themselves
 		}
 		if s, _, _ := e.req(method, path, nil, map[string]string{"Authorization": ""}); s != 401 {
 			t.Errorf("%s without a token: %d, want 401", r, s)

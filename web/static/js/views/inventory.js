@@ -29,7 +29,7 @@ const QUANTUM = {
   'quantum-vulnerable': ['✖ quantum-vulnerable', 'bad'],
   'quantum-safe': ['✔ quantum-safe', 'good'],
   unknown: ['? not classified', 'neutral'],
-  'not-applicable': ['—', 'none'],
+  'not-applicable': ['·', 'none'],
 };
 const quantumBadge = (q) => { const [t, k] = QUANTUM[q] || [q, 'neutral']; return k === 'none' ? h('span', { class: 'muted' }, t) : badge(t, k); };
 // Certificates and their keys are named by their subject; people know them by the common name.
@@ -46,13 +46,13 @@ function seenOn(r) {
   if (r.endpoints) parts.push(plural(r.endpoints, 'endpoint'));
   if (r.machines) parts.push(plural(r.machines, 'machine'));
   if (r.imports) parts.push(plural(r.imports, 'imported CBOM'));
-  return parts.join(', ') || '—';
+  return parts.join(', ') || '·';
 }
 
 function placesCell(places) {
   const by = { endpoint: 0, machine: 0, import: 0 };
   for (const p of places) by[p.kind]++;
-  if (!places.length) return h('span', { class: 'muted' }, '—');
+  if (!places.length) return h('span', { class: 'muted' }, '·');
   return h('details', { class: 'places' }, h('summary', null, seenOn({ endpoints: by.endpoint, machines: by.machine, imports: by.import })),
     h('ul', null, places.map((p) => h('li', null, h('a', { href: placeHref(p) }, p.label), h('span', { class: 'muted' }, ` ${KIND_WORD[p.kind] || p.kind}`)))));
 }
@@ -170,7 +170,7 @@ function card(title, sub, content, foot, extra = '') {
     foot ? h('div', { class: 'dcard-foot' }, foot) : null);
 }
 
-const daysChip = (n) => (n === null || n === undefined ? h('span', { class: 'muted' }, '—')
+const daysChip = (n) => (n === null || n === undefined ? h('span', { class: 'muted' }, '·')
   : n < 0 ? badge('expired', 'bad') : badge(`${n} days`, n <= 30 ? 'bad' : n <= 90 ? 'warn' : 'good'));
 
 // ---- the dashboard -------------------------------------------------------------------------------
@@ -329,10 +329,10 @@ async function itemsList(root, kind, query) {
       h('thead', null, h('tr', null, ['Name', kind === 'software' ? 'Version' : 'Kind', showQuantum ? 'Post-quantum' : null, 'Seen on', 'Last seen'].filter(Boolean).map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, rows.map((r) => h('tr', null,
         h('td', null, h('b', { title: r.name }, shownName(r.name))),
-        h('td', { class: 'muted' }, humanDetail(r.detail) || '—'),
+        h('td', { class: 'muted' }, humanDetail(r.detail) || '·'),
         showQuantum ? h('td', null, quantumBadge(r.quantum)) : null,
         h('td', null, placesCell(r.places)),
-        h('td', { class: 'muted nowrapcell' }, r.lastSeen ? relTime(r.lastSeen) : '—')))))));
+        h('td', { class: 'muted nowrapcell' }, r.lastSeen ? relTime(r.lastSeen) : '·')))))));
     list.appendChild(h('p', { class: 'hint' }, `${plural(rows.length, 'item')}. Post-quantum status uses the cited classification carried in the CBOM.`));
   };
   let timer = null;

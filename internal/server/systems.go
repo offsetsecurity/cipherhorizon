@@ -16,13 +16,6 @@ import (
 // actor names who is making a change, for the audit log. There is one shared token,
 // so a change made with it is recorded as made by the token, not by a person
 // (SECARCH-001 section 5 states this limit).
-func (s *Server) actor() string {
-	if s.cfg.Token != "" {
-		return "api-token"
-	}
-	return "local"
-}
-
 func systemErr(w http.ResponseWriter, err error) {
 	var ce *store.ConflictError
 	switch {
@@ -113,7 +106,7 @@ func (s *Server) patchSystem(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "no fields to change")
 		return
 	}
-	sys, err := s.cfg.Store.UpdateSystem(id, patch, s.actor(), reason)
+	sys, err := s.cfg.Store.UpdateSystem(id, patch, s.actor(r), reason)
 	if err != nil {
 		systemErr(w, err)
 		return
@@ -328,7 +321,7 @@ func (s *Server) importSystemsCSV(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "the CSV was not applied", "problems": problems})
 		return
 	}
-	if err := s.cfg.Store.UpdateSystems(patches, s.actor(), reason); err != nil {
+	if err := s.cfg.Store.UpdateSystems(patches, s.actor(r), reason); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeErr(w, http.StatusBadRequest, "the CSV names a system id that does not exist; nothing was applied")
 			return

@@ -94,7 +94,7 @@ function findingCounts(d) {
 /** Days until the certificate expires, in words (the column says Certificate). */
 function certWords(iso) {
   const d = daysUntil(iso);
-  if (d === null) return h('span', { class: 'muted' }, '–');
+  if (d === null) return h('span', { class: 'muted' }, '·');
   if (d < 0) return badge(`expired ${-d} days ago`, 'bad');
   if (d <= 30) return badge(`${d} days left`, 'warn');
   return h('span', null, `${d} days left`);
@@ -199,11 +199,11 @@ export async function render(root, ctx = {}) {
       h('td', { class: 'namecell' }, h('a', { href }, a.name), sub.length ? h('div', { class: 'sub' }, sub.map((x, i) => [i ? ' ' : '', x])) : null),
       h('td', null, d ? [levelBadge(d.readinessLevel), d.hndlExposed ? h('div', { class: 'hint' }, 'exposed to harvest-now-decrypt-later') : null]
         : (a.latest?.status === 'failed' ? badge('scan failed', 'bad', a.latest.error) : badge('Not scanned', 'none'))),
-      h('td', null, d ? bandBadge(d.band, d.score) : '–'),
-      h('td', null, d ? findingCounts(d) : '–'),
-      h('td', { class: 'nowrap' }, d ? certWords(d.certNotAfter) : '–'),
+      h('td', null, d ? bandBadge(d.band, d.score) : '·'),
+      h('td', null, d ? findingCounts(d) : '·'),
+      h('td', { class: 'nowrap' }, d ? certWords(d.certNotAfter) : '·'),
       h('td', { class: 'nowrap' }, active ? h('div', null, statusPill(a.latest.status), progressBar(a.latest.progressPct))
-        : d ? h('span', { class: 'muted', title: fmtDate(d.finishedAt) }, relTime(d.finishedAt)) : '–'),
+        : d ? h('span', { class: 'muted', title: fmtDate(d.finishedAt) }, relTime(d.finishedAt)) : '·'),
       h('td', { class: 'rowactions' },
         button(active ? 'Scanning…' : 'Scan', async () => {
           try { await api.scanAsset(a.id); toast(`Scan queued for ${a.address}`, 'success'); load(); } catch (e) { toast(e.message, 'error'); }

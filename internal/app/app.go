@@ -74,6 +74,8 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return importCmd(ctx, args[1:], env)
 	case "db":
 		return dbCmd(args[1:], env)
+	case "user", "users":
+		return userCmd(args[1:], env)
 	case "healthcheck":
 		return healthcheckCmd(ctx, args[1:], env)
 	case "version", "-version", "--version":
@@ -103,9 +105,10 @@ func usage(w io.Writer) {
 Usage:
   cipherhorizon run [--config FILE] [-o FILE] [--root DIR] [--redact-host]
   cipherhorizon tls scan [flags] HOST[:PORT]...
-  cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--token TOKEN]
+  cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--tls-cert F --tls-key F] [--token TOKEN] [--no-login]
   cipherhorizon import [--server URL] (--system ID | --new-system NAME) FILE|-
   cipherhorizon db rebuild-graph|stats [--db FILE]
+  cipherhorizon user list|add|reset-password|unlock [--db FILE] [USERNAME]
   cipherhorizon plugins       list the built-in sensors
   cipherhorizon healthcheck [--addr HOST:PORT]   for a container orchestrator; see below
   cipherhorizon version

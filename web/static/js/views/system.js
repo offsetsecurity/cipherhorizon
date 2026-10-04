@@ -82,7 +82,7 @@ function servicesTable(sys, endpointRows, hostRows) {
       h('td', null, a.kind === 'host' ? 'machine' : 'service', h('div', { class: 'muted small' }, a.address)),
       h('td', null, d ? [levelBadge(d.readinessLevel), ' ', bandBadge(d.band, d.score)] : ho && ho.summary
         ? `${ho.summary.vulnerable} quantum-vulnerable, ${ho.summary.safe} safe` : h('span', { class: 'muted' }, 'not yet observed')),
-      h('td', { class: 'muted' }, ep && ep.latest ? relTime(ep.latest.finishedAt || ep.latest.createdAt) : ho && ho.snapshotAt ? relTime(ho.snapshotAt) : '–'),
+      h('td', { class: 'muted' }, ep && ep.latest ? relTime(ep.latest.finishedAt || ep.latest.createdAt) : ho && ho.snapshotAt ? relTime(ho.snapshotAt) : '·'),
       h('td', null, scanId ? [
         button('CycloneDX 1.7', () => dl(`/api/v1/scans/${scanId}/cbom?download=1`, 'endpoint.cbom.json'), 'secondary', { class: 'btn btn-sm btn-secondary' }), ' ',
         button('1.6', () => dl(`/api/v1/scans/${scanId}/cbom?spec=1.6&download=1`, 'endpoint.cbom-1.6.json'), 'secondary', { class: 'btn btn-sm btn-secondary' })] : null)));
@@ -104,7 +104,7 @@ function auditList(entries) {
   };
   return h('ol', { class: 'audit' }, entries.map((e) => h('li', null,
     h('span', { class: 'muted', title: fmtDate(e.at) }, relTime(e.at)), ' ',
-    h('b', null, e.action), ` by ${e.actor}`, e.reason ? h('span', null, ` — ${e.reason}`) : null,
+    h('b', null, e.action), ` by ${e.actor}`, e.reason ? h('span', null, `: ${e.reason}`) : null,
     h('ul', null, changed(e).slice(0, 12).map((k) => h('li', null, `${k}: ${show(e.before && e.before[k])} → ${show(e.after && e.after[k])}`))))));
 }
 

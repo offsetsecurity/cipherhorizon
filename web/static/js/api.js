@@ -1,7 +1,6 @@
 // The API client. Every mutating call carries the header the server requires to
-// refuse cross-site forgery, and a bearer token is sent when one was entered.
-
-const TOKEN_KEY = 'cipherhorizon-token';
+// refuse cross-site forgery. Who is calling is the session cookie the server set at sign-in
+// (HttpOnly: no script, including this one, can read it), so no credential is kept here.
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -13,18 +12,8 @@ export class ApiError extends Error {
 let onAuthRequired = null;
 export function setAuthHandler(fn) { onAuthRequired = fn; }
 
-export function setToken(t) {
-  try { sessionStorage.setItem(TOKEN_KEY, t); } catch { /* storage may be unavailable */ }
-}
-
-function token() {
-  try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
-}
-
 async function request(method, path, body, raw, contentType) {
   const headers = {};
-  const t = token();
-  if (t) headers['Authorization'] = `Bearer ${t}`;
   let payload;
   if (method !== 'GET') headers['X-Requested-With'] = 'cipherhorizon';
   if (body !== undefined && body !== null) {
@@ -41,9 +30,10 @@ async function request(method, path, body, raw, contentType) {
   } catch {
     throw new ApiError(0, 'Cannot reach the server. Is it still running?');
   }
-  if (res.status === 401) {
+  if (res.status === 401 && !path.startsWith('/api/v1/auth/')) {
+    // The session ended (signed out elsewhere, idle too long): ask to sign in again.
     if (onAuthRequired) onAuthRequired();
-    throw new ApiError(401, 'A valid access token is required.');
+    throw new ApiError(401, 'Your session has ended. Sign in again.');
   }
   if (raw) {
     if (!res.ok) throw new ApiError(res.status, await errorText(res));
@@ -61,6 +51,22 @@ async function errorText(res) {
 }
 
 export const api = {
+  // Sign-in and accounts (ADR-0018).
+  authState: () => request('GET', '/api/v1/auth/state'),
+  setup: (body) => request('POST', '/api/v1/auth/setup', body),
+  login: (username, password) => request('POST', '/api/v1/auth/login', { username, password }),
+  logout: () => request('POST', '/api/v1/auth/logout'),
+  changePassword: (current, next) => request('POST', '/api/v1/auth/password', { current, new: next }),
+  sessions: () => request('GET', '/api/v1/auth/sessions'),
+  endSession: (id) => request('DELETE', `/api/v1/auth/sessions/${id}`),
+  authEvents: (limit = 200) => request('GET', `/api/v1/auth/events?limit=${limit}`),
+  users: () => request('GET', '/api/v1/users'),
+  addUser: (body) => request('POST', '/api/v1/users', body),
+  patchUser: (id, body) => request('PATCH', `/api/v1/users/${id}`, body),
+  deleteUser: (id) => request('DELETE', `/api/v1/users/${id}`),
+  resetPassword: (id, password) => request('POST', `/api/v1/users/${id}/password`, { password }),
+  unlockUser: (id) => request('POST', `/api/v1/users/${id}/unlock`),
+
   about: () => request('GET', '/api/v1/about'),
   summary: (days = 14) => request('GET', `/api/v1/summary?days=${days}`),
 
@@ -131,7 +137,7 @@ export const api = {
   importDocument: (text, target) => request('POST', `/api/v1/imports?${target}`, text),
   withdrawImport: (id, reason) => request('POST', `/api/v1/imports/${id}/withdraw${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
 
-  // Downloads need the token too, so they are fetched and saved rather than linked.
+  // Downloads are fetched and saved rather than linked, so a failure shows as a message.
   async download(path, filename) {
     const res = await request('GET', path, null, true);
     saveBlob(await res.blob(), filename);

@@ -38,7 +38,7 @@ function scriptRow(s) {
     h('div', { class: 'dlrow-actions' },
       h('span', { class: 'dlrow-sha mono muted', title: s.sha256 }, `sha256:${s.sha256.slice(0, 12)}…`, copyButton(s.sha256, 'the SHA-256 checksum')),
       button('Download', () => api.download(`/api/v1/collector/scripts/${encodeURIComponent(s.name)}?download=1`, s.name)
-        .then(() => toast(`Downloaded ${s.name}`, 'success')).catch((e) => toast(e.message, 'error')), 'primary', { class: 'btn btn-sm btn-primary' })),
+        .then(() => toast(`Downloaded ${s.name}`, 'success')).catch((e) => toast(e.message, 'error')), 'secondary', { class: 'btn btn-sm btn-secondary' })),
     read);
 }
 
