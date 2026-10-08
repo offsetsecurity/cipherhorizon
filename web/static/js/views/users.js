@@ -118,6 +118,9 @@ export async function render(root, { query }) {
               try { await api.deleteUser(u.id); toast('Account deleted', 'success'); draw(); } catch (e) { toast(e.message, 'error'); }
             }, 'secondary', { class: 'btn btn-secondary btn-sm' })]));
       })))));
+    // Recovery for the case no administrator can sign in: only people who can see this page need it.
+    body.appendChild(h('p', { class: 'hint' }, 'If every administrator is locked out, someone with access to the server can run ',
+      h('code', null, 'cipherhorizon user reset-password NAME'), ' or ', h('code', null, 'cipherhorizon user unlock NAME'), ' there.'));
     return null;
   }
   await draw();

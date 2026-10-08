@@ -64,7 +64,7 @@ export function showLogin(onDone, why) {
     const r = await api.login(user.input.value.trim(), pass.input.value);
     pass.input.value = '';
     onDone(r.user);
-  }, h('p', { class: 'gate-hint' }, 'Forgot your password? An administrator can set a temporary one, or run ', h('code', null, 'cipherhorizon user reset-password'), ' on the server.')));
+  }, h('p', { class: 'gate-hint' }, 'Forgot your password? Ask your administrator to reset it.')));
 }
 
 /** First run: create the administrator with the code printed in the server's log. */
