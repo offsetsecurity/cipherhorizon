@@ -60,9 +60,13 @@ func (s *Server) about(w http.ResponseWriter, _ *http.Request) {
 		"name": "CipherHorizon", "version": s.cfg.Version,
 		"registryRetrieved": s.cfg.RegistryRetrieved, "evalVersion": s.cfg.EvalVersion,
 		"retentionPerAsset": store.Retention, "maxConcurrentScans": s.cfg.MaxConcurrentScans,
-		"allowLoopback": s.cfg.Guard.AllowLoopback, "authRequired": s.cfg.Token != "",
-		"httpChecks": s.cfg.Runner.HTTPChecks(),
-		"intervals":  []int{0, 3600, 21600, 86400, 604800},
+		"allowLoopback": s.cfg.Guard.AllowLoopback,
+		// authRequired: whether the API answers anyone without credentials (it does only with
+		// --no-login and no token). signInRequired and automationToken say which credentials.
+		"authRequired": s.cfg.RequireLogin || s.cfg.Token != "", "signInRequired": s.cfg.RequireLogin,
+		"automationToken": s.cfg.Token != "",
+		"httpChecks":      s.cfg.Runner.HTTPChecks(),
+		"intervals":       []int{0, 3600, 21600, 86400, 604800},
 		"notice": "This tool connects to the endpoints you add and makes a few hundred short TLS handshakes to each. " +
 			"Scan only systems you own or are authorised to test.",
 	})
@@ -400,7 +404,11 @@ func (s *Server) getScan(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
-	a, _ := s.cfg.Store.GetAsset(sc.AssetID)
+	a, err := s.cfg.Store.GetAsset(sc.AssetID)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		storeErr(w, err)
+		return
+	}
 	writeJSON(w, 200, map[string]any{
 		"scan": sc, "events": events,
 		"asset": map[string]any{"id": a.ID, "name": a.Name, "address": a.Address()},
@@ -421,8 +429,14 @@ func (s *Server) cancelScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.cfg.Runner.Cancel(id)
-	_ = s.cfg.Store.AddEvent(id, "canceled by user")
-	sc, _ := s.cfg.Store.GetScan(id)
+	if err := s.cfg.Store.AddEvent(id, "canceled by user"); err != nil {
+		s.log.Warn("recording a cancellation in the scan log failed", "scan", id, "err", err)
+	}
+	sc, err := s.cfg.Store.GetScan(id)
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
 	writeJSON(w, 200, sc)
 }
 

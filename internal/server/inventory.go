@@ -596,6 +596,7 @@ func (s *Server) inventoryCBOM(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
+	extendWriteDeadline(w, s.log, downloadWriteTimeout)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if r.URL.Query().Get("download") == "1" {
 		w.Header().Set("Content-Disposition", `attachment; filename="cipherhorizon-inventory-cbom-`+strconv.Itoa(int(s.cfg.Now().Unix()))+`.json"`)

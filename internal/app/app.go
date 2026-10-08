@@ -110,7 +110,7 @@ Usage:
   cipherhorizon db rebuild-graph|stats [--db FILE]
   cipherhorizon user list|add|reset-password|unlock [--db FILE] [USERNAME]
   cipherhorizon plugins       list the built-in sensors
-  cipherhorizon healthcheck [--addr HOST:PORT]   for a container orchestrator; see below
+  cipherhorizon healthcheck [--addr HOST:PORT] [--tls]   for a container orchestrator; see below
   cipherhorizon version
 
 run flags:
@@ -132,8 +132,12 @@ CycloneDX CBOM instead of text, for exactly one target; PQC verdicts are annotat
 the same way a host inventory's are. Scan only systems you are authorised to test.
 
 serve runs the web UI and API: add endpoints, scan them, watch progress, see history and
-post-quantum readiness. It listens on 127.0.0.1:8080 by default and refuses any other
-address unless --token (or CIPHERHORIZON_TOKEN) is set. Data is kept in --db (SQLite).
+post-quantum readiness. Sign-in is required: on first start the log prints a one-time code
+that creates the administrator. It listens on 127.0.0.1:8080 by default. Any other address
+needs HTTPS (--tls-cert and --tls-key) or --plain-http when a TLS-terminating proxy is in
+front (name that proxy with --trusted-proxy so rate limits see real client addresses);
+--no-login is refused off loopback. --token (or CIPHERHORIZON_TOKEN) adds an automation
+token for scripts, which act as an analyst. Data is kept in --db (SQLite).
 
 healthcheck asks a running "serve" for its health, without a token, and exits 0 or 1; it is
 what the container image's HEALTHCHECK runs, since the distroless base has no shell or curl.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -132,9 +133,11 @@ type prober struct {
 	nextStart time.Time
 
 	incomplete atomic.Bool
-	budgetHit  atomic.Bool
-	notesMu    sync.Mutex
-	notes      []string
+	// recovered is the first panic caught in a probe goroutine.
+	recovered atomic.Pointer[PanicError]
+	budgetHit atomic.Bool
+	notesMu   sync.Mutex
+	notes     []string
 	// stageIncon collects, for the running stage, what proved nothing.
 	stageIncon []string
 }
@@ -164,6 +167,27 @@ func (r *lockedReader) Read(b []byte) (int, error) {
 	r.p.rndMu.Lock()
 	defer r.p.rndMu.Unlock()
 	return r.p.opts.Rand.Read(b)
+}
+
+// PanicError is returned by Scan when the prober itself failed: a bug, most likely triggered by
+// an answer nobody anticipated. Stack is for the log, never for the person who asked for the scan.
+type PanicError struct {
+	Value any
+	Stack []byte
+}
+
+func newPanicError(v any) *PanicError { return &PanicError{Value: v, Stack: debug.Stack()} }
+
+func (e *PanicError) Error() string { return fmt.Sprintf("internal error in the scanner: %v", e.Value) }
+
+// catch is deferred by every probe goroutine: a panic there would otherwise end the whole
+// process, since recover works only in the goroutine that panicked. The first one is kept and
+// returned from Scan, and the report is marked incomplete.
+func (p *prober) catch() {
+	if v := recover(); v != nil {
+		p.recovered.CompareAndSwap(nil, newPanicError(v))
+		p.incomplete.Store(true)
+	}
 }
 
 // errBudget is returned once the connection budget is spent.

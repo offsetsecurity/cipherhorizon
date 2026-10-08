@@ -137,7 +137,7 @@ check "a wrong password and an unknown account answer alike" 1 "$([ "$M1" = "$M2
 check "a password is never in the log"        0 "$(grep -c 'violet\|wrong password here' "$WORK/login.log")"
 curl -s -o /dev/null -b "$WORK/jar" -X POST -H 'X-Requested-With: cipherhorizon' $L/api/v1/auth/logout
 check "after sign-out the old cookie -> 401"  401 "$(code -b "$WORK/jar" $L/api/v1/assets)"
-for i in $(seq 1 20); do curl -s -o /dev/null -X POST "${J[@]}" -d "{\"username\":\"guess$i\",\"password\":\"guessing password\"}" $L/api/v1/auth/login; done
+for i in $(seq 1 50); do curl -s -o /dev/null -X POST "${J[@]}" -d "{\"username\":\"guess$i\",\"password\":\"guessing password\"}" $L/api/v1/auth/login; done
 check "one address guessing is rate-limited -> 429" 429 "$(code -X POST "${J[@]}" -d '{"username":"ana","password":"violet amber harbour"}' $L/api/v1/auth/login)"
 kill $LSRV 2>/dev/null; taskkill //F //PID $LSRV >/dev/null 2>&1
 

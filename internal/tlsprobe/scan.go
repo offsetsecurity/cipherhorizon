@@ -23,11 +23,22 @@ import (
 // The scan is bounded by Options (timeouts, concurrency, a hard connection
 // budget) and by ctx. Only handshake messages are exchanged: no application
 // data is sent and no key material is generated.
-func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
+//
+// A panic anywhere in the scan, including its probe goroutines, is recovered and returned as a
+// *PanicError: a malformed answer from a hostile endpoint must fail that scan, not the process.
+func Scan(ctx context.Context, t Target, opts Options) (rep *Report, err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			err = newPanicError(v)
+			if rep != nil {
+				rep.Incomplete = true
+			}
+		}
+	}()
 	opts.defaults()
 	initCandidates()
 
-	rep := &Report{SchemaVersion: SchemaVersion, Target: t, Started: opts.Now(),
+	rep = &Report{SchemaVersion: SchemaVersion, Target: t, Started: opts.Now(),
 		Protocols: []ProtocolResult{}, Suites: []SuiteResult{}}
 
 	ip, all, err := resolve(ctx, opts, t.Host)
@@ -45,6 +56,9 @@ func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
 		rep.Connections = int(p.conns.Load())
 		rep.Notes = append(rep.Notes, p.notes...)
 		rep.Incomplete = rep.Incomplete || p.incomplete.Load()
+		if pe := p.recovered.Load(); pe != nil && err == nil {
+			err = pe
+		}
 	}()
 
 	sc := &stageClock{p: p}
@@ -95,6 +109,7 @@ func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
 		wg.Add(1)
 		go func(v wire.Version, small bool) {
 			defer wg.Done()
+			defer p.catch()
 			e := p.enumerateLegacy(ctx, v, small)
 			mu.Lock()
 			legacy[v] = e
@@ -106,6 +121,7 @@ func Scan(ctx context.Context, t Target, opts Options) (*Report, error) {
 			wg.Add(1)
 			go func(small bool) {
 				defer wg.Done()
+				defer p.catch()
 				e := p.enumerateTLS13(ctx, small)
 				mu.Lock()
 				tls13 = e
@@ -278,6 +294,7 @@ func (p *prober) detectProtocols(ctx context.Context) []protoProbe {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer p.catch()
 			out[i] = p.probeVersion(ctx, v)
 		}()
 	}

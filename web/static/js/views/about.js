@@ -100,7 +100,8 @@ export async function render(root) {
       h('dt', null, 'History kept'), h('dd', null, `the last ${a.retentionPerAsset} scans of each endpoint`),
       h('dt', null, 'Concurrent scans'), h('dd', null, String(a.maxConcurrentScans)),
       h('dt', null, 'Loopback targets'), h('dd', null, a.allowLoopback ? 'allowed' : 'blocked'),
-      h('dt', null, 'Access token'), h('dd', null, a.authRequired ? 'required' : 'not required (loopback only)'))));
+      h('dt', null, 'Sign-in'), h('dd', null, a.signInRequired ? 'required' : 'off (one local operator, loopback only)'),
+      h('dt', null, 'Automation token'), h('dd', null, a.automationToken ? 'accepted' : 'not configured'))));
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Sources'), citations(SOURCES.map(([title, url]) => ({ title, url })))));
   return null;

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -340,7 +341,7 @@ func capText(s string, n int) string {
 
 // projectQuietly projects a document after it is stored. A failure never fails the
 // operation that stored the document: the graph is derived, the document is the truth.
-// The failure is remembered, and the next start rebuilds.
+// The failure is logged and remembered, and Maintain (or the next start) rebuilds.
 func (s *Store) projectQuietly(fn func(tx *sql.Tx) error) {
 	tx, err := s.db.Begin()
 	if err == nil {
@@ -352,7 +353,16 @@ func (s *Store) projectQuietly(fn func(tx *sql.Tx) error) {
 		}
 	}
 	if err != nil {
-		_, _ = s.db.Exec(`UPDATE projection_state SET stale = 1`)
+		s.markStale("projecting a stored document", err)
+	}
+}
+
+// markStale records that derived data (the graph or its links) could not be updated, so it is
+// rebuilt from the stored documents by the next Maintain or start.
+func (s *Store) markStale(what string, cause error) {
+	s.log.Warn(what+" failed; the graph will be rebuilt", "err", cause)
+	if _, err := s.db.Exec(`UPDATE projection_state SET stale = 1`); err != nil {
+		s.log.Error("marking the graph for a rebuild failed; it is rebuilt at the next start", "err", err)
 	}
 }
 
@@ -371,12 +381,76 @@ func (s *Store) deriveTx(tx *sql.Tx, fn func() error) bool {
 	return err == nil
 }
 
-// pruneOrphans removes projections whose document was deleted (retention) and entities
-// nothing observes any more.
-func (s *Store) pruneOrphans() {
-	_, _ = s.db.Exec(`DELETE FROM sources WHERE ref_kind = 'scan' AND ref_id NOT IN (SELECT id FROM scans)`)
-	_, _ = s.db.Exec(`DELETE FROM sources WHERE ref_kind = 'host_snapshot' AND ref_id NOT IN (SELECT id FROM host_snapshots)`)
-	_, _ = s.db.Exec(`DELETE FROM entities WHERE id NOT IN (SELECT entity_id FROM observations)`)
+// pruneOrphans removes projections whose document was deleted (an asset deleted with its
+// documents) and entities nothing observes any more. It sweeps whole tables, so it runs from
+// Maintain, not after every write: retention removes its own projections as it goes
+// (deleteSourcesTx).
+func (s *Store) pruneOrphans() error {
+	for _, q := range []string{
+		`DELETE FROM sources WHERE ref_kind = 'scan' AND NOT EXISTS (SELECT 1 FROM scans sc WHERE sc.id = sources.ref_id)`,
+		`DELETE FROM sources WHERE ref_kind = 'host_snapshot' AND NOT EXISTS (SELECT 1 FROM host_snapshots h WHERE h.id = sources.ref_id)`,
+		`DELETE FROM entities WHERE NOT EXISTS (SELECT 1 FROM observations o WHERE o.entity_id = entities.id)`,
+	} {
+		if _, err := s.db.Exec(q); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deleteSourcesTx removes the projections of the given documents (their observations go by
+// cascade) and then the entities that only they observed. It is the scoped, per-write form of
+// pruneOrphans: it touches the rows of those documents, not the whole graph.
+func deleteSourcesTx(tx *sql.Tx, refKind string, refIDs []int64) error {
+	for len(refIDs) > 500 { // well under SQLite's cap on parameters per statement
+		if err := deleteSourcesTx(tx, refKind, refIDs[:500]); err != nil {
+			return err
+		}
+		refIDs = refIDs[500:]
+	}
+	if len(refIDs) == 0 {
+		return nil
+	}
+	ph := strings.TrimSuffix(strings.Repeat("?,", len(refIDs)), ",")
+	args := make([]any, 0, len(refIDs)+1)
+	args = append(args, refKind)
+	for _, id := range refIDs {
+		args = append(args, id)
+	}
+	entityIDs, err := ids(tx, `SELECT DISTINCT o.entity_id FROM observations o JOIN sources src ON src.id = o.source_id
+		WHERE src.ref_kind = ? AND src.ref_id IN (`+ph+`)`, args...)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM sources WHERE ref_kind = ? AND ref_id IN (`+ph+`)`, args...); err != nil { //nolint:gosec // ph is only "?" placeholders
+		return err
+	}
+	for start := 0; start < len(entityIDs); start += 500 {
+		batch := entityIDs[start:min(start+500, len(entityIDs))]
+		eargs := make([]any, len(batch))
+		for i, id := range batch {
+			eargs[i] = id
+		}
+		eph := strings.TrimSuffix(strings.Repeat("?,", len(batch)), ",")
+		q := `DELETE FROM entities WHERE id IN (` + eph + `) AND NOT EXISTS (SELECT 1 FROM observations o WHERE o.entity_id = entities.id)` //nolint:gosec // eph is only "?" placeholders
+		if _, err := tx.Exec(q, eargs...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Maintain repairs derived data in the background: it rebuilds the graph if a projection or a
+// correlation failed since the last build, and sweeps orphans left by deleted assets. The
+// server calls it periodically, so a failure is repaired without waiting for a restart.
+func (s *Store) Maintain() error {
+	if err := s.ensureProjection(); err != nil {
+		return fmt.Errorf("rebuilding the graph: %w", err)
+	}
+	if err := s.pruneOrphans(); err != nil {
+		return fmt.Errorf("removing orphaned graph rows: %w", err)
+	}
+	return nil
 }
 
 // ---- rebuild --------------------------------------------------------------------------------
@@ -456,8 +530,8 @@ func (s *Store) RebuildGraph() (GraphCounts, error) {
 	return c, tx.Commit()
 }
 
-func ids(tx *sql.Tx, q string) ([]int64, error) {
-	rows, err := tx.Query(q)
+func ids(tx *sql.Tx, q string, args ...any) ([]int64, error) {
+	rows, err := tx.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}

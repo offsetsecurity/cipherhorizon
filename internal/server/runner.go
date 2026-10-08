@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -21,10 +24,16 @@ type RunnerOptions struct {
 	SchedulerInterval time.Duration
 	// ScanTimeout bounds one whole scan (default 10 minutes).
 	ScanTimeout time.Duration
-	Now         func() time.Time
+	// MaintenanceInterval is how often derived data is repaired (store.Maintain): a graph
+	// left stale by a failed projection is rebuilt and orphans are swept (default 5 minutes).
+	MaintenanceInterval time.Duration
+	Now                 func() time.Time
 	// CABundle is the server-wide private CA bundle (--ca-bundle), applied to
 	// every evaluation as "your CA bundle" (REQ-TTRS-2).
 	CABundle []AnchorCert
+	// Log receives what the runner could not do: a store write that failed, a scan that
+	// panicked. Default: discarded.
+	Log *slog.Logger
 }
 
 // Runner executes queued scans and triggers scheduled ones.
@@ -32,6 +41,7 @@ type Runner struct {
 	st    *store.Store
 	guard Guard
 	opts  RunnerOptions
+	log   *slog.Logger
 
 	wake chan struct{}
 	mu   sync.Mutex
@@ -51,10 +61,16 @@ func NewRunner(st *store.Store, guard Guard, opts RunnerOptions) *Runner {
 	if opts.ScanTimeout <= 0 {
 		opts.ScanTimeout = 10 * time.Minute
 	}
+	if opts.MaintenanceInterval <= 0 {
+		opts.MaintenanceInterval = 5 * time.Minute
+	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	return &Runner{st: st, guard: guard, opts: opts, wake: make(chan struct{}, opts.Workers), cancels: map[int64]context.CancelFunc{}}
+	if opts.Log == nil {
+		opts.Log = slog.New(slog.DiscardHandler)
+	}
+	return &Runner{st: st, guard: guard, opts: opts, log: opts.Log, wake: make(chan struct{}, opts.Workers), cancels: map[int64]context.CancelFunc{}}
 }
 
 // Start launches the workers and the scheduler. They stop when ctx is done.
@@ -103,6 +119,9 @@ func (r *Runner) worker(ctx context.Context) {
 		for ctx.Err() == nil {
 			sc, err := r.st.ClaimNext()
 			if err != nil {
+				if !errors.Is(err, store.ErrNotFound) {
+					r.log.Error("claiming the next queued scan failed; retrying shortly", "err", err)
+				}
 				break
 			}
 			r.execute(ctx, sc)
@@ -120,12 +139,18 @@ func (r *Runner) scheduler(ctx context.Context) {
 	defer r.wg.Done()
 	tick := time.NewTicker(r.opts.SchedulerInterval)
 	defer tick.Stop()
+	maint := time.NewTicker(r.opts.MaintenanceInterval)
+	defer maint.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
 			r.enqueueDue()
+		case <-maint.C:
+			if err := r.st.Maintain(); err != nil {
+				r.log.Error("maintaining derived data failed", "err", err)
+			}
 		}
 	}
 }
@@ -134,11 +159,16 @@ func (r *Runner) scheduler(ctx context.Context) {
 func (r *Runner) enqueueDue() {
 	due, err := r.st.DueAssets(r.opts.Now())
 	if err != nil {
+		r.log.Error("finding scheduled scans failed", "err", err)
 		return
 	}
 	queued := false
 	for _, a := range due {
-		if _, existing, err := r.st.EnqueueScan(a.ID, "scheduled"); err == nil && !existing {
+		_, existing, err := r.st.EnqueueScan(a.ID, "scheduled")
+		switch {
+		case err != nil:
+			r.log.Error("queueing a scheduled scan failed", "asset", a.ID, "err", err)
+		case !existing:
 			queued = true
 		}
 	}
@@ -195,8 +225,8 @@ func (p *progress) message(msg string) {
 	stage, pct, conns := p.stage, p.pctLocked(), p.conns
 	p.lastSent = time.Now()
 	p.mu.Unlock()
-	_ = p.r.st.AddEvent(p.id, msg)
-	_ = p.r.st.UpdateProgress(p.id, stage, pct, conns)
+	p.r.note(p.id, p.r.st.AddEvent(p.id, msg))
+	p.r.note(p.id, p.r.st.UpdateProgress(p.id, stage, pct, conns))
 }
 
 func (p *progress) tick(n int) {
@@ -212,7 +242,7 @@ func (p *progress) tick(n int) {
 	p.lastSent = time.Now()
 	stage, pct := p.stage, p.pctLocked()
 	p.mu.Unlock()
-	_ = p.r.st.UpdateProgress(p.id, stage, pct, n)
+	p.r.note(p.id, p.r.st.UpdateProgress(p.id, stage, pct, n))
 }
 
 // pctLocked is the stage's floor plus a creep toward the next floor as
@@ -229,15 +259,46 @@ func (p *progress) pctLocked() int {
 	return p.floor + creep
 }
 
+// note logs a progress write the runner could not make. Progress lines are best effort, but a
+// failure must be visible: a database that has stopped taking writes is otherwise silent.
+func (r *Runner) note(scanID int64, err error) {
+	if err != nil {
+		r.log.Warn("recording scan progress failed", "scan", scanID, "err", err)
+	}
+}
+
+// fail marks a scan failed, and logs when even that cannot be recorded.
+func (r *Runner) fail(scanID int64, reason string, partial []byte) {
+	if err := r.st.FailScan(scanID, reason, partial); err != nil {
+		r.log.Error("recording a failed scan failed; it shows as running until the next restart", "scan", scanID, "reason", reason, "err", err)
+	}
+}
+
+// internalFailure is what a scan that hit a bug says; the details are in the server log only.
+const internalFailure = "internal error while scanning; the server log has the details"
+
 func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
+	// A bug anywhere below (the prober, the evaluation, the result encoding) fails this scan and
+	// is logged with its stack; it never ends the process and every other scan with it.
+	defer func() {
+		if v := recover(); v != nil {
+			r.log.Error("scan panicked", "scan", sc.ID, "asset", sc.AssetID, "panic", v, "stack", string(debug.Stack()))
+			r.fail(sc.ID, internalFailure, nil)
+		}
+	}()
 	asset, err := r.st.GetAsset(sc.AssetID)
 	if err != nil {
-		_ = r.st.FailScan(sc.ID, "the asset no longer exists", nil)
+		reason := "the asset no longer exists"
+		if !errors.Is(err, store.ErrNotFound) {
+			r.log.Error("reading the asset of a scan failed", "scan", sc.ID, "asset", sc.AssetID, "err", err)
+			reason = "the asset could not be read; the server log has the details"
+		}
+		r.fail(sc.ID, reason, nil)
 		return
 	}
 	target, err := tlsprobe.ParseTarget(asset.Address())
 	if err != nil {
-		_ = r.st.FailScan(sc.ID, "invalid target: "+err.Error(), nil)
+		r.fail(sc.ID, "invalid target: "+err.Error(), nil)
 		return
 	}
 
@@ -260,35 +321,43 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 	o.Progress = prog.message
 	o.Tick = prog.tick
 
-	_ = r.st.AddEvent(sc.ID, "scan started: "+asset.Address())
+	r.note(sc.ID, r.st.AddEvent(sc.ID, "scan started: "+asset.Address()))
 	rep, err := tlsprobe.Scan(ctx, target, o)
 	if err != nil {
 		if ctx.Err() != nil && parent.Err() == nil && r.canceledByUser(sc.ID) {
 			return // the API already marked it canceled
 		}
 		reason := err.Error()
-		if ctx.Err() == context.DeadlineExceeded {
+		var pe *tlsprobe.PanicError
+		switch {
+		case errors.As(err, &pe):
+			r.log.Error("the prober panicked", "scan", sc.ID, "target", asset.Address(), "panic", pe.Value, "stack", string(pe.Stack))
+			reason = internalFailure
+		case errors.Is(ctx.Err(), context.DeadlineExceeded):
 			reason = "the scan exceeded its time limit"
 		}
 		var partial []byte
-		if rep != nil && len(rep.Protocols) > 0 {
-			partial, _ = json.Marshal(rep)
+		if rep != nil && len(rep.Protocols) > 0 && pe == nil {
+			if partial, err = json.Marshal(rep); err != nil {
+				r.log.Warn("encoding a partial report failed", "scan", sc.ID, "err", err)
+				partial = nil
+			}
 		}
-		_ = r.st.AddEvent(sc.ID, "scan failed: "+reason)
-		_ = r.st.FailScan(sc.ID, reason, partial)
+		r.note(sc.ID, r.st.AddEvent(sc.ID, "scan failed: "+reason))
+		r.fail(sc.ID, reason, partial)
 		return
 	}
 
 	if ctx.Err() != nil && r.canceledByUser(sc.ID) {
 		return // the scan returned a partial report; the user canceled, so do not evaluate it
 	}
-	_ = r.st.UpdateProgress(sc.ID, stageEvaluating, floorEvaluating, rep.Connections)
-	_ = r.st.AddEvent(sc.ID, "evaluating results")
+	r.note(sc.ID, r.st.UpdateProgress(sc.ID, stageEvaluating, floorEvaluating, rep.Connections))
+	r.note(sc.ID, r.st.AddEvent(sc.ID, "evaluating results"))
 	ev := r.Evaluate(rep, sc.AssetID)
 
 	res, err := resultOf(rep, ev)
 	if err != nil {
-		_ = r.st.FailScan(sc.ID, err.Error(), nil)
+		r.fail(sc.ID, err.Error(), nil)
 		return
 	}
 	res.FinalEvent = fmt.Sprintf("done: TLS hygiene %s (%d), PQC readiness L%d (%s), %d connections",
@@ -296,7 +365,13 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 	if na := leafNotAfter(rep); na != nil {
 		res.CertNotAfter = na
 	}
-	_ = r.st.FinishScan(sc.ID, res) // an error means it was canceled while evaluating: nothing to add
+	switch err := r.st.FinishScan(sc.ID, res); {
+	case errors.Is(err, store.ErrNotFound):
+		// canceled while evaluating: nothing to add
+	case err != nil:
+		r.log.Error("storing a finished scan failed", "scan", sc.ID, "err", err)
+		r.fail(sc.ID, "the result could not be stored; the server log has the details", nil)
+	}
 }
 
 func (r *Runner) canceledByUser(id int64) bool {

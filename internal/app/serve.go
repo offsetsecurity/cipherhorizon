@@ -48,11 +48,38 @@ func isLoopbackAddr(addr string) bool {
 	if err != nil || host == "" {
 		return false
 	}
+	return isLoopbackHost(host)
+}
+
+// isLoopbackHost reports whether a host name or address is this machine.
+func isLoopbackHost(host string) bool {
 	if host == "localhost" {
 		return true
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// parseProxies reads --trusted-proxy values: an IP address or a CIDR block each.
+func parseProxies(vals []string) ([]*net.IPNet, error) {
+	var out []*net.IPNet
+	for _, v := range vals {
+		v = strings.TrimSpace(v)
+		if ip := net.ParseIP(v); ip != nil {
+			bits := 8 * len(ip.To16())
+			if ip.To4() != nil {
+				ip, bits = ip.To4(), 32
+			}
+			out = append(out, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+			continue
+		}
+		_, n, err := net.ParseCIDR(v)
+		if err != nil {
+			return nil, fmt.Errorf("%q is neither an IP address nor a CIDR block", v)
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }
 
 // serveCmd implements "cipherhorizon serve": the web UI, the API and the scan runner.
@@ -78,8 +105,10 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		"On by default, server-wide; --http-checks=false turns it off")
 	caBundle := fl.String("ca-bundle", "", "PEM file of private CA certificates every scan is also judged against (\"trusted by your CA bundle\"). "+
 		"Certificates only: a file containing a private-key block is refused")
-	var allowedHosts stringList
+	var allowedHosts, trustedProxies stringList
 	fl.Var(&allowedHosts, "allowed-host", "extra Host header accepted when no token is set (repeatable)")
+	fl.Var(&trustedProxies, "trusted-proxy", "address or CIDR of a reverse proxy in front of this server whose X-Forwarded-For names the real client, "+
+		"for sign-in rate limits and the sign-in log (repeatable). Without it every request is attributed to its direct peer")
 	if err := fl.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return ExitOK
@@ -111,6 +140,10 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 			"Serve HTTPS with --tls-cert and --tls-key, or, if a TLS-terminating proxy is in front, add --plain-http", *addr)
 	case *sessionIdle < time.Minute || *sessionMax < *sessionIdle:
 		return fatalf(env, "--session-idle must be at least a minute and --session-max at least --session-idle")
+	}
+	proxies, err := parseProxies(trustedProxies)
+	if err != nil {
+		return fatalf(env, "--trusted-proxy: %v", err)
 	}
 	var tlsCfg *tls.Config
 	if useTLS {
@@ -147,6 +180,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	defer st.Close() //nolint:errcheck // nothing useful to do on close at exit
 
 	log := slog.New(slog.NewTextHandler(env.Stderr, nil))
+	st.SetLogger(log)
 	if n, err := st.FailInterrupted(); err != nil {
 		return fatalf(env, "recovering interrupted scans: %v", err)
 	} else if n > 0 {
@@ -173,13 +207,14 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		Workers:  *workers,
 		Scan:     tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
 		CABundle: bundle,
+		Log:      log,
 	})
 	if n := runner.ReevaluateOutdated(); n > 0 {
 		log.Info("re-evaluated the latest results with the current rules", "endpoints", n, "rules", eval.Version)
 	}
 	srv := server.New(server.Config{
 		Store: st, Runner: runner, Guard: guard,
-		Token: *token, AllowedHosts: allowedHosts,
+		Token: *token, AllowedHosts: allowedHosts, TrustedProxies: proxies,
 		RequireLogin: !*noLogin, SetupCode: setupCode, SecureCookies: useTLS,
 		SessionIdle: *sessionIdle, SessionMax: *sessionMax,
 		Version: version.Version, EvalVersion: eval.Version,

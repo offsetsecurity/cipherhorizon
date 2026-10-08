@@ -12,10 +12,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
-	_ "modernc.org/sqlite" // registers the "sqlite" driver
+	"modernc.org/sqlite" // registers the "sqlite" driver
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // Errors callers can test for.
@@ -44,6 +47,14 @@ type Store struct {
 	db   *sql.DB
 	path string
 	now  func() time.Time
+	log  *slog.Logger
+
+	// correlation runs are coalesced: see correlateQuietly.
+	corrMu      sync.Mutex
+	corrCond    *sync.Cond
+	corrRunning bool
+	corrWanted  uint64 // requests made so far
+	corrDone    uint64 // requests covered by a finished run
 }
 
 // Open opens (creating if needed) the database at path and applies migrations.
@@ -59,8 +70,7 @@ func Open(path string) (*Store, error) {
 	if err := restrictFile(path); err != nil {
 		return nil, fmt.Errorf("store: securing %s: %w", path, err)
 	}
-	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)&_txlock=immediate"
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", dsnFor(path))
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +79,8 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("store: opening %s: %w", path, err)
 	}
-	s := &Store{db: db, path: path, now: time.Now}
+	s := &Store{db: db, path: path, now: time.Now, log: slog.New(slog.DiscardHandler)}
+	s.corrCond = sync.NewCond(&s.corrMu)
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -79,6 +90,33 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// dsnParams are the connection settings every connection gets.
+const dsnParams = "_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)&_txlock=immediate"
+
+// dsnFor turns a database path into the driver's URI. A plain path is escaped, so a '?', '#' or
+// '%' in a directory name is part of the name and never read as the start of URI parameters
+// (which could otherwise switch off foreign keys or WAL). A path that is already a "file:" URI
+// is the caller's own and only gets the parameters appended.
+func dsnFor(path string) string {
+	if strings.HasPrefix(path, "file:") {
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		return path + sep + dsnParams
+	}
+	esc := strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
+	return "file:" + esc + "?" + dsnParams
+}
+
+// SetLogger sets where the store reports what it does on its own (derived data it could not
+// rebuild, maintenance that failed). Default: discarded.
+func (s *Store) SetLogger(l *slog.Logger) {
+	if l != nil {
+		s.log = l
+	}
 }
 
 // SetClock replaces the time source (tests).
@@ -350,14 +388,20 @@ var migrations = []string{
 		detail TEXT NOT NULL DEFAULT ''
 	);
 	CREATE INDEX auth_events_at ON auth_events(at);`,
+	// 10: every stored time is rewritten in the fixed-width form ts now writes (nine fractional
+	// digits, always). The earlier RFC 3339 "nano" form dropped trailing zeros, so its strings did
+	// not sort as the times do ("...05Z" after "...05.3Z") and comparisons in SQL were off within a
+	// second. The rewrite is Go (backfillTimestamps); the SQL step only records the version.
+	`UPDATE projection_state SET built_at = built_at WHERE id = 1;`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same
 // transaction as the migration with the same number.
 var postMigrations = map[int]func(tx *sql.Tx, now time.Time) error{
-	4: backfillSystems,
-	6: backfillLinks,
-	8: backfillLowInfo,
+	4:  backfillSystems,
+	6:  backfillLinks,
+	8:  backfillLowInfo,
+	10: backfillTimestamps,
 }
 
 // Finding triage statuses. "Resolved" is never one of these: it is not a
@@ -416,7 +460,94 @@ func (s *Store) migrate() error {
 
 // ---- time helpers --------------------------------------------------------------------
 
-func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
+// tsLayout is how every time is stored: UTC, always nine fractional digits, so that comparing
+// and sorting the strings in SQL agrees with comparing the times.
+const tsLayout = "2006-01-02T15:04:05.000000000Z07:00"
+
+func ts(t time.Time) string { return t.UTC().Format(tsLayout) }
+
+// timestampColumns are every column holding a time written by ts (migration 10 rewrites them).
+var timestampColumns = map[string][]string{
+	"asset_links":       {"created_at"},
+	"assets":            {"created_at", "next_scan_at", "updated_at"},
+	"audit_log":         {"at"},
+	"auth_events":       {"at"},
+	"finding_status":    {"set_at"},
+	"host_snapshots":    {"at"},
+	"imports":           {"created_at"},
+	"links":             {"created_at", "decided_at", "updated_at"},
+	"observations":      {"observed_at"},
+	"projection_state":  {"built_at"},
+	"scan_events":       {"at"},
+	"scans":             {"cert_not_after", "finished_at", "queued_at", "started_at"},
+	"sessions":          {"created_at", "expires_at", "last_seen_at"},
+	"sources":           {"observed_at", "received_at"},
+	"systems":           {"created_at", "updated_at"},
+	"trust_anchors":     {"added_at", "not_after"},
+	"users":             {"created_at", "last_login_at", "locked_until", "password_changed_at"},
+	"schema_migrations": {"applied_at"},
+}
+
+// backfillTimestamps rewrites stored times into tsLayout (migration 10). A value that does not
+// parse as RFC 3339 is left as it is. audit_log is append-only by trigger, so its triggers are
+// lifted for the rewrite (the same transaction recreates them): the rows keep their meaning,
+// only the spelling of the time changes.
+func backfillTimestamps(tx *sql.Tx, _ time.Time) error {
+	if _, err := tx.Exec(`DROP TRIGGER audit_log_no_update`); err != nil {
+		return err
+	}
+	for table, cols := range timestampColumns {
+		for _, col := range cols {
+			if err := reformatColumnTx(tx, table, col); err != nil {
+				return fmt.Errorf("%s.%s: %w", table, col, err)
+			}
+		}
+	}
+	_, err := tx.Exec(`CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END`)
+	return err
+}
+
+func reformatColumnTx(tx *sql.Tx, table, col string) error {
+	// table and col come from timestampColumns, a constant list, never from input.
+	rows, err := tx.Query(`SELECT rowid, ` + col + ` FROM ` + table + ` WHERE ` + col + ` IS NOT NULL AND ` + col + ` <> ''`) //nolint:gosec // constant identifiers
+	if err != nil {
+		return err
+	}
+	type change struct {
+		id  int64
+		val string
+	}
+	var changes []change
+	for rows.Next() {
+		var id int64
+		var v string
+		if err := rows.Scan(&id, &v); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if t, err := time.Parse(time.RFC3339Nano, v); err == nil && ts(t) != v {
+			changes = append(changes, change{id, ts(t)})
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`UPDATE ` + table + ` SET ` + col + ` = ? WHERE rowid = ?`) //nolint:gosec // constant identifiers
+	if err != nil {
+		return err
+	}
+	defer stmt.Close() //nolint:errcheck // closed with the transaction
+	for _, c := range changes {
+		if _, err := stmt.Exec(c.val, c.id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func parseTS(s sql.NullString) *time.Time {
 	if !s.Valid || s.String == "" {
@@ -436,8 +567,11 @@ func nullTS(t *time.Time) any {
 	return ts(*t)
 }
 
+// isConstraint reports whether err is an SQLite constraint violation (unique, foreign key,
+// check, ...), by its result code rather than by its message.
 func isConstraint(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "constraint failed")
+	var se *sqlite.Error
+	return errors.As(err, &se) && se.Code()&0xff == sqlite3.SQLITE_CONSTRAINT
 }
 
 // ---- types ---------------------------------------------------------------------------------
@@ -666,7 +800,17 @@ type AssetPatch struct {
 
 // UpdateAsset applies a patch. Setting an interval schedules the next scan.
 func (s *Store) UpdateAsset(id int64, p AssetPatch) (Asset, error) {
-	a, err := s.GetAsset(id)
+	// Read and write in one (immediate) transaction, so two concurrent edits of different
+	// fields cannot overwrite each other with what each read before the other wrote.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return Asset{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	a, err := scanAsset(tx.QueryRow(`SELECT `+assetCols+` FROM assets WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Asset{}, ErrNotFound
+	}
 	if err != nil {
 		return Asset{}, err
 	}
@@ -689,9 +833,12 @@ func (s *Store) UpdateAsset(id int64, p AssetPatch) (Asset, error) {
 	} else {
 		next = a.NextScanAt
 	}
-	_, err = s.db.Exec(`UPDATE assets SET name = ?, tags = ?, notes = ?, interval_seconds = ?, next_scan_at = ?, updated_at = ? WHERE id = ?`,
+	_, err = tx.Exec(`UPDATE assets SET name = ?, tags = ?, notes = ?, interval_seconds = ?, next_scan_at = ?, updated_at = ? WHERE id = ?`,
 		a.Name, encodeTags(a.Tags), a.Notes, a.IntervalSeconds, nullTS(next), ts(s.now()), id)
 	if err != nil {
+		return Asset{}, err
+	}
+	if err := tx.Commit(); err != nil {
 		return Asset{}, err
 	}
 	return s.GetAsset(id)
@@ -750,6 +897,18 @@ func scanSummary(r scanner) (ScanSummary, error) {
 
 // attachLatest fills Latest and LastDone for the given assets.
 func (s *Store) attachLatest(assets []*Asset) error {
+	// SQLite caps the parameters of one statement (32766 by default): ask in chunks.
+	const chunk = 5000
+	for len(assets) > chunk {
+		if err := s.attachLatestChunk(assets[:chunk]); err != nil {
+			return err
+		}
+		assets = assets[chunk:]
+	}
+	return s.attachLatestChunk(assets)
+}
+
+func (s *Store) attachLatestChunk(assets []*Asset) error {
 	if len(assets) == 0 {
 		return nil
 	}

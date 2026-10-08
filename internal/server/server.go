@@ -29,6 +29,9 @@ type Config struct {
 	Token string
 	// AllowedHosts are extra Host header values accepted when no token is set.
 	AllowedHosts []string
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For header names the real client,
+	// for rate limits and the sign-in log. A request from any other peer is taken at its word.
+	TrustedProxies []*net.IPNet
 
 	// RequireLogin turns on accounts (ADR-0018): every API call needs a signed-in session or
 	// the automation Token. Off, the server is the single-user loopback tool it was.
@@ -213,6 +216,17 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 }
 
 const maxBody = 1 << 20
+
+// downloadWriteTimeout replaces the server's WriteTimeout for large downloads (a collector
+// binary, a host's CBOM): a minute is enough for an API answer, not for tens of MiB on a slow link.
+const downloadWriteTimeout = 15 * time.Minute
+
+// extendWriteDeadline gives one response longer to be written than the server-wide WriteTimeout.
+func extendWriteDeadline(w http.ResponseWriter, log *slog.Logger, d time.Duration) {
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(d)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		log.Warn("extending the write deadline of a download failed", "err", err)
+	}
+}
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBody)

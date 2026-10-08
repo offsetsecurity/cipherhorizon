@@ -92,12 +92,19 @@ type Doc struct {
 	Components   int
 }
 
+// CheckLimits applies only the limits layer: size, nesting depth, value count and string
+// length, walking the token stream without building the document. Run it before decoding any
+// untrusted JSON into a CycloneDX BOM.
+func CheckLimits(raw []byte, lim Limits) error {
+	if len(raw) > lim.MaxBytes {
+		return &Error{Stage: "limits", Message: fmt.Sprintf("the document is %d bytes; the limit is %d", len(raw), lim.MaxBytes)}
+	}
+	return scan(raw, lim)
+}
+
 // Parse applies the limits, schema and profile layers.
 func Parse(raw []byte, lim Limits) (*Doc, error) {
-	if len(raw) > lim.MaxBytes {
-		return nil, &Error{Stage: "limits", Message: fmt.Sprintf("the document is %d bytes; the limit is %d", len(raw), lim.MaxBytes)}
-	}
-	if err := scan(raw, lim); err != nil {
+	if err := CheckLimits(raw, lim); err != nil {
 		return nil, err
 	}
 	var head struct {

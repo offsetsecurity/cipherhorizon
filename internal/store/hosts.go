@@ -33,8 +33,18 @@ func (s *Store) UpsertHostAsset(name string) (a Asset, created bool, err error) 
 	return a, true, err
 }
 
-// HostSnapshotsKept is how many uploads are retained per host.
-var HostSnapshotsKept = 50
+// Retention and quota of uploaded host CBOMs. Each upload can be up to 32 MiB, so a count
+// alone does not bound the disk: per host, the oldest uploads go once the host's total passes
+// HostSnapshotBytesKept (the newest is always kept); across all hosts, an upload that would
+// take the total past HostSnapshotQuota is refused rather than deleting another host's history.
+var (
+	HostSnapshotsKept           = 50
+	HostSnapshotBytesKept int64 = 256 << 20
+	HostSnapshotQuota     int64 = 8 << 30
+)
+
+// ErrQuota is returned when an upload would take stored host CBOMs past HostSnapshotQuota.
+var ErrQuota = errors.New("the server's storage quota for uploaded host inventories is full")
 
 // AddHostSnapshot stores an uploaded CBOM and its analysis as an imported document:
 // the safe default, since nothing here proves who made it.
@@ -49,20 +59,75 @@ func (s *Store) AddHostSnapshotAs(assetID int64, cbom, summary []byte, class est
 	if !class.Valid() {
 		return 0, errors.New("store: unknown source class")
 	}
-	res, err := s.db.Exec(`INSERT INTO host_snapshots (asset_id, at, cbom_json, summary_json, source_class, submitted_by) VALUES (?, ?, ?, ?, ?, ?)`,
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var total int64
+	if err := tx.QueryRow(`SELECT COALESCE(SUM(length(cbom_json)), 0) FROM host_snapshots`).Scan(&total); err != nil {
+		return 0, err
+	}
+	if total+int64(len(cbom)) > HostSnapshotQuota {
+		return 0, ErrQuota
+	}
+	res, err := tx.Exec(`INSERT INTO host_snapshots (asset_id, at, cbom_json, summary_json, source_class, submitted_by) VALUES (?, ?, ?, ?, ?, ?)`,
 		assetID, ts(s.now()), cbom, summary, string(class), submittedBy)
 	if err != nil {
 		return 0, err
 	}
 	id, _ := res.LastInsertId()
-	if _, err = s.db.Exec(`DELETE FROM host_snapshots WHERE asset_id = ? AND id NOT IN
-		(SELECT id FROM host_snapshots WHERE asset_id = ? ORDER BY id DESC LIMIT ?)`, assetID, assetID, HostSnapshotsKept); err != nil {
-		return id, err
+	if err := s.retainSnapshotsTx(tx, assetID); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
 	}
 	s.projectQuietly(func(tx *sql.Tx) error { return s.projectSnapshotTx(tx, id) })
-	s.pruneOrphans()
 	s.correlateQuietly()
 	return id, nil
+}
+
+// retainSnapshotsTx drops a host's oldest uploads beyond HostSnapshotsKept, and beyond
+// HostSnapshotBytesKept in total, never the newest; their projections go with them.
+func (s *Store) retainSnapshotsTx(tx *sql.Tx, assetID int64) error {
+	rows, err := tx.Query(`SELECT id, length(cbom_json) FROM host_snapshots WHERE asset_id = ? ORDER BY id DESC`, assetID)
+	if err != nil {
+		return err
+	}
+	var drop []int64
+	var kept int
+	var bytes int64
+	full := false // once one upload is dropped, every older one goes too
+	for rows.Next() {
+		var id, n int64
+		if err := rows.Scan(&id, &n); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if full || kept > 0 && (kept >= HostSnapshotsKept || bytes+n > HostSnapshotBytesKept) {
+			full = true
+			drop = append(drop, id)
+			continue
+		}
+		kept++
+		bytes += n
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if err := deleteSourcesTx(tx, "host_snapshot", drop); err != nil {
+		return err
+	}
+	for _, id := range drop {
+		if _, err := tx.Exec(`DELETE FROM host_snapshots WHERE id = ?`, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // HostSnapshots lists a host's uploads, newest first.

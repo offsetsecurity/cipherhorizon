@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,8 +32,10 @@ const (
 const (
 	lockAfter       = 5                // consecutive failures on one account
 	lockFor         = 15 * time.Minute // how long the account then refuses sign-in
-	clientFailLimit = 20               // failed attempts from one client address ...
+	clientFailLimit = 50               // failed attempts from one client address, any account ...
+	pairFailLimit   = 10               // ... or from one client address against one account ...
 	clientFailSpan  = 15 * time.Minute // ... within this window, after which it gets 429
+	maxTrackedKeys  = 10000            // bound on the limiter's memory
 )
 
 // principal is who a request acts for.
@@ -63,48 +66,119 @@ func (s *Server) actor(r *http.Request) string {
 	return "local"
 }
 
-func clientOf(r *http.Request) string {
-	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return h
+// clientOf is the address of the browser or script behind a request. The connection's peer is
+// used unless it is a proxy the operator named with --trusted-proxy; then the X-Forwarded-For
+// chain is read from the right, skipping trusted proxies, so a client cannot forge its address
+// by sending the header itself.
+func (s *Server) clientOf(r *http.Request) string {
+	peer := r.RemoteAddr
+	if h, _, err := net.SplitHostPort(peer); err == nil {
+		peer = h
 	}
-	return r.RemoteAddr
+	if !s.trustedProxy(peer) {
+		return peer
+	}
+	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	for i := len(hops) - 1; i >= 0; i-- {
+		hop := strings.TrimSpace(hops[i])
+		if net.ParseIP(hop) == nil {
+			break // a malformed entry: stop trusting the chain here
+		}
+		if !s.trustedProxy(hop) {
+			return hop
+		}
+	}
+	return peer
 }
 
-// limiter counts failed sign-ins per client address.
+func (s *Server) trustedProxy(addr string) bool {
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return false
+	}
+	for _, n := range s.cfg.TrustedProxies {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// limiter counts failed sign-ins per key (a client address, or a client address and an account).
 type limiter struct {
 	mu   sync.Mutex
 	hits map[string][]time.Time
 }
 
-func (l *limiter) blocked(client string, now time.Time) bool {
+func (l *limiter) count(key string, now time.Time) int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return len(l.recent(client, now)) >= clientFailLimit
+	return len(l.recent(key, now))
 }
 
-func (l *limiter) fail(client string, now time.Time) {
+func (l *limiter) fail(key string, now time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.hits == nil {
 		l.hits = map[string][]time.Time{}
 	}
-	if len(l.hits) > 10000 { // a flood of addresses cannot grow the map without bound
-		l.hits = map[string][]time.Time{}
+	if _, ok := l.hits[key]; !ok && len(l.hits) >= maxTrackedKeys {
+		l.evict(now)
 	}
-	l.hits[client] = append(l.recent(client, now), now)
+	l.hits[key] = append(l.recent(key, now), now)
 }
 
-func (l *limiter) recent(client string, now time.Time) []time.Time {
+// evict makes room: first every key whose failures have all expired, then, if a flood of
+// addresses still fills the table, the keys whose last failure is oldest. Nothing is ever
+// cleared wholesale, so a flood cannot wipe the counts of the address it is meant to hide.
+func (l *limiter) evict(now time.Time) {
+	for k := range l.hits {
+		l.recent(k, now)
+	}
+	if len(l.hits) < maxTrackedKeys {
+		return
+	}
+	type entry struct {
+		key  string
+		last time.Time
+	}
+	all := make([]entry, 0, len(l.hits))
+	for k, v := range l.hits {
+		all = append(all, entry{k, v[len(v)-1]})
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].last.Before(all[j].last) })
+	for _, e := range all[:len(all)-maxTrackedKeys*9/10] {
+		delete(l.hits, e.key)
+	}
+}
+
+func (l *limiter) recent(key string, now time.Time) []time.Time {
 	var keep []time.Time
-	for _, t := range l.hits[client] {
+	for _, t := range l.hits[key] {
 		if now.Sub(t) < clientFailSpan {
 			keep = append(keep, t)
 		}
 	}
 	if len(keep) == 0 {
-		delete(l.hits, client)
+		delete(l.hits, key)
+	} else {
+		l.hits[key] = keep
 	}
 	return keep
+}
+
+func pairKey(client, username string) string {
+	return "pair|" + client + "|" + strings.ToLower(strings.TrimSpace(username))
+}
+
+// setupKey stands in for the account name when first-run setup codes are guessed.
+const setupKey = "|setup"
+
+// failedSignIn counts a failed attempt against the client and against the client and account.
+func (s *Server) failedSignIn(r *http.Request, username string) {
+	c, now := s.clientOf(r), s.cfg.Now()
+	s.failures.fail("client|"+c, now)
+	s.failures.fail(pairKey(c, username), now)
 }
 
 // hashSlots bounds concurrent password hashing (each takes a few hundred milliseconds of CPU),
@@ -120,6 +194,16 @@ func withHashSlot(ctx context.Context, f func()) error {
 	defer func() { <-hashSlots }()
 	f()
 	return nil
+}
+
+// hashPassword hashes a new password inside a hash slot, like every other password hash.
+func hashPassword(ctx context.Context, password string) (string, error) {
+	var h string
+	var herr error
+	if err := withHashSlot(ctx, func() { h, herr = auth.Hash(password) }); err != nil {
+		return "", err
+	}
+	return h, herr
 }
 
 func (s *Server) sessionIdle() time.Duration {
@@ -141,10 +225,10 @@ func (s *Server) audit(r *http.Request, kind, username, detail string) {
 	if p, ok := principalOf(r); ok {
 		actor = p.Username
 	}
-	if err := s.cfg.Store.AddAuthEvent(store.AuthEvent{Kind: kind, Username: username, Actor: actor, Client: clientOf(r), Detail: detail}); err != nil {
+	if err := s.cfg.Store.AddAuthEvent(store.AuthEvent{Kind: kind, Username: username, Actor: actor, Client: s.clientOf(r), Detail: detail}); err != nil {
 		s.log.Error("audit write failed", "kind", kind, "err", err)
 	}
-	s.log.Info("auth", "event", kind, "user", username, "actor", actor, "client", clientOf(r))
+	s.log.Info("auth", "event", kind, "user", username, "actor", actor, "client", s.clientOf(r))
 }
 
 // identify finds who is calling. bad is true when credentials were offered and were wrong.
@@ -163,11 +247,15 @@ func (s *Server) identify(r *http.Request) (p principal, ok, bad bool) {
 		}
 		now := s.cfg.Now()
 		if u.Disabled || now.After(sess.ExpiresAt) || now.Sub(sess.LastSeenAt) > s.sessionIdle() {
-			_ = s.cfg.Store.DeleteSession(sess.ID, 0)
+			if err := s.cfg.Store.DeleteSession(sess.ID, 0); err != nil && !errors.Is(err, store.ErrNotFound) {
+				s.log.Warn("ending an expired session failed", "session", sess.ID, "err", err)
+			}
 			return principal{}, false, false
 		}
 		if now.Sub(sess.LastSeenAt) > touchEvery {
-			_ = s.cfg.Store.TouchSession(sess.ID)
+			if err := s.cfg.Store.TouchSession(sess.ID); err != nil {
+				s.log.Warn("recording session activity failed", "session", sess.ID, "err", err)
+			}
 		}
 		return principal{Kind: "session", UserID: u.ID, Username: u.Username, Role: u.Role, SessionID: sess.ID, MustChange: u.MustChange}, true, false
 	}
@@ -200,7 +288,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		if !ok && !publicAPI(r.URL.Path) {
 			if bad {
 				// Record who tried (never what they sent) and slow the guessing down.
-				s.log.Warn("authentication failed", "method", r.Method, "path", r.URL.Path, "remote", r.RemoteAddr)
+				s.log.Warn("authentication failed", "method", r.Method, "path", r.URL.Path, "remote", s.clientOf(r))
 				select {
 				case <-time.After(authFailDelay):
 				case <-r.Context().Done():
@@ -281,7 +369,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u store.Us
 	if err != nil {
 		return err
 	}
-	if _, err := s.cfg.Store.CreateSession(hash, u.ID, s.cfg.Now().Add(s.sessionMax()), clientOf(r), r.UserAgent()); err != nil {
+	if _, err := s.cfg.Store.CreateSession(hash, u.ID, s.cfg.Now().Add(s.sessionMax()), s.clientOf(r), r.UserAgent()); err != nil {
 		return err
 	}
 	s.setSessionCookie(w, r, token)
@@ -329,8 +417,12 @@ func (s *Server) authState(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) tooManyAttempts(w http.ResponseWriter, r *http.Request) bool {
-	if s.failures.blocked(clientOf(r), s.cfg.Now()) {
+// tooManyAttempts answers 429 when the client has failed too often, against any account or
+// against this one. Keyed on the account too, so one person's mistakes behind a shared address
+// (a proxy, a container's port mapping) do not lock everyone else out as quickly.
+func (s *Server) tooManyAttempts(w http.ResponseWriter, r *http.Request, username string) bool {
+	c, now := s.clientOf(r), s.cfg.Now()
+	if s.failures.count("client|"+c, now) >= clientFailLimit || s.failures.count(pairKey(c, username), now) >= pairFailLimit {
 		w.Header().Set("Retry-After", strconv.Itoa(int(clientFailSpan/time.Second)))
 		writeErr(w, http.StatusTooManyRequests, "too many failed attempts from this address; try again in 15 minutes")
 		return true
@@ -342,7 +434,7 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Code, Username, DisplayName, Password string
 	}
-	if !decode(w, r, &in) || s.tooManyAttempts(w, r) {
+	if !decode(w, r, &in) || s.tooManyAttempts(w, r, setupKey) {
 		return
 	}
 	if !s.cfg.RequireLogin {
@@ -354,7 +446,7 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.cfg.SetupCode == "" || !auth.SameCode(in.Code, s.cfg.SetupCode) {
-		s.failures.fail(clientOf(r), s.cfg.Now())
+		s.failedSignIn(r, setupKey)
 		s.audit(r, "setup-failed", in.Username, "wrong setup code")
 		writeErr(w, http.StatusForbidden, "the setup code is wrong; it is printed in the server's log when it starts")
 		return
@@ -384,7 +476,9 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "setup", u.Username, "first administrator created")
-	_ = s.cfg.Store.RecordLoginSuccess(u.ID)
+	if err := s.cfg.Store.RecordLoginSuccess(u.ID); err != nil {
+		s.log.Warn("recording a sign-in failed", "user", u.Username, "err", err)
+	}
 	if err := s.startSession(w, r, u); err != nil {
 		storeErr(w, err)
 		return
@@ -392,25 +486,35 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, map[string]any{"user": meView{ID: u.ID, Username: u.Username, DisplayName: u.DisplayName, Role: u.Role, Kind: "session"}})
 }
 
-// loginRefused is the one message for a wrong username or password, so the answer does not say
-// which accounts exist.
-const loginRefused = "the username or password is wrong"
+// loginRefused is the one message for a wrong username, a wrong password and a locked account,
+// so the answer says neither which accounts exist nor whether a guess against a locked one was right.
+const loginRefused = "the username or password is wrong, or the account is locked for a while after repeated failed sign-ins"
 
 func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	var in struct{ Username, Password string }
-	if !decode(w, r, &in) || s.tooManyAttempts(w, r) {
+	if !decode(w, r, &in) || s.tooManyAttempts(w, r, in.Username) {
 		return
 	}
 	if !s.cfg.RequireLogin {
 		writeErr(w, http.StatusConflict, "this server runs without sign-in")
 		return
 	}
-	_ = s.cfg.Store.PruneSessions(s.sessionIdle())
+	if err := s.cfg.Store.PruneSessions(s.sessionIdle()); err != nil {
+		s.log.Warn("pruning expired sessions failed", "err", err)
+	}
 	now := s.cfg.Now()
 	u, err := s.cfg.Store.UserByName(in.Username)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		storeErr(w, err)
+		return
+	}
+	// A locked account is refused before its password is looked at, exactly like a wrong
+	// password: checking the password first would tell a guesser when a guess was right, and
+	// counting the guesses would let anyone keep the account locked for ever.
+	locked := err == nil && u.LockedUntil != nil && now.Before(*u.LockedUntil)
 	var ok, rehash bool
 	if herr := withHashSlot(r.Context(), func() {
-		if err != nil || len(in.Password) > auth.MaxPasswordLen*4 {
+		if err != nil || locked || len(in.Password) > auth.MaxPasswordLen*4 {
 			auth.VerifyNothing(in.Password)
 			return
 		}
@@ -420,44 +524,44 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
-	case err != nil && !errors.Is(err, store.ErrNotFound):
-		storeErr(w, err)
+	case locked:
+		s.failedSignIn(r, in.Username)
+		s.audit(r, "login-failed", u.Username, "account locked; password not checked")
+		s.refuseLogin(w, r)
 		return
 	case err != nil || !ok:
-		s.failures.fail(clientOf(r), now)
+		s.failedSignIn(r, in.Username)
 		detail := "wrong password"
 		if err != nil {
 			detail = "no such account"
-		} else if n, until, lerr := s.cfg.Store.RecordLoginFailure(u.ID, lockAfter, lockFor); lerr == nil && until != nil {
+		} else if n, until, lerr := s.cfg.Store.RecordLoginFailure(u.ID, lockAfter, lockFor); lerr != nil {
+			s.log.Error("recording a failed sign-in failed", "user", u.Username, "err", lerr)
+		} else if until != nil {
 			detail = fmt.Sprintf("wrong password; account locked until %s after %d failures", until.Format(time.RFC3339), lockAfter)
 			s.audit(r, "locked", u.Username, detail)
-		} else if lerr == nil {
+		} else {
 			detail = fmt.Sprintf("wrong password (%d of %d)", n, lockAfter)
 		}
 		s.audit(r, "login-failed", in.Username, detail)
-		select {
-		case <-time.After(authFailDelay):
-		case <-r.Context().Done():
-		}
-		writeErr(w, http.StatusUnauthorized, loginRefused)
+		s.refuseLogin(w, r)
 		return
 	case u.Disabled:
 		s.audit(r, "login-failed", u.Username, "account disabled")
 		writeErr(w, http.StatusUnauthorized, "this account is disabled; ask an administrator")
 		return
-	case u.LockedUntil != nil && now.Before(*u.LockedUntil):
-		// Only someone who knows the password learns the account is locked.
-		s.audit(r, "login-failed", u.Username, "account locked")
-		mins := int(u.LockedUntil.Sub(now).Minutes()) + 1
-		writeErr(w, http.StatusUnauthorized, fmt.Sprintf("this account is locked after repeated failed sign-ins; try again in %d minutes or ask an administrator", mins))
-		return
 	}
 	if rehash {
-		if h, err := auth.Hash(in.Password); err == nil {
-			_ = s.cfg.Store.SetPassword(u.ID, h, u.MustChange, -1)
+		var h string
+		var herr error
+		if err := withHashSlot(r.Context(), func() { h, herr = auth.Hash(in.Password) }); err == nil && herr == nil {
+			if err := s.cfg.Store.SetPassword(u.ID, h, u.MustChange, -1); err != nil {
+				s.log.Warn("upgrading a password hash failed", "user", u.Username, "err", err)
+			}
 		}
 	}
-	_ = s.cfg.Store.RecordLoginSuccess(u.ID)
+	if err := s.cfg.Store.RecordLoginSuccess(u.ID); err != nil {
+		s.log.Warn("recording a sign-in failed", "user", u.Username, "err", err)
+	}
 	if err := s.startSession(w, r, u); err != nil {
 		storeErr(w, err)
 		return
@@ -466,9 +570,23 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"user": meView{ID: u.ID, Username: u.Username, DisplayName: u.DisplayName, Role: u.Role, Kind: "session", MustChange: u.MustChange}})
 }
 
+// refuseLogin answers a refused sign-in after the failure delay, with the one generic message.
+func (s *Server) refuseLogin(w http.ResponseWriter, r *http.Request) {
+	select {
+	case <-time.After(authFailDelay):
+	case <-r.Context().Done():
+	}
+	writeErr(w, http.StatusUnauthorized, loginRefused)
+}
+
 func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 	if p, ok := principalOf(r); ok && p.SessionID != 0 {
-		_ = s.cfg.Store.DeleteSession(p.SessionID, 0)
+		if err := s.cfg.Store.DeleteSession(p.SessionID, 0); err != nil && !errors.Is(err, store.ErrNotFound) {
+			// The cookie is cleared below, but the session would live on server-side: say so.
+			s.log.Error("ending a session at sign-out failed", "session", p.SessionID, "err", err)
+			storeErr(w, err)
+			return
+		}
 		s.audit(r, "logout", p.Username, "")
 	}
 	s.clearSessionCookie(w, r)
@@ -481,10 +599,10 @@ func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) authPassword(w http.ResponseWriter, r *http.Request) {
 	var in struct{ Current, New string }
-	if !decode(w, r, &in) || s.tooManyAttempts(w, r) {
+	p, _ := principalOf(r)
+	if !decode(w, r, &in) || s.tooManyAttempts(w, r, p.Username) {
 		return
 	}
-	p, _ := principalOf(r)
 	if p.UserID == 0 {
 		writeErr(w, http.StatusConflict, "only a signed-in account has a password")
 		return
@@ -500,7 +618,7 @@ func (s *Server) authPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		s.failures.fail(clientOf(r), s.cfg.Now())
+		s.failedSignIn(r, u.Username)
 		s.audit(r, "password-change-failed", u.Username, "wrong current password")
 		writeErr(w, http.StatusForbidden, "the current password is wrong")
 		return
@@ -513,7 +631,7 @@ func (s *Server) authPassword(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	hash, err := auth.Hash(in.New)
+	hash, err := hashPassword(r.Context(), in.New)
 	if err != nil {
 		storeErr(w, err)
 		return
@@ -628,7 +746,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	hash, err := auth.Hash(in.Password)
+	hash, err := hashPassword(r.Context(), in.Password)
 	if err != nil {
 		storeErr(w, err)
 		return
@@ -711,7 +829,7 @@ func (s *Server) resetUserPassword(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	hash, err := auth.Hash(in.Password)
+	hash, err := hashPassword(r.Context(), in.Password)
 	if err != nil {
 		storeErr(w, err)
 		return

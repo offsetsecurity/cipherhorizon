@@ -294,6 +294,35 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Fixed
 
+- **Sign-in lockout (security).** A locked account no longer checks the password: the right password and a
+  wrong one get the same generic answer, so a guesser cannot learn during the lock which guess was right, and
+  guesses during a lock no longer extend it. The refusal message now covers the locked case too.
+- **Sign-in rate limits behind a proxy.** Limits are counted per client address (50 failures) and per client
+  and account (10), so one person's mistakes behind a shared address no longer lock everyone out. New
+  `serve --trusted-proxy ADDR|CIDR` (repeatable) reads the real client from `X-Forwarded-For` for limits and
+  the sign-in log; from any other peer the header is ignored. The limiter no longer empties itself when full.
+- **A bug in the scanner fails one scan, not the server.** Panics in the prober (including its goroutines),
+  in evaluation and in start-up re-evaluation are recovered, logged with their stack, and the scan is marked
+  failed with "internal error".
+- **Nothing the runner or the graph fails to do is silent any more:** store errors are logged; a projection or
+  correlation that fails marks the graph stale, and it is now repaired every five minutes rather than at the
+  next start.
+- **Host uploads** get the import limits (nesting depth, value count, string length) before they are decoded,
+  at most two large uploads are parsed at once, and stored uploads are bounded by bytes: 256 MiB per host
+  (oldest dropped first) and 8 GiB in total (an upload past it is refused with 507).
+- **Scale:** retention removes the graph rows of the scans and uploads it deletes instead of sweeping every
+  table after each scan; correlation runs triggered at the same time are coalesced; the DROWN shared-key check
+  reads an index from the graph instead of decoding every stored report on every evaluation.
+- **Times sort as times.** Stored times are now always written with nine fractional digits (migration 10
+  rewrites existing rows; a backup is kept), so comparisons in SQL are right within a second.
+- **Queued scans survive a restart**; only scans that were running are marked failed.
+- Large downloads (collector binaries, CBOMs) are no longer cut off after 60 seconds, and collector binaries
+  are hashed once rather than on every request.
+- `cipherhorizon import` refuses to send the token over plain `http://` to another machine
+  (`--allow-plain-http` overrides). `cipherhorizon healthcheck --tls` probes an HTTPS server.
+- The About page and `serve --help` described the access model from before sign-in; both now say how it works.
+- `golang.org/x/text` updated to v0.39.0 (GO-2026-5970, not reachable from this code); the container's base
+  images are pinned by digest.
 - The Reports list showed "none" under Findings for an endpoint whose findings were all medium or low (Google: 4
   medium and 3 low). It now counts every severity, and says "No problems" only when there are none. The database
   gains low and informational counts (migration 8, filled from stored evaluations; a backup is kept as for every

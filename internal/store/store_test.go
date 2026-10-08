@@ -334,16 +334,19 @@ func TestInterruptedScansAreFailedAfterRestart(t *testing.T) {
 	}
 	defer s2.Close() //nolint:errcheck // test
 	n, err := s2.FailInterrupted()
-	if err != nil || n != 2 {
+	if err != nil || n != 1 {
 		t.Fatalf("FailInterrupted = %d, %v", n, err)
 	}
-	for _, id := range []int64{running.ID, queued.ID} {
-		if got, _ := s2.GetScan(id); got.Status != store.StatusFailed || got.Error == "" {
-			t.Errorf("scan %d = %+v", id, got)
-		}
+	if got, _ := s2.GetScan(running.ID); got.Status != store.StatusFailed || got.Error == "" {
+		t.Errorf("the interrupted scan = %+v, want failed", got)
+	}
+	// A queued scan was never started, so a restart does not lose it: it is the next one claimed.
+	next, err := s2.ClaimNext()
+	if err != nil || next.ID != queued.ID {
+		t.Errorf("after a restart the queued scan should be claimable: %+v, %v", next, err)
 	}
 	if _, err := s2.ClaimNext(); !errors.Is(err, store.ErrNotFound) {
-		t.Error("an interrupted scan is still claimable")
+		t.Error("the interrupted scan is still claimable")
 	}
 }
 

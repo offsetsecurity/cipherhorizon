@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -238,7 +239,7 @@ func (s *Store) FinishScan(id int64, r Result) error {
 		return err
 	}
 	if !derived {
-		_, _ = s.db.Exec(`UPDATE projection_state SET stale = 1`)
+		s.markStale("projecting a finished scan", fmt.Errorf("scan %d", id))
 	}
 	return s.afterFinish(id)
 }
@@ -283,9 +284,7 @@ func (s *Store) afterFinish(scanID int64) error {
 			return err
 		}
 	}
-	err := s.retain(assetID, s.keep())
-	s.pruneOrphans()
-	return err
+	return s.retain(assetID, s.keep())
 }
 
 // Retention is how many finished scans are kept per asset.
@@ -293,20 +292,38 @@ var Retention = 200
 
 func (s *Store) keep() int { return Retention }
 
+// retain deletes an asset's finished scans beyond the newest keep, with their projections:
+// scoped to the rows it deletes, so it costs the same however large the graph is.
 func (s *Store) retain(assetID int64, keep int) error {
 	if keep <= 0 {
 		return nil
 	}
-	_, err := s.db.Exec(`DELETE FROM scans WHERE asset_id = ? AND status NOT IN ('queued','running')
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	old, err := ids(tx, `SELECT id FROM scans WHERE asset_id = ? AND status NOT IN ('queued','running')
 		AND id NOT IN (SELECT id FROM scans WHERE asset_id = ? ORDER BY id DESC LIMIT ?)`, assetID, assetID, keep)
-	return err
+	if err != nil || len(old) == 0 {
+		return err
+	}
+	if err := deleteSourcesTx(tx, "scan", old); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM scans WHERE asset_id = ? AND status NOT IN ('queued','running')
+		AND id NOT IN (SELECT id FROM scans WHERE asset_id = ? ORDER BY id DESC LIMIT ?)`, assetID, assetID, keep); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
-// FailInterrupted marks scans left running or queued by a previous process as
-// failed, so none stays "running" forever after a restart (AC-12.2).
+// FailInterrupted marks scans left running by a previous process as failed, so none stays
+// "running" forever after a restart (AC-12.2). Queued scans were not interrupted: they keep
+// their place and run once the workers start.
 func (s *Store) FailInterrupted() (int, error) {
 	res, err := s.db.Exec(`UPDATE scans SET status = 'failed', finished_at = ?, stage = 'failed', error = 'interrupted by a restart of the server'
-		WHERE status IN ('running','queued')`, ts(s.now()))
+		WHERE status = 'running'`, ts(s.now()))
 	if err != nil {
 		return 0, err
 	}

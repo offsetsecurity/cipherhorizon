@@ -38,6 +38,11 @@ func (s *Server) importDocument(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "say which system the document describes: system=ID for an existing one, or newSystem=NAME for a new one (exactly one)")
 		return
 	}
+	release, ok := uploadSlot(w, r)
+	if !ok {
+		return
+	}
+	defer release()
 	r.Body = http.MaxBytesReader(w, r.Body, int64(importer.DefaultLimits.MaxBytes))
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {

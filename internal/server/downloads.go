@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -81,7 +82,7 @@ func discoverCollectors() []CollectorBinary {
 		if err != nil || fi.IsDir() || fi.Size() == 0 {
 			return
 		}
-		sum, err := sha256File(path)
+		sum, err := cachedSHA256(path, fi)
 		if err != nil {
 			return
 		}
@@ -115,6 +116,36 @@ func discoverCollectors() []CollectorBinary {
 		return out[i].Arch < out[j].Arch
 	})
 	return out
+}
+
+// hashCache remembers each binary's SHA-256 by path, size and modification time, so listing or
+// downloading does not re-read every binary (tens of MiB each) on every request.
+var hashCache = struct {
+	sync.Mutex
+	m map[string]hashEntry
+}{m: map[string]hashEntry{}}
+
+type hashEntry struct {
+	size int64
+	mod  time.Time
+	sum  string
+}
+
+func cachedSHA256(path string, fi os.FileInfo) (string, error) {
+	hashCache.Lock()
+	e, ok := hashCache.m[path]
+	hashCache.Unlock()
+	if ok && e.size == fi.Size() && e.mod.Equal(fi.ModTime()) {
+		return e.sum, nil
+	}
+	sum, err := sha256File(path)
+	if err != nil {
+		return "", err
+	}
+	hashCache.Lock()
+	hashCache.m[path] = hashEntry{size: fi.Size(), mod: fi.ModTime(), sum: sum}
+	hashCache.Unlock()
+	return sum, nil
 }
 
 func sha256File(path string) (string, error) {
@@ -154,6 +185,7 @@ func (s *Server) downloadCollectorBinary(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		defer f.Close() //nolint:errcheck // read-only
+		extendWriteDeadline(w, s.log, downloadWriteTimeout)
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", `attachment; filename="`+b.Filename+`"`)
 		http.ServeContent(w, r, b.Filename, time.Time{}, f)

@@ -266,18 +266,41 @@ func backfillLinks(tx *sql.Tx, now time.Time) error {
 
 // ---- correlating ------------------------------------------------------------------------------
 
-// correlateQuietly recomputes links after evidence changes. Correlation is derived: a failure
-// never fails the operation that changed the evidence, and the next change recomputes.
+// correlateQuietly recomputes links after evidence changes, and returns once a correlation that
+// started after the caller's change has finished. Correlation reads the whole estate, so calls
+// are coalesced: while one runs, everyone who asks meanwhile waits for one more run that covers
+// them all, instead of each running their own. Correlation is derived: a failure never fails the
+// operation that changed the evidence; it is logged, and Maintain rebuilds.
 func (s *Store) correlateQuietly() {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return
+	s.corrMu.Lock()
+	defer s.corrMu.Unlock()
+	s.corrWanted++
+	mine := s.corrWanted
+	for s.corrDone < mine {
+		if s.corrRunning {
+			s.corrCond.Wait()
+			continue
+		}
+		s.corrRunning = true
+		covers := s.corrWanted // every request made before this run starts reading
+		s.corrMu.Unlock()
+		err := func() (err error) {
+			// A panic must not leave corrRunning set: every later caller would wait for ever.
+			defer func() {
+				if v := recover(); v != nil {
+					err = fmt.Errorf("panic: %v", v)
+				}
+			}()
+			return s.Correlate()
+		}()
+		if err != nil {
+			s.markStale("correlating the estate", err)
+		}
+		s.corrMu.Lock()
+		s.corrRunning = false
+		s.corrDone = covers
+		s.corrCond.Broadcast()
 	}
-	if err := s.correlateTx(tx); err != nil {
-		_ = tx.Rollback()
-		return
-	}
-	_ = tx.Commit()
 }
 
 // Correlate recomputes links from the current graph.

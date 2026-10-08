@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/example/cipherhorizon/internal/eval"
 	"github.com/example/cipherhorizon/internal/pki"
@@ -82,48 +83,15 @@ func (r *Runner) anchorsFor(assetID int64) *pki.Store {
 // sslv2Index maps each public key served by an endpoint whose latest scan
 // accepted SSLv2 to those endpoints, leaving out the asset being evaluated.
 func (r *Runner) sslv2Index(except int64) map[string][]string {
-	latest, err := r.st.LatestDoneScans(0)
+	keys, err := r.st.SSLv2LeafKeys()
 	if err != nil {
+		r.log.Warn("reading the SSLv2 key index failed; the DROWN shared-key check is skipped", "err", err)
 		return nil
 	}
 	out := map[string][]string{}
-	for assetID, scanID := range latest {
-		if assetID == except {
-			continue
-		}
-		raw, err := r.st.Report(scanID)
-		if err != nil {
-			continue
-		}
-		var rep struct {
-			Protocols []struct {
-				Version   string `json:"version"`
-				Supported bool   `json:"supported"`
-			} `json:"protocols"`
-			Certificates []struct {
-				Chain []struct {
-					SPKI string `json:"spkiSha256"`
-				} `json:"chain"`
-			} `json:"certificates"`
-		}
-		if json.Unmarshal(raw, &rep) != nil {
-			continue
-		}
-		v2 := false
-		for _, p := range rep.Protocols {
-			v2 = v2 || p.Version == "SSLv2" && p.Supported
-		}
-		if !v2 {
-			continue
-		}
-		name := fmt.Sprintf("asset %d", assetID)
-		if a, err := r.st.GetAsset(assetID); err == nil {
-			name = a.Address()
-		}
-		for _, c := range rep.Certificates {
-			if len(c.Chain) > 0 && c.Chain[0].SPKI != "" {
-				out[c.Chain[0].SPKI] = append(out[c.Chain[0].SPKI], name)
-			}
+	for _, k := range keys {
+		if k.AssetID != except {
+			out[k.SPKI] = append(out[k.SPKI], k.Address)
 		}
 	}
 	return out
@@ -149,7 +117,16 @@ func resultOf(rep *tlsprobe.Report, ev eval.Evaluation) (store.Result, error) {
 
 // Reevaluate recomputes a completed scan's evaluation from its stored report
 // with the current anchors, reference data and time. The report is untouched.
-func (r *Runner) Reevaluate(scanID int64, why string) (eval.Evaluation, error) {
+//
+// A panic while evaluating is returned as an error: this runs at startup over every stored
+// report, and one report the rules choke on must not keep the server from starting.
+func (r *Runner) Reevaluate(scanID int64, why string) (ev eval.Evaluation, err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			r.log.Error("re-evaluation panicked", "scan", scanID, "panic", v, "stack", string(debug.Stack()))
+			ev, err = eval.Evaluation{}, fmt.Errorf("internal error while re-evaluating scan %d", scanID)
+		}
+	}()
 	sc, err := r.st.GetScan(scanID)
 	if err != nil {
 		return eval.Evaluation{}, err
@@ -174,7 +151,7 @@ func (r *Runner) Reevaluate(scanID int64, why string) (eval.Evaluation, error) {
 			old = v.Version
 		}
 	}
-	ev := r.Evaluate(&rep, sc.AssetID)
+	ev = r.Evaluate(&rep, sc.AssetID)
 	res, err := resultOf(&rep, ev)
 	if err != nil {
 		return ev, err
@@ -188,11 +165,14 @@ func (r *Runner) Reevaluate(scanID int64, why string) (eval.Evaluation, error) {
 func (r *Runner) ReevaluateSystem(systemID int64, why string) int {
 	latest, err := r.st.LatestDoneScans(systemID)
 	if err != nil {
+		r.log.Error("listing scans to re-evaluate failed", "system", systemID, "err", err)
 		return 0
 	}
 	n := 0
 	for _, scanID := range latest {
-		if _, err := r.Reevaluate(scanID, why); err == nil {
+		if _, err := r.Reevaluate(scanID, why); err != nil {
+			r.log.Warn("re-evaluating a scan failed", "scan", scanID, "err", err)
+		} else {
 			n++
 		}
 	}
@@ -206,6 +186,7 @@ func (r *Runner) ReevaluateSystem(systemID int64, why string) int {
 func (r *Runner) ReevaluateOutdated() int {
 	latest, err := r.st.LatestDoneScans(0)
 	if err != nil {
+		r.log.Error("listing scans to re-evaluate failed", "err", err)
 		return 0
 	}
 	n := 0
@@ -220,7 +201,9 @@ func (r *Runner) ReevaluateOutdated() int {
 		if json.Unmarshal(b, &v) != nil || v.Version == eval.Version {
 			continue
 		}
-		if _, err := r.Reevaluate(scanID, "rules updated"); err == nil {
+		if _, err := r.Reevaluate(scanID, "rules updated"); err != nil {
+			r.log.Warn("re-evaluating a scan failed", "scan", scanID, "err", err)
+		} else {
 			n++
 		}
 	}

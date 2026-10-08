@@ -211,3 +211,45 @@ func (s *Store) LatestDoneScans(systemID int64) (map[int64]int64, error) {
 	}
 	return out, rows.Err()
 }
+
+// SSLv2Key is a leaf public key served by an endpoint whose latest completed scan accepted SSLv2.
+type SSLv2Key struct {
+	AssetID int64
+	Address string
+	SPKI    string // SHA-256 of the SubjectPublicKeyInfo, lower-case hex
+}
+
+// SSLv2LeafKeys lists the leaf keys of every endpoint whose latest completed scan accepted SSLv2
+// (the inputs of the DROWN shared-key check). It reads the graph, where those facts are already
+// indexed, instead of decoding every stored report on every evaluation.
+func (s *Store) SSLv2LeafKeys() ([]SSLv2Key, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT a.id, a.host, a.port, json_extract(e.attrs_json, '$.spkiSha256')
+		FROM sources src
+		JOIN assets a ON a.id = src.asset_id
+		JOIN observations o ON o.source_id = src.id AND json_extract(o.attrs_json, '$.position') = 'leaf'
+		JOIN entities e ON e.id = o.entity_id AND e.kind = 'certificate'
+		WHERE src.ref_kind = 'scan' AND src.is_current = 1 AND src.status = 'active'
+		AND EXISTS (SELECT 1 FROM observations po JOIN entities pe ON pe.id = po.entity_id
+			WHERE po.source_id = src.id AND pe.kind = 'protocol' AND pe.key = 'protocol:sslv2')
+		ORDER BY a.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck // read-only
+	var out []SSLv2Key
+	for rows.Next() {
+		var k SSLv2Key
+		var host string
+		var port int
+		var spki sql.NullString
+		if err := rows.Scan(&k.AssetID, &host, &port, &spki); err != nil {
+			return nil, err
+		}
+		if !spki.Valid || spki.String == "" {
+			continue
+		}
+		k.Address, k.SPKI = Asset{Host: host, Port: port}.Address(), spki.String
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}

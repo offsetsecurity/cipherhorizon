@@ -21,6 +21,7 @@ func importCmd(ctx context.Context, args []string, env Env) int {
 	fl := flag.NewFlagSet("import", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
 	server := fl.String("server", "http://127.0.0.1:8080", "base URL of the CipherHorizon server")
+	plainHTTP := fl.Bool("allow-plain-http", false, "send the token over plain http:// to a server that is not on this machine")
 	token := fl.String("token", "", "access token (or "+tokenEnv+"); the environment keeps it out of the process list")
 	system := fl.Int64("system", 0, "id of the existing system the document describes")
 	newSystem := fl.String("new-system", "", "name of a new system the document describes")
@@ -38,6 +39,12 @@ system it describes; the document's own claim about its subject is recorded and 
 	tok := *token
 	if tok == "" {
 		tok = os.Getenv(tokenEnv)
+	}
+	if tok != "" && !*plainHTTP {
+		if su, err := url.Parse(*server); err == nil && su.Scheme == "http" && !isLoopbackHost(su.Hostname()) {
+			return fatalf(env, "refusing to send the access token unencrypted to %s; use an https:// URL, "+
+				"or --allow-plain-http if the network path is trusted", su.Host)
+		}
 	}
 	var raw []byte
 	var err error

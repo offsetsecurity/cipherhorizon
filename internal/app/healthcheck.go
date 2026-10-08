@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"net/http"
 	"time"
@@ -16,16 +17,25 @@ func healthcheckCmd(ctx context.Context, args []string, env Env) int {
 	fl := flag.NewFlagSet("healthcheck", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
 	addr := fl.String("addr", "127.0.0.1:8080", "this server's own listen address")
+	useTLS := fl.Bool("tls", false, "the server serves HTTPS (--tls-cert): probe over HTTPS. The certificate is not verified: "+
+		"this only asks the local process whether it is up, and sends nothing secret")
 	if err := fl.Parse(args); err != nil {
 		return ExitFatal
 	}
+	scheme, client := "http", http.DefaultClient
+	if *useTLS {
+		scheme = "https"
+		client = &http.Client{Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}, //nolint:gosec // a liveness probe of our own loopback listener
+		}}
+	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+*addr+"/api/v1/health", http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, scheme+"://"+*addr+"/api/v1/health", http.NoBody)
 	if err != nil {
 		return fatalf(env, "healthcheck: %v", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fatalf(env, "healthcheck: %v", err)
 	}

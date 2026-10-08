@@ -17,12 +17,28 @@ import (
 
 	"github.com/example/cipherhorizon/internal/cbom"
 	"github.com/example/cipherhorizon/internal/estate"
+	"github.com/example/cipherhorizon/internal/importer"
 	"github.com/example/cipherhorizon/internal/machinefacts"
 	"github.com/example/cipherhorizon/internal/pqc"
 	"github.com/example/cipherhorizon/internal/store"
 )
 
 const maxCBOM = 32 << 20
+
+// uploadSlots bounds how many large documents (host uploads, imports) are read and decoded at
+// once: each can hold tens of MiB in memory while it is parsed.
+var uploadSlots = make(chan struct{}, 2)
+
+// uploadSlot waits for an upload slot; it answers 503 itself if the client gives up first.
+func uploadSlot(w http.ResponseWriter, r *http.Request) (release func(), ok bool) {
+	select {
+	case uploadSlots <- struct{}{}:
+		return func() { <-uploadSlots }, true
+	case <-r.Context().Done():
+		writeErr(w, http.StatusServiceUnavailable, "the server is busy with other uploads; try again")
+		return nil, false
+	}
+}
 
 // HostAlgorithm is one algorithm found in a host's CBOM with its verdict.
 type HostAlgorithm struct {
@@ -128,6 +144,11 @@ func validHostName(name string) bool {
 }
 
 func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
+	release, ok := uploadSlot(w, r)
+	if !ok {
+		return
+	}
+	defer release()
 	r.Body = http.MaxBytesReader(w, r.Body, maxCBOM)
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -159,8 +180,19 @@ func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
 		}
 		raw = buf.Bytes()
 	}
+	// The same limits as an import: depth, value count and string length are checked on the token
+	// stream before anything is decoded into memory.
+	if err := importer.CheckLimits(raw, importer.DefaultLimits); err != nil {
+		var ie *importer.Error
+		if errors.As(err, &ie) && ie.Stage == "limits" {
+			writeErr(w, http.StatusRequestEntityTooLarge, ie.Message)
+			return
+		}
+		writeErr(w, http.StatusBadRequest, "not a valid CycloneDX JSON document: "+err.Error())
+		return
+	}
 	var bom cdx.BOM
-	if err := cdx.NewBOMDecoder(strings.NewReader(string(raw)), cdx.BOMFileFormatJSON).Decode(&bom); err != nil {
+	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(&bom); err != nil {
 		writeErr(w, http.StatusBadRequest, "not a valid CycloneDX JSON document: "+err.Error())
 		return
 	}
@@ -195,6 +227,10 @@ func (s *Server) ingestHost(w http.ResponseWriter, r *http.Request) {
 		class = estate.ClassCollector
 	}
 	id, err := s.cfg.Store.AddHostSnapshotAs(asset.ID, raw, sumJSON, class, s.actor(r))
+	if errors.Is(err, store.ErrQuota) {
+		writeErr(w, http.StatusInsufficientStorage, err.Error()+"; ask an administrator to remove hosts that are no longer needed")
+		return
+	}
 	if err != nil {
 		storeErr(w, err)
 		return
@@ -267,7 +303,11 @@ func (s *Server) getHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hv := s.hostFor(a, map[int64][]int64{id: linked})
-	snaps, _ := s.cfg.Store.HostSnapshots(id, 50)
+	snaps, err := s.cfg.Store.HostSnapshots(id, 50)
+	if err != nil {
+		storeErr(w, err)
+		return
+	}
 	history := make([]map[string]any, 0, len(snaps))
 	for _, sn := range snaps {
 		var sum HostSummary
@@ -311,6 +351,7 @@ func (s *Server) hostSnapshotCBOM(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
+	extendWriteDeadline(w, s.log, downloadWriteTimeout)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if r.URL.Query().Get("download") == "1" {
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="host-%d-snapshot-%d-cbom.json"`, hostID, snapID))

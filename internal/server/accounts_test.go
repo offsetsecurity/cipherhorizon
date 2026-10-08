@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -107,12 +108,12 @@ func TestWrongPasswordsAreGenericAndLockTheAccount(t *testing.T) {
 	for i := 0; i < 4; i++ { // with the one above, five in a row
 		_, _ = login(t, e, "ana", "still not it at all")
 	}
-	if s, _ := login(t, e, "ana", "violet amber harbour"); s != 401 {
-		t.Fatalf("after five failures the right password still signs in (%d); the account should be locked", s)
-	}
-	_, b, _ := e.req("POST", "/api/v1/auth/login", map[string]any{"username": "ana", "password": "violet amber harbour"}, nil)
-	if !strings.Contains(string(b), "locked") {
-		t.Fatalf("a locked account with the right password should say so: %s", b)
+	// A locked account answers the right password exactly as it answers a wrong one: otherwise a
+	// guesser would learn, during the lock, which guess was right.
+	sRight, bRight, _ := e.req("POST", "/api/v1/auth/login", map[string]any{"username": "ana", "password": "violet amber harbour"}, nil)
+	sWrong, bWrong, _ := e.req("POST", "/api/v1/auth/login", map[string]any{"username": "ana", "password": "another wrong guess"}, nil)
+	if sRight != 401 || sRight != sWrong || string(bRight) != string(bWrong) || string(bRight) != string(b1) {
+		t.Fatalf("a locked account distinguishes the right password:\nright %d %s\nwrong %d %s", sRight, bRight, sWrong, bWrong)
 	}
 	evs, _ := e.st.AuthEvents(50)
 	kinds := map[string]int{}
@@ -127,16 +128,87 @@ func TestWrongPasswordsAreGenericAndLockTheAccount(t *testing.T) {
 	}
 }
 
+func TestGuessesDuringALockDoNotExtendIt(t *testing.T) {
+	defer server.SetAuthFailDelay(0)()
+	fc := &fakeClock{t: time.Date(2026, 10, 6, 9, 0, 0, 0, time.UTC)}
+	e := newEnv(t, withLogin(setupCode), withClock(fc))
+	setupAdmin(t, e)
+	for i := 0; i < 5; i++ {
+		_, _ = login(t, e, "ana", "still not it at all")
+	}
+	fc.Advance(14 * time.Minute)
+	for i := 0; i < 3; i++ { // someone keeps guessing while the account is locked
+		if s, _ := login(t, e, "ana", "still not it at all"); s != 401 {
+			t.Fatalf("guess during the lock: %d", s)
+		}
+	}
+	fc.Advance(2 * time.Minute) // the original lock has run out
+	if s, _ := login(t, e, "ana", "violet amber harbour"); s != 200 {
+		t.Fatalf("the right password after the lock expired: %d; guesses during a lock must not extend it", s)
+	}
+}
+
 func TestOneAddressIsRateLimited(t *testing.T) {
 	defer server.SetAuthFailDelay(0)()
 	e := newEnv(t, withLogin(setupCode))
 	setupAdmin(t, e)
 	last := 0
-	for i := 0; i < 22; i++ {
-		last, _ = login(t, e, "user"+string(rune('a'+i)), "not a real password")
+	for i := 0; i < 52; i++ { // spraying many accounts from one address
+		last, _ = login(t, e, fmt.Sprintf("user%d", i), "not a real password")
 	}
 	if last != 429 {
-		t.Fatalf("22 failures from one address: last answer %d, want 429", last)
+		t.Fatalf("52 failures from one address: last answer %d, want 429", last)
+	}
+}
+
+func TestGuessingOneAccountDoesNotLockOutOthersOnTheSameAddress(t *testing.T) {
+	defer server.SetAuthFailDelay(0)()
+	e := newEnv(t, withLogin(setupCode))
+	admin := setupAdmin(t, e)
+	if s, b, _ := e.as(admin, "POST", "/api/v1/users", map[string]any{"username": "bob", "role": "viewer", "password": "temporary pass phrase one"}); s != 201 {
+		t.Fatalf("add bob: %d %s", s, b)
+	}
+	last := 0
+	for i := 0; i < 11; i++ {
+		last, _ = login(t, e, "nobody-here", "not a real password")
+	}
+	if last != 429 {
+		t.Fatalf("11 failures against one account from one address: %d, want 429", last)
+	}
+	// Behind a shared address (a proxy, a container port mapping) someone else still signs in.
+	if s, _ := login(t, e, "bob", "temporary pass phrase one"); s != 200 {
+		t.Fatalf("another account from the same address: %d, want 200", s)
+	}
+}
+
+func TestForwardedForIsBelievedOnlyFromATrustedProxy(t *testing.T) {
+	defer server.SetAuthFailDelay(0)()
+	try := func(e *env, client string) int {
+		s, _, _ := e.req("POST", "/api/v1/auth/login", map[string]any{"username": "nobody-here", "password": "not a real password"},
+			map[string]string{"X-Forwarded-For": "203.0.113.9, " + client})
+		return s
+	}
+	// Behind a trusted proxy each real client has its own count.
+	e := newEnv(t, withLogin(setupCode), withTrustedProxy("127.0.0.0/8"))
+	setupAdmin(t, e)
+	for i := 0; i < 15; i++ {
+		if s := try(e, fmt.Sprintf("198.51.100.%d", i)); s != 401 {
+			t.Fatalf("client %d behind a trusted proxy: %d, want 401", i, s)
+		}
+	}
+	evs, _ := e.st.AuthEvents(1)
+	if len(evs) != 1 || evs[0].Client != "198.51.100.14" {
+		t.Fatalf("the sign-in log should name the forwarded client: %+v", evs)
+	}
+	// From an untrusted peer the header is ignored: a client cannot pick a fresh address per guess.
+	e2 := newEnv(t, withLogin(setupCode))
+	setupAdmin(t, e2)
+	last := 0
+	for i := 0; i < 11; i++ {
+		last = try(e2, fmt.Sprintf("198.51.100.%d", i))
+	}
+	if last != 429 {
+		t.Fatalf("a forged X-Forwarded-For escaped the limit: %d, want 429", last)
 	}
 }
 

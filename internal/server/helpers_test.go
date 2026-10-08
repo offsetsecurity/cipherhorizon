@@ -46,6 +46,8 @@ type envCfg struct {
 	allowedHosts  []string
 	login         bool
 	setupCode     string
+	proxies       []*net.IPNet
+	scanRand      io.Reader
 }
 
 type envOpt func(*envCfg)
@@ -55,6 +57,20 @@ func noLoopback() envOpt                   { return func(c *envCfg) { c.allowLoo
 func withWorkers(n int) envOpt             { return func(c *envCfg) { c.workers = n } }
 func withClock(fc *fakeClock) envOpt       { return func(c *envCfg) { c.clock = fc } }
 func withScheduler(d time.Duration) envOpt { return func(c *envCfg) { c.sched = d } }
+
+// withScanRand replaces the source of ClientHello randomness (a seam to make the prober fail).
+func withScanRand(r io.Reader) envOpt { return func(c *envCfg) { c.scanRand = r } }
+
+// withTrustedProxy names a reverse proxy whose X-Forwarded-For is believed.
+func withTrustedProxy(cidr string) envOpt {
+	return func(c *envCfg) {
+		_, n, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(err)
+		}
+		c.proxies = append(c.proxies, n)
+	}
+}
 
 // withLogin turns accounts on (ADR-0018), with this first-run setup code.
 func withLogin(code string) envOpt { return func(c *envCfg) { c.login, c.setupCode = true, code } }
@@ -91,6 +107,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	guard := server.Guard{AllowLoopback: cfg.allowLoopback}
 	ro := server.RunnerOptions{Workers: cfg.workers, SchedulerInterval: cfg.sched,
 		Scan: tlsprobe.Options{Timeout: 3 * time.Second, Concurrency: 8}}
+	ro.Scan.Rand = cfg.scanRand
 	if cfg.clock != nil {
 		ro.Now = cfg.clock.Now
 		st.SetClock(cfg.clock.Now)
@@ -101,7 +118,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 
 	srv := server.New(server.Config{Store: st, Runner: runner, Guard: guard, Token: cfg.token, AllowedHosts: cfg.allowedHosts,
 		Version: "test", RegistryRetrieved: "2026-09-21", EvalVersion: "eval/1", MaxConcurrentScans: cfg.workers,
-		RequireLogin: cfg.login, SetupCode: cfg.setupCode, Now: nowOf(cfg.clock)})
+		RequireLogin: cfg.login, SetupCode: cfg.setupCode, Now: nowOf(cfg.clock), TrustedProxies: cfg.proxies})
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() {
 		ts.Close()

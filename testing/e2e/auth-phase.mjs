@@ -72,7 +72,7 @@ export async function authPhase({ check, js, go, sleep, shot, api }) {
   // A wrong password is refused without saying whether the account exists.
   await signIn({ js, sleep }, ADMIN.username, 'not the password at all');
   const bad = await js(`return document.querySelector('.gate-error')?.textContent || ''`);
-  check('E2E-A.6', 'a wrong password is refused with one generic message', bad === 'the username or password is wrong', bad);
+  check('E2E-A.6', 'a wrong password is refused with one generic message', bad === 'the username or password is wrong, or the account is locked for a while after repeated failed sign-ins', bad);
   // The viewer must replace the temporary password first.
   await signIn({ js, sleep }, VIEWER.username, VIEWER.temp);
   const chg = await js(`return document.querySelector('.gate-title')?.textContent`);

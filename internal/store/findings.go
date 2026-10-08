@@ -162,8 +162,15 @@ func (s *Store) UnlinkAssetsAs(a, b int64, actor string) error {
 		return err
 	}
 	var sysA, sysB sql.NullInt64
-	_ = tx.QueryRow(`SELECT system_id FROM assets WHERE id = ?`, a).Scan(&sysA)
-	_ = tx.QueryRow(`SELECT system_id FROM assets WHERE id = ?`, b).Scan(&sysB)
+	for _, q := range []struct {
+		id  int64
+		dst *sql.NullInt64
+	}{{a, &sysA}, {b, &sysB}} {
+		// A missing asset leaves its system unknown (NULL): nothing to split. Any other error is real.
+		if err := tx.QueryRow(`SELECT system_id FROM assets WHERE id = ?`, q.id).Scan(q.dst); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
 	if sysA.Valid && sysB.Valid && sysA.Int64 == sysB.Int64 {
 		comp, err := componentTx(tx, a)
 		if err != nil {
@@ -180,7 +187,9 @@ func (s *Store) UnlinkAssetsAs(a, b int64, actor string) error {
 			}
 			sort.Slice(moved, func(i, j int) bool { return moved[i] < moved[j] })
 			var name string
-			_ = tx.QueryRow(`SELECT name FROM assets WHERE id = ?`, b).Scan(&name)
+			if err := tx.QueryRow(`SELECT name FROM assets WHERE id = ?`, b).Scan(&name); err != nil {
+				return err
+			}
 			if err := s.splitAssetTx(tx, moved, name, actor, fmt.Sprintf("assets %d and %d unlinked", a, b), sysA.Int64); err != nil {
 				return err
 			}

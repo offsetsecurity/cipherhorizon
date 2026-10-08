@@ -9,7 +9,7 @@
 # The build stage always runs on the builder's native platform and cross-compiles, so a
 # multi-arch image needs no emulation.
 
-FROM --platform=$BUILDPLATFORM golang:1.25 AS build
+FROM --platform=$BUILDPLATFORM golang:1.25@sha256:699337d620559a59b4a2bb298ad59611e535d2ee755a34cf2d2a98f37578dc80 AS build
 ARG TARGETOS
 ARG TARGETARCH
 ARG MODULE=github.com/example/cipherhorizon
@@ -26,7 +26,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 # distroless has no shell to mkdir with, so the writable data directory is made here.
 RUN mkdir /out/data
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 ARG VERSION=0.0.0-dev
 ARG COMMIT=
 LABEL org.opencontainers.image.title="CipherHorizon" \
