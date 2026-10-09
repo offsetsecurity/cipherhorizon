@@ -1,18 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
-  <defs>
-    <linearGradient id="g" x1="16" y1="1" x2="16" y2="31" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#9C7CFF"/>
-      <stop offset=".55" stop-color="#7048E8"/>
-      <stop offset="1" stop-color="#F2A33F"/>
-    </linearGradient>
-    <mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32">
-      <rect width="32" height="32" fill="#fff"/>
-      <circle cx="16" cy="13.4" r="3" fill="#000"/>
-      <path d="M14.3 15.3H17.7L16.7 20.4H15.3Z" fill="#000"/>
-    </mask>
-  </defs>
-  <path d="M16 1.4 L28.6 8.2 V23.6 L16 30.6 L3.4 23.6 V8.2 Z" fill="url(#g)" mask="url(#m)"/>
-  <path d="M16 1.4 L28.6 8.2 V23.6 L16 30.6 L3.4 23.6 V8.2 Z" fill="none" stroke="rgba(255,255,255,.16)" stroke-width=".6"/>
-  <path d="M4.6 9.2 L16 15.2 L27.4 9.2" stroke="rgba(255,255,255,.4)" stroke-width=".55" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>CipherHorizon</title>
+  <!-- The CipherHorizon icon: a padlock on a rounded square. Flat: one colour per shape. -->
+  <rect width="32" height="32" rx="7" fill="#2457D6"/>
+  <path d="M10.75 15V11.75a5.25 5.25 0 0 1 10.5 0V15h-2.9v-3.25a2.35 2.35 0 0 0-4.7 0V15Z" fill="#FFFFFF"/>
+  <rect x="8.5" y="14.5" width="15" height="11" rx="2.2" fill="#FFFFFF"/>
+  <path d="M16 17.4a1.7 1.7 0 0 1 .85 3.17V22.6h-1.7v-2.03A1.7 1.7 0 0 1 16 17.4Z" fill="#2457D6"/>
 </svg>

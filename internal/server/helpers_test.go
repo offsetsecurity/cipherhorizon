@@ -48,6 +48,10 @@ type envCfg struct {
 	setupCode     string
 	proxies       []*net.IPNet
 	scanRand      io.Reader
+	setupExpires  time.Time
+	scope         []string
+	notOpen       bool // the server listens beyond loopback without --open-network
+	forbidLogin   bool // --sign-in off
 }
 
 type envOpt func(*envCfg)
@@ -74,6 +78,18 @@ func withTrustedProxy(cidr string) envOpt {
 
 // withLogin turns accounts on (ADR-0018), with this first-run setup code.
 func withLogin(code string) envOpt { return func(c *envCfg) { c.login, c.setupCode = true, code } }
+
+// notOpen makes the server one that listens beyond loopback without --open-network.
+func notOpen() envOpt { return func(c *envCfg) { c.notOpen = true } }
+
+// forbidLogin is --sign-in off.
+func forbidLogin() envOpt { return func(c *envCfg) { c.forbidLogin = true } }
+
+// withScanScope starts the server with these --scan-allow entries.
+func withScanScope(entries ...string) envOpt { return func(c *envCfg) { c.scope = entries } }
+
+// withSetupExpiry sets when the first-run setup code stops working.
+func withSetupExpiry(t time.Time) envOpt { return func(c *envCfg) { c.setupExpires = t } }
 
 func nowOf(c *fakeClock) func() time.Time {
 	if c == nil {
@@ -104,7 +120,11 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	guard := server.Guard{AllowLoopback: cfg.allowLoopback}
+	scope, err := server.ParseScope(cfg.scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guard := server.Guard{AllowLoopback: cfg.allowLoopback, Scope: scope}
 	ro := server.RunnerOptions{Workers: cfg.workers, SchedulerInterval: cfg.sched,
 		Scan: tlsprobe.Options{Timeout: 3 * time.Second, Concurrency: 8}}
 	ro.Scan.Rand = cfg.scanRand
@@ -118,7 +138,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 
 	srv := server.New(server.Config{Store: st, Runner: runner, Guard: guard, Token: cfg.token, AllowedHosts: cfg.allowedHosts,
 		Version: "test", RegistryRetrieved: "2026-09-21", EvalVersion: "eval/1", MaxConcurrentScans: cfg.workers,
-		RequireLogin: cfg.login, SetupCode: cfg.setupCode, Now: nowOf(cfg.clock), TrustedProxies: cfg.proxies})
+		RequireLogin: cfg.login, ForbidLogin: cfg.forbidLogin, AllowOpen: !cfg.notOpen, SetupCode: cfg.setupCode, SetupCodeExpires: cfg.setupExpires, Now: nowOf(cfg.clock), TrustedProxies: cfg.proxies})
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() {
 		ts.Close()

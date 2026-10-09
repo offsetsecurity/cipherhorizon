@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/example/cipherhorizon/internal/cbom"
+	"github.com/example/cipherhorizon/internal/eval"
 	"github.com/example/cipherhorizon/internal/pqc"
 	"github.com/example/cipherhorizon/internal/tlscbom"
 	"github.com/example/cipherhorizon/internal/tlsprobe"
@@ -30,7 +31,13 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 
 	fl := flag.NewFlagSet("tls scan", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
-	asJSON := fl.Bool("json", false, "print the reports as a JSON array instead of text")
+	asJSON := fl.Bool("json", false, "print a JSON array with one {target, report, evaluation} per target instead of text")
+	starttls := fl.String("starttls", "auto", "negotiate STARTTLS before TLS: auto (by well-known port: 25, 587, 143, 110, 21, 5222, 389, 5432), "+
+		"none, smtp, imap, pop3, ftp, xmpp, ldap or postgres. A target may also name it as a scheme: smtp://mail.example.com")
+	details := fl.Bool("details", false, "after the verdict, print the raw probe results: protocols, every cipher suite, groups and certificates")
+	var failOn stringList
+	fl.Var(&failOn, "fail-on", "exit 3 when a target meets this condition (repeatable, or comma separated): "+
+		"level<L3, score<70, severity>=high, finding=PROTO.TLS10. A target that cannot be scanned also fails")
 	asCBOM := fl.Bool("cbom", false, "print a CycloneDX CBOM of what was observed instead of text (exactly one target)")
 	spec := fl.String("spec", cbom.DefaultSpec, "CycloneDX version of the CBOM: 1.7 or 1.6")
 	timeout := fl.Duration("timeout", 8*time.Second, "per-connection timeout")
@@ -63,10 +70,17 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 	if *asCBOM && fl.NArg() > 1 {
 		return fatalf(env, "--cbom takes exactly one target; a CBOM has one subject. Run it once per endpoint")
 	}
+	policy, err := parsePolicy(failOn)
+	if err != nil {
+		return fatalf(env, "%v", err)
+	}
+	if *asCBOM && len(policy) > 0 {
+		return fatalf(env, "--fail-on judges the evaluation, which a CBOM does not carry; use it with text or --json output")
+	}
 
 	targets := make([]tlsprobe.Target, 0, fl.NArg())
 	for _, a := range fl.Args() {
-		t, err := tlsprobe.ParseTarget(a)
+		t, err := tlsprobe.ParseTargetStartTLS(a, *starttls)
 		if err != nil {
 			return fatalf(env, "%v", err)
 		}
@@ -76,12 +90,19 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 	_, _ = fmt.Fprint(env.Stderr, tlsNotice)
 
 	code := ExitOK
-	var reports []*tlsprobe.Report
+	failed := false
+	type jsonResult struct {
+		Target     string           `json:"target"`
+		Report     *tlsprobe.Report `json:"report"`
+		Evaluation *eval.Evaluation `json:"evaluation"`
+	}
+	results := []jsonResult{}
 	for i, t := range targets {
+		name := fmt.Sprintf("%s:%d", t.Host, t.Port)
 		if ctx.Err() != nil {
 			return fatalf(env, "interrupted")
 		}
-		_, _ = fmt.Fprintf(env.Stderr, "scanning %s:%d\n", t.Host, t.Port)
+		_, _ = fmt.Fprintf(env.Stderr, "scanning %s\n", targetName(t))
 		rep, err := tlsprobe.Scan(ctx, t, tlsprobe.Options{
 			Timeout: *timeout, Concurrency: *concurrency, MaxConnections: *maxConns,
 			MinInterval: *interval, SkipCertificates: *noCerts, HTTPChecks: *httpChecks, OSTrust: *osTrust,
@@ -91,6 +112,12 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		if err != nil {
 			warnf(env, "%s:%d: %v", t.Host, t.Port, err)
 			code = ExitIncomplete
+		}
+		// A target that answered nothing has no verdict to judge: with a policy, it fails as such.
+		unscanned := rep == nil || (err != nil && !anySupported(rep))
+		if unscanned && len(policy) > 0 {
+			failed = true
+			_, _ = fmt.Fprintf(env.Stderr, "policy: %s fails: it could not be scanned\n", name)
 		}
 		if rep == nil {
 			continue
@@ -104,28 +131,57 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 			}
 			continue
 		}
+		now := time.Now
+		if env.Now != nil {
+			now = env.Now
+		}
+		ev := eval.Evaluate(rep, now())
+		for _, why := range breaches(policy, ev) {
+			if unscanned {
+				break
+			}
+			failed = true
+			_, _ = fmt.Fprintf(env.Stderr, "policy: %s fails: %s\n", name, why)
+		}
 		if *asJSON {
-			reports = append(reports, rep)
+			results = append(results, jsonResult{Target: name, Report: rep, Evaluation: &ev})
 			continue
 		}
 		if i > 0 {
 			_, _ = fmt.Fprintln(env.Stdout)
 		}
-		if err := rep.WriteText(env.Stdout); err != nil {
+		if unscanned {
+			// No verdict to give: say so, rather than an empty list that reads as "nothing to fix".
+			_, _ = fmt.Fprintf(env.Stdout, "%s\n\n  Could not be scanned: %v\n", targetName(t), err)
+			continue
+		}
+		if err := writeVerdict(env.Stdout, targetName(t), ev); err != nil {
 			return fatalf(env, "writing report: %v", err)
 		}
+		if *details {
+			_, _ = fmt.Fprintln(env.Stdout)
+			if err := rep.WriteText(env.Stdout); err != nil {
+				return fatalf(env, "writing report: %v", err)
+			}
+		}
+	}
+	if !*asJSON && !*asCBOM && !*details {
+		_, _ = fmt.Fprintln(env.Stderr, "(--details prints the protocols, cipher suites, groups and certificates behind this verdict)")
 	}
 
 	if *asJSON {
 		enc := json.NewEncoder(env.Stdout)
 		enc.SetIndent("", "  ")
 		enc.SetEscapeHTML(false)
-		if err := enc.Encode(reports); err != nil {
+		if err := enc.Encode(results); err != nil {
 			return fatalf(env, "writing report: %v", err)
 		}
 	}
 	if ctx.Err() != nil {
 		return fatalf(env, "interrupted")
+	}
+	if failed {
+		return ExitPolicy
 	}
 	return code
 }
@@ -156,4 +212,14 @@ func writeTLSCBOM(env Env, rep *tlsprobe.Report, t tlsprobe.Target, spec string)
 	}
 	_, err := env.Stdout.Write(buf.Bytes())
 	return err
+}
+
+// anySupported reports whether the target accepted any protocol version at all.
+func anySupported(rep *tlsprobe.Report) bool {
+	for _, p := range rep.Protocols {
+		if p.Supported {
+			return true
+		}
+	}
+	return false
 }

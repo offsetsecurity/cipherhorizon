@@ -164,7 +164,7 @@ func (r *Runner) enqueueDue() {
 	}
 	queued := false
 	for _, a := range due {
-		_, existing, err := r.st.EnqueueScan(a.ID, "scheduled")
+		_, existing, err := r.st.EnqueueScan(a.ID, "scheduled", "schedule")
 		switch {
 		case err != nil:
 			r.log.Error("queueing a scheduled scan failed", "asset", a.ID, "err", err)
@@ -296,7 +296,7 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 		r.fail(sc.ID, reason, nil)
 		return
 	}
-	target, err := tlsprobe.ParseTarget(asset.Address())
+	target, err := tlsprobe.ParseTargetStartTLS(asset.Address(), asset.StartTLS)
 	if err != nil {
 		r.fail(sc.ID, "invalid target: "+err.Error(), nil)
 		return
@@ -315,8 +315,9 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 
 	prog := &progress{r: r, ctx: ctx, id: sc.ID, floor: 0, next: stages[0].floor}
 	o := r.opts.Scan
-	o.Dial = r.guard.Dial
-	o.LookupIP = r.guard.LookupIP
+	g := r.guard.ForTarget(target.Host) // the scan scope applies to every connection (REQ-AC-1)
+	o.Dial = g.Dial
+	o.LookupIP = g.LookupIP
 	o.Now = r.opts.Now
 	o.Progress = prog.message
 	o.Tick = prog.tick

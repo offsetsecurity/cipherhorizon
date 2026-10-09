@@ -1,14 +1,29 @@
 // Signing in (ADR-0018): the screens shown instead of the application until someone is signed
 // in, first-run setup, and the change of a temporary password. The server decides everything;
 // these screens only ask and show its answer.
-import { h, clear } from './dom.js';
+import { h, clear, brandMark } from './dom.js';
 import { api, ApiError } from './api.js';
 
 const gate = () => document.getElementById('gate');
 
-const BRAND = () => h('div', { class: 'gate-brand' },
-  h('img', { src: '/img/mark.svg', alt: '', width: 36, height: 36, class: 'gate-mark' }),
-  h('div', null, h('div', { class: 'gate-name' }, 'CipherHorizon'), h('div', { class: 'gate-tag' }, 'TLS scanner and CBOM inventory')));
+// What the product is, said once where everyone sees it first (PRD-007 REQ-ST-1): the Offset
+// headline, the three pillars, and who makes it.
+export const PILLARS = [
+  ['Post-quantum readiness', 'A level from L0 to L4 for every endpoint, and which ones would leak recorded traffic to a future quantum computer.'],
+  ['A TLS scanner that shows its work', 'Every protocol, cipher suite and group, every check passed or failed, each with its source.'],
+  ['An inventory you can hand over', 'One CycloneDX CBOM for endpoints and machines, and reports an auditor accepts.'],
+];
+export const PQC_SERVICE = 'https://offsetsecurity.net/post-quantum-cryptography-readiness.html';
+
+const VALUE = () => h('aside', { class: 'gate-value', 'aria-label': 'About CipherHorizon' },
+  h('div', { class: 'gate-lockup' }, h('span', { class: 'gate-mark', 'aria-hidden': 'true' }, brandMark('color')),
+    h('span', null, h('span', { class: 'gate-name' }, 'CipherHorizon'), h('span', { class: 'gate-by' }, 'TLS and post-quantum scanner'))),
+  h('div', { class: 'gate-value-body' },
+    h('p', { class: 'eyebrow eyebrow-navy' }, 'Post-quantum readiness · TLS scanner · CBOM'),
+    h('p', { class: 'gate-headline' }, 'Quantum-safe before it\'s urgent.'),
+    h('ul', { class: 'gate-pillars' }, PILLARS.map(([t, d]) => h('li', null, h('b', null, t), h('span', null, d))))),
+  h('p', { class: 'gate-credit' }, 'Self-hosted and open source, from ',
+    h('a', { href: PQC_SERVICE, target: '_blank', rel: 'noopener' }, 'Offset Security\'s post-quantum readiness practice'), '.'));
 
 function field(id, label, attrs, hint) {
   const input = h('input', { id, name: id, ...attrs });
@@ -42,8 +57,9 @@ function gateForm(title, lede, fields, submitLabel, onSubmit, extra) {
 function show(node) {
   document.body.classList.add('gated');
   const g = gate();
-  clear(g).append(h('main', { class: 'gate-panel', id: 'gate-main' }, BRAND(), node,
-    h('p', { class: 'gate-foot' }, 'A session ends after a period without activity. Sign out when you leave a shared computer.')));
+  clear(g).append(h('div', { class: 'gate-split' }, VALUE(),
+    h('div', { class: 'gate-side' }, h('main', { class: 'gate-panel', id: 'gate-main' }, node,
+      h('p', { class: 'gate-foot' }, 'A session ends after a period without activity. Sign out when you leave a shared computer.')))));
   g.hidden = false;
   const first = g.querySelector('input');
   if (first) first.focus();
@@ -108,12 +124,12 @@ export function accountChip(root, user) {
   if (!root) return;
   clear(root);
   if (!user || user.kind === 'local') {
-    root.appendChild(h('p', { class: 'acct-local' }, 'Local mode: no sign-in (loopback only)'));
+    root.appendChild(h('p', { class: 'acct-local' }, 'Sign-in is off. ', h('a', { href: '#/settings' }, 'Turn it on')));
     return;
   }
   const items = [
     h('a', { href: '#/account', role: 'menuitem' }, 'Account and password'),
-    user.role === 'admin' ? h('a', { href: '#/users', role: 'menuitem' }, 'Users and sign-in log') : null,
+    user.role === 'admin' ? h('a', { href: '#/users', role: 'menuitem' }, 'Users and activity') : null,
     h('button', { type: 'button', role: 'menuitem', onclick: async () => {
       try { await api.logout(); } catch { /* signed out either way */ }
       // Nothing may render once the session is gone: mark the page signed out first, then reload.

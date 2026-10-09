@@ -23,6 +23,8 @@ const routes = [
   [/^#\/systems\/(\d+)\/?$/, 'systems', () => import('./views/system.js')],
   [/^#\/reports\/?$/, 'reports', () => import('./views/reports.js')],
   [/^#\/about\/?$/, 'about', () => import('./views/about.js')],
+  [/^#\/help\/?$/, 'help', () => import('./views/help.js')],
+  [/^#\/settings\/?$/, 'settings', () => import('./views/settings.js')],
   [/^#\/account\/?$/, 'account', () => import('./views/account.js')],
   [/^#\/users\/?$/, 'users', () => import('./views/users.js')],
 ];

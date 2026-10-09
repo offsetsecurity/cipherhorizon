@@ -56,6 +56,11 @@ type Config struct {
 	// Addr is the listen address; empty means 127.0.0.1:0. Restarting a server on
 	// the same address with a different Config simulates an endpoint being changed.
 	Addr string
+	// StartTLS, when set (smtp, imap, pop3, ftp, xmpp, ldap, postgres), makes every connection
+	// begin in that protocol's plain text and switch to TLS when asked. RefuseStartTLS makes the
+	// server say no instead.
+	StartTLS       string
+	RefuseStartTLS bool
 }
 
 // Server is a running test server.
@@ -74,6 +79,10 @@ func (s *Server) Close() {
 	}
 }
 
+// CertValidity is how long the test certificates are valid. Tests keep the short default (their
+// expiry findings depend on it); the demo targets set a realistic one before the first server starts.
+var CertValidity = 24 * time.Hour
+
 var (
 	certOnce sync.Once
 	ecCert   tls.Certificate
@@ -87,7 +96,7 @@ func makeCerts() {
 			SerialNumber: big.NewInt(time.Now().UnixNano()),
 			Subject:      pkix.Name{CommonName: "localhost", Organization: []string{"cipherhorizon test"}},
 			NotBefore:    time.Now().Add(-time.Hour),
-			NotAfter:     time.Now().Add(24 * time.Hour),
+			NotAfter:     time.Now().Add(CertValidity),
 			KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 			DNSNames:     []string{"localhost"},
@@ -194,6 +203,20 @@ func Listen(cfg Config) (*Server, error) {
 	addr := cfg.Addr
 	if addr == "" {
 		addr = "127.0.0.1:0"
+	}
+	if cfg.StartTLS != "" {
+		pl, err := net.Listen("tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+		go serveStartTLS(pl, tc, cfg.StartTLS, cfg.RefuseStartTLS, cfg.HTTPResponse)
+		srv, err := addrOf(pl)
+		if err != nil {
+			_ = pl.Close()
+			return nil, err
+		}
+		srv.close = func() { _ = pl.Close() }
+		return srv, nil
 	}
 	l, err := tls.Listen("tcp", addr, tc)
 	if err != nil {

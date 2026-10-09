@@ -151,6 +151,22 @@ func (p *Page) RoundRect(x, y, w, h, r float64, fill Color, lw float64, stroke C
 	p.printf("%s %s f\n", fill.op(true), path)
 }
 
+// Polygon fills the closed shape through the points (x, y pairs, top-left origin).
+func (p *Page) Polygon(fill Color, pts ...[2]float64) {
+	if len(pts) < 3 {
+		return
+	}
+	var b strings.Builder
+	for i, pt := range pts {
+		op := "l"
+		if i == 0 {
+			op = "m"
+		}
+		fmt.Fprintf(&b, "%s %s %s ", num(pt[0]), num(PageHeight-pt[1]), op)
+	}
+	p.printf("%s %sh f\n", fill.op(true), b.String())
+}
+
 // Circle fills a circle centred on cx, cy.
 func (p *Page) Circle(cx, cy, r float64, fill Color) {
 	p.RoundRect(cx-r, cy-r, 2*r, 2*r, r, fill, 0, Color{})

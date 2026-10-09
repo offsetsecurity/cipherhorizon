@@ -187,6 +187,8 @@ func statusOf(st string) (string, tone) {
 		return "Not checked", toneInfo
 	case "not-collected":
 		return "Not collected", toneInfo
+	case "not-applicable":
+		return "Not applicable", toneInfo
 	case "inconclusive":
 		return "Inconclusive", toneWarn
 	}
@@ -334,13 +336,13 @@ func (x *endpoint) fixFirst() {
 		t := sevTone(f.Severity)
 		title := []pdf.Span{bold(f.Title)}
 		if f.Availability {
-			title = append(title, span(" — clients fail to connect", pdf.Bold, 7.5, toneBad.fg))
+			title = append(title, span(". Clients fail to connect", pdf.Bold, 7.5, toneBad.fg))
 		}
 		blocks = append(blocks,
 			chipLine{chip: pdf.Chip{Text: fmt.Sprintf("%d  %s", i+1, strings.ToUpper(string(f.Severity))), FG: t.fg, BG: white, Size: 7}, para: pdf.Para{Spans: title}},
 			pdf.Para{Spans: []pdf.Span{soft(f.Remediation)}, Indent: 0, After: 7})
 	}
-	x.f.Box(pdf.BoxStyle{Fill: amberBG, HasFill: true, Accent: amber, AccentWidth: 3.5, Pad: 12, Radius: 4, After: 12}, blocks...)
+	x.f.Box(pdf.BoxStyle{Fill: warmBG, HasFill: true, Accent: warm, AccentWidth: 3.5, Pad: 12, Radius: 4, After: 12}, blocks...)
 }
 
 func (x *endpoint) glance() {

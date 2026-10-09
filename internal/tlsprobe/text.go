@@ -46,6 +46,9 @@ func (r *Report) writeText(o *out) {
 	if r.Address != "" {
 		o.f(" (%s)", r.Address)
 	}
+	if r.Target.StartTLS != "" {
+		o.f(" via STARTTLS (%s)", StartTLSName(r.Target.StartTLS))
+	}
 	o.f("\n  %d connections in %.1fs; IANA registry retrieved %s\n", r.Connections, float64(r.DurationMS)/1000, registryDate())
 	if r.Incomplete {
 		o.ln("  ! INCOMPLETE: some probes were inconclusive or hit a limit; a missing finding is not proof of absence")

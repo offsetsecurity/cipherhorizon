@@ -58,7 +58,7 @@ func Scripts() []Script {
 	db := signatures.MustLoad()
 	defs := []Script{
 		{Name: "cipherhorizon-inventory.ps1", Platform: "Windows · PowerShell",
-			Run: `powershell -NoProfile -ExecutionPolicy Bypass -File .\cipherhorizon-inventory.ps1`},
+			Run: `Unblock-File .\cipherhorizon-inventory.ps1; powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\cipherhorizon-inventory.ps1`},
 		{Name: "cipherhorizon-inventory.sh", Platform: "Linux · shell",
 			Run: "sudo sh ./cipherhorizon-inventory.sh"},
 	}

@@ -412,3 +412,24 @@ func itoa(n int) string {
 	b, _ := json.Marshal(n)
 	return string(b)
 }
+
+// PRD-007 REQ-ST-4: the CLI and the container image introduce the product in the same words.
+func TestHelpCarriesTheOneLiner(t *testing.T) {
+	_, help, _ := run(t, "help")
+	_, ver, _ := run(t, "version")
+	for name, out := range map[string]string{"help": help, "version": ver} {
+		if !strings.Contains(out, app.OneLiner) {
+			t.Errorf("%s does not carry the one-liner:\n%s", name, out)
+		}
+	}
+	if !strings.HasPrefix(ver, "cipherhorizon ") {
+		t.Errorf("version's first line changed: %q", ver)
+	}
+	docker, err := os.ReadFile("../../Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(docker), `image.description="`+app.OneLiner+`"`) {
+		t.Error("the image's description label is not the one-liner")
+	}
+}

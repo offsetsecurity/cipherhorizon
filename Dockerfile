@@ -30,7 +30,8 @@ FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c
 ARG VERSION=0.0.0-dev
 ARG COMMIT=
 LABEL org.opencontainers.image.title="CipherHorizon" \
-      org.opencontainers.image.description="A cryptographic inventory that ranks your systems for the move to post-quantum cryptography" \
+      org.opencontainers.image.description="Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted." \
+      org.opencontainers.image.vendor="Offset Security" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}"
@@ -40,12 +41,14 @@ COPY --from=build --chown=65532:65532 /out/data /data
 VOLUME ["/data"]
 WORKDIR /data
 EXPOSE 8080
-# Sign-in is required (ADR-0018): on first start the log prints a one-time setup code for the
-# administrator (`docker logs cipherhorizon`). --plain-http is right when the port is published
-# only on the host (as docker-compose.yml does) or a TLS-terminating proxy is in front; to serve
-# HTTPS directly, mount a certificate and override CMD with --tls-cert/--tls-key instead.
+# Sign-in is off by default, as everywhere (turn it on in Settings, or run with --sign-in on, which
+# prints a one-time setup code to `docker logs`). Inside a container the server must listen on
+# 0.0.0.0, so --open-network says that is intended: publish the port on the host's loopback only
+# (-p 127.0.0.1:8080:8080, as docker-compose.yml does), or turn sign-in on before exposing it.
+# --plain-http is right for that, or behind a TLS-terminating proxy; to serve HTTPS directly, mount a
+# certificate and override CMD with --tls-cert/--tls-key instead.
 ENTRYPOINT ["/cipherhorizon"]
-CMD ["serve", "--addr", "0.0.0.0:8080", "--plain-http", "--db", "/data/cipherhorizon.db"]
+CMD ["serve", "--addr", "0.0.0.0:8080", "--plain-http", "--open-network", "--db", "/data/cipherhorizon.db"]
 # The base image has no shell, curl or wget, so the binary checks its own /api/v1/health.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
   CMD ["/cipherhorizon", "healthcheck", "--addr", "127.0.0.1:8080"]

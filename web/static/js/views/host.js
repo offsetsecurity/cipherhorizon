@@ -132,17 +132,26 @@ export async function render(root, { args }) {
 
   if (s.legacy && s.legacy.length) root.appendChild(legacyCard(s.legacy));
 
+  // UX-REVIEW-008 M1, M2: what needs replacing comes first; the quantum-safe algorithms fold under
+  // one line; the reason for a verdict opens from the verdict itself.
+  const algoTable = (list) => h('div', { class: 'tablewrap' }, h('table', null,
+    h('thead', null, h('tr', null, ['Algorithm', 'Verdict', 'Provided by'].map((c) => h('th', { scope: 'col' }, c)))),
+    h('tbody', null, list.map((a) => h('tr', null,
+      h('td', null, h('b', null, a.name), a.oid ? h('div', { class: 'hint' }, `OID ${a.oid}`) : null),
+      h('td', null, h('details', { class: 'why verdict-why' },
+        h('summary', null, a.class === 'quantum-vulnerable' ? badge('▲ quantum-vulnerable', 'warn') : badge('✓ quantum-safe', 'good')),
+        h('p', null, a.rationale), citations(a.basis),
+        h('div', { class: 'hint', title: 'The rule that identified this algorithm: an exact OID match, an OID family match, or an exact catalogue name match, never a guess from a similar-looking name.' },
+          `Matched by ${a.matchedBy}`))),
+      h('td', null, providers(a.providedBy)))))));
+  const vulnerable = s.algorithms.filter((a) => a.class === 'quantum-vulnerable');
+  const safe = s.algorithms.filter((a) => a.class !== 'quantum-vulnerable');
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Algorithms'),
-    s.algorithms.length ? h('div', { class: 'tablewrap' }, h('table', null,
-      h('thead', null, h('tr', null, ['Algorithm', 'Verdict', 'Provided by'].map((c) => h('th', { scope: 'col' }, c)))),
-      h('tbody', null, s.algorithms.map((a) => h('tr', null,
-        h('td', null, h('b', null, a.name), a.oid ? h('div', { class: 'hint' }, `OID ${a.oid}`) : null,
-          h('details', { class: 'why' }, h('summary', null, 'Why this verdict'),
-            h('p', null, a.rationale), citations(a.basis),
-            h('div', { class: 'hint', title: 'The rule that identified this algorithm: an exact OID match, an OID family match, or an exact catalogue name match, never a guess from a similar-looking name.' },
-              `Matched by ${a.matchedBy}`))),
-        h('td', null, a.class === 'quantum-vulnerable' ? badge('▲ quantum-vulnerable', 'warn') : badge('✓ quantum-safe', 'good')),
-        h('td', null, providers(a.providedBy))))))) : h('p', { class: 'muted' }, 'No algorithms were found in this CBOM.')));
+    !s.algorithms.length ? h('p', { class: 'muted' }, 'No algorithms were found in this CBOM.') : [
+      vulnerable.length
+        ? [h('p', { class: 'text-2' }, `${vulnerable.length} quantum-vulnerable: a large quantum computer could break ${vulnerable.length === 1 ? 'it' : 'them'}. Open a verdict for the reason and its source.`), algoTable(vulnerable)]
+        : h('p', { class: 'ok-text' }, 'Nothing quantum-vulnerable was found.'),
+      safe.length ? h('details', { class: 'more algo-safe' }, h('summary', null, `${safe.length} quantum-safe algorithm${safe.length === 1 ? '' : 's'}`), algoTable(safe)) : null]));
 
   // What the inventory found besides algorithms: configuration (Windows Schannel, SSH, OpenSSL)
   // and the software and libraries that bring their own cryptography, from this machine's CBOM.

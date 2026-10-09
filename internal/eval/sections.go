@@ -31,7 +31,10 @@ const (
 	StatusGood         = "good"
 	StatusNotChecked   = "not-checked"
 	StatusNotCollected = "not-collected"
-	StatusInconclusive = "inconclusive"
+	// StatusNotApplicable: the area does not exist for this service (no HTTP layer behind an SMTP
+	// or LDAP endpoint), so there was nothing to check; it is not a gap in the scan.
+	StatusNotApplicable = "not-applicable"
+	StatusInconclusive  = "inconclusive"
 )
 
 // Section is one part of the endpoint page with its status.
@@ -195,6 +198,9 @@ func sections(c *ctx, findings []Finding) []Section {
 			switch st.Outcome {
 			case tlsprobe.OutcomeSkipped:
 				s.Status, s.Reason, s.ReasonCode = StatusNotChecked, st.Reason, st.ReasonCode
+				if st.ReasonCode == tlsprobe.ReasonNotApplicable {
+					s.Status = StatusNotApplicable
+				}
 			case tlsprobe.OutcomeInconclusive:
 				s.Status, s.Reason, s.ReasonCode = StatusInconclusive, st.Reason, st.ReasonCode
 			}

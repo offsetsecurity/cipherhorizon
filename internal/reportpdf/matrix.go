@@ -147,6 +147,8 @@ func (x *endpoint) checks() {
 				title = c.Title
 			case "not-checked":
 				res = chipCell("NOT CHECKED", toneInfo)
+			case "not-applicable":
+				res = chipCell("N/A", toneInfo)
 			}
 			rows = append(rows, []pdf.Cell{txt(title, pdf.Regular, ink), res})
 		}

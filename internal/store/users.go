@@ -375,6 +375,17 @@ func (s *Store) UserSessions(userID int64) ([]Session, error) {
 	return out, rows.Err()
 }
 
+// EndAllSessions signs every browser out (sign-in being turned off: UX-REVIEW-008 D2) and says how
+// many sessions there were.
+func (s *Store) EndAllSessions() (int, error) {
+	res, err := s.db.Exec(`DELETE FROM sessions`)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // PruneSessions deletes sessions past their absolute expiry or idle longer than idle.
 func (s *Store) PruneSessions(idle time.Duration) error {
 	now := s.now()

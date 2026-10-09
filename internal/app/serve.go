@@ -6,6 +6,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	stdlog "log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -89,7 +91,12 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	addr := fl.String("addr", "127.0.0.1:8080", "address to listen on")
 	dbPath := fl.String("db", "cipherhorizon.db", "SQLite database file (created if missing)")
 	token := fl.String("token", "", "an automation token: scripts and tools may call the API with it as a bearer token, acting as an analyst (or set "+tokenEnv+")")
-	noLogin := fl.Bool("no-login", false, "run without accounts or sign-in: one local operator, loopback only (the behaviour before accounts)")
+	signInMode := fl.String("sign-in", "auto", "require sign-in: auto (off until turned on in Settings; on if accounts already exist), "+
+		"on (always; the first start prints a setup code for the administrator) or off (never)")
+	login := fl.Bool("login", false, "same as --sign-in on")
+	noLogin := fl.Bool("no-login", false, "same as --sign-in off")
+	openNetwork := fl.Bool("open-network", false, "allow listening beyond loopback while sign-in is off: anyone who reaches the port can use "+
+		"the server, including to scan. Without it, such a server must require sign-in")
 	tlsCert := fl.String("tls-cert", "", "serve HTTPS with this PEM certificate (chain) file; needs --tls-key")
 	tlsKey := fl.String("tls-key", "", "the private key for --tls-cert")
 	plainHTTP := fl.Bool("plain-http", false, "allow plain HTTP on a non-loopback address because a TLS-terminating proxy sits in front "+
@@ -105,7 +112,10 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		"On by default, server-wide; --http-checks=false turns it off")
 	caBundle := fl.String("ca-bundle", "", "PEM file of private CA certificates every scan is also judged against (\"trusted by your CA bundle\"). "+
 		"Certificates only: a file containing a private-key block is refused")
-	var allowedHosts, trustedProxies stringList
+	var allowedHosts, trustedProxies, scanAllow stringList
+	fl.Var(&scanAllow, "scan-allow", "limit what can be scanned to this network (CIDR), address or domain and the names under it, "+
+		"e.g. 10.20.0.0/16 or example.com (repeatable). Without it, anything routable can be scanned except loopback, link-local "+
+		"and cloud-metadata addresses")
 	fl.Var(&allowedHosts, "allowed-host", "extra Host header accepted when no token is set (repeatable)")
 	fl.Var(&trustedProxies, "trusted-proxy", "address or CIDR of a reverse proxy in front of this server whose X-Forwarded-For names the real client, "+
 		"for sign-in rate limits and the sign-in log (repeatable). Without it every request is attributed to its direct peer")
@@ -121,6 +131,17 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	if *token == "" {
 		*token = os.Getenv(tokenEnv)
 	}
+	switch {
+	case *login && *noLogin:
+		return fatalf(env, "--login and --no-login contradict each other")
+	case *login:
+		*signInMode = "on"
+	case *noLogin:
+		*signInMode = "off"
+	}
+	if *signInMode != "auto" && *signInMode != "on" && *signInMode != "off" {
+		return fatalf(env, "--sign-in must be auto, on or off")
+	}
 	if *token != "" && len(*token) < minTokenLen {
 		return fatalf(env, "the access token is too short (%d characters; at least %d are required). "+
 			"Generate one with:  openssl rand -hex 24   (or, on Windows, in PowerShell:  -join ((1..24) | %% { '{0:x2}' -f (Get-Random -Max 256) }))",
@@ -132,10 +153,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	useTLS := *tlsCert != ""
 	loopback := isLoopbackAddr(*addr)
 	switch {
-	case *noLogin && !loopback:
-		return fatalf(env, "refusing to listen on %q without sign-in (--no-login): it is reachable from the network. "+
-			"Drop --no-login (accounts are on by default), or bind 127.0.0.1", *addr)
-	case !*noLogin && !loopback && !useTLS && !*plainHTTP:
+	case !loopback && !useTLS && !*plainHTTP:
 		return fatalf(env, "refusing to listen on %q over plain HTTP: passwords and session cookies would cross the network unencrypted. "+
 			"Serve HTTPS with --tls-cert and --tls-key, or, if a TLS-terminating proxy is in front, add --plain-http", *addr)
 	case *sessionIdle < time.Minute || *sessionMax < *sessionIdle:
@@ -152,7 +170,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 			return fatalf(env, "loading --tls-cert/--tls-key: %v", err)
 		}
 		// TLS 1.2 and 1.3 only; Go's default curve preferences offer X25519MLKEM768 first.
-		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{pair}}
+		tlsCfg = server.TLSConfig([]tls.Certificate{pair})
 	}
 
 	var bundle []server.AnchorCert
@@ -189,8 +207,20 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 
 	// First run: until an administrator exists, a one-time code printed here (and only here)
 	// lets whoever can read the server's log create one. Someone who merely reaches the port cannot.
-	setupCode := ""
-	if !*noLogin {
+	signInOn := *signInMode == "on"
+	if *signInMode == "auto" {
+		v, err := st.Setting(store.SettingSignIn)
+		if err != nil {
+			return fatalf(env, "reading settings: %v", err)
+		}
+		signInOn = v == "on"
+	}
+	if !loopback && !signInOn && !*openNetwork {
+		return fatalf(env, "refusing to listen on %q without sign-in: anyone who reaches it could use it, including to scan. "+
+			"Require sign-in with --sign-in on, or accept an open server with --open-network", *addr)
+	}
+	setupCode, setupExpires := "", time.Time{}
+	if signInOn {
 		n, err := st.CountUsers()
 		if err != nil {
 			return fatalf(env, "reading accounts: %v", err)
@@ -199,10 +229,17 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 			if setupCode, err = auth.NewSetupCode(); err != nil {
 				return fatalf(env, "making the setup code: %v", err)
 			}
+			// A half-installed server must not stay claimable for ever by whoever later reads its
+			// log (PRD-007 REQ-TR-3).
+			setupExpires = time.Now().Add(24 * time.Hour)
 		}
 	}
 
-	guard := server.Guard{AllowLoopback: *allowLoopback}
+	scope, err := server.ParseScope(scanAllow)
+	if err != nil {
+		return fatalf(env, "%v", err)
+	}
+	guard := server.Guard{AllowLoopback: *allowLoopback, Scope: scope}
 	runner := server.NewRunner(st, guard, server.RunnerOptions{
 		Workers:  *workers,
 		Scan:     tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
@@ -215,7 +252,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	srv := server.New(server.Config{
 		Store: st, Runner: runner, Guard: guard,
 		Token: *token, AllowedHosts: allowedHosts, TrustedProxies: proxies,
-		RequireLogin: !*noLogin, SetupCode: setupCode, SecureCookies: useTLS,
+		RequireLogin: *signInMode == "on", ForbidLogin: *signInMode == "off", AllowOpen: loopback || *openNetwork, SetupCode: setupCode, SetupCodeExpires: setupExpires, SecureCookies: useTLS,
 		SessionIdle: *sessionIdle, SessionMax: *sessionMax,
 		Version: version.Version, EvalVersion: eval.Version,
 		RegistryRetrieved:  registry.GroupsRetrieved,
@@ -234,6 +271,9 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       2 * time.Minute,
+		// A TLS scanner aimed at this server (including this product's own) makes hundreds of
+		// handshakes the server rightly refuses; each would be a log line. Keep every other error.
+		ErrorLog: stdlog.New(handshakeNoiseFilter{w: env.Stderr}, "", stdlog.LstdFlags),
 	}
 
 	runCtx, stopRunner := context.WithCancel(ctx)
@@ -241,13 +281,21 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	runner.Start(runCtx)
 
 	_, _ = fmt.Fprint(env.Stderr, serveNotice)
+	if scope.Empty() {
+		_, _ = fmt.Fprintln(env.Stderr, "scan scope: anything routable (limit it with --scan-allow)")
+	} else {
+		_, _ = fmt.Fprintf(env.Stderr, "scan scope: only %s\n", strings.Join(scope.Entries(), ", "))
+	}
 	scheme := "http"
 	if useTLS {
 		scheme = "https"
 	}
 	mode := "sign-in required"
-	if *noLogin {
-		mode = "no sign-in (loopback only)"
+	if !signInOn {
+		mode = "no sign-in; turn it on in Settings"
+		if *signInMode == "off" {
+			mode = "no sign-in (--sign-in off)"
+		}
 	}
 	if *token != "" {
 		mode += ", automation token accepted"
@@ -255,7 +303,8 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	_, _ = fmt.Fprintf(env.Stderr, "cipherhorizon %s: UI and API on %s://%s (%s), database %s\n", version.Version, scheme, ln.Addr(), mode, *dbPath)
 	if setupCode != "" {
 		_, _ = fmt.Fprintf(env.Stderr, "\nfirst run: no account exists yet. Open %s://%s and create the administrator with this one-time setup code:\n\n    %s\n\n"+
-			"(it is shown only here, and stops working once the administrator exists)\n\n", scheme, ln.Addr(), setupCode)
+			"(it is shown only here; it stops working once the administrator exists, or at %s; restart the server for a new one)\n\n",
+			scheme, ln.Addr(), setupCode, setupExpires.Format("2006-01-02 15:04 MST"))
 	} else {
 		_, _ = fmt.Fprintf(env.Stderr, "next: open %s://%s in a browser.\n", scheme, ln.Addr())
 	}
@@ -283,4 +332,14 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	stopRunner()
 	runner.Wait()
 	return ExitOK
+}
+
+// handshakeNoiseFilter drops the http.Server's "TLS handshake error" lines and passes the rest.
+type handshakeNoiseFilter struct{ w io.Writer }
+
+func (f handshakeNoiseFilter) Write(p []byte) (int, error) {
+	if strings.Contains(string(p), "TLS handshake error") {
+		return len(p), nil
+	}
+	return f.w.Write(p)
 }

@@ -1,4 +1,4 @@
-# CipherHorizon: DESIGN.md
+# CipherHorizon: DESIGN.md (v2, the Offset theme)
 
 The visual source of truth for the web UI (`web/static`). Read it before building or changing a page. When this
 file and the code disagree, the code is wrong. The audit that led here is in
@@ -24,8 +24,19 @@ oscilloscope does: everything visible has a reason, numbers line up, states are 
 **Emotional response.** "I can see exactly what was checked, I know what to fix first, and I could hand this to an
 auditor."
 
-**Logo.** The hexagon mark (violet to amber, keyhole cut) and the word *CipherHorizon* stay as they are. The
-mark's gradient belongs to the mark only and is never reused in the interface.
+**The Offset theme.** CipherHorizon is an Offset Security product and looks like one: Offset's warm paper and
+navy ink, its blue, its three typefaces, its 4px shape and its one signature angle (−27.6°, the angle of the Offset
+logo). The values below were read from offsetsecurity.net's own stylesheet
+([docs/launch/05-brand-and-messaging.md](docs/launch/05-brand-and-messaging.md)).
+
+**Logo.** A flat app icon: a white padlock on a rounded square of Offset blue (`--primary`).
+- **Plain.** One colour per shape: no gradient, stroke, glow or shadow. It borrows nothing from the Offset mark;
+  Offset appears only as the "Developed by" credit in the sidebar and in the documentation.
+- **Files** (`web/static/img/`): `mark.svg` (blue, also the favicon), `mark-on-navy.svg` (the same; blue reads on
+  navy), `mark-mono.svg` (a navy tile, for one-colour print). `brandMark()` in `dom.js` and the PDF cover draw the same
+  shapes.
+- **Lockup:** the icon, *CipherHorizon* in Geist 600, and under it the tagline *TLS and post-quantum scanner*.
+- **Why a padlock:** it says "TLS" and "cryptography" at 16 pixels, where anything subtler turns into a smudge.
 
 ---
 
@@ -50,57 +61,63 @@ mark's gradient belongs to the mark only and is never reused in the interface.
 
 | Role | Family | Size / line height | Weight | Tracking | Use |
 |---|---|---|---|---|---|
-| Display | Inter | 34 / 40 px (2.125rem) | 650 | −0.028em | The Overview hero headline only |
-| H1 | Inter | 26 / 32 px | 650 | −0.022em | Page title |
-| H2 | Inter | 17 / 24 px | 650 | −0.012em | Section and panel titles |
-| H3 | Inter | 15 / 22 px | 600 | −0.006em | Sub-sections, group headings |
-| Body | Inter | 15 / 24 px (1.6) | 400 | 0 | Prose, explanations, reports |
-| UI | Inter | 14 / 20 px | 450–500 | 0 | Tables, controls, lists |
-| Small | Inter | 13 / 18 px | 450 | 0 | Secondary lines, hints |
-| Label | Inter | 12.5 / 16 px | 550 | 0.01em | Field and figure labels, **sentence case** |
-| Figure | Inter, tabular | 28 / 32 px | 600 | −0.02em | Big numbers in the status band |
-| Machine | JetBrains Mono | 13 / 20 px | 450–500 | 0 | Addresses, cipher suites, fingerprints, versions, commands |
+| Display | Newsreader | 40 / 46 px | 500 | −0.015em | The Overview and sign-in headlines only |
+| H1 | Newsreader | 30 / 36 px | 500 | −0.012em | Page title |
+| H2 | Geist | 17 / 24 px | 600 | −0.01em | Section and panel titles |
+| H3 | Geist | 15 / 22 px | 600 | 0 | Sub-sections, group headings |
+| Body | Geist | 15 / 24 px (1.6) | 400 | 0 | Prose, explanations, reports |
+| UI | Geist | 14 / 20 px | 450–500 | 0 | Tables, controls, lists |
+| Small | Geist | 13 / 18 px | 450 | 0 | Secondary lines, hints |
+| Label | Geist | 12.5 / 16 px | 550 | 0 | Field and figure labels, **sentence case** |
+| Figure | Geist, tabular | 28 / 32 px | 600 | −0.02em | Big numbers in the status band |
+| Machine | Geist Mono | 13 / 20 px | 400–500 | 0 | Addresses, cipher suites, fingerprints, versions, commands |
+| Eyebrow | Geist Mono | 11.5 / 16 px | 500 | 0.04em, uppercase | At most one per screen, above a headline (`.eyebrow`) |
 
-- **Two families, both served from this origin:** Inter (UI) and JetBrains Mono (the *machine voice*). Mono is for
-  values a machine produced or will consume, never for headings or prose.
-- **Numbers** use `font-variant-numeric: tabular-nums` wherever they line up (tables, figures, scores, times).
-- **No uppercase tracked eyebrows**, except table column headers, which are 12px, weight 600, sentence case.
+- **Three families, all SIL OFL and served from this origin** (`web/static/fonts`, licences beside them):
+  - **Newsreader** speaks only in page titles and the two headlines.
+  - **Geist** carries the interface.
+  - **Geist Mono** is the *machine voice*. It is for values a machine produced or will consume, and the one eyebrow.
+- **Numbers** use `font-variant-numeric: tabular-nums` wherever they line up.
+- **The eyebrow** is the only uppercase tracked label, apart from table column headers (12px, weight 600, sentence case). It is preceded by a small skewed bar in the accent.
 - A headline is at most two lines; body text at most 70ch.
-- No em-dash or en-dash in visible copy. Use a full stop, a comma or a colon. An empty value is written as a word
-  ("none", "not set") or a muted middle dot in tables.
+- **No em-dash or en-dash in visible copy.** Use a full stop, a comma or a colon. An empty value is written as a word ("none", "not set") or a muted middle dot in tables.
 
 ---
 
 ## 4. Colour
 
 All colours are tokens in `style.css` `:root`, with a dark set under `prefers-color-scheme: dark`. Never write a
-hex value in a component.
+hex value in a component. `TestStyleTokensMatchDesign` checks the tables below against the stylesheet, and
+`TestTokenContrast` checks the text pairs against WCAG AA.
 
-### Neutrals (graphite, slightly cool)
+### Neutrals (Offset paper and ink; dark mode from the navy scale)
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--bg` | #F4F5F7 | #0D0F12 | Page canvas |
-| `--surface` | #FFFFFF | #14171B | Panels, tables, inputs |
-| `--surface-2` | #F1F2F4 | #1B1F24 | Table headers, hover rows, quiet fills |
-| `--border` | #E2E4E8 | #252A31 | Hairlines |
-| `--border-strong` | #C9CDD4 | #353C45 | Input borders, dividers that must show |
-| `--text` | #15171B | #ECEEF1 | Primary text |
-| `--text-2` | #474D57 | #B5BBC4 | Secondary text |
-| `--muted` | #697080 | #8C939D | Meta, hints (≥ 4.5:1 on surface) |
-| Sidebar | #0B0D10 | #0B0D10 | The navigation rail, the same in both modes |
+| `--gray-50` | #F7F7F5 | #070C18 | Page canvas (`--bg`) |
+| `--gray-0` | #FFFFFF | #0E1729 | Panels, tables, inputs (`--surface`) |
+| `--gray-100` | #F1F1EE | #15213D | Table headers, hover rows (`--surface-2`) |
+| `--gray-200` | #DEDDD7 | #1E2C4E | Hairlines (`--border`) |
+| `--gray-300` | #C5C4BC | #2E3E64 | Input borders (`--border-strong`) |
+| `--gray-900` | #0B1428 | #E8ECF4 | Primary text, Offset ink (`--text`) |
+| `--gray-600` | #2B3140 | #C3CBDA | Secondary text, Offset body (`--text-2`) |
+| `--gray-500` | #5A5F6B | #A3AEC2 | Meta, hints (`--muted`) |
+| `--rail` | #0B1428 | #050A14 | The navigation rail: Offset navy |
+| `--rail-text` | #A3AEC2 | #A3AEC2 | Rail items |
+| `--rail-accent` | #9DB6FF | #9DB6FF | The current-place bar and counts in the rail |
 
-### Accent (one, locked)
+### Accent (one, locked: Offset blue)
 
 | Token | Light | Dark | Use only for |
 |---|---|---|---|
-| `--primary` | #4B3FCB | #A99FFF | Primary buttons, links, focus ring, selected tab, active nav bar |
-| `--primary-h` | #3D32AE | #BDB5FF | Hover and pressed |
-| `--primary-soft` | #EEECFB | #221E3D | Selected row, current item fill |
-| `--on-primary` | #FFFFFF | #12101F | Text on primary |
+| `--primary` | #2457D6 | #9DB6FF | Primary buttons, focus ring, selected tab, the eyebrow bar |
+| `--primary-h` | #1B45B0 | #B9CBFF | Hover and pressed |
+| `--primary-soft` | #E7EDFB | #16244A | Selected row, current item fill, focus halo |
+| `--on-primary` | #FFFFFF | #0B1428 | Text on primary |
+| `--link` | #1B45B0 | #9DB6FF | Links |
+| `--eyebrow` | #1B45B0 | #9DB6FF | The eyebrow's text |
 
-The accent is a deep indigo-violet taken from the logo, flat. **No gradients, no glows, no coloured shadows.** The
-logo's amber is not a UI colour.
+Flat. **No gradients, no glows, no coloured shadows.**
 
 ### Semantic (states only)
 
@@ -108,10 +125,10 @@ logo's amber is not a UI colour.
 |---|---|---|---|
 | Critical, bad, problem | `--crit`, `--bad` | #B42318 / #FDECEA | #FF8A80 / #3A1714 |
 | High | `--high` | #B54708 / #FDF0E6 | #FFA866 / #3A2312 |
-| Medium, warn, attention | `--med`, `--warn` | #8A5A00 / #FBF3DF | #E9B949 / #33280F |
+| Medium, warn, attention | `--med`, `--warn` | #9A5B0B / #FBF3DF | #E9B949 / #33280F |
 | Low | `--low` | #2F5FAF / #EAF0FA | #8DB2FF / #16233D |
 | Info, neutral | `--info-c` | #515863 / #EFF1F3 | #B3B9C2 / #1C2025 |
-| Good, passed | `--good` | #15723F / #E7F4EC | #6BD49A / #10291C |
+| Good, passed | `--good` | #1D7A4C / #E7F4EC | #6BD49A / #0F2A22 |
 | Readiness L0–L4 | `--lv0`…`--lv4` | red, orange, blue, green, violet | lighter of the same |
 
 ---
@@ -131,8 +148,12 @@ logo's amber is not a UI colour.
 
 ## 6. Shape and depth
 
-- **Radii:** 6px for controls (buttons, inputs, selects), 8px for panels, tables and menus, 12px for dialogs,
-  4px for badges and tags. 999px only for avatars and progress tracks.
+- **Radii:** Offset's 4px for controls, panels, tables and menus; 6px for dialogs; 3px for badges and tags. 999px
+  only for avatars and progress tracks.
+- **The angle.** `--skew` (−27.6°) is the one signature shape, used sparingly. It appears only:
+  - as the bar before the eyebrow;
+  - as the current-place bar in the rail.
+  Never skew text, buttons or panels.
 - **Depth comes from surfaces and 1px hairlines, not shadows.** Panels have a border and no shadow. Shadows exist
   only for things that float above the page: menus, dialogs, toasts (`--shadow-float`).
 
@@ -143,11 +164,11 @@ logo's amber is not a UI colour.
 **Navigation rail.**
 - Brand at the top, then the primary action *Scan a URL* as a full-width solid accent button, then the places.
 - Group labels (*Results*, *Plan & share*) are 12px, sentence case and muted.
-- Items are 36px high with an 18px icon, colour `#A4ABB6` and white on hover.
-- The current item gets a 6% white fill, white text and a 2px accent bar on its left edge.
+- Items are 36px high with an 18px icon, colour `--rail-text` and white on hover.
+- The current item gets a navy-2 fill, white text and a 4px skewed accent bar on its left edge.
 - The account chip, About and the publisher credit sit at the foot.
 
-**Buttons.** 36px high (32px small), 6px radius, weight 550.
+**Buttons.** 36px high (32px small), 4px radius, weight 550.
 - *Primary:* solid accent, white text. At most one per view region.
 - *Secondary:* surface fill, strong border.
 - *Ghost:* no border, text colour, for row actions.
@@ -158,19 +179,19 @@ logo's amber is not a UI colour.
 hairline underline.
 
 **Panels (`.card`).**
-- Surface, 1px border, 8px radius, 24px padding (20px on mobile), no shadow.
+- Surface, 1px border, 4px radius, 24px padding (20px on mobile), no shadow.
 - A panel holds one topic. Its title is H2 with optional meta text on the right.
 - Use a panel only when content needs a boundary from its neighbours.
 
 **Status band.** One panel divided by vertical hairlines into figures (label, figure, one line of context). It
 replaces rows of identical metric cards. Each figure links to its list.
 
-**Badges and tags.** 4px radius, 12px text, weight 600, tinted background, no border.
+**Badges and tags.** 3px radius, 12px text, weight 600, tinted background, no border.
 - Severity badges carry a glyph and a word (*▲ high*).
 - Use a badge for a state, never for decoration. At most two badges per row in a list.
 
 **Tables.**
-- Surface with a 1px border and 8px radius.
+- Surface with a 1px border and 4px radius.
 - Header: 12px, weight 600, sentence case, `--surface-2`.
 - Rows: 10px vertical padding, a hairline between rows, a hover fill.
 - Numbers are right-aligned and tabular. Identifiers are in mono.
@@ -186,15 +207,15 @@ sentence, one action at most.
 
 **Tabs.** Text tabs on a hairline, 14px weight 550. The selected tab has text colour and a 2px accent underline.
 
-**Dialogs.** 12px radius, a floating shadow, a title row with a hairline, max 560px (wide: 860px).
+**Dialogs.** 6px radius, a floating shadow, a title row with a hairline, max 560px (wide: 860px).
 
 **CTAs.** A page has one primary action, top right in its header (or the scan form on the Overview). Duplicate
 intents are not allowed: one label per action across the product.
 
 **Footer.** In the rail: account, About, the "Developed by" credit and the version, all muted.
 
-**Sign-in gate.** Centred, 400px wide, brand above, one panel, labels above fields, a full-width primary button,
-the error inline above the fields.
+**Sign-in gate.** Two columns: the navy value panel (§8) and the form, 400px wide, labels above fields, a
+full-width primary button, the error inline above the fields.
 
 ---
 
@@ -212,11 +233,17 @@ the error inline above the fields.
 - The headline is Display, the sentence is Body in `--text-2`, and the form is the largest interactive element:
   a 48px input with the primary button inside.
 - Secondary actions are small links.
-- Four text elements at most on the left.
+- Five text elements at most on the left (eyebrow, headline, sentence, form hint, secondary links).
 
 **Copy.**
-- Headline: *Scan a website or endpoint*.
-- Sentence: *TLS configuration, certificate, weaknesses, post-quantum readiness and a CBOM, from one address.*
+- Eyebrow: *POST-QUANTUM READINESS · TLS SCANNER · CBOM* (the product's three claims, the screen's one eyebrow).
+- Headline (Newsreader): *Scan an endpoint for post-quantum readiness*.
+- Sentence: *A deep TLS scan, a readiness level from L0 to L4, every check with its source, and a CycloneDX CBOM, from one address.*
+
+**Sign-in.** The same story, once, before anything else: a navy panel (Offset's band) with the lockup, the eyebrow,
+the headline *Quantum-safe before it's urgent.* (Offset's own line for its PQC practice), the three pillars, and a
+link to Offset Security's post-quantum readiness practice. The form sits beside it; on a phone the panel stacks
+above, pillars reduced to their titles.
 
 **Responsive.**
 - Below 1100px the readiness scale moves under the form and becomes a horizontal strip of five levels.
@@ -231,7 +258,7 @@ strip.
 
 | Use | What | Duration | Easing |
 |---|---|---|---|
-| Page change | content fades in and rises 4px, once | 180ms | `cubic-bezier(.2,.7,.2,1)` |
+| Page change | content fades in and rises 4px, once | 180ms | `cubic-bezier(.16,1,.3,1)` |
 | Hover | colour and border colour only | 120ms | ease-out |
 | Disclosure | chevron rotates 90° | 150ms | ease-out |
 | Dialog | fade plus a 4px rise | 160ms in, 120ms out | ease-out / ease-in |
@@ -293,7 +320,7 @@ Touch targets are at least 40px. Nothing may scroll the page sideways at 390px (
 Before a change ships, check:
 
 1. Would a strong product-design team choose this on purpose? If it is there "to look modern", remove it.
-2. No purple-blue gradient, glow, glassmorphism or floating decoration anywhere.
+2. No gradient (the loading skeleton and the running-scan shimmer excepted), glow, glassmorphism or floating decoration anywhere; every logo flat (`TestNoDecorativeGradients`, `TestLogosAreFlat`).
 3. No repeated 3-up grids of icon + title + text cards.
 4. Each badge marks a real state; each animation explains a change; each panel separates a topic.
 5. Copy: specific, plain, no hype, no em-dashes, no fake numbers or names.

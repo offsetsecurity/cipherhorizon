@@ -28,6 +28,17 @@ type Target struct {
 	Port int    `json:"port"`
 	// SNI is the server name sent in the handshake; empty when Host is an IP address.
 	SNI string `json:"sni,omitempty"`
+	// StartTLS names the plain-text protocol every connection negotiates before TLS (smtp, imap,
+	// pop3, ftp, xmpp, ldap, postgres); empty for a service that speaks TLS from the first byte.
+	StartTLS string `json:"starttls,omitempty"`
+}
+
+// serverName is the name a STARTTLS exchange addresses (XMPP's stream "to").
+func (t Target) serverName() string {
+	if t.SNI != "" {
+		return t.SNI
+	}
+	return t.Host
 }
 
 // Report is everything learned about one endpoint.

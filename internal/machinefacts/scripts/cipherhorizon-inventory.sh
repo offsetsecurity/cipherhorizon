@@ -1,5 +1,5 @@
 #!/bin/sh
-# CipherHorizon machine inventory engine for Linux, version 2.0.0
+# CipherHorizon machine inventory engine for Linux, version 2.0.1
 #
 # What it does: runs each signature listed below with one of a few read-only capabilities,
 # and writes what it finds to a plain-text facts file you can read before you upload it.
@@ -22,7 +22,9 @@
 # Then upload the output file on the Inventory page of your CipherHorizon server.
 
 set -u
-ENGINE_VERSION=2.0.0
+# Everything this script writes (the facts file, its temporary file) is readable by its owner only.
+umask 077
+ENGINE_VERSION=2.0.1
 OUT=${1:-cipherhorizon-facts-$(hostname 2>/dev/null || echo host).txt}
 
 # ---- signatures: what to collect, from the CipherHorizon signature database --------------
@@ -86,7 +88,9 @@ cap_certfiles() { # dirs, depth, max
 
 cap_file() { # roots, names, depth, max
   set --
+  set -f # a pattern such as libssl*.so is for find, never for the shell to expand here
   for nm in $(printf '%s' "$p_names" | tr '|' ' '); do set -- "$@" -o -name "$nm"; done
+  set +f
   shift # the leading -o
   printf '%s\n' "$p_roots" | tr '|' '\n' | while IFS= read -r r; do
     [ -d "$r" ] && find "$r" -maxdepth "${p_depth:-4}" -type f \( "$@" \) 2>/dev/null
@@ -112,7 +116,15 @@ cap_lines() { # paths, match, max
 
 priv=user
 [ "$(id -u 2>/dev/null)" = 0 ] && priv=admin
-tmp=$(mktemp 2>/dev/null || echo "/tmp/cipherhorizon-facts.$$")
+# mktemp creates the file itself, owner-only, under a name nobody can predict. Without it the script
+# stops rather than guess a name in a shared directory (a symlink planted there could redirect a
+# root-owned write).
+if ! tmp=$(mktemp 2>/dev/null) || [ -z "$tmp" ]; then
+  printf 'cipherhorizon-inventory: mktemp is needed (coreutils or busybox) and was not found; nothing was written\n' >&2
+  exit 1
+fi
+trap 'rm -f "$tmp"' EXIT
+trap 'exit 130' INT TERM
 
 {
   printf 'cipherhorizon-machine-facts\t2\n'

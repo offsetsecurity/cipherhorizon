@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Live security checks against the built binary (QA-PLAN-001, "Security"; ADR-0018 for sign-in).
-# Starts its own servers on 127.0.0.1:8081-8088; run from the repository root after building dist/.
+# Starts its own servers on 127.0.0.1:8081-8088 (8086: scan scope); run from the repository root after building dist/.
 BIN=${BIN:-dist/cipherhorizon.exe}
 WORK=$(mktemp -d)
 TOKEN=qa-secret-token-0123456789
@@ -17,6 +17,9 @@ check "serve --addr 0.0.0.0:8082 over plain HTTP exits non-zero" 1 "$rc"
 grep -q "over plain HTTP" "$WORK/refuse.out" && echo "PASS  message explains why" && pass=$((pass+1)) || { echo "FAIL  message"; fail=$((fail+1)); }
 "$BIN" serve --addr 0.0.0.0:8082 --no-login --db "$WORK/sec-refuse2.db" > "$WORK/refuse2.out" 2>&1; rc=$?
 check "serve --no-login on a network address exits non-zero" 1 "$rc"
+"$BIN" serve --addr 0.0.0.0:8082 --plain-http --db "$WORK/sec-refuse3.db" > "$WORK/refuse3.out" 2>&1; rc=$?
+check "a network address without sign-in and without --open-network exits non-zero (UX-REVIEW-008 S3)" 1 "$rc"
+grep -q -- "--open-network" "$WORK/refuse3.out" && echo "PASS  message names --sign-in on and --open-network" && pass=$((pass+1)) || { echo "FAIL  open-network message"; fail=$((fail+1)); }
 
 "$BIN" serve --addr 127.0.0.1:8083 --token a --db "$WORK/sec-short.db" > "$WORK/short.out" 2>&1; rc=$?
 check "a one-character token is refused (SEC-03)" 1 "$rc"
@@ -110,7 +113,7 @@ kill $SRV 2>/dev/null; taskkill //F //PID $SRV >/dev/null 2>&1
 
 echo "== sign-in (ADR-0018) =="
 L=http://127.0.0.1:8085
-"$BIN" serve --addr 127.0.0.1:8085 --db "$WORK/login.db" > "$WORK/login.log" 2>&1 &
+"$BIN" serve --addr 127.0.0.1:8085 --sign-in on --db "$WORK/login.db" > "$WORK/login.log" 2>&1 &
 LSRV=$!
 sleep 2
 CODE=$(grep -oE '[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}' "$WORK/login.log" | head -1)
@@ -145,19 +148,45 @@ if command -v openssl >/dev/null 2>&1; then
   echo "== HTTPS (--tls-cert/--tls-key) =="
   MSYS2_ARG_CONV_EXCL="/CN" openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 2 -subj "/CN=127.0.0.1" \
     -keyout "$WORK/key.pem" -out "$WORK/cert.pem" >/dev/null 2>&1
-  "$BIN" serve --addr 127.0.0.1:8087 --tls-cert "$WORK/cert.pem" --tls-key "$WORK/key.pem" --db "$WORK/tls.db" > "$WORK/tls.log" 2>&1 &
+  "$BIN" serve --addr 127.0.0.1:8087 --tls-cert "$WORK/cert.pem" --tls-key "$WORK/key.pem" --sign-in on --db "$WORK/tls.db" > "$WORK/tls.log" 2>&1 &
   TSRV=$!
   sleep 2
   check "HTTPS health -> 200" 200 "$(curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:8087/api/v1/health)"
   check "plain HTTP to the TLS port is refused" 1 "$([ "$(code http://127.0.0.1:8087/api/v1/health)" != 200 ] && echo 1 || echo 0)"
   check "TLS 1.1 is refused" 1 "$(curl -sk --tlsv1.1 --tls-max 1.1 -o /dev/null https://127.0.0.1:8087/api/v1/health && echo 0 || echo 1)"
   TC=$(grep -oE '[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}' "$WORK/tls.log" | head -1)
-  TCK=$(curl -sk -D - -o /dev/null -X POST "${J[@]}" -d "{\"code\":\"$TC\",\"username\":\"ana\",\"password\":\"violet amber harbour\"}" https://127.0.0.1:8087/api/v1/auth/setup | grep -i '^set-cookie: ch_session=' | tr 'A-Z' 'a-z')
-  echo "$TCK" | grep -q "secure" && { echo "PASS  over HTTPS the session cookie is Secure"; pass=$((pass+1)); } || { echo "FAIL  cookie over HTTPS: $TCK"; fail=$((fail+1)); }
+  THDR=$(curl -sk -D - -o /dev/null -X POST "${J[@]}" -d "{\"code\":\"$TC\",\"username\":\"ana\",\"password\":\"violet amber harbour\"}" https://127.0.0.1:8087/api/v1/auth/setup)
+  TCK=$(echo "$THDR" | grep -i '^set-cookie: __host-ch_session=' | tr 'A-Z' 'a-z')
+  echo "$TCK" | grep -q "secure" && echo "$TCK" | grep -q "path=/" && ! echo "$TCK" | grep -q "domain=" \
+    && { echo "PASS  over HTTPS the session cookie is __Host-ch_session: Secure, Path=/, no Domain (PRD-007 REQ-TR-2)"; pass=$((pass+1)); } \
+    || { echo "FAIL  cookie over HTTPS: $TCK"; fail=$((fail+1)); }
+  echo "$THDR" | tr -d '\r' | grep -qi '^strict-transport-security: max-age=31536000' \
+    && { echo "PASS  HTTPS responses carry HSTS (REQ-SS-2)"; pass=$((pass+1)); } || { echo "FAIL  no HSTS over HTTPS"; fail=$((fail+1)); }
+  # openssl s_client, not curl: curl on Windows (Schannel) ignores OpenSSL cipher names.
+  ossl() { echo | MSYS_NO_PATHCONV=1 openssl s_client -connect 127.0.0.1:8087 -tls1_2 -cipher "$1" >/dev/null 2>&1 && echo 1 || echo 0; }
+  check "TLS 1.2 with a CBC suite is refused (REQ-SS-1)" 0 "$(ossl ECDHE-ECDSA-AES128-SHA)"
+  check "TLS 1.2 with RSA key transport is refused (REQ-SS-1)" 0 "$(ossl AES128-GCM-SHA256)"
+  check "TLS 1.2 with an ECDHE AEAD suite is accepted" 1 "$(ossl ECDHE-ECDSA-AES128-GCM-SHA256)"
   kill $TSRV 2>/dev/null; taskkill //F //PID $TSRV >/dev/null 2>&1
 else
   echo "      (openssl not found: the HTTPS checks were skipped)"
 fi
+
+echo "== scan scope (--scan-allow, PRD-007 REQ-AC-1) =="
+S=http://127.0.0.1:8086
+"$BIN" serve --addr 127.0.0.1:8086 --no-login --allow-loopback --scan-allow 10.0.0.0/8 --scan-allow lab.test --db "$WORK/scope.db" > "$WORK/scope.log" 2>&1 &
+SSRV=$!
+sleep 2
+grep -q "scan scope: only 10.0.0.0/8, lab.test" "$WORK/scope.log" && { echo "PASS  the log states the scan scope"; pass=$((pass+1)); } || { echo "FAIL  scope log: $(head -5 "$WORK/scope.log")"; fail=$((fail+1)); }
+SJ=(-H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json')
+check "a loopback target outside the scope is refused -> 400" 400 "$(code -X POST "${SJ[@]}" -d '{"target":"127.0.0.1:9440"}' $S/api/v1/assets)"
+check "a public name outside the scope is refused -> 400" 400 "$(code -X POST "${SJ[@]}" -d '{"target":"example.org:443"}' $S/api/v1/assets)"
+check "an address inside the scope is accepted -> 201" 201 "$(code -X POST "${SJ[@]}" -d '{"target":"10.2.3.4:443"}' $S/api/v1/assets)"
+check "a name under a scope domain is accepted -> 201" 201 "$(code -X POST "${SJ[@]}" -d '{"target":"web.lab.test:443"}' $S/api/v1/assets)"
+check "plain HTTP responses carry no HSTS (REQ-SS-2)" 0 "$(curl -sI $S/api/v1/health | grep -ci strict-transport || true)"
+check "About reports the scope" 1 "$(curl -s $S/api/v1/about | grep -c '"scanScope":\["10.0.0.0/8","lab.test"\]')"
+check "every change is in the activity log (2 endpoints added)" 2 "$(curl -s "$S/api/v1/audit?source=change" | grep -o '"action":"added"' | wc -l | tr -d ' ')"
+kill $SSRV 2>/dev/null; taskkill //F //PID $SSRV >/dev/null 2>&1
 
 echo "== DNS rebinding (server without sign-in, --no-login) =="
 O=http://127.0.0.1:8088

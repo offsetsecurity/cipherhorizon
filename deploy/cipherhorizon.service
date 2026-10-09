@@ -1,0 +1,68 @@
+# CipherHorizon as a systemd service (PRD-007 REQ-DP-3).
+#
+#   sudo install -m 0755 cipherhorizon /usr/local/bin/cipherhorizon
+#   sudo install -m 0644 deploy/cipherhorizon.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now cipherhorizon
+#   sudo journalctl -u cipherhorizon     (with --sign-in on, the one-time setup code is printed here)
+#
+# Sign-in is off until turned on in Settings (it listens on loopback only). For a shared server add
+# --sign-in on to ExecStart: the journal then prints a one-time setup code for the administrator.
+#
+# The service runs as a dynamic, unprivileged user with its own state directory
+# (/var/lib/cipherhorizon), sees the rest of the filesystem read-only, and holds no capabilities.
+# It listens on loopback: put a TLS-terminating proxy in front (then add --trusted-proxy 127.0.0.1)
+# or serve HTTPS itself with --tls-cert/--tls-key (put the files in /etc/cipherhorizon and add
+# LoadCredential= lines, or make them readable by the service). Override with
+# `systemctl edit cipherhorizon`.
+
+[Unit]
+Description=CipherHorizon: post-quantum readiness and TLS scanner
+Documentation=https://offsetsecurity.net/post-quantum-cryptography-readiness.html
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cipherhorizon serve --addr 127.0.0.1:8080 --db /var/lib/cipherhorizon/cipherhorizon.db
+Restart=on-failure
+RestartSec=5s
+Environment=CIPHERHORIZON_TOKEN=
+# EnvironmentFile=-/etc/cipherhorizon/env   (for CIPHERHORIZON_TOKEN; make it mode 0600)
+
+DynamicUser=yes
+StateDirectory=cipherhorizon
+StateDirectoryMode=0700
+UMask=0077
+WorkingDirectory=/var/lib/cipherhorizon
+
+# Sandboxing: the scanner needs outbound TCP and DNS; nothing else.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# A filtered call fails instead of killing the process (the Go runtime probes a few at start).
+SystemCallErrorNumber=EPERM
+LimitNOFILE=8192
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

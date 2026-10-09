@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/example/cipherhorizon/internal/store"
@@ -33,11 +34,20 @@ type Config struct {
 	// for rate limits and the sign-in log. A request from any other peer is taken at its word.
 	TrustedProxies []*net.IPNet
 
-	// RequireLogin turns on accounts (ADR-0018): every API call needs a signed-in session or
-	// the automation Token. Off, the server is the single-user loopback tool it was.
+	// Sign-in (ADR-0018, UX-REVIEW-008 S3) is off by default and turned on in Settings, which keeps
+	// the choice in the store. RequireLogin forces it on (--sign-in on) and ForbidLogin forces it
+	// off (--sign-in off); neither can then be changed in the interface. With sign-in on, every API
+	// call needs a signed-in session or the automation Token.
 	RequireLogin bool
+	ForbidLogin  bool
+	// AllowOpen says sign-in may be off: the server listens on loopback only, or the operator
+	// accepted an open server on the network (--open-network). Without it, Settings cannot turn
+	// sign-in off.
+	AllowOpen bool
 	// SetupCode is the one-time code that creates the first administrator; printed by serve.
 	SetupCode string
+	// SetupCodeExpires is when the setup code stops working (zero: never, for tests).
+	SetupCodeExpires time.Time
 	// SecureCookies marks the session cookie Secure on every response. Without it the cookie is
 	// Secure when the request came over TLS or a proxy sent X-Forwarded-Proto: https.
 	SecureCookies bool
@@ -61,6 +71,7 @@ type Server struct {
 
 	routeTable []string
 	failures   limiter
+	signIn     atomic.Bool // whether sign-in is required right now; see signInOn
 }
 
 // New builds the server.
@@ -72,6 +83,7 @@ func New(cfg Config) *Server {
 		cfg.Log = slog.New(slog.NewTextHandler(discard{}, nil))
 	}
 	s := &Server{cfg: cfg, mux: http.NewServeMux(), log: cfg.Log}
+	s.signIn.Store(s.initialSignIn())
 	s.routes()
 	// Who is calling is decided before the forgery guard; what they may do, after it.
 	s.handler = s.recoverer(s.secureHeaders(s.hostCheck(s.auth(s.mutationGuard(s.roles(s.mux))))))
@@ -104,6 +116,9 @@ func (s *Server) secureHeaders(next http.Handler) http.Handler {
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			h.Set("Cache-Control", "no-store")
+		}
+		if s.overHTTPS(r) {
+			h.Set("Strict-Transport-Security", hstsValue)
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -138,7 +153,7 @@ func (s *Server) hostCheck(next http.Handler) http.Handler {
 		allowed[strings.ToLower(hostOnly(h))] = true
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.cfg.Token == "" && !s.cfg.RequireLogin && !allowed[strings.ToLower(hostOnly(r.Host))] {
+		if s.cfg.Token == "" && !s.signInOn() && !allowed[strings.ToLower(hostOnly(r.Host))] {
 			writeErr(w, http.StatusMisdirectedRequest, "unexpected Host header; start the server with --allowed-host to permit it")
 			return
 		}
@@ -255,6 +270,9 @@ func (s *Server) routes() {
 	// handle registers a route and records it, so tests can walk the real route table
 	// instead of a list that could drift from it.
 	handle := func(pattern string, h http.HandlerFunc) {
+		if spec, ok := auditedRoutes[pattern]; ok {
+			h = s.audited(pattern, spec, h)
+		}
 		m.HandleFunc(pattern, h)
 		s.routeTable = append(s.routeTable, pattern)
 	}
@@ -270,6 +288,10 @@ func (s *Server) routes() {
 	handle("GET /api/v1/auth/sessions", s.authSessions)
 	handle("DELETE /api/v1/auth/sessions/{id}", s.authEndSession)
 	handle("GET /api/v1/auth/events", s.authEvents)
+	handle("GET /api/v1/audit", s.activity)
+	handle("GET /api/v1/audit.csv", s.activityCSV)
+	handle("GET /api/v1/settings", s.getSettings)
+	handle("PUT /api/v1/settings/sign-in", s.putSignIn)
 	handle("GET /api/v1/users", s.listUsers)
 	handle("POST /api/v1/users", s.createUser)
 	handle("PATCH /api/v1/users/{id}", s.patchUser)

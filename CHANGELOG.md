@@ -10,7 +10,88 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
-### Added
+### Changed (breaking, for scripts that read the CLI)
+
+- `tls scan` now prints the verdict first: readiness level, TLS hygiene score, checks run, then what to do, worst
+  first. `--details` adds the raw protocol, suite, group and certificate tables that used to be the whole output.
+- `tls scan --json` emits one `{target, report, evaluation}` object per target instead of an array of bare reports.
+
+### Changed (owner review, [UX-REVIEW-008](docs/product/UX-REVIEW-008-screen-by-screen.md))
+
+- **Sign-in is off by default:**
+  - **Turning it on:** in the new **Settings** page, which creates the first administrator in the same step.
+  - **Server flags:** `serve --sign-in auto|on|off` (`--login` and `--no-login` remain as aliases).
+  - **Existing accounts:** a database that already has accounts keeps sign-in on.
+  - **On the network:** a server listening beyond loopback refuses to start open unless given `--open-network`. The container image passes it and is published on host loopback only; the Caddy compose file forces sign-in on.
+  - **Turning it off** asks for the administrator's password and says what will happen: every session ends, accounts are kept but frozen until sign-in is on again, history keeps its names, and actions while it is off are recorded as *Anyone (sign-in off)* with the address they came from. Turning it on again restores everyone's roles.
+- **The product icon** is a plain flat padlock on a blue tile, with the tagline *TLS and post-quantum scanner*.
+- **About, Help and Settings are separate pages:**
+  - **About:** the product, its version, standards, credits, licences and reference data.
+  - **Help:** how to use it and how it judges, with a contents list.
+  - **Settings:** sign-in and the server's configuration.
+- **Overview:** the readiness scale counts your endpoints at each level.
+- **Endpoints:** one way into a row, one findings badge per row, and the STARTTLS protocol under the address.
+- **The endpoint summary** leads with post-quantum readiness on its L0 to L4 scale. The certificate's colour follows its
+  expiry, with trust said in words.
+- **The machine page** lists quantum-vulnerable algorithms first.
+- **Fixed:** a badge overflowing in Findings; Inventory counts spilling out of their card, and two figures that
+  disagreed because one counted keys.
+- **Reports:** the OMB M-23-02 export uses one system picker.
+
+### Added (launch 1.0, [PRD-007](docs/product/PRD-007-launch-1-0.md); results in [QA-REPORT-007](docs/program/QA-REPORT-007.md))
+
+- **STARTTLS** for SMTP (and submission), IMAP, POP3, FTP, XMPP, LDAP and PostgreSQL.
+  - **Choosing it:** automatic by well-known port, by scheme (`smtp://host`), with `tls scan --starttls`, or per endpoint in the UI.
+  - **Reports** say "via STARTTLS (SMTP)", and the HTTP area is reported as not applicable.
+  - **Refusals:** a service that refuses STARTTLS fails at once, naming the protocol and its reply.
+  - **Demo targets** add one STARTTLS service per protocol.
+- **CI gate:** `tls scan --fail-on 'level<L3,score<70,severity>=high,finding=ID'` exits 3 when a target meets a
+  condition or cannot be scanned. A GitHub Actions example is in [docs/CI.md](docs/CI.md).
+- **Scan scope:** `serve --scan-allow` (networks, addresses, domains), checked when an endpoint is added and on the
+  real address of every connection. About and the start-up log state the scope.
+- **Audit trail:**
+  - Every state-changing API call is recorded.
+  - Administrators get an **Activity** tab on Users (sign-ins and changes, filters, CSV export) and `GET /api/v1/audit(.csv)`.
+  - Scans record who started them.
+- **Session hardening:**
+  - A password change rotates the session.
+  - Over HTTPS the cookie is `__Host-ch_session`.
+  - The first-run setup code expires after 24 hours.
+- **HTTPS that passes its own scan:** TLS 1.2 limited to ECDHE with AEAD, TLS 1.3 with X25519MLKEM768, and HSTS on
+  HTTPS responses. Expected TLS handshake errors are kept out of the log.
+- **Inventory scripts** (engine 2.0.1):
+  - **Linux engine:** facts file is owner-only (`umask 077`); refuses to run without `mktemp`; no shell expansion of signature patterns.
+  - **Windows engine:** facts file readable by its owner, Administrators and SYSTEM only.
+  - **Windows run command:** `Unblock-File` with `RemoteSigned` first; Bypass only as a fallback.
+  - **Checking a script:** `cipherhorizon scripts list|export DIR` prints and writes the scripts and their SHA-256s
+    from the binary; releases attach them under the signed checksums.
+- **Operations:**
+  - `cipherhorizon db backup FILE` makes an online, owner-only copy.
+  - Only the newest three pre-migration backups are kept.
+  - A hardened `docker-compose.yml`, `deploy/compose-caddy.yml` (automatic HTTPS) and a sandboxed `deploy/cipherhorizon.service`.
+  - [docs/deploy.md](docs/deploy.md) and a [release checklist](docs/engineering/RELEASE-CHECKLIST-1.0.md).
+- **The Offset theme** ([DESIGN.md](DESIGN.md) v2):
+  - **Look:** Offset's paper, navy and blue; 4px shape; Geist, Geist Mono and Newsreader bundled under the SIL OFL.
+  - **Logos:** a flat logo (three bars at Offset's -27.6 degree angle, a keyhole) in colour, on-navy and one colour, also on the PDF cover with the standards it rests on.
+  - **The story:** told on the sign-in screen, the Overview and About.
+- **Launch materials:**
+  - the README, rewritten;
+  - a static documentation site (`site/`, GitHub Pages workflow);
+  - screenshots made from demo data (`testing/e2e/screenshots.mjs`);
+  - launch post drafts.
+- **Tests:**
+  - fuzzing for uploaded facts files and systems CSV;
+  - container and three-distribution deployment scripts (`testing/deploy`);
+  - design, contrast, copy and link checks;
+  - all wired into CI.
+
+### Security
+
+- `golang.org/x/text` v0.41.0 (GO-2026-6629).
+- [SECURITY.md](SECURITY.md) describes the new cookie, setup-code expiry, the bounded password hashing, the sign-in log
+  retention, backups and script verification.
+
+### Added (earlier in this cycle)
 
 - **Sign-in and accounts** ([ADR-0018](docs/decisions/ADR-0018-accounts-and-sign-in.md)).
   - **Accounts** with administrator, analyst and viewer roles, enforced on every API route.

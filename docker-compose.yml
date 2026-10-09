@@ -1,12 +1,14 @@
-# One-command install: `docker compose up -d`, then `docker compose logs` for the one-time setup
-# code, and open http://127.0.0.1:8080 to create the administrator.
+# One-command install: `docker compose up -d`, then open http://127.0.0.1:8080 and scan.
+#
+# Sign-in is off until you turn it on (Settings in the interface). The port is published on this
+# host's loopback only, so only this machine can reach the server while it is open.
 #
 # Builds the image from the local Dockerfile (no registry image is published yet; once one is,
 # replace `build: .` below with `image: ghcr.io/<owner>/cipherhorizon:<version>` and pin a version).
 #
-# Sign-in protects the UI and API (ADR-0018). The port is published on this host's loopback only;
-# to reach it from other machines, put a TLS-terminating reverse proxy in front (or serve HTTPS
-# directly with --tls-cert/--tls-key), never plain HTTP across a network.
+# To reach it from other machines, use deploy/compose-caddy.yml (automatic HTTPS for a real host name,
+# sign-in always on), or turn sign-in on and serve HTTPS with --tls-cert/--tls-key. Never plain HTTP
+# across a network.
 #
 # Scripts and CI can call the API with an automation token instead of a session. Optional: put one
 # in a ".env" file next to this one (compose reads it; .env is gitignored):
@@ -14,7 +16,14 @@
 #   echo "CIPHERHORIZON_TOKEN=$(openssl rand -hex 24)" > .env
 #
 # Data (the SQLite database, everything the server has observed) lives in the "data" volume, so it
-# survives `docker compose down`; use `docker compose down -v` to also remove it.
+# survives `docker compose down`; use `docker compose down -v` to also remove it. Back it up while
+# it runs with:
+#
+#   docker compose exec cipherhorizon /cipherhorizon db backup --db /data/cipherhorizon.db /data/backup-$(date +%F).db
+#
+# Hardening (audit L-13): the container's filesystem is read-only except the data volume and a
+# small /tmp, it holds no Linux capabilities, it cannot gain privileges, and its process count and
+# memory are bounded. testing/deploy/smoke.sh runs exactly this configuration.
 
 services:
   cipherhorizon:
@@ -27,6 +36,15 @@ services:
       CIPHERHORIZON_TOKEN: ${CIPHERHORIZON_TOKEN:-}
     volumes:
       - data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
     # The image itself declares a HEALTHCHECK (the base image has no shell, curl or wget, so
     # the binary checks its own /api/v1/health); nothing to add here.
 

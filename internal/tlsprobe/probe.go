@@ -42,8 +42,8 @@ type Options struct {
 	// host other than the target.
 	OSTrust bool
 
-	// Dial opens a connection. Default: net.Dialer. Tests and the future
-	// STARTTLS/SSRF-guard layers replace it.
+	// Dial opens a connection. Default: net.Dialer. The server's SSRF guard and tests
+	// replace it. STARTTLS runs on top of whatever it returns (Target.StartTLS).
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 	// LookupIP resolves a host name. Default: net.DefaultResolver.
 	LookupIP func(ctx context.Context, host string) ([]net.IP, error)
@@ -349,6 +349,14 @@ func (p *prober) connect(ctx context.Context) (net.Conn, func(), error) {
 		return nil, nil, err
 	}
 	_ = conn.SetDeadline(time.Now().Add(p.opts.Timeout))
+	if p.target.StartTLS != "" {
+		if err := startTLS(conn, p.target.StartTLS, p.target.serverName()); err != nil {
+			_ = conn.Close()
+			cancel()
+			release()
+			return nil, nil, err
+		}
+	}
 	return conn, func() { cancel(); release() }, nil
 }
 
@@ -385,6 +393,10 @@ func classifyNetErr(err error) kind {
 		return kindClosed
 	case errors.Is(err, errBudget), errors.Is(err, context.Canceled):
 		return kindError
+	}
+	var se *StartTLSError
+	if errors.As(err, &se) {
+		return kindError // the scan's first connection already said so; see Scan
 	}
 	var opErr *net.OpError
 	if errors.As(err, &opErr) {

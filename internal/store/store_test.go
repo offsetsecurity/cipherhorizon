@@ -47,7 +47,7 @@ func finish(t *testing.T, s *store.Store, scanID int64, level int, band string, 
 
 func runOne(t *testing.T, s *store.Store, a store.Asset, level int, band string, crit int) store.ScanSummary {
 	t.Helper()
-	sc, _, err := s.EnqueueScan(a.ID, "manual")
+	sc, _, err := s.EnqueueScan(a.ID, "manual", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,11 +124,11 @@ func TestOnlyOneActiveScanPerAsset(t *testing.T) {
 	s, _ := open(t)
 	a := asset(t, s, "a.example", 443)
 
-	first, existing, err := s.EnqueueScan(a.ID, "manual")
+	first, existing, err := s.EnqueueScan(a.ID, "manual", "test")
 	if err != nil || existing {
 		t.Fatalf("first: %+v existing=%v err=%v", first, existing, err)
 	}
-	second, existing, err := s.EnqueueScan(a.ID, "manual")
+	second, existing, err := s.EnqueueScan(a.ID, "manual", "test")
 	if err != nil || !existing || second.ID != first.ID {
 		t.Fatalf("second request must return the active scan: %+v existing=%v err=%v", second, existing, err)
 	}
@@ -137,7 +137,7 @@ func TestOnlyOneActiveScanPerAsset(t *testing.T) {
 	if _, err := s.ClaimNext(); err != nil {
 		t.Fatal(err)
 	}
-	if third, existing, _ := s.EnqueueScan(a.ID, "manual"); !existing || third.ID != first.ID || third.Status != store.StatusRunning {
+	if third, existing, _ := s.EnqueueScan(a.ID, "manual", "test"); !existing || third.ID != first.ID || third.Status != store.StatusRunning {
 		t.Errorf("while running: %+v existing=%v", third, existing)
 	}
 
@@ -149,7 +149,7 @@ func TestOnlyOneActiveScanPerAsset(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sc, _, err := s.EnqueueScan(b.ID, "manual")
+			sc, _, err := s.EnqueueScan(b.ID, "manual", "test")
 			if err == nil {
 				ids <- sc.ID
 			}
@@ -167,11 +167,11 @@ func TestOnlyOneActiveScanPerAsset(t *testing.T) {
 
 	// A finished scan frees the slot.
 	finish(t, s, first.ID, 1, "Sound", 0)
-	if next, existing, err := s.EnqueueScan(a.ID, "manual"); err != nil || existing || next.ID == first.ID {
+	if next, existing, err := s.EnqueueScan(a.ID, "manual", "test"); err != nil || existing || next.ID == first.ID {
 		t.Errorf("after finish: %+v existing=%v err=%v", next, existing, err)
 	}
 
-	if _, _, err := s.EnqueueScan(12345, "manual"); !errors.Is(err, store.ErrNotFound) {
+	if _, _, err := s.EnqueueScan(12345, "manual", "test"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("scan of a missing asset: %v", err)
 	}
 }
@@ -182,7 +182,7 @@ func TestClaimNextIsAtomic(t *testing.T) {
 	const n = 12
 	for i := 0; i < n; i++ {
 		a := asset(t, s, "h"+string(rune('a'+i))+".example", 443)
-		if _, _, err := s.EnqueueScan(a.ID, "bulk"); err != nil {
+		if _, _, err := s.EnqueueScan(a.ID, "bulk", "test"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -227,7 +227,7 @@ func TestClaimNextIsAtomic(t *testing.T) {
 func TestScanProgressAndResult(t *testing.T) {
 	s, c := open(t)
 	a := asset(t, s, "a.example", 443)
-	sc, _, _ := s.EnqueueScan(a.ID, "manual")
+	sc, _, _ := s.EnqueueScan(a.ID, "manual", "test")
 	if sc.Status != store.StatusQueued || sc.Trigger != "manual" {
 		t.Fatalf("queued = %+v", sc)
 	}
@@ -281,7 +281,7 @@ func TestFailedAndCanceledScansKeepHistoryAndFreeTheSlot(t *testing.T) {
 	s, _ := open(t)
 	a := asset(t, s, "a.example", 443)
 
-	sc, _, _ := s.EnqueueScan(a.ID, "manual")
+	sc, _, _ := s.EnqueueScan(a.ID, "manual", "test")
 	_, _ = s.ClaimNext()
 	if err := s.FailScan(sc.ID, "no response from target: connection refused", nil); err != nil {
 		t.Fatal(err)
@@ -290,7 +290,7 @@ func TestFailedAndCanceledScansKeepHistoryAndFreeTheSlot(t *testing.T) {
 		t.Errorf("failed = %+v", got)
 	}
 
-	sc2, existing, err := s.EnqueueScan(a.ID, "manual")
+	sc2, existing, err := s.EnqueueScan(a.ID, "manual", "test")
 	if err != nil || existing {
 		t.Fatalf("slot not freed: %v %v", existing, err)
 	}
@@ -323,9 +323,9 @@ func TestInterruptedScansAreFailedAfterRestart(t *testing.T) {
 	}
 	a, _ := s.CreateAsset(store.Asset{Kind: store.KindTLS, Name: "a", Host: "a.example", Port: 443})
 	b, _ := s.CreateAsset(store.Asset{Kind: store.KindTLS, Name: "b", Host: "b.example", Port: 443})
-	running, _, _ := s.EnqueueScan(a.ID, "manual")
+	running, _, _ := s.EnqueueScan(a.ID, "manual", "test")
 	_, _ = s.ClaimNext()
-	queued, _, _ := s.EnqueueScan(b.ID, "manual")
+	queued, _, _ := s.EnqueueScan(b.ID, "manual", "test")
 	_ = s.Close()
 
 	s2, err := store.Open(path) // the "restart": the schema must also survive being reopened
@@ -404,7 +404,7 @@ func TestSchedulingAndDueAssets(t *testing.T) {
 	_ = b
 
 	// An active scan makes it not due; finishing reschedules from then.
-	sc, _, _ := s.EnqueueScan(a.ID, "scheduled")
+	sc, _, _ := s.EnqueueScan(a.ID, "scheduled", "test")
 	if due, _ := s.DueAssets(c.t); len(due) != 0 {
 		t.Error("an asset with an active scan is due again")
 	}
@@ -428,7 +428,7 @@ func TestListScansFilters(t *testing.T) {
 	a, b := asset(t, s, "a.example", 443), asset(t, s, "b.example", 443)
 	runOne(t, s, a, 1, "Sound", 0)
 	runOne(t, s, b, 3, "Strong", 0)
-	sc, _, _ := s.EnqueueScan(a.ID, "manual")
+	sc, _, _ := s.EnqueueScan(a.ID, "manual", "test")
 
 	all, _ := s.ListScans(store.ScanFilter{})
 	if len(all) != 3 || all[0].ID != sc.ID || all[0].AssetName != "a.example" || all[0].AssetAddress != "a.example:443" {
@@ -504,7 +504,7 @@ func TestFleetSummary(t *testing.T) {
 func TestCertExpirySurfacesInAttention(t *testing.T) {
 	s, c := open(t)
 	a := asset(t, s, "a.example", 443)
-	sc, _, _ := s.EnqueueScan(a.ID, "manual")
+	sc, _, _ := s.EnqueueScan(a.ID, "manual", "test")
 	_, _ = s.ClaimNext()
 	soon := c.t.AddDate(0, 0, 10)
 	_ = s.FinishScan(sc.ID, store.Result{Report: []byte("{}"), Evaluation: []byte("{}"), Band: "Strong", ReadinessLevel: 3, CertNotAfter: &soon})

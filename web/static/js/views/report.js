@@ -21,6 +21,7 @@ export const SECTIONS = [
 const STATUS = {
   problem: ['✖', 'Problem'], attention: ['▲', 'Needs attention'], good: ['✔', 'Good'],
   'not-checked': ['○', 'Not checked'], 'not-collected': ['○', 'Not collected'], inconclusive: ['?', 'Inconclusive'],
+  'not-applicable': ['·', 'Not applicable'],
 };
 
 export function statusChip(st) {
@@ -107,7 +108,8 @@ function coverageLine(ev, onWeak) {
     h('span', { class: 'cov-found' }, `${problems} found a problem`), ', ',
     notes ? [h('span', null, `${notes} found something to note`), ', '] : null,
     h('span', { class: 'cov-clean' }, `${clean} passed`),
-    skipped ? [', ', h('span', { class: 'cov-skip' }, `${skipped} could not run`)] : null, '. ',
+    skipped ? [', ', h('span', { class: 'cov-skip' }, `${skipped} could not run`)] : null,
+    n('not-applicable') ? [', ', h('span', { class: 'muted' }, `${n('not-applicable')} do not apply`)] : null, '. ',
     h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); onWeak(); } }, 'See every check →'));
 }
 
@@ -359,7 +361,8 @@ export function weaknessesView(ctx) {
       problems ? h('span', { class: 'cov-found' }, `${problems} found a problem`) : h('span', { class: 'cov-clean' }, 'None found a problem'), ', ',
       notes ? [h('span', null, `${notes} found something to note`), ', '] : null,
       h('span', { class: 'cov-clean' }, `${n('not-found')} passed`),
-      n('not-checked') ? [', ', h('span', { class: 'cov-skip' }, `${n('not-checked')} could not run`)] : null, '.'),
+      n('not-checked') ? [', ', h('span', { class: 'cov-skip' }, `${n('not-checked')} could not run`)] : null,
+      n('not-applicable') ? [', ', h('span', { class: 'muted' }, `${n('not-applicable')} do not apply to this service`)] : null, '.'),
     filterBar));
 
   for (const [sid, title] of SECTIONS) {
@@ -368,12 +371,14 @@ export function weaknessesView(ctx) {
     const found = cs.filter((c) => c.result === 'found').sort((a, b) => SEV_RANK[sevOf(a)] - SEV_RANK[sevOf(b)]);
     const passed = cs.filter((c) => c.result === 'not-found');
     const skipped = cs.filter((c) => c.result === 'not-checked');
+    const na = cs.filter((c) => c.result === 'not-applicable');
     const bad = found.filter((c) => sevOf(c) !== 'info').length;
     const tally = [
       bad ? badge(`${bad} ${bad === 1 ? 'problem' : 'problems'}`, 'bad') : null,
       found.length - bad ? badge(`${found.length - bad} to note`, 'info') : null,
       passed.length ? badge(`${passed.length} passed`, 'good') : null,
       skipped.length ? badge(`${skipped.length} not run`, 'none') : null,
+      na.length ? badge(`${na.length} do not apply`, 'none') : null,
     ];
     const has = [found.length ? 'has-found' : '', passed.length ? 'has-passed' : '', skipped.length ? 'has-skipped' : ''].join(' ');
     wrap.appendChild(h('section', { class: `card weakcard ${has}`, 'aria-label': title },
@@ -391,7 +396,13 @@ export function weaknessesView(ctx) {
         h('ul', { class: 'clean-checks' }, skipped.map((c) => h('li', { class: 'clean r-not-checked', id: `chk-${c.id}` },
           h('span', { class: 'clean-mark', 'aria-hidden': 'true' }, '○'),
           h('span', null, c.title),
-          h('span', { class: 'muted' }, sections[sid]?.reason ? ` (${sections[sid].reason})` : ' (this area could not be tested)'))))) : null));
+          h('span', { class: 'muted' }, sections[sid]?.reason ? ` (${sections[sid].reason})` : ' (this area could not be tested)'))))) : null,
+      na.length ? h('div', { class: 'chk-skipped' },
+        h('h3', { class: 'chk-h' }, 'Does not apply'),
+        h('ul', { class: 'clean-checks' }, na.map((c) => h('li', { class: 'clean r-not-checked', id: `chk-${c.id}` },
+          h('span', { class: 'clean-mark', 'aria-hidden': 'true' }, '·'),
+          h('span', null, c.title),
+          h('span', { class: 'muted' }, sections[sid]?.reason ? ` (${sections[sid].reason})` : ''))))) : null));
   }
   const vb = vulnerabilitiesBody(ctx);
   if (vb.detail) wrap.appendChild(h('section', { class: 'card', 'aria-labelledby': 'att-h' }, h('h2', { id: 'att-h' }, 'Published attacks'), vb.detail));
@@ -485,8 +496,10 @@ function summaryStrip(ctx, sections) {
     const trusted = (pki.trust || []).filter((t) => t.trusted).length + (pki.private && pki.private.trusted ? 1 : 0);
     const total = (pki.trust || []).length + (pki.private ? 1 : 0);
     certHead = left === null ? '·' : left < 0 ? 'Expired' : `${left} days left`;
-    certSub = `trusted by ${trusted} of ${total} ${total === 1 ? 'store' : 'stores'}`;
-    certTone = left !== null && left < 0 || trusted === 0 ? 'lv0' : left !== null && left <= 30 ? 'lv1' : 'lv3';
+    // UX-REVIEW-008 R2: the colour is about time; trust is said in words, so "89 days left" is
+    // never red because of something else.
+    certSub = trusted === 0 ? 'not trusted by any store checked' : `trusted by ${trusted} of ${total} ${total === 1 ? 'store' : 'stores'}`;
+    certTone = left === null ? 'lvu' : left < 0 ? 'lv0' : left <= 30 ? 'lv1' : 'lv3';
   } else if (ctx.rep.certificates && ctx.rep.certificates.length) {
     const left = daysUntil(ctx.rep.certificates[0].chain[0].notAfter);
     certHead = left === null ? '·' : left < 0 ? 'Expired' : `${left} days left`;
@@ -499,12 +512,15 @@ function summaryStrip(ctx, sections) {
     const el = document.querySelector(href); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } }, h('div', { class: 'sumtile-big' }, big), h('div', { class: 'sumtile-label' }, label), h('div', { class: 'sumtile-sub' }, sub));
   const tone = { good: 'lv3', ok: 'lv2', warn: 'lv1', bad: 'lv0', neutral: 'lvu' }[bandTone(g ? g.band : '')];
+  // UX-REVIEW-008 R1: post-quantum readiness leads, placed on its L0 to L4 scale.
+  const ready = tile('#sec-key-exchange', `bigLevel sumtile-lead ${levelClass(r.level)}`, r.level < 0 ? '?' : `L${r.level}`, 'Post-quantum readiness', r.label || levelName(r.level));
+  ready.appendChild(h('div', { class: 'lvscale', 'aria-hidden': 'true' }, [0, 1, 2, 3, 4].map((l) => h('span', { class: l <= r.level ? 'on' : '' }))));
   return h('div', { class: 'sumstrip', role: 'group', 'aria-label': 'Summary' },
-    tile('#sec-key-exchange', `bigLevel ${levelClass(r.level)}`, r.level < 0 ? '?' : `L${r.level}`, 'PQC readiness', r.label || levelName(r.level)),
+    ready,
     tile('#sec-details', `bigLevel ${tone}`, g && g.score >= 0 ? String(g.score) : '·', 'TLS hygiene', g ? g.band : 'Not rated'),
     tile('#sec-certificates', `bigLevel ${certTone}`, certHead, 'Certificate', certSub),
-    tile(notChecked.length ? `#sec-${notChecked[0].id}` : '#sec-details', `bigLevel ${notChecked.length ? 'lv1' : 'lv3'}`,
-      String(notChecked.length), 'Not checked', notChecked.length ? notChecked.map((s) => (SECTIONS.find(([id]) => id === s.id) || [0, s.id])[1]).join(', ') : 'every section ran'));
+    notChecked.length ? tile(`#sec-${notChecked[0].id}`, 'bigLevel lv1', String(notChecked.length), 'Not checked',
+      notChecked.map((s) => (SECTIONS.find(([id]) => id === s.id) || [0, s.id])[1]).join(', ')) : null);
 }
 
 // ---- section anatomy ------------------------------------------------------------------------

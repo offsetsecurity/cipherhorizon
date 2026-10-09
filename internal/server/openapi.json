@@ -3264,6 +3264,186 @@
         ],
         "operationId": "post_users_id_unlock"
       }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "summary": "Activity: every change made through the API and every sign-in event, newest first (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "person",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Only what this user did, or (for sign-in events) what concerned their account"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "change",
+                "sign-in"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {entries: [{at, source, actor, action, objectKind, objectId, username, client, detail, reason}]}"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          },
+          "400": {
+            "description": "A filter is not valid"
+          }
+        },
+        "operationId": "get_audit"
+      }
+    },
+    "/api/v1/audit.csv": {
+      "get": {
+        "summary": "The Activity list as CSV, formula-safe (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "person",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Only what this user did, or (for sign-in events) what concerned their account"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "change",
+                "sign-in"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/csv"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          },
+          "400": {
+            "description": "A filter is not valid"
+          }
+        },
+        "operationId": "get_audit_csv"
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "summary": "Settings: whether sign-in is required and who decided it, and the server's configuration (administrators; anyone when sign-in is off)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {signIn: {required, lockedBy, accounts, canTurnOff}, server: {...}}"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          }
+        },
+        "operationId": "get_settings"
+      }
+    },
+    "/api/v1/settings/sign-in": {
+      "put": {
+        "summary": "Turn sign-in on or off. Turning it on with no account yet creates the first administrator from username and password and signs this browser in.",
+        "tags": [
+          "accounts"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {required, signedIn}"
+          },
+          "400": {
+            "description": "A username or password that is not allowed"
+          },
+          "409": {
+            "description": "Locked by the command line, or turning it off would open a server reachable from the network"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          }
+        },
+        "operationId": "put_settings_sign_in"
+      }
     }
   },
   "components": {

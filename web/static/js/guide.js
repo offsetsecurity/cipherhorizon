@@ -6,7 +6,13 @@ import { button, copyButton, modal, toast } from './ui.js';
 import { api } from './api.js';
 
 export const LINUX_CMD = 'sudo sh ./cipherhorizon-inventory.sh';
-export const WINDOWS_CMD = 'powershell -NoProfile -ExecutionPolicy Bypass -File .\\cipherhorizon-inventory.ps1';
+// Windows: unblock the downloaded file, then run it under RemoteSigned, which still refuses
+// unsigned scripts that come from the internet. Bypass is offered only as the fallback (audit L-16).
+export const WINDOWS_CMD = 'Unblock-File .\\cipherhorizon-inventory.ps1; powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\\cipherhorizon-inventory.ps1';
+export const WINDOWS_CMD_FALLBACK = 'powershell -NoProfile -ExecutionPolicy Bypass -File .\\cipherhorizon-inventory.ps1';
+export const VERIFY_WINDOWS = 'Get-FileHash .\\cipherhorizon-inventory.ps1';
+export const VERIFY_LINUX = 'sha256sum cipherhorizon-inventory.sh';
+export const VERIFY_OFFLINE = 'cipherhorizon scripts list';
 
 /** A command in a monospace block with a copy control. */
 export function commandBlock(cmd, label) {
@@ -103,9 +109,17 @@ export function collectSteps(onUpload) {
   return h('ol', { class: 'steps' },
     step(1, 'Get the script for the machine',
       h('p', null, 'A short script in plain text: PowerShell for Windows (5.1 or later), shell for Linux (Debian, Ubuntu, RHEL, Fedora, SUSE, Alpine). Each is a small engine with a few read-only capabilities; what it collects comes from this server’s signature database, written into the script and listed below. It installs nothing, changes nothing, runs no other program and makes no network connection.'),
-      inventoryScriptsBlock()),
+      inventoryScriptsBlock(),
+      h('details', { class: 'more verify-scripts' }, h('summary', null, 'Check the script before you run it'),
+        h('p', { class: 'hint' }, 'The SHA-256 of the file you downloaded must match the one shown above:'),
+        commandBlock(VERIFY_WINDOWS, 'Windows check'), commandBlock(VERIFY_LINUX, 'Linux check'),
+        h('p', { class: 'hint' }, 'To check without trusting this server, ask the CipherHorizon program of the same version, or the inventory-scripts.sha256 file signed with each release; both list the same hashes:'),
+        commandBlock(VERIFY_OFFLINE, 'offline check'))),
     step(2, 'Run it on the machine',
       h('p', null, 'On Windows, in PowerShell (as Administrator for the fullest picture):'), commandBlock(WINDOWS_CMD, 'Windows command'),
+      h('details', { class: 'more' }, h('summary', null, 'If a policy refuses it'),
+        h('p', { class: 'hint' }, 'Some machines refuse every unsigned script. Read the script first, then run it with the policy set aside for this one process only:'),
+        commandBlock(WINDOWS_CMD_FALLBACK, 'fallback Windows command')),
       h('p', null, 'On Linux (as root for the fullest picture):'), commandBlock(LINUX_CMD, 'Linux command'),
       h('p', { class: 'hint' }, 'It writes ', h('code', null, 'cipherhorizon-facts-<machine>.txt'),
         ': the machine’s name and operating system, its cryptographic packages and its public certificates. Plain text, one fact per line: open it and check what will leave the machine. Private keys are never read.')),

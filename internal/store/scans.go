@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-// EnqueueScan queues a scan of an asset. If the asset already has an active
-// (queued or running) scan, that one is returned with existing=true and nothing
-// is added: the schema allows only one (AC-02.6).
-func (s *Store) EnqueueScan(assetID int64, trigger string) (v ScanSummary, existing bool, err error) {
+// EnqueueScan queues a scan of an asset, recording who asked for it. If the asset already has an
+// active (queued or running) scan, that one is returned with existing=true and nothing is added:
+// the schema allows only one (AC-02.6).
+func (s *Store) EnqueueScan(assetID int64, trigger, startedBy string) (v ScanSummary, existing bool, err error) {
 	now := s.now()
-	res, err := s.db.Exec(`INSERT INTO scans (asset_id, status, trigger, queued_at) VALUES (?, 'queued', ?, ?)`, assetID, trigger, ts(now))
+	res, err := s.db.Exec(`INSERT INTO scans (asset_id, status, trigger, started_by, queued_at) VALUES (?, 'queued', ?, ?, ?)`, assetID, trigger, startedBy, ts(now))
 	if isConstraint(err) {
 		// Either the asset does not exist (foreign key) or a scan is already active.
 		if _, gerr := s.GetAsset(assetID); errors.Is(gerr, ErrNotFound) {
@@ -107,7 +107,7 @@ func (s *Store) ListScans(f ScanFilter) ([]ScanWithAsset, error) {
 		var level sql.NullInt64
 		var hndl, incomplete int
 		v := &w.ScanSummary
-		if err := rows.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
+		if err := rows.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.StartedBy, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
 			&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete, &name, &host, &port); err != nil {
 			return nil, err
 		}
@@ -385,6 +385,8 @@ type HistoryPoint struct {
 	Medium         int       `json:"medium"`
 	Error          string    `json:"error"`
 	Incomplete     bool      `json:"incomplete"`
+	Trigger        string    `json:"trigger"`
+	StartedBy      string    `json:"startedBy"`
 }
 
 // History returns an asset's finished scans, oldest first (for charts).
@@ -392,7 +394,7 @@ func (s *Store) History(assetID int64, limit int) ([]HistoryPoint, error) {
 	if limit <= 0 {
 		limit = 200
 	}
-	rows, err := s.db.Query(`SELECT id, COALESCE(finished_at, queued_at), status, band, score, readiness_level, hndl_exposed, crit, high, medium, error, incomplete
+	rows, err := s.db.Query(`SELECT id, COALESCE(finished_at, queued_at), status, band, score, readiness_level, hndl_exposed, crit, high, medium, error, incomplete, trigger, started_by
 		FROM scans WHERE asset_id = ? AND status IN ('done','failed','canceled') ORDER BY id DESC LIMIT ?`, assetID, limit)
 	if err != nil {
 		return nil, err
@@ -404,7 +406,7 @@ func (s *Store) History(assetID int64, limit int) ([]HistoryPoint, error) {
 		var at string
 		var level sql.NullInt64
 		var hndl, inc int
-		if err := rows.Scan(&p.ScanID, &at, &p.Status, &p.Band, &p.Score, &level, &hndl, &p.Critical, &p.High, &p.Medium, &p.Error, &inc); err != nil {
+		if err := rows.Scan(&p.ScanID, &at, &p.Status, &p.Band, &p.Score, &level, &hndl, &p.Critical, &p.High, &p.Medium, &p.Error, &inc, &p.Trigger, &p.StartedBy); err != nil {
 			return nil, err
 		}
 		if t := parseTS(sql.NullString{String: at, Valid: true}); t != nil {

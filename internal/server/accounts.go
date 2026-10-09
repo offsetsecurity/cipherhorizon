@@ -22,7 +22,11 @@ import (
 
 // Session cookie and timeouts.
 const (
-	sessionCookie      = "ch_session"
+	sessionCookie = "ch_session"
+	// sessionCookieTLS is the name over HTTPS: the __Host- prefix makes the browser refuse the
+	// cookie unless it is Secure, set for "/" and bound to this exact host, so a sibling subdomain
+	// cannot plant or overwrite it (PRD-007 REQ-TR-2).
+	sessionCookieTLS   = "__Host-ch_session"
 	defaultSessionIdle = 30 * time.Minute
 	defaultSessionMax  = 12 * time.Hour
 	touchEvery         = time.Minute
@@ -240,7 +244,9 @@ func (s *Server) identify(r *http.Request) (p principal, ok, bad bool) {
 		}
 		return principal{}, false, true
 	}
-	if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+	// With sign-in off everyone is the same anonymous operator: a session cookie left over from when
+	// it was on grants nothing different (UX-REVIEW-008 D2).
+	if c, err := sessionCookieOf(r); err == nil && c.Value != "" && s.signInOn() {
 		sess, u, err := s.cfg.Store.SessionByHash(auth.HashToken(c.Value))
 		if err != nil {
 			return principal{}, false, false
@@ -259,7 +265,7 @@ func (s *Server) identify(r *http.Request) (p principal, ok, bad bool) {
 		}
 		return principal{Kind: "session", UserID: u.ID, Username: u.Username, Role: u.Role, SessionID: sess.ID, MustChange: u.MustChange}, true, false
 	}
-	if !s.cfg.RequireLogin && s.cfg.Token == "" {
+	if !s.signInOn() && s.cfg.Token == "" {
 		// Loopback without sign-in (--no-login): one local operator with every right.
 		return principal{Kind: "local", Username: "local", Role: store.RoleAdmin}, true, false
 	}
@@ -294,7 +300,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 				case <-r.Context().Done():
 				}
 			}
-			if s.cfg.RequireLogin {
+			if s.signInOn() {
 				writeErr(w, http.StatusUnauthorized, "sign in to continue")
 			} else {
 				writeErr(w, http.StatusUnauthorized, "a valid bearer token is required")
@@ -324,13 +330,20 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request, p principal) 
 		writeErr(w, http.StatusForbidden, "change your password before continuing")
 		return false
 	}
-	if (strings.HasPrefix(path, "/api/v1/users") || path == "/api/v1/auth/events") && p.Role != store.RoleAdmin {
+	if (strings.HasPrefix(path, "/api/v1/users") || path == "/api/v1/auth/events" || path == "/api/v1/audit" || path == "/api/v1/audit.csv" ||
+		strings.HasPrefix(path, "/api/v1/settings")) &&
+		p.Role != store.RoleAdmin {
 		writeErr(w, http.StatusForbidden, "only an administrator can do this")
 		return false
 	}
 	switch r.Method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
 		return true
+	}
+	if strings.HasPrefix(path, "/api/v1/users") && !s.signInOn() {
+		// Frozen, so nobody can prepare an account to take over when sign-in returns (D3).
+		writeErr(w, http.StatusConflict, "accounts cannot be changed while sign-in is off; turn it on in Settings first")
+		return false
 	}
 	if !self && p.Role == store.RoleViewer {
 		writeErr(w, http.StatusForbidden, "your account can view and download only")
@@ -348,17 +361,47 @@ func (s *Server) secureRequest(r *http.Request) bool {
 	return s.cfg.SecureCookies || r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
+// overHTTPS reports whether this response travels over HTTPS that the server can vouch for: its
+// own TLS listener, or a proxy the operator named with --trusted-proxy saying so. Unlike
+// secureRequest (which may only make the cookie stricter) a forged header must not turn HSTS on.
+func (s *Server) overHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	peer := r.RemoteAddr
+	if h, _, err := net.SplitHostPort(peer); err == nil {
+		peer = h
+	}
+	return s.trustedProxy(peer) && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
+// sessionCookieOf reads the session cookie under either name; a browser holds only one of them.
+func sessionCookieOf(r *http.Request) (*http.Cookie, error) {
+	if c, err := r.Cookie(sessionCookieTLS); err == nil {
+		return c, nil
+	}
+	return r.Cookie(sessionCookie)
+}
+
+// cookieName is the name the session cookie is set under for this request.
+func (s *Server) cookieName(r *http.Request) string {
+	if s.secureRequest(r) {
+		return sessionCookieTLS
+	}
+	return sessionCookie
+}
+
 // Secure is set whenever the browser's connection is HTTPS (see secureRequest). serve refuses
 // plain HTTP beyond loopback unless --plain-http says a TLS proxy is in front.
 func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is conditional by design, see above
-		Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode,
+		Name: s.cookieName(r), Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode,
 		Secure: s.secureRequest(r), MaxAge: int(s.sessionMax() / time.Second),
 	})
 }
 
 func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, //nolint:gosec // G124: as setSessionCookie
+	http.SetCookie(w, &http.Cookie{Name: s.cookieName(r), Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, //nolint:gosec // G124: as setSessionCookie
 		Secure: s.secureRequest(r), MaxAge: -1})
 }
 
@@ -403,7 +446,7 @@ func (s *Server) me(r *http.Request) *meView {
 
 func (s *Server) authState(w http.ResponseWriter, r *http.Request) {
 	setup := false
-	if s.cfg.RequireLogin {
+	if s.signInOn() {
 		n, err := s.cfg.Store.CountUsers()
 		if err != nil {
 			storeErr(w, err)
@@ -412,7 +455,7 @@ func (s *Server) authState(w http.ResponseWriter, r *http.Request) {
 		setup = n == 0
 	}
 	writeJSON(w, 200, map[string]any{
-		"loginRequired": s.cfg.RequireLogin, "setupRequired": setup, "user": s.me(r),
+		"loginRequired": s.signInOn(), "setupRequired": setup, "user": s.me(r),
 		"passwordMinLength": auth.MinPasswordLen, "sessionIdleMinutes": int(s.sessionIdle() / time.Minute),
 	})
 }
@@ -437,12 +480,17 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) || s.tooManyAttempts(w, r, setupKey) {
 		return
 	}
-	if !s.cfg.RequireLogin {
+	if !s.signInOn() {
 		writeErr(w, http.StatusConflict, "this server runs without sign-in")
 		return
 	}
 	if n, err := s.cfg.Store.CountUsers(); err != nil || n > 0 {
 		writeErr(w, http.StatusConflict, "setup is already complete; sign in instead")
+		return
+	}
+	if s.cfg.SetupCode != "" && !s.cfg.SetupCodeExpires.IsZero() && s.cfg.Now().After(s.cfg.SetupCodeExpires) {
+		s.audit(r, "setup-failed", in.Username, "setup code expired")
+		writeErr(w, http.StatusForbidden, "the setup code has expired; restart the server to print a new one")
 		return
 	}
 	if s.cfg.SetupCode == "" || !auth.SameCode(in.Code, s.cfg.SetupCode) {
@@ -495,7 +543,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) || s.tooManyAttempts(w, r, in.Username) {
 		return
 	}
-	if !s.cfg.RequireLogin {
+	if !s.signInOn() {
 		writeErr(w, http.StatusConflict, "this server runs without sign-in")
 		return
 	}
@@ -636,12 +684,18 @@ func (s *Server) authPassword(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
-	// Every other session of the account ends: a stolen session does not survive a password change.
-	if err := s.cfg.Store.SetPassword(u.ID, hash, false, p.SessionID); err != nil {
+	// Every session of the account ends, this one included, and this browser gets a new token: a
+	// stolen session, or a token seen before the change, does not survive it (REQ-TR-1).
+	if err := s.cfg.Store.SetPassword(u.ID, hash, false, 0); err != nil {
 		storeErr(w, err)
 		return
 	}
-	s.audit(r, "password-changed", u.Username, "other sessions ended")
+	u.MustChange = false
+	if err := s.startSession(w, r, u); err != nil {
+		storeErr(w, err)
+		return
+	}
+	s.audit(r, "password-changed", u.Username, "every session ended; this browser signed in again")
 	w.WriteHeader(http.StatusNoContent)
 }
 

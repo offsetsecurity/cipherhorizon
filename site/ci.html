@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted.">
+  <title>CLI and CI · CipherHorizon</title>
+  <link rel="icon" href="img/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="img/mark-on-navy.svg" alt=""><span>CipherHorizon<small>TLS and post-quantum scanner</small></span></a>
+      <nav aria-label="Documentation">
+      <a href="index.html">Home</a>
+      <a href="start.html">Getting started</a>
+      <a href="deploy.html">Deploy</a>
+      <a href="ci.html" aria-current="page">CLI and CI</a>
+      <a href="methodology.html">Methodology</a>
+      <a href="security.html">Security</a>
+      <a href="faq.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <h1>CLI and CI</h1>
+    <h2>The verdict from the command line</h2>
+<pre><code>cipherhorizon tls scan example.com
+cipherhorizon tls scan --details example.com        # plus every protocol, suite, group and certificate
+cipherhorizon tls scan --json example.com           # {target, report, evaluation} per target
+cipherhorizon tls scan --cbom example.com           # what was observed, as a CycloneDX CBOM</code></pre>
+    <p>STARTTLS is chosen by port (25, 587, 143, 110, 21, 5222, 389, 5432), by scheme (<code>smtp://</code>, <code>imap://</code>,
+      <code>ldap://</code>, <code>postgres://</code>...) or with <code>--starttls</code>.</p>
+    <h2 id="fail-on">A gate in CI</h2>
+<pre><code>cipherhorizon tls scan --fail-on 'level&lt;L3,severity&gt;=high' api.example.com www.example.com</code></pre>
+    <table>
+      <tr><th>Condition</th><th>Fails when</th></tr>
+      <tr><td><code>level&lt;L3</code></td><td>Readiness is below level 3 (no hybrid post-quantum key exchange negotiated)</td></tr>
+      <tr><td><code>score&lt;70</code></td><td>The TLS hygiene score is below 70</td></tr>
+      <tr><td><code>severity&gt;=high</code></td><td>Any finding of that severity or worse</td></tr>
+      <tr><td><code>finding=PROTO.TLS10</code></td><td>That finding is present</td></tr>
+    </table>
+    <table>
+      <tr><th>Exit</th><th>Meaning</th></tr>
+      <tr><td>0</td><td>Scanned, nothing met a condition</td></tr>
+      <tr><td>1</td><td>Nothing could be done: bad usage or a bad condition</td></tr>
+      <tr><td>2</td><td>A result, but incomplete (without <code>--fail-on</code>)</td></tr>
+      <tr><td>3</td><td>A condition was met, or a target could not be scanned at all</td></tr>
+    </table>
+    <h2>GitHub Actions</h2>
+<pre><code>- name: Scan
+  run: ./cipherhorizon tls scan --fail-on 'level&lt;L3,severity&gt;=high' api.example.com:443</code></pre>
+    <p>Download the release in the job, verify <code>checksums.txt</code> with <code>cosign verify-blob</code>, then run the scan. The full
+      workflow is in <code>docs/CI.md</code> in the source tree. Quote the conditions: <code>&lt;</code> and <code>&gt;</code> are redirections
+      to a shell.</p>
+
+  </main>
+  <footer><div>CipherHorizon is open source (Apache 2.0), made by <a href="https://offsetsecurity.net/">Offset Security</a>.
+    Planning the move to post-quantum cryptography? See Offset's <a href="https://offsetsecurity.net/post-quantum-cryptography-readiness.html">post-quantum readiness practice</a>.</div></footer>
+</body>
+</html>

@@ -60,6 +60,7 @@ export const api = {
   sessions: () => request('GET', '/api/v1/auth/sessions'),
   endSession: (id) => request('DELETE', `/api/v1/auth/sessions/${id}`),
   authEvents: (limit = 200) => request('GET', `/api/v1/auth/events?limit=${limit}`),
+  activity: (query = '') => request('GET', `/api/v1/audit${query}`),
   users: () => request('GET', '/api/v1/users'),
   addUser: (body) => request('POST', '/api/v1/users', body),
   patchUser: (id, body) => request('PATCH', `/api/v1/users/${id}`, body),
@@ -68,11 +69,13 @@ export const api = {
   unlockUser: (id) => request('POST', `/api/v1/users/${id}/unlock`),
 
   about: () => request('GET', '/api/v1/about'),
+  settings: () => request('GET', '/api/v1/settings'),
+  setSignIn: (body) => request('PUT', '/api/v1/settings/sign-in', body),
   summary: (days = 14) => request('GET', `/api/v1/summary?days=${days}`),
 
   assets: () => request('GET', '/api/v1/assets?kind=tls-endpoint'),
   asset: (id) => request('GET', `/api/v1/assets/${id}`),
-  addAsset: (target, name, tags) => request('POST', '/api/v1/assets', { target, name: name || '', tags: tags || [] }),
+  addAsset: (target, name, tags, starttls) => request('POST', '/api/v1/assets', { target, name: name || '', tags: tags || [], starttls: starttls || 'auto' }),
   addBulk: (text, tags) => request('POST', '/api/v1/assets/bulk', { text, tags: tags || [] }),
   patchAsset: (id, patch) => request('PATCH', `/api/v1/assets/${id}`, patch),
   deleteAsset: (id) => request('DELETE', `/api/v1/assets/${id}`),

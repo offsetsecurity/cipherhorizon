@@ -22,6 +22,13 @@ export async function firstRun({ check, js, go, sleep, shot }) {
     shell: getComputedStyle(document.querySelector('.shell')).display, focused: document.activeElement?.id }`);
   check('E2E-A.1', 'with no account, the app is replaced by first-run setup, which asks for the code from the server log',
     gate.gated && gate.title === 'Create the administrator' && gate.shell === 'none' && gate.focused === 'setup-code', JSON.stringify(gate));
+  // PRD-007 REQ-ST-1: the first thing anyone sees says what the product is and who makes it.
+  const panel = await js(`const v = document.querySelector('.gate-value'); return { text: v?.innerText || '',
+    pillars: v ? v.querySelectorAll('.gate-pillars li').length : 0, link: v?.querySelector('a')?.href || '',
+    bg: v ? getComputedStyle(v).backgroundColor : '', mark: !!v?.querySelector('.gate-mark svg') }`);
+  check('E2E-B.1', 'the setup and sign-in screens carry a navy panel: Quantum-safe before it\'s urgent, three pillars, by Offset Security, the PQC readiness link',
+    /Quantum-safe before it.s urgent/.test(panel.text) && panel.pillars === 3 && /TLS and post-quantum scanner/.test(panel.text)
+    && /post-quantum-cryptography-readiness/.test(panel.link) && panel.bg === 'rgb(11, 20, 40)' && panel.mark, JSON.stringify(panel));
   await shot('auth-setup', { full: false });
   await js(`${fill('setup-code', 'WRONG-CODE-0000')} ${fill('setup-user', ADMIN.username)} ${fill('setup-pass', ADMIN.password)}
     document.querySelector('.gate-form').requestSubmit();`);
@@ -34,7 +41,7 @@ export async function firstRun({ check, js, go, sleep, shot }) {
   const after = await js(`return { gated: document.body.classList.contains('gated'), h1: document.querySelector('main h1')?.textContent,
     who: document.querySelector('.acct-name')?.textContent, role: document.querySelector('.acct-role')?.textContent, cookie: document.cookie }`);
   check('E2E-A.3', 'with the code, the administrator is created and lands on the Overview, named in the sidebar; the session cookie is invisible to scripts',
-    !!code && !after.gated && /Scan a website/.test(after.h1 || '') && after.who === ADMIN.username && after.role === 'Administrator' && !/ch_session/.test(after.cookie),
+    !!code && !after.gated && /Scan an endpoint/.test(after.h1 || '') && after.who === ADMIN.username && after.role === 'Administrator' && !/ch_session/.test(after.cookie),
     JSON.stringify({ code: !!code, ...after }));
 }
 
@@ -51,7 +58,7 @@ async function signIn({ js, sleep }, user, pass) {
 }
 
 /** Accounts and roles, then the administrator signs back in for the rest of the journey. */
-export async function authPhase({ check, js, go, sleep, shot, api }) {
+export async function authPhase({ check, js, go, sleep, shot, api, viewport }) {
   // An administrator adds a viewer from Users.
   await go('#/users');
   await sleep(900);
@@ -69,6 +76,16 @@ export async function authPhase({ check, js, go, sleep, shot, api }) {
     api: (await fetch('/api/v1/assets')).status }`);
   check('E2E-A.5', 'Sign out ends the session: the sign-in screen shows and the API answers 401', out.title === 'Sign in' && out.api === 401, JSON.stringify(out));
   await shot('auth-login', { full: false });
+  if (viewport) {
+    await viewport(390, 844, false, true);
+    await sleep(400);
+    const stack = await js(`const v = document.querySelector('.gate-value').getBoundingClientRect(), f = document.querySelector('.gate-panel').getBoundingClientRect();
+      return { panelAbove: v.bottom <= f.top + 1, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }`);
+    check('E2E-B.1m', 'on a phone the value panel stacks above the sign-in form, with no sideways scroll', stack.panelAbove && stack.overflow <= 1, JSON.stringify(stack));
+    await shot('auth-login-mobile', { full: false });
+    await viewport(1280, 900);
+    await sleep(300);
+  }
   // A wrong password is refused without saying whether the account exists.
   await signIn({ js, sleep }, ADMIN.username, 'not the password at all');
   const bad = await js(`return document.querySelector('.gate-error')?.textContent || ''`);
@@ -84,7 +101,7 @@ export async function authPhase({ check, js, go, sleep, shot, api }) {
     read: (await fetch('/api/v1/assets')).status, users: (await fetch('/api/v1/users')).status,
     menu: [...document.querySelectorAll('.acct-menu a')].map((a) => a.textContent) }`);
   check('E2E-A.8', 'a viewer reads everything but cannot change anything or see accounts',
-    !v.gated && v.role === 'Viewer' && v.read === 200 && v.add === 403 && v.users === 403 && !v.menu.includes('Users and sign-in log'), JSON.stringify(v));
+    !v.gated && v.role === 'Viewer' && v.read === 200 && v.add === 403 && v.users === 403 && !v.menu.includes('Users and activity'), JSON.stringify(v));
   await signOut({ js, sleep });
   await signIn({ js, sleep }, ADMIN.username, ADMIN.password);
   const back = await js(`return document.querySelector('.acct-name')?.textContent`);

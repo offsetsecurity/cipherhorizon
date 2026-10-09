@@ -64,8 +64,8 @@ export async function t1Phase(t) {
       trustRows: document.querySelectorAll('#sec-certificates .trusttable tbody tr').length,
       missing: document.querySelector('#sec-certificates .servednode.missing')?.innerText || '',
     };`);
-  check('T1-E2E.4', 'summary strip: readiness, TLS hygiene, certificate and Not checked tiles',
-    page.tiles.join('|').toLowerCase() === 'pqc readiness|tls hygiene|certificate|not checked', page.tiles.join('|'));
+  check('T1-E2E.4', 'summary strip leads with post-quantum readiness, then TLS hygiene and the certificate; Not checked shows only when something was not checked (UX-REVIEW-008 R1)',
+    /^post-quantum readiness\|tls hygiene\|certificate(\|not checked)?$/.test(page.tiles.join('|').toLowerCase()), page.tiles.join('|'));
   check('T1-E2E.5', 'What to fix lists the actionable findings, at least one', page.fix >= 1, page.fix);
   check('T1-E2E.6', 'every check row states its status as a symbol and a word',
     page.index.length === 8 && page.index.every((s) => /^[✖▲✔○?] (Problem|Needs attention|Good|Not checked|Not collected|Inconclusive)$/.test(s)), page.index.join(' / '));

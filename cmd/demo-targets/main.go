@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -111,8 +112,10 @@ func slowProxy(addr, target string, delay time.Duration) (io.Closer, error) {
 }
 
 func main() {
-	base := flag.Int("base-port", 9440, "first port; the targets use base..base+10")
+	base := flag.Int("base-port", 9440, "first port; the targets use base..base+17")
 	flag.Parse()
+	// A demo should look like a real service, not one whose certificate expires tomorrow.
+	testserver.CertValidity = 90 * 24 * time.Hour
 	addr := func(off int) string { return fmt.Sprintf("127.0.0.1:%d", *base+off) }
 	fail := func(err error) {
 		fmt.Fprintln(os.Stderr, "demo-targets:", err)
@@ -153,6 +156,13 @@ func main() {
 	}
 	if err := startHostileTarget(pki, addr(10)); err != nil {
 		fail(err)
+	}
+	// STARTTLS services (PRD-007 REQ-SX-5): each begins in its protocol's plain text, then
+	// switches to the same hybrid TLS configuration as modern-hybrid.
+	for i, proto := range starttlsDemo {
+		if _, err := testserver.Listen(testserver.Config{MinVersion: tls.VersionTLS12, Curves: hybridCurves, StartTLS: proto, Addr: addr(11 + i)}); err != nil {
+			fail(err)
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -203,11 +213,24 @@ func main() {
   %s   broken-chain       the same CA, intermediate not sent, no HSTS -> missing intermediate
   %s   hostile-pki        markup in the certificate and the HSTS header (must render as text)
 
+STARTTLS services (choose the protocol when adding, or use the scheme, e.g. smtp://%s):
+%s
 Start the product with:  cipherhorizon serve --allow-loopback
 Ctrl+C stops everything.
-`, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6), addr(8), addr(7), addr(9), addr(10))
+`, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6), addr(8), addr(7), addr(9), addr(10), addr(11), starttlsLines(addr))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	<-ctx.Done()
+}
+
+// starttlsDemo are the STARTTLS demo services, at base+11 onwards, in this order.
+var starttlsDemo = []string{"smtp", "imap", "pop3", "ftp", "xmpp", "ldap", "postgres"}
+
+func starttlsLines(addr func(int) string) string {
+	var b strings.Builder
+	for i, proto := range starttlsDemo {
+		fmt.Fprintf(&b, "  %s   %-18s hybrid TLS after %s STARTTLS          -> expect L3\n", addr(11+i), proto+"-starttls", strings.ToUpper(proto))
+	}
+	return b.String()
 }

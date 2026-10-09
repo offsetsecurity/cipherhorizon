@@ -1,5 +1,5 @@
 // One endpoint: readiness, TLS hygiene, TLS detail, findings and history.
-import { h, clear, fmtDate, fmtDay, daysUntil, relTime, INTERVALS, intervalLabel, toCSV } from '../dom.js';
+import { h, clear, fmtDate, fmtDay, daysUntil, relTime, INTERVALS, intervalLabel, toCSV, startedByWord, viaStartTLS, STARTTLS_NAMES } from '../dom.js';
 import { api, ApiError } from '../api.js';
 import { historyChart, levelClass, levelName } from '../charts.js';
 import { summaryView, configurationView, weaknessesView, cbomView, SECTIONS } from './report.js';
@@ -219,7 +219,8 @@ export async function render(root, { args, query }) {
     const scanned = a.lastDone ? `scanned ${relTime(a.lastDone.finishedAt)}` : 'not scanned yet';
     head.appendChild(h('div', { class: 'page-head report-head' },
       h('div', null, h('h1', null, a.name),
-        h('div', { class: 'sub' }, a.name !== a.address ? [h('code', null, a.address), ' · '] : null, h('span', { class: 'muted' }, capitalFirst(scanned)),
+        h('div', { class: 'sub' }, a.name !== a.address ? [h('code', null, a.address), ' · '] : null,
+          viaStartTLS(a) ? [h('span', { class: 'via' }, viaStartTLS(a)), ' · '] : null, h('span', { class: 'muted' }, capitalFirst(scanned)),
           a.tags.length ? h('span', null, ' ', a.tags.map((t) => h('span', { class: 'tag' }, t))) : null),
         linkedAssets.length ? h('div', { class: 'sub' }, 'Same machine as ', linkedAssets.map((x, i) => [i ? ', ' : '',
           h('a', { href: `#/${x.kind === 'host' ? 'machines' : 'endpoints'}/${x.id}` }, x.name)])) : null,
@@ -319,7 +320,7 @@ export async function render(root, { args, query }) {
           try { await navigator.clipboard.writeText(location.href); toast('Link copied', 'success'); } catch { toast(location.href); }
         }) : null,
         h('label', { class: 'menu-field' }, 'Rescan automatically', scheduleSelect(a)),
-        item('Edit name, tags and notes', () => editDialog(a, refresh)),
+        item('Edit name, tags, notes and STARTTLS', () => editDialog(a, refresh)),
         item('Link to a machine', linkDialog),
         linkedAssets.map((x) => item(`Unlink ${x.name}`, async () => {
           try { await api.unlinkAsset(id, x.id); toast('Unlinked'); await refresh(); } catch (e) { toast(e.message, 'error'); }
@@ -558,9 +559,9 @@ export async function render(root, { args, query }) {
 
     wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'All scans'),
       h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-        h('thead', null, h('tr', null, ['When', 'Status', 'Readiness', 'TLS hygiene', 'Findings', ''].map((c) => h('th', { scope: 'col' }, c)))),
+        h('thead', null, h('tr', null, ['When', 'Started by', 'Status', 'Readiness', 'TLS hygiene', 'Findings', ''].map((c) => h('th', { scope: 'col' }, c)))),
         h('tbody', null, history.slice().reverse().map((p) => h('tr', null,
-          h('td', null, fmtDate(p.at)), h('td', null, statusPill(p.status), p.error ? h('div', { class: 'hint' }, p.error) : null),
+          h('td', null, fmtDate(p.at)), h('td', { class: 'muted' }, startedByWord(p)), h('td', null, statusPill(p.status), p.error ? h('div', { class: 'hint' }, p.error) : null),
           h('td', null, p.status === 'done' ? levelBadge(p.readinessLevel) : '·'), h('td', null, p.status === 'done' ? bandBadge(p.band, p.score) : '·'),
           h('td', null, p.status === 'done' ? `${p.critical} critical, ${p.high} high` : '·'),
           h('td', null, p.status === 'done' ? h('a', { href: `#/endpoints/${id}?scan=${p.scanId}` }, 'Open') : null))))))));
@@ -624,14 +625,19 @@ function editDialog(a, done) {
     const name = h('input', { type: 'text', id: 'e-name', value: a.name });
     const tags = h('input', { type: 'text', id: 'e-tags', value: a.tags.join(', ') });
     const notes = h('textarea', { id: 'e-notes' }); notes.value = a.notes;
+    const proto = h('select', { id: 'e-starttls' },
+      h('option', { value: 'auto', selected: a.starttls === 'auto' }, 'Automatic: by port'),
+      h('option', { value: 'none', selected: a.starttls === 'none' }, 'TLS from the first byte'),
+      Object.entries(STARTTLS_NAMES).map(([v, l]) => h('option', { value: v, selected: a.starttls === v }, `${l} with STARTTLS`)));
     const err = h('div', { class: 'callout bad', role: 'alert', hidden: true });
     return h('form', { class: 'modal-body', onsubmit: async (e) => {
       e.preventDefault();
       try {
-        await api.patchAsset(a.id, { name: name.value, tags: tags.value.split(',').map((t) => t.trim()).filter(Boolean), notes: notes.value });
+        await api.patchAsset(a.id, { name: name.value, tags: tags.value.split(',').map((t) => t.trim()).filter(Boolean), notes: notes.value, starttls: proto.value });
         toast('Saved', 'success'); close(); done();
       } catch (ex) { err.textContent = ex.message; err.hidden = false; }
     } }, err, h('label', { for: 'e-name' }, 'Name'), name, h('label', { for: 'e-tags' }, 'Tags (comma separated)'), tags,
+    h('label', { for: 'e-starttls' }, 'How it starts TLS'), proto,
     h('label', { for: 'e-notes' }, 'Notes'), notes,
     h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Save')));
   });
@@ -640,6 +646,7 @@ function editDialog(a, done) {
 // Why a scan failed, in words a person can act on, from the scanner's error text.
 function explainFailure(err, address) {
   const e = (err || '').toLowerCase();
+  if (/starttls/.test(e)) return ['The service did not switch to TLS.', 'It answered in plain text but did not agree to STARTTLS, or it is not the protocol chosen for this endpoint. Check how it starts TLS (Edit), or whether this port speaks TLS from the first byte.'];
   if (/refused/.test(e)) return ['Nothing accepted a connection.', `No program is listening on ${address}, or a firewall rejected the connection. Check the address and port, and that the server is running.`];
   if (/no such host|resolve|lookup/.test(e)) return ['The name does not resolve.', 'Check the spelling; the name may also exist only on another network.'];
   if (/timeout|timed out|deadline/.test(e)) return ['No answer in time.', 'The server did not reply. A firewall may be dropping the connection, or the server is down or slow.'];

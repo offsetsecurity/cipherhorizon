@@ -6,7 +6,7 @@ import { button, toast, badge } from '../ui.js';
 import { session, ROLE_WORD } from '../auth.js';
 
 const ROLE_CAN = {
-  admin: 'Everything, including adding accounts and reading the sign-in log.',
+  admin: 'Everything, including adding accounts and reading the activity log.',
   analyst: 'Scan, upload inventories, import CBOMs, triage findings and edit systems.',
   viewer: 'Read and download everything; change nothing.',
 };

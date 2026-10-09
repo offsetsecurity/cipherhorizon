@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -22,7 +23,10 @@ import (
 // a person has explicitly linked to it as the same machine (never inferred).
 type assetView struct {
 	store.Asset
-	Address        string  `json:"address"`
+	Address string `json:"address"`
+	// StartTLSUsed is the protocol a scan negotiates (the choice applied to the port): "" for
+	// direct TLS.
+	StartTLSUsed   string  `json:"starttlsUsed"`
 	LinkedAssetIDs []int64 `json:"linkedAssetIds,omitempty"`
 }
 
@@ -30,7 +34,8 @@ type assetView struct {
 // has nothing to show yet); pass a pre-fetched map from store.AllLinks for a
 // list so linked IDs don't cost one query per row.
 func view(a store.Asset, links map[int64][]int64) assetView {
-	return assetView{Asset: a, Address: a.Address(), LinkedAssetIDs: links[a.ID]}
+	used, _ := tlsprobe.ResolveStartTLS(a.StartTLS, a.Port)
+	return assetView{Asset: a, Address: a.Address(), StartTLSUsed: used, LinkedAssetIDs: links[a.ID]}
 }
 
 func idParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -61,9 +66,11 @@ func (s *Server) about(w http.ResponseWriter, _ *http.Request) {
 		"registryRetrieved": s.cfg.RegistryRetrieved, "evalVersion": s.cfg.EvalVersion,
 		"retentionPerAsset": store.Retention, "maxConcurrentScans": s.cfg.MaxConcurrentScans,
 		"allowLoopback": s.cfg.Guard.AllowLoopback,
+		// scanScope: the --scan-allow list; empty means anything routable the guard allows.
+		"scanScope": append([]string{}, s.cfg.Guard.Scope.Entries()...),
 		// authRequired: whether the API answers anyone without credentials (it does only with
 		// --no-login and no token). signInRequired and automationToken say which credentials.
-		"authRequired": s.cfg.RequireLogin || s.cfg.Token != "", "signInRequired": s.cfg.RequireLogin,
+		"authRequired": s.signInOn() || s.cfg.Token != "", "signInRequired": s.signInOn(),
 		"automationToken": s.cfg.Token != "",
 		"httpChecks":      s.cfg.Runner.HTTPChecks(),
 		"intervals":       []int{0, 3600, 21600, 86400, 604800},
@@ -103,18 +110,25 @@ func (s *Server) listAssets(w http.ResponseWriter, r *http.Request) {
 }
 
 type createReq struct {
-	Target string   `json:"target"`
-	Name   string   `json:"name"`
-	Tags   []string `json:"tags"`
-	Notes  string   `json:"notes"`
+	Target string `json:"target"`
+	Name   string `json:"name"`
+	// StartTLS is "auto" (the default: by well-known port), "none" or a protocol. A scheme in
+	// Target (smtp://) decides instead.
+	StartTLS string   `json:"starttls"`
+	Tags     []string `json:"tags"`
+	Notes    string   `json:"notes"`
 }
 
-func (s *Server) newAsset(req createReq) (store.Asset, int, string) {
-	host, port, err := normalizeTarget(req.Target)
+func (s *Server) newAsset(ctx context.Context, req createReq) (store.Asset, int, string) {
+	host, port, fromScheme, err := normalizeTarget(req.Target)
 	if err != nil {
 		return store.Asset{}, http.StatusBadRequest, "invalid target: " + err.Error()
 	}
-	if err := s.cfg.Guard.CheckLiteral(host); err != nil {
+	choice, msg := startTLSChoice(req.StartTLS, fromScheme)
+	if msg != "" {
+		return store.Asset{}, http.StatusBadRequest, msg
+	}
+	if err := s.cfg.Guard.CheckTarget(ctx, host); err != nil {
 		return store.Asset{}, http.StatusBadRequest, err.Error()
 	}
 	tags, err := normalizeTags(req.Tags)
@@ -128,7 +142,7 @@ func (s *Server) newAsset(req createReq) (store.Asset, int, string) {
 	if len(name) > 100 || len(req.Notes) > 2000 {
 		return store.Asset{}, http.StatusBadRequest, "name (100) or notes (2000) too long"
 	}
-	a, err := s.cfg.Store.CreateAsset(store.Asset{Kind: store.KindTLS, Name: name, Host: host, Port: port, Tags: tags, Notes: req.Notes})
+	a, err := s.cfg.Store.CreateAsset(store.Asset{Kind: store.KindTLS, Name: name, Host: host, Port: port, StartTLS: choice, Tags: tags, Notes: req.Notes})
 	if errors.Is(err, store.ErrDuplicate) {
 		return store.Asset{}, http.StatusConflict, fmt.Sprintf("%s is already added", store.Asset{Host: host, Port: port}.Address())
 	}
@@ -143,7 +157,7 @@ func (s *Server) createAsset(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	a, status, msg := s.newAsset(req)
+	a, status, msg := s.newAsset(r.Context(), req)
 	if status != 0 {
 		writeErr(w, status, msg)
 		return
@@ -180,7 +194,7 @@ func (s *Server) bulkAssets(w http.ResponseWriter, r *http.Request) {
 		if in == "" || strings.HasPrefix(in, "#") {
 			continue
 		}
-		a, status, msg := s.newAsset(createReq{Target: in, Tags: req.Tags})
+		a, status, msg := s.newAsset(r.Context(), createReq{Target: in, Tags: req.Tags})
 		res := BulkResult{Line: i + 1, Input: in}
 		switch status {
 		case 0:
@@ -226,11 +240,20 @@ func (s *Server) patchAsset(w http.ResponseWriter, r *http.Request) {
 		Tags            *[]string `json:"tags"`
 		Notes           *string   `json:"notes"`
 		IntervalSeconds *int      `json:"intervalSeconds"`
+		StartTLS        *string   `json:"starttls"`
 	}
 	if !decode(w, r, &req) {
 		return
 	}
 	p := store.AssetPatch{Notes: req.Notes, IntervalSeconds: req.IntervalSeconds}
+	if req.StartTLS != nil {
+		c, msg := startTLSChoice(*req.StartTLS, "")
+		if msg != "" {
+			writeErr(w, http.StatusBadRequest, msg)
+			return
+		}
+		p.StartTLS = &c
+	}
 	if req.Name != nil {
 		n := strings.TrimSpace(*req.Name)
 		if n == "" || len(n) > 100 {
@@ -280,8 +303,8 @@ func (s *Server) deleteAsset(w http.ResponseWriter, r *http.Request) {
 
 // ---- scans ---------------------------------------------------------------------------------------
 
-func (s *Server) queue(assetID int64, trigger string) (store.ScanSummary, bool, error) {
-	sc, existing, err := s.cfg.Store.EnqueueScan(assetID, trigger)
+func (s *Server) queue(assetID int64, trigger, startedBy string) (store.ScanSummary, bool, error) {
+	sc, existing, err := s.cfg.Store.EnqueueScan(assetID, trigger, startedBy)
 	if err == nil && !existing {
 		s.cfg.Runner.Notify()
 	}
@@ -302,7 +325,7 @@ func (s *Server) scanAsset(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "only TLS endpoints can be scanned; hosts report by pushing a CBOM")
 		return
 	}
-	sc, existing, err := s.queue(id, "manual")
+	sc, existing, err := s.queue(id, "manual", s.actor(r))
 	if err != nil {
 		storeErr(w, err)
 		return
@@ -349,7 +372,7 @@ func (s *Server) scanMany(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		seen[id] = true
-		sc, existing, err := s.queue(id, "bulk")
+		sc, existing, err := s.queue(id, "bulk", s.actor(r))
 		switch {
 		case errors.Is(err, store.ErrNotFound):
 			missing++
@@ -641,4 +664,24 @@ func (s *Server) exportCSV(w http.ResponseWriter, r *http.Request) {
 		_ = cw.Write(row)
 	}
 	cw.Flush()
+}
+
+// startTLSChoice validates an endpoint's STARTTLS choice. A scheme in the target wins; otherwise
+// the request's value, "auto" when empty.
+func startTLSChoice(requested, fromScheme string) (string, string) {
+	if fromScheme != "" {
+		return fromScheme, ""
+	}
+	c := strings.ToLower(strings.TrimSpace(requested))
+	switch c {
+	case "":
+		return "auto", ""
+	case "auto", "none":
+		return c, ""
+	}
+	p, err := tlsprobe.ResolveStartTLS(c, 0)
+	if err != nil || p == "" {
+		return "", fmt.Sprintf("starttls must be auto, none or one of %s", strings.Join(tlsprobe.StartTLSProtocols, ", "))
+	}
+	return p, ""
 }

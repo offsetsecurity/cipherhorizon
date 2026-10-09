@@ -13,23 +13,40 @@ import (
 	"github.com/example/cipherhorizon/internal/pdf"
 )
 
-// The palette follows the web UI (web/static/style.css).
+// The palette follows the web UI (web/static/style.css, DESIGN.md v2: the Offset theme).
 var (
-	ink      = pdf.Hex("#16192b")
-	text2    = pdf.Hex("#4b5168")
-	muted    = pdf.Hex("#6b7186")
-	rule     = pdf.Hex("#e3e5ec")
-	stripe   = pdf.Hex("#f7f8fb")
-	headBG   = pdf.Hex("#eef0f5")
-	violet   = pdf.Hex("#5b3fe0")
-	night    = pdf.Hex("#1a1433")
-	lavender = pdf.Hex("#c9c0ff")
-	amber    = pdf.Hex("#d9702f")
-	amber2   = pdf.Hex("#f2a33f")
-	amberBG  = pdf.Hex("#fdf4e8")
-	linkC    = pdf.Hex("#2a4fd6")
-	white    = pdf.Color{R: 1, G: 1, B: 1}
+	ink       = pdf.Hex("#0b1428") // Offset navy
+	text2     = pdf.Hex("#2b3140")
+	muted     = pdf.Hex("#5a5f6b")
+	rule      = pdf.Hex("#deddd7")
+	stripe    = pdf.Hex("#f7f7f5")
+	headBG    = pdf.Hex("#f1f1ee")
+	blue      = pdf.Hex("#2457d6") // the accent and the mark
+	navy      = pdf.Hex("#0b1428")
+	onNavy    = pdf.Hex("#a3aec2")
+	onNavyAcc = pdf.Hex("#9db6ff")
+	warmBG    = pdf.Hex("#fbf3df")
+	warm      = pdf.Hex("#9a5b0b")
+	linkC     = pdf.Hex("#1b45b0")
+	white     = pdf.Color{R: 1, G: 1, B: 1}
 )
+
+// Standards names the documents the report's judgements rest on; the cover prints it (REQ-BR-6).
+const Standards = "Judged against NIST IR 8547, FIPS 203/204/205, RFC 8446 and RFC 9325; inventory in CycloneDX 1.6/1.7"
+
+// drawMark draws the CipherHorizon icon (a white padlock on a blue rounded square) in a size x size
+// box at x, y.
+func drawMark(p *pdf.Page, x, y, size float64) {
+	k := size / 32
+	p.RoundRect(x, y, size, size, 7*k, blue, 0, pdf.Color{})
+	// The shackle, drawn as the body's two posts and a rounded top.
+	p.RoundRect(x+10.75*k, y+6.5*k, 10.5*k, 12*k, 5.25*k, white, 0, pdf.Color{})
+	p.RoundRect(x+13.65*k, y+9.4*k, 4.7*k, 9*k, 2.35*k, blue, 0, pdf.Color{})
+	p.RoundRect(x+8.5*k, y+14.5*k, 15*k, 11*k, 2.2*k, white, 0, pdf.Color{})
+	// The keyhole.
+	p.Circle(x+16*k, y+19.1*k, 1.7*k, blue)
+	p.Rect(x+15.15*k, y+19.6*k, 1.7*k, 3*k, blue)
+}
 
 // tone is a foreground and background pair for a status.
 type tone struct{ fg, bg pdf.Color }
@@ -80,7 +97,7 @@ func newDoc(title, subject string, created time.Time, c cover, running, footer s
 			f.Y = coverH + 24
 			return
 		}
-		p.Text(marginX, 34, pdf.Bold, 7.5, violet, "CIPHERHORIZON")
+		p.Text(marginX, 34, pdf.Bold, 7.5, blue, "CIPHERHORIZON")
 		p.Text(marginX+pdf.Width(pdf.Bold, 7.5, "CIPHERHORIZON")+8, 34, pdf.Regular, 7.5, muted, running)
 		p.Line(marginX, 42, right, 42, 0.5, rule)
 		f.Y = 60
@@ -90,15 +107,13 @@ func newDoc(title, subject string, created time.Time, c cover, running, footer s
 }
 
 func drawCover(p *pdf.Page, c cover) {
-	p.Rect(0, 0, pdf.PageWidth, coverH, night)
-	p.Rect(pdf.PageWidth-150, 0, 150, coverH, pdf.Hex("#211a42"))
-	p.Rect(pdf.PageWidth-60, 0, 60, coverH, pdf.Hex("#2a2152"))
-	p.Rect(0, coverH-4, pdf.PageWidth, 4, amber2)
-	// The mark: a violet tile with an amber horizon line.
-	p.RoundRect(marginX, 30, 20, 20, 5, violet, 0, pdf.Color{})
-	p.Rect(marginX+4, 42, 12, 2.2, amber2)
-	p.Text(marginX+28, 44.5, pdf.Bold, 11.5, white, "CipherHorizon")
-	p.TextRight(right, 44, pdf.Bold, 8, lavender, c.kicker)
+	// Flat: one navy band, one blue rule, the flat lockup. No gradient, no second colour band.
+	p.Rect(0, 0, pdf.PageWidth, coverH, navy)
+	p.Rect(0, coverH-3, pdf.PageWidth, 3, blue)
+	drawMark(p, marginX, 26, 24)
+	p.Text(marginX+30, 38, pdf.Bold, 11.5, white, "CipherHorizon")
+	p.Text(marginX+30, 49, pdf.Mono, 6.8, onNavy, "TLS and post-quantum scanner")
+	p.TextRight(right, 44, pdf.Bold, 8, onNavyAcc, c.kicker)
 	size := 24.0
 	for size > 15 && pdf.Width(pdf.Bold, size, c.title) > right-marginX {
 		size -= 1.5
@@ -117,9 +132,10 @@ func drawCover(p *pdf.Page, c cover) {
 	}
 	y += 4
 	for _, s := range c.lines {
-		p.Text(marginX, y, pdf.Regular, 9.5, lavender, s)
+		p.Text(marginX, y, pdf.Regular, 9.5, onNavy, s)
 		y += 14
 	}
+	p.Text(marginX, coverH-14, pdf.Regular, 6.8, onNavy, Standards)
 }
 
 // finish draws the footers and returns the document's bytes.
@@ -162,7 +178,7 @@ func (x *doc) h1(title string) {
 	p := x.f.Page
 	x.d.Bookmark(title, p, x.f.Y)
 	p.Text(marginX, x.f.Y+15, pdf.Bold, 15, ink, title)
-	p.Rect(marginX, x.f.Y+22, 26, 2.5, amber2)
+	p.Rect(marginX, x.f.Y+22, 26, 2.5, blue)
 	x.f.Y += 34
 }
 

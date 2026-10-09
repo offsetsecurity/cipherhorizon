@@ -1,9 +1,13 @@
-// Users: accounts and the sign-in log (administrators; ADR-0018). An administrator gives a new
-// account a temporary password, which its owner must replace at first sign-in.
+// Users: accounts and their activity (administrators; ADR-0018, PRD-007 REQ-AC-3). An
+// administrator gives a new account a temporary password, which its owner must replace at first
+// sign-in. Activity lists every sign-in and every change made through the API, filterable and
+// exportable.
 import { h, clear, relTime, fmtDate } from '../dom.js';
 import { api } from '../api.js';
 import { button, toast, badge, modal, confirmDialog, crumbs } from '../ui.js';
 import { session, ROLE_WORD } from '../auth.js';
+
+const CHANGE_KIND = { endpoint: 'Endpoint', scan: 'Scan', host: 'Host', system: 'System' };
 
 const ROLES = [['analyst', 'Analyst: scan, upload, triage, edit systems'], ['viewer', 'Viewer: read and download only'], ['admin', 'Administrator: everything, including accounts']];
 
@@ -12,6 +16,7 @@ const EVENT_WORD = {
   logout: 'Signed out', 'password-changed': 'Changed password', 'password-change-failed': 'Failed password change',
   'password-reset': 'Password reset', 'user-created': 'Account added', 'user-updated': 'Account changed',
   'user-deleted': 'Account deleted', 'user-unlocked': 'Account unlocked', 'session-ended': 'Signed out a browser', 'setup-failed': 'Failed setup',
+  'sign-in-enabled': 'Turned sign-in on', 'sign-in-disabled': 'Turned sign-in off',
 };
 const BAD = new Set(['login-failed', 'locked', 'password-change-failed', 'setup-failed']);
 
@@ -65,29 +70,81 @@ function addDialog(onDone) {
 }
 
 export async function render(root, { query }) {
-  const tab = query.get('tab') === 'log' ? 'log' : 'accounts';
+  const tab = query.get('tab') === 'log' || query.get('tab') === 'activity' ? 'activity' : 'accounts';
+  // With sign-in off the accounts are frozen (UX-REVIEW-008 D3): shown, but not changeable.
+  const frozen = session.user?.kind === 'local';
   root.appendChild(crumbs([['Account', '#/account'], ['Users']]));
   root.appendChild(h('div', { class: 'page-head' },
-    h('div', null, h('h1', null, 'Users'), h('div', { class: 'sub' }, 'Who can sign in, what each account may do, and every sign-in.')),
-    tab === 'accounts' ? h('div', { class: 'row' }, button('Add an account', () => addDialog(draw), 'primary')) : h('div')));
+    h('div', null, h('h1', null, 'Users'), h('div', { class: 'sub' }, 'Who can sign in, what each account may do, and what each one did.')),
+    tab === 'accounts' && !frozen ? h('div', { class: 'row' }, button('Add an account', () => addDialog(draw), 'primary')) : h('div')));
   root.appendChild(h('div', { class: 'tabs', role: 'tablist' },
     h('a', { class: 'tab', role: 'tab', href: '#/users', 'aria-selected': String(tab === 'accounts') }, 'Accounts'),
-    h('a', { class: 'tab', role: 'tab', href: '#/users?tab=log', 'aria-selected': String(tab === 'log') }, 'Sign-in log')));
+    h('a', { class: 'tab', role: 'tab', href: '#/users?tab=activity', 'aria-selected': String(tab === 'activity') }, 'Activity')));
+  if (frozen) {
+    root.appendChild(h('div', { class: 'callout info' }, h('b', null, 'Sign-in is off. '),
+      'Accounts are kept but not used, and cannot be changed until sign-in is on again. ', h('a', { href: '#/settings' }, 'Turn on sign-in in Settings'), '.'));
+  }
   const body = h('div', { class: 'tabbody' });
   root.appendChild(body);
 
-  async function drawLog() {
-    const ev = await api.authEvents(300);
-    clear(body).appendChild(h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-      h('thead', null, h('tr', null, ['When', 'What', 'Account', 'By', 'From', 'Detail'].map((c) => h('th', { scope: 'col' }, c)))),
-      h('tbody', null, ev.map((x) => h('tr', null,
-        h('td', { class: 'muted nowrap', title: fmtDate(x.at) }, relTime(x.at)),
-        h('td', null, BAD.has(x.kind) ? badge(EVENT_WORD[x.kind] || x.kind, 'bad') : EVENT_WORD[x.kind] || x.kind),
-        h('td', null, x.username), h('td', { class: 'muted' }, x.actor), h('td', { class: 'muted' }, x.client), h('td', { class: 'muted' }, x.detail)))))));
+  // Activity: sign-ins and changes in one list, newest first, with filters and a CSV export.
+  const filter = { person: query.get('person') || '', source: query.get('source') || '' };
+  const filterQuery = () => {
+    const q = new URLSearchParams();
+    if (filter.person) q.set('person', filter.person);
+    if (filter.source) q.set('source', filter.source);
+    const s = q.toString();
+    return s ? `?${s}` : '';
+  };
+  const what = (x) => {
+    if (x.source === 'sign-in') return BAD.has(x.action) ? badge(EVENT_WORD[x.action] || x.action, 'bad') : (EVENT_WORD[x.action] || x.action);
+    const kind = CHANGE_KIND[x.objectKind] || x.objectKind;
+    return `${kind} ${x.action}`;
+  };
+  const objectCell = (x) => {
+    if (x.source === 'sign-in') return x.username && x.username !== 'local' && !x.action.startsWith('sign-in-') ? `Account ${x.username}` : '';
+    if (!x.objectId) return '';
+    const href = x.objectKind === 'endpoint' ? `#/endpoints/${x.objectId}` : x.objectKind === 'system' ? `#/systems/${x.objectId}`
+      : x.objectKind === 'host' ? `#/hosts/${x.objectId}` : null;
+    const label = `${CHANGE_KIND[x.objectKind] || x.objectKind} ${x.objectId}`;
+    return href ? h('a', { href }, label) : label;
+  };
+
+  async function drawActivity() {
+    const [users, list] = await Promise.all([api.users(), api.activity(filterQuery())]);
+    const person = h('select', { id: 'act-person', 'aria-label': 'Person' },
+      h('option', { value: '' }, 'Everyone'),
+      users.map((u) => h('option', { value: u.username, selected: u.username === filter.person }, u.displayName ? `${u.displayName} (${u.username})` : u.username)),
+      h('option', { value: 'api-token', selected: filter.person === 'api-token' }, 'Automation token'));
+    const source = h('select', { id: 'act-source', 'aria-label': 'Kind' },
+      [['', 'Sign-ins and changes'], ['change', 'Changes only'], ['sign-in', 'Sign-ins only']].map(([v, l]) => h('option', { value: v, selected: v === filter.source }, l)));
+    const apply = () => {
+      filter.person = person.value;
+      filter.source = source.value;
+      const q = filterQuery();
+      history.replaceState(null, '', `#/users?tab=activity${q ? `&${q.slice(1)}` : ''}`);
+      drawActivity().catch((e) => toast(e.message, 'error'));
+    };
+    person.addEventListener('change', apply);
+    source.addEventListener('change', apply);
+    const exportBtn = button('Export CSV', () => api.download(`/api/v1/audit.csv${filterQuery()}`, 'cipherhorizon-activity.csv')
+      .then(() => toast('Downloaded cipherhorizon-activity.csv', 'success')).catch((e) => toast(e.message, 'error')), 'secondary');
+    clear(body).append(
+      h('div', { class: 'row filterbar' }, person, source, h('span', { class: 'grow' }), exportBtn),
+      list.entries.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'compact activity' },
+        h('thead', null, h('tr', null, ['When', 'Who', 'What', 'On', 'Detail', 'From'].map((c) => h('th', { scope: 'col' }, c)))),
+        h('tbody', null, list.entries.map((x) => h('tr', null,
+          h('td', { class: 'muted nowrap', title: fmtDate(x.at) }, relTime(x.at)),
+          h('td', null, x.actor === 'api-token' ? 'Automation token' : x.actor === 'local' ? h('span', { class: 'muted' }, 'Anyone (sign-in off)') : (x.actor || '·')),
+          h('td', null, what(x)),
+          h('td', null, objectCell(x)),
+          h('td', { class: 'muted' }, [x.detail, x.reason ? `reason: ${x.reason}` : ''].filter(Boolean).join('; ')),
+          h('td', { class: 'muted' }, x.client || '')))))) : h('p', { class: 'hint' }, 'Nothing matches these filters yet.'),
+      h('p', { class: 'hint' }, 'Every sign-in and every change made through the interface or the API is kept here. Changes are never edited or deleted; the newest 5,000 sign-in events are kept.'));
   }
 
   async function draw() {
-    if (tab === 'log') return drawLog();
+    if (tab === 'activity') return drawActivity();
     const users = await api.users();
     const act = (label, fn, kind = 'secondary') => button(label, async () => {
       try { await fn(); draw(); } catch (e) { toast(e.message, 'error'); }
@@ -103,11 +160,11 @@ export async function render(root, { query }) {
         } }, ROLES.map(([v]) => h('option', { value: v, selected: v === u.role }, ROLE_WORD[v])));
         return h('tr', null,
           h('td', { class: 'namecell' }, h('b', null, u.displayName || u.username), u.displayName || me ? h('div', { class: 'sub' }, u.displayName ? u.username : '', u.displayName && me ? ' · ' : '', me ? 'you' : '') : null),
-          h('td', null, me ? ROLE_WORD[u.role] : roleSel),
+          h('td', null, me || frozen ? ROLE_WORD[u.role] : roleSel),
           h('td', null, u.disabled ? badge('disabled', 'neutral') : locked ? badge('locked', 'bad', `until ${fmtDate(u.lockedUntil)}`)
             : u.mustChangePassword ? badge('temporary password', 'warn') : badge('active', 'good')),
           h('td', { class: 'muted nowrap', title: u.lastLoginAt ? fmtDate(u.lastLoginAt) : '' }, u.lastLoginAt ? relTime(u.lastLoginAt) : 'never'),
-          h('td', { class: 'rowactions' }, me ? h('a', { href: '#/account', class: 'btn btn-secondary btn-sm' }, 'Your account') : [
+          h('td', { class: 'rowactions' }, frozen ? null : me ? h('a', { href: '#/account', class: 'btn btn-secondary btn-sm' }, 'Your account') : [
             locked ? act('Unlock', () => api.unlockUser(u.id)) : null, ' ',
             button('Reset password', () => passwordDialog(`Reset the password of ${u.username}`, 'This signs the account out everywhere.', 'Reset password', async (pw) => {
               await api.resetPassword(u.id, pw); toast('Password reset', 'success'); draw();
@@ -119,7 +176,7 @@ export async function render(root, { query }) {
             }, 'secondary', { class: 'btn btn-secondary btn-sm' })]));
       })))));
     // Recovery for the case no administrator can sign in: only people who can see this page need it.
-    body.appendChild(h('p', { class: 'hint' }, 'If every administrator is locked out, someone with access to the server can run ',
+    if (!frozen) body.appendChild(h('p', { class: 'hint' }, 'If every administrator is locked out, someone with access to the server can run ',
       h('code', null, 'cipherhorizon user reset-password NAME'), ' or ', h('code', null, 'cipherhorizon user unlock NAME'), ' there.'));
     return null;
   }

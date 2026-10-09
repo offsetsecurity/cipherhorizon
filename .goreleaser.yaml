@@ -9,6 +9,9 @@ project_name: cipherhorizon
 before:
   hooks:
     - go mod verify
+    # The inventory scripts as this version serves them, with their hashes: published beside the
+    # archives and listed in checksums.txt, so the signature covers them (PRD-007 REQ-TR-7).
+    - go run ./cmd/cipherhorizon scripts export build/inventory-scripts
 
 builds:
   - id: cipherhorizon
@@ -77,6 +80,8 @@ archives:
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
+  extra_files:
+    - glob: ./build/inventory-scripts/*
 
 # A software bill of materials for every archive (Syft; the workflow installs it).
 sboms:
@@ -101,6 +106,8 @@ release:
   draft: true
   replace_existing_draft: true
   name_template: "CipherHorizon v{{ .Version }}"
+  extra_files:
+    - glob: ./build/inventory-scripts/*
   footer: |
     ### Verify what you downloaded
 
@@ -110,6 +117,9 @@ release:
       --certificate-identity-regexp '^https://github.com/{{ .Env.GITHUB_REPOSITORY }}/\.github/workflows/release\.yml@refs/tags/v' \
       --certificate-oidc-issuer https://token.actions.githubusercontent.com
     ```
+
+    The inventory scripts a server of this version hands out are attached too, with
+    `inventory-scripts.sha256`; `cipherhorizon scripts list` prints the same hashes offline.
 
     Full instructions, including the container image and build provenance: docs/engineering/DISTRIBUTION.md.
 

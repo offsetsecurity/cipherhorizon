@@ -14,47 +14,60 @@ var labelRE = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?$`)
 // normalizeTarget turns what a person types into a host and port (AC-01.4).
 // A URL is accepted and reduced to its host and port; credentials, spaces and
 // malformed names or ports are refused with a reason.
-func normalizeTarget(input string) (host string, port int, err error) {
+func normalizeTarget(input string) (host string, port int, starttls string, err error) {
 	s := strings.TrimSpace(input)
 	if s == "" {
-		return "", 0, fmt.Errorf("empty")
+		return "", 0, "", fmt.Errorf("empty")
 	}
 	if strings.ContainsAny(s, " \t\r\n") {
-		return "", 0, fmt.Errorf("contains whitespace")
+		return "", 0, "", fmt.Errorf("contains whitespace")
 	}
+	schemePort := 0
 	if i := strings.Index(s, "://"); i >= 0 {
-		switch strings.ToLower(s[:i]) {
+		switch sc := strings.ToLower(s[:i]); sc {
 		case "https", "http", "tls", "ssl":
+			starttls = "none"
+			s = s[i+3:]
 		default:
-			return "", 0, fmt.Errorf("unsupported scheme %q", s[:i])
+			// A STARTTLS service named by its scheme: smtp://, imap://, ldaps:// ... (REQ-SX-2).
+			rest, proto, defPort, _, serr := tlsprobe.SplitScheme(s)
+			if serr != nil {
+				return "", 0, "", fmt.Errorf("unsupported scheme %q", s[:i])
+			}
+			starttls, schemePort, s = proto, defPort, rest
+			if starttls == "" {
+				starttls = "none"
+			}
 		}
-		s = s[i+3:]
 	}
 	if i := strings.IndexAny(s, "/?#"); i >= 0 {
 		s = s[:i]
 	}
 	if strings.ContainsAny(s, "@\\") {
-		return "", 0, fmt.Errorf("credentials and backslashes are not allowed")
+		return "", 0, "", fmt.Errorf("credentials and backslashes are not allowed")
 	}
 	t, err := tlsprobe.ParseTarget(s)
 	if err != nil {
-		return "", 0, err
+		return "", 0, "", err
+	}
+	if _, _, perr := net.SplitHostPort(s); perr != nil && schemePort != 0 {
+		t.Port = schemePort
 	}
 	host = strings.TrimSuffix(strings.ToLower(t.Host), ".")
 	if host == "" {
-		return "", 0, fmt.Errorf("empty host")
+		return "", 0, "", fmt.Errorf("empty host")
 	}
 	if net.ParseIP(host) == nil {
 		if len(host) > 253 {
-			return "", 0, fmt.Errorf("host name is too long")
+			return "", 0, "", fmt.Errorf("host name is too long")
 		}
 		for _, label := range strings.Split(host, ".") {
 			if !labelRE.MatchString(label) {
-				return "", 0, fmt.Errorf("%q is not a valid host name", host)
+				return "", 0, "", fmt.Errorf("%q is not a valid host name", host)
 			}
 		}
 	}
-	return host, t.Port, nil
+	return host, t.Port, starttls, nil
 }
 
 // normalizeTags trims, de-duplicates and bounds tags.

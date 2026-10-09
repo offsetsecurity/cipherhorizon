@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted.">
+  <title>FAQ · CipherHorizon</title>
+  <link rel="icon" href="img/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="img/mark-on-navy.svg" alt=""><span>CipherHorizon<small>TLS and post-quantum scanner</small></span></a>
+      <nav aria-label="Documentation">
+      <a href="index.html">Home</a>
+      <a href="start.html">Getting started</a>
+      <a href="deploy.html">Deploy</a>
+      <a href="ci.html">CLI and CI</a>
+      <a href="methodology.html">Methodology</a>
+      <a href="security.html">Security</a>
+      <a href="faq.html" aria-current="page">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <h1>FAQ</h1>
+    <h3>How is this different from testssl.sh or SSL Labs?</h3>
+    <p>Those check one host's TLS configuration very well. CipherHorizon is about where a whole estate stands on post-quantum:
+      a readiness level per endpoint, history, schedules, accounts, machines as well as endpoints, one CBOM and a migration
+      order. It does not send exploit probes; use testssl.sh when you need them.</p>
+    <h3>Does it need the internet?</h3>
+    <p>No. It is one binary with everything inside, and works air-gapped. The reference data (IANA registries, root stores) is
+      compiled in and dated; About shows how old each list is.</p>
+    <h3>What is the TLS hygiene score based on?</h3>
+    <p>Its own rules, shown in full: 100 minus points per cited finding, with caps. See <a href="methodology.html">Methodology</a>.
+      It is deliberately not a letter grade.</p>
+    <h3>Can it scan mail servers and databases?</h3>
+    <p>Yes: STARTTLS for SMTP, IMAP, POP3, FTP, XMPP, LDAP and PostgreSQL, chosen by port, by scheme or explicitly.</p>
+    <h3>Will scanning disturb my servers?</h3>
+    <p>A scan makes a few hundred short handshakes, four at a time by default (<code>--concurrency</code>), and can be spaced out
+      (<code>--min-interval</code>). Scan only systems you own or are authorised to test.</p>
+    <h3>Is an inventory script safe to run as root?</h3>
+    <p>It is plain text: read it first. It installs nothing, changes nothing, makes no network connection and never opens a
+      file named like a key. Its SHA-256 can be checked against the binary of the same version.</p>
+    <h3>Who makes it?</h3>
+    <p><a href="https://offsetsecurity.net/">Offset Security</a>. It is open source under Apache 2.0.</p>
+
+  </main>
+  <footer><div>CipherHorizon is open source (Apache 2.0), made by <a href="https://offsetsecurity.net/">Offset Security</a>.
+    Planning the move to post-quantum cryptography? See Offset's <a href="https://offsetsecurity.net/post-quantum-cryptography-readiness.html">post-quantum readiness practice</a>.</div></footer>
+</body>
+</html>

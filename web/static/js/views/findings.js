@@ -97,7 +97,7 @@ export async function render(root, ctx = {}) {
       const where = fs.length === 1 ? fs[0].assetName : plural(fs.length, fs.every((x) => x.assetKind === 'host') ? 'machine' : fs.every((x) => x.assetKind !== 'host') ? 'endpoint' : 'place');
       return h('details', { class: `fgroup ${f.severity ? `sev-${f.severity}` : 'sev-medium'}` },
         h('summary', { class: 'fgroup-line' },
-          f.severity ? sevBadge(f.severity) : badge('quantum-vulnerable', 'warn'),
+          f.severity ? sevBadge(f.severity) : badge('PQC', 'warn', 'quantum-vulnerable: a large quantum computer could break it'),
           h('span', { class: 'fgroup-title' }, f.title),
           h('span', { class: 'fgroup-where muted' }, where, open < fs.length ? ` · ${fs.length - open} triaged` : '')),
         h('div', { class: 'fgroup-body' },

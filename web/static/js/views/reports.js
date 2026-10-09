@@ -76,6 +76,15 @@ export async function render(root) {
     docRow('Systems (CSV)', 'One row per system with its migration rank and owner details.',
       dl('Download CSV', '/api/v1/systems/export.csv', 'cipherhorizon-systems.csv')),
     docRow('OMB M-23-02 inventory', sys.length ? 'The US federal cryptographic inventory format, one file per system.' : 'The US federal cryptographic inventory format, one file per system. Group endpoints and machines into systems first.',
-      ...(sys.length ? sys.slice(0, 12).map((s) => dl(s.name, `/api/v1/systems/${s.id}/m2302.csv`, `${stemOf(s.name)}-m2302.csv`)) : [h('a', { href: '#/systems', class: 'btn btn-secondary btn-sm' }, 'Open Systems')]))));
+      ...(sys.length ? omb(sys) : [h('a', { href: '#/systems', class: 'btn btn-secondary btn-sm' }, 'Open Systems')]))));
   return null;
+}
+
+// One system picker and one button (UX-REVIEW-008 P1): a button per system does not scale.
+function omb(sys) {
+  const pick = h('select', { 'aria-label': 'System to export' }, sys.map((s) => h('option', { value: String(s.id) }, s.name)));
+  return [pick, button('Download CSV', () => {
+    const s = sys.find((x) => String(x.id) === pick.value);
+    api.download(`/api/v1/systems/${s.id}/m2302.csv`, `${stemOf(s.name)}-m2302.csv`).catch((e) => toast(e.message, 'error'));
+  }, 'secondary', { class: 'btn btn-secondary btn-sm' })];
 }

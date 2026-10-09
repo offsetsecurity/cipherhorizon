@@ -16,6 +16,7 @@ import { estatePhase } from './estate-phase.mjs';
 import { authFetch as fetch } from './authfetch.mjs';
 import { firstRun, authPhase } from './auth-phase.mjs';
 import { t1Phase } from './t1-phase.mjs';
+import { launchPhase } from './launch-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -125,7 +126,7 @@ async function main() {
     menu.join() === 'Overview,Endpoints,Machines,Findings,Inventory,Systems,Reports' && navMeta.groups.join('|') === 'Results|Plan & share' && navMeta.scan === 'Scan a URL',
     JSON.stringify({ menu, navMeta }));
   const hero = await js(`return { h1: document.querySelector('main h1')?.innerText || '', input: !!document.getElementById('scan-target'), focused: document.activeElement?.id || '' }`);
-  check('E2E-F.0', 'the first screen is a scan box, focused', /Scan a website or endpoint/.test(hero.h1) && hero.input && hero.focused === 'scan-target', JSON.stringify(hero));
+  check('E2E-F.0', 'the first screen is a scan box, focused', /Scan an endpoint for post.quantum readiness/.test(hero.h1) && hero.input && hero.focused === 'scan-target', JSON.stringify(hero));
   await shot('first-run-scan');
   const enter = async () => {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: String.fromCharCode(13) });
@@ -378,7 +379,7 @@ async function main() {
   await go(`#/assets/${hostile.id}`);
   await sleep(600);
   await js(`document.querySelector('.more-menu').open = true`);
-  await clickText('Edit name, tags and notes');
+  await clickText('Edit name, tags, notes and STARTTLS');
   await sleep(250);
   await js(`document.getElementById('e-name').value = 'renamed in the UI'; document.getElementById('e-notes').value = 'edited by the journey'; document.querySelector('.modal form').requestSubmit();`);
   await sleep(700);
@@ -486,13 +487,13 @@ async function main() {
   await sleep(900);
   const reps = await js(`const rows = [...document.querySelectorAll('main tbody tr')];
     return { head: document.querySelector('main h1')?.textContent, tabs: [...document.querySelectorAll('.tabs .tab')].map((t) => t.textContent).join('|'), rows: rows.length,
-      open: rows.filter((r) => r.querySelector('a.open-report')).length, scanned: rows.filter((r) => /Hybrid|Not ready|Classical|ready/i.test(r.innerText)).length,
+      open: rows.filter((r) => /Open report/.test(r.innerText)).length, scanned: rows.filter((r) => /Hybrid|Not ready|Classical|ready/i.test(r.innerText)).length,
       findings: rows.map((r) => r.children[4]?.innerText || ''), actions: !!document.querySelector('.toolbar .toolbar-actions') }`);
   check('E2E-F.5', 'Endpoints lists every endpoint with Add, Scan all and Export beside the filter, and a Scan activity tab',
     reps.head === 'Endpoints' && reps.tabs === 'Endpoints|Scan activity' && reps.rows >= 5 && reps.actions, JSON.stringify(reps).slice(0, 300));
-  check('E2E-R.4', 'every scanned row has Open report, and its findings column counts every severity or says No problems (never a bare "none")',
-    reps.open >= reps.scanned && reps.findings.every((t) => t !== 'none') && reps.findings.some((t) => /\d+ (critical|high|medium|low)|No problems/.test(t)), JSON.stringify(reps.findings));
-  const rowClick = await js(`const r = [...document.querySelectorAll('main tbody tr.rowlink')].find((x) => x.querySelector('a.open-report'));
+  check('E2E-R.4', 'a row has one way in (the row opens the report: no second Open report button), and its findings column names the worst severity or says No problems (UX-REVIEW-008 E1, E2)',
+    reps.open === 0 && reps.findings.every((t) => t !== 'none') && reps.findings.some((t) => /\d+ (critical|high|medium|low)|No problems/.test(t)), JSON.stringify(reps.findings));
+  const rowClick = await js(`const r = [...document.querySelectorAll('main tbody tr.rowlink')].find((x) => /L\\d/.test(x.innerText));
     r.querySelector('td:nth-child(5)').click(); await new Promise((ok) => setTimeout(ok, 600));
     return { hash: location.hash, crumbs: [...document.querySelectorAll('.crumbs li')].map((l) => l.textContent), lit: document.querySelector('#nav a[aria-current=page]')?.textContent.trim() }`);
   check('E2E-R.5', 'clicking anywhere on a row opens its report, which names its home (Endpoints) in a breadcrumb and in the menu',
@@ -646,13 +647,13 @@ async function main() {
   await sleep(400);
   check('E2E-12.13', 'an unknown address gets a neutral explanation and a way back', /We could not find that page/.test(await js(`return document.querySelector('main').innerText`)));
 
-  // J10: about page (readiness legend and methodology).
-  await go('#/about');
-  await sleep(500);
+  // J10: Help explains the levels and the score (UX-REVIEW-008 S4: no longer on About).
+  await go('#/help');
+  await sleep(800);
   const about = await js(`return document.querySelector('main').innerText`);
-  check('E2E-04.3', 'About explains the readiness levels, and that the TLS hygiene weights are the product\'s own choice and not a standard',
+  check('E2E-04.3', 'Help explains the readiness levels, and that the TLS hygiene weights are the product\'s own choice and not a standard',
     /L3/.test(about) && /own choice/.test(about) && /not a standard/.test(about) && !/grade|SSL Labs/i.test(about));
-  await shot('about');
+  await shot('help');
 
   // J10b (PRD-005 REQ-NAV-3): About is reachable from the sidebar footer, the one link left there.
   await go('#/');
@@ -660,8 +661,10 @@ async function main() {
   await js(`document.querySelector('.sidefoot a[href="#/about"]').click()`);
   await sleep(500);
   check('E2E-14.1', 'the sidebar footer leads to About', (await js(`return location.hash`)) === '#/about');
-  // J10c: About offers the inventory scripts: each can be read in place, its SHA-256 matches the text
+  // J10c: Help offers the inventory scripts: each can be read in place, its SHA-256 matches the text
   // served, and it downloads as plain text. No unsigned program is offered for download.
+  await go('#/help');
+  await sleep(600);
   const scripts = await js(`await new Promise((r) => setTimeout(r, 800));
     const rows = [...document.querySelectorAll('.dlbox .scriptrow')];
     const read = rows[1]?.querySelector('details.script-read');
@@ -672,7 +675,7 @@ async function main() {
     const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map((b) => b.toString(16).padStart(2, '0')).join('');
     return { rows: rows.length, names: rows.map((r) => r.querySelector('code')?.textContent), shown: text.slice(0, 40), match: digest === sha,
       binaries: /collector\.exe|collector binary/i.test(document.querySelector('main').innerText) }`);
-  check('E2E-14.2', 'About offers the two inventory scripts, readable in place, with a SHA-256 that matches what is shown',
+  check('E2E-14.2', 'Help offers the two inventory scripts, readable in place, with a SHA-256 that matches what is shown',
     scripts.rows === 2 && scripts.names.join() === 'cipherhorizon-inventory.ps1,cipherhorizon-inventory.sh' && /^#!\/bin\/sh/.test(scripts.shown) && scripts.match && !scripts.binaries, JSON.stringify(scripts));
   // A facts file, as the scripts write it, uploads through the same dialog and becomes a machine.
   await go('#/machines');
@@ -684,7 +687,7 @@ async function main() {
   await js(`const dt = new DataTransfer(); dt.items.add(new File([${JSON.stringify(facts)}], 'cipherhorizon-facts-facts-host-01.txt', { type: 'text/plain' }));
     document.getElementById('cbom-file').files = dt.files; document.querySelector('.modal form').requestSubmit();`);
   await sleep(1500);
-  const fh = await js(`return { hash: location.hash, text: document.querySelector('main').innerText }`);
+  const fh = await js(`return { hash: location.hash, text: document.querySelector('main').textContent }`);
   check('E2E-14.3', 'a facts file from the inventory script uploads and shows the machine with post-quantum verdicts',
     /#\/machines\/\d+/.test(fh.hash) && /facts-host-01/.test(fh.text) && /ML-KEM/.test(fh.text) && /quantum-vulnerable/.test(fh.text), fh.hash + ' ' + fh.text.slice(0, 120));
   await shot('facts-host');
@@ -733,7 +736,8 @@ async function main() {
   // The estate views (PRD-003 WP-8).
   await t1Phase({ check, js, go, sleep, shot, api, BASE, CONTROL, viewport });
   await estatePhase({ check, js, go, sleep, shot, api, BASE, send, viewport, clickText });
-  await authPhase({ check, js, go, sleep, shot, api });
+  await authPhase({ check, js, go, sleep, shot, api, viewport });
+  await launchPhase({ check, js, go, sleep, shot, viewport, clickText });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');

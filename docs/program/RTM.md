@@ -206,6 +206,57 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-FL-1 | P0 | R4 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#F-M2, script:testing/e2e/estate-phase.mjs#E2E-20.1 | done | Systems in the sidebar footer with its decision count |
 | REQ-FL-2 | P1 | R4 | PRD-006 §1 | — | report:docs/program/QA-REPORT-005.md#flow | done | the CBOM tab links to Inventory; Inventory rows link to reports |
 
+## PRD-007 · Launch 1.0 ([PRD-007](../product/PRD-007-launch-1-0.md); work packages WP-1 to WP-9; results in [QA-REPORT-007](QA-REPORT-007.md))
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-TR-1 | P0 | WP-1 | PRD-007 | — | TestPasswordChangeRotatesTheSession | done | every other session of the account ends; the browser that changed it is signed in again |
+| REQ-TR-2 | P0 | WP-1 | PRD-007 | — | TestSessionCookieUsesTheHostPrefixOverHTTPS, script:testing/e2e/security.sh | done | __Host-ch_session over HTTPS (own listener or a trusted proxy saying so) |
+| REQ-TR-3 | P0 | WP-1 | PRD-007 | — | TestSetupCodeExpires | done | 24 hours; the log line gives the time |
+| REQ-TR-4 | P0 | WP-1 | PRD-007 | — | TestShellEngineIsHardened, script:testing/deploy/linux-script.sh | done | engine 2.0.1; Windows ACL read back in the test; facts file 0600 on Debian, UBI and Alpine |
+| REQ-TR-5 | P1 | WP-1 | PRD-007 | — | TestOldBackupsArePruned | done | newest three kept; Open holds the notices until SetLogger |
+| REQ-TR-6 | P0 | WP-1 | PRD-007 | — | FuzzParseFacts, FuzzImportSystemsCSV | done | CI fuzz job on Linux; locally the CSV target ran 272k execs clean, the facts target stalls on Windows (known Go issue) |
+| REQ-TR-7 | P0 | WP-1 | PRD-007 | — | TestScriptsCommandMatchesTheServer, script:testing/e2e/launch-phase.mjs#E2E-14.5 | done | GoReleaser before-hook exports the scripts and inventory-scripts.sha256 into the checksums; not yet run in a release |
+| REQ-TR-8 | P1 | WP-1 | PRD-007 | — | script:testing/e2e/launch-phase.mjs#E2E-14.5 | done | RemoteSigned after Unblock-File verified against a Mark-of-the-Web file on Windows 11 |
+| REQ-TR-9 | P1 | WP-1 | PRD-007 | — | report:docs/program/QA-REPORT-007.md#tr9 | done | x/text v0.41.0; govulncheck: no vulnerabilities; SECURITY.md updated |
+| REQ-SS-1 | P0 | WP-2 | PRD-007 | — | TestTheServerPassesItsOwnScan, script:testing/e2e/security.sh | done | six ECDHE AEAD suites in TLS 1.2; CBC and RSA key transport refused (openssl s_client) |
+| REQ-SS-2 | P0 | WP-2 | PRD-007 | — | TestHSTSOnlyOverTLS, script:testing/e2e/security.sh | done | not sent on plain HTTP or for a forged X-Forwarded-Proto |
+| REQ-SS-3 | P0 | WP-2 | PRD-007 | — | TestTheServerPassesItsOwnScan, script:testing/deploy/smoke.sh | done | L3 with only the test certificate findings and two inherent notes |
+| REQ-BR-1 | P0 | WP-3 | PRD-007 | — | TestStyleTokensMatchDesign | done | DESIGN.md v2 token tables are parsed and compared with style.css, light and dark |
+| REQ-BR-2 | P0 | WP-3 | PRD-007 | — | TestStyleTokensMatchDesign, script:testing/e2e/launch-phase.mjs#E2E-B.4 | done | Geist 1.4.2 and Newsreader (fontsource 5.2.8) woff2 with their OFL licences; Inter and JetBrains Mono removed |
+| REQ-BR-3 | P0 | WP-3 | PRD-007 | — | TestLogosAreFlat | done | superseded by UX-REVIEW-008 S1: a plain flat padlock icon replaces concept B (owner); still flat, same files and test |
+| REQ-BR-4 | P0 | WP-3 | PRD-007 | — | TestNoDecorativeGradients | done | only .skeleton and .progress-fill |
+| REQ-BR-5 | P0 | WP-3 | PRD-007 | — | TestTokenContrast, script:testing/e2e/launch-phase.mjs#NFR-a11y.contrast | done | token pairs and rendered pages, light and dark; lowest rendered ratio 4.97:1 |
+| REQ-BR-6 | P1 | WP-3 | PRD-007 | — | TestPDFCarriesTheLockup | done | flat navy cover, the mark drawn as polygons, by Offset Security, the standards line |
+| REQ-ST-1 | P0 | WP-4 | PRD-007 | — | TestTheProductTellsItsStory, script:testing/e2e/auth-phase.mjs#E2E-B.1 | done | the panel stacks above the form on a phone (E2E-B.1m); since UX-REVIEW-008 S3 sign-in is off by default, so the panel shows once sign-in is on |
+| REQ-ST-2 | P0 | WP-4 | PRD-007 | — | TestTheProductTellsItsStory, script:testing/e2e/launch-phase.mjs#E2E-B.2 | done | headline: Scan an endpoint for post-quantum readiness |
+| REQ-ST-3 | P1 | WP-4 | PRD-007 | — | TestTheProductTellsItsStory, script:testing/e2e/launch-phase.mjs#E2E-B.3 | done | pillars, does and does not, standards, Offset credit and PQC practice link, then the reference |
+| REQ-ST-4 | P1 | WP-4 | PRD-007 | — | TestHelpCarriesTheOneLiner | done | help, version and the image description label |
+| REQ-ST-5 | P0 | WP-4 | PRD-007 | — | TestUICopyRules | done | comments stripped; banned words and letter grades checked too |
+| REQ-CL-1 | P0 | WP-5 | PRD-007 | — | TestTLSScanPrintsTheVerdict, TestTLSScanSaysWhenATargetCouldNotBeScanned | done | verdict first; --details adds the raw report |
+| REQ-CL-2 | P0 | WP-5 | PRD-007 | — | TestTLSScanJSONHasTheEvaluation | done | breaking change from the old array of reports: in the CHANGELOG |
+| REQ-CL-3 | P0 | WP-5 | PRD-007 | — | TestFailOnConditions | done | exit 3; an unscannable target fails a policy |
+| REQ-CL-4 | P1 | WP-5 | PRD-007 | — | TestReadmeLinksResolve, report:docs/CI.md | done | the Actions example needs a published release to run end to end |
+| REQ-SX-1 | P0 | WP-6 | PRD-007 | — | TestSTARTTLSMatchesDirectTLS | done | all seven protocols match a direct scan of the same configuration |
+| REQ-SX-2 | P0 | WP-6 | PRD-007 | — | TestSTARTTLSChoice | done | auto by port, none, a protocol, or a scheme (smtp://, submission://, ldaps://...) |
+| REQ-SX-3 | P0 | WP-6 | PRD-007 | — | TestEndpointKeepsItsSTARTTLS, script:testing/e2e/launch-phase.mjs#E2E-X.1 | done | the HTTP area is reported not applicable, not not-checked |
+| REQ-SX-4 | P0 | WP-6 | PRD-007 | — | TestSTARTTLSRefusalIsExplained | done | refusals answer in well under a second; a direct-TLS port asked for SMTP says so after the timeout |
+| REQ-SX-5 | P1 | WP-6 | PRD-007 | — | script:testing/e2e/launch-phase.mjs#E2E-X.1, script:testing/e2e/screenshots.mjs | done | demo-targets base+11..base+17 |
+| REQ-DP-1 | P0 | WP-7 | PRD-007 | — | script:testing/deploy/smoke.sh | done | 14/14 with Podman 6.0.2 inside its machine; CI runs it with Docker |
+| REQ-DP-2 | P0 | WP-7 | PRD-007 | — | TestComposeFilesAreHardened, script:testing/deploy/smoke.sh | done | compose-caddy.yml not run here: the Caddy image was not among the approved downloads |
+| REQ-DP-3 | P1 | WP-7 | PRD-007 | — | TestSystemdUnitIsSandboxed, report:docs/program/QA-REPORT-007.md#systemd | done | systemd-analyze verify and security 1.5 OK; the binary ran under the unit sandbox |
+| REQ-DP-4 | P0 | WP-7 | PRD-007 | — | TestDBBackup, script:testing/deploy/smoke.sh | done | restore documented in docs/deploy.md |
+| REQ-DP-5 | P0 | WP-7 | PRD-007 | — | script:testing/deploy/linux-script.sh | done | 26/26 on Debian 12, UBI 9.6 and Alpine 3.20 |
+| REQ-DP-6 | P0 | WP-7 | PRD-007 | — | report:docs/engineering/RELEASE-CHECKLIST-1.0.md | done | for the owner |
+| REQ-LM-1 | P0 | WP-8 | PRD-007 | — | TestReadmeLinksResolve | done | screenshots from demo data only |
+| REQ-LM-2 | P1 | WP-8 | PRD-007 | — | TestReadmeLinksResolve, TestSiteMakesNoExternalRequests | done | seven pages; the Pages workflow runs once the repository is on GitHub |
+| REQ-LM-3 | P1 | WP-8 | PRD-007 | — | script:testing/e2e/screenshots.mjs | done | docs/img: six light, two dark |
+| REQ-LM-4 | P2 | WP-8 | PRD-007 | — | report:docs/launch/posts/README.md | done | for Offset to review |
+| REQ-AC-1 | P0 | WP-9 | PRD-007 | — | TestScanScopeRefusesAtAddAndConnect, TestScanScopeParsingAndMatching, script:testing/e2e/security.sh | done | networks enforced on the real remote address of every connection |
+| REQ-AC-2 | P0 | WP-9 | PRD-007 | — | TestEveryChangeIsAudited | done | a route in neither audit table fails the test |
+| REQ-AC-3 | P0 | WP-9 | PRD-007 | — | TestAuditExportIsAdminOnly, script:testing/e2e/launch-phase.mjs#E2E-A.11 | done | formula-safe CSV; filters by person and kind |
+| REQ-AC-4 | P1 | WP-9 | PRD-007 | — | TestScanRecordsWhoStartedIt, script:testing/e2e/launch-phase.mjs#E2E-A.13 | done | person, automation token or schedule; earlier scans show not recorded |
+
 ## Security requirements (SECARCH-001) coverage
 
 Each SR must be exercised by at least one requirement above; `TestRequirementsTraceability` checks that every `SR-nn` in SECARCH-001 appears in the SR column at least once, except those listed here as cross-cutting.

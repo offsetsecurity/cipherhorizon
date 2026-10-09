@@ -232,7 +232,7 @@ func TestDROWNAcrossTheEstate(t *testing.T) {
 		Protocols:    []tlsprobe.ProtocolResult{{Version: "SSLv2", Supported: true, Evidence: tlsprobe.EvidenceServerHello}},
 		Certificates: []tlsprobe.CertResult{{Source: "tls-default", Chain: []tlsprobe.CertInfo{ci}}}}
 	raw, _ := json.Marshal(old)
-	if _, _, err := e.st.EnqueueScan(legacy.ID, "manual"); err != nil {
+	if _, _, err := e.st.EnqueueScan(legacy.ID, "manual", "test"); err != nil {
 		t.Fatal(err)
 	}
 	sc, err := e.st.ClaimNext()

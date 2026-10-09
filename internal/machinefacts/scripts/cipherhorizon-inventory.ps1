@@ -1,5 +1,5 @@
 <#
-CipherHorizon machine inventory engine for Windows, version 2.0.0
+CipherHorizon machine inventory engine for Windows, version 2.0.1
 
 What it does: runs each signature listed below with one of a few read-only capabilities,
 and writes what it finds to a plain-text facts file you can read before you upload it.
@@ -18,7 +18,11 @@ and are listed just below; the server shows the same list on its Inventory page.
 
 Usage, in PowerShell (as Administrator for a fuller picture; it works without, and says so):
 
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\cipherhorizon-inventory.ps1
+    Unblock-File .\cipherhorizon-inventory.ps1
+    powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\cipherhorizon-inventory.ps1
+
+If a policy refuses every unsigned script, read this one, then use -ExecutionPolicy Bypass
+instead (for this one process only).
 
 Then upload the output file on the Inventory page of your CipherHorizon server.
 #>
@@ -31,7 +35,7 @@ $Signatures = ''
 #@@SIGNATURES-END@@
 
 $ErrorActionPreference = 'SilentlyContinue'
-$EngineVersion = '2.0.0'
+$EngineVersion = '2.0.1'
 if (-not $OutFile) { $OutFile = Join-Path (Get-Location) "cipherhorizon-facts-$env:COMPUTERNAME.txt" }
 
 $lines = New-Object System.Collections.Generic.List[string]
@@ -180,5 +184,18 @@ if (-not $isAdmin) { Add-Fact 'note', 'Ran without Administrator rights: stores 
 
 # UTF-8 without a byte-order mark, one fact per line.
 [System.IO.File]::WriteAllLines($OutFile, $lines, (New-Object System.Text.UTF8Encoding $false))
+# The facts file lists certificates, programs and settings: readable by this account,
+# Administrators and SYSTEM only, not by every user of the machine.
+try {
+    $acl = New-Object System.Security.AccessControl.FileSecurity
+    $acl.SetAccessRuleProtection($true, $false)
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+    foreach ($sid in @($me, (New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'), (New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-18'))) {
+        $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'Allow')))
+    }
+    Set-Acl -LiteralPath $OutFile -AclObject $acl -ErrorAction Stop
+} catch {
+    Write-Warning "could not limit who can read $OutFile ($($_.Exception.Message)); it has the folder's permissions"
+}
 Write-Host "wrote $OutFile ($($lines.Count) lines, $total facts)"
 Write-Host 'next: read it if you like (it is plain text), then upload it on the Inventory page of CipherHorizon.'

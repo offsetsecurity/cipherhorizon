@@ -229,8 +229,16 @@ func TestRolesAndAccountAdministration(t *testing.T) {
 	if s, _, _ := e.as(vic, "GET", "/api/v1/assets", nil); s != 403 {
 		t.Fatalf("before changing the temporary password: %d, want 403", s)
 	}
-	if s, b, _ := e.as(vic, "POST", "/api/v1/auth/password", map[string]any{"current": "temporary pass phrase one", "new": "my own long phrase here"}); s != 204 {
+	old := vic
+	s, b, h := e.as(vic, "POST", "/api/v1/auth/password", map[string]any{"current": "temporary pass phrase one", "new": "my own long phrase here"})
+	if s != 204 {
 		t.Fatalf("change password: %d %s", s, b)
+	}
+	if vic = cookieOf(t, h); vic == "" || vic == old {
+		t.Fatal("a password change must give this browser a new session token (REQ-TR-1)")
+	}
+	if s, _, _ := e.as(old, "GET", "/api/v1/assets", nil); s != 401 {
+		t.Fatalf("the token from before the change still works: %d, want 401", s)
 	}
 	if s, _, _ := e.as(vic, "GET", "/api/v1/assets", nil); s != 200 {
 		t.Fatalf("a viewer reads: %d", s)
@@ -242,7 +250,8 @@ func TestRolesAndAccountAdministration(t *testing.T) {
 		t.Fatalf("a viewer lists accounts: %d, want 403", s)
 	}
 	_, al := login(t, e, "alex", "temporary pass phrase two")
-	_, _, _ = e.as(al, "POST", "/api/v1/auth/password", map[string]any{"current": "temporary pass phrase two", "new": "analyst own phrase here"})
+	_, _, ah := e.as(al, "POST", "/api/v1/auth/password", map[string]any{"current": "temporary pass phrase two", "new": "analyst own phrase here"})
+	al = cookieOf(t, ah)
 	if s, _, _ := e.as(al, "POST", "/api/v1/assets", map[string]any{"target": "example.com"}); s != 201 {
 		t.Fatalf("an analyst adds an endpoint: %d", s)
 	}
@@ -254,7 +263,7 @@ func TestRolesAndAccountAdministration(t *testing.T) {
 		ID       int64
 		Username string
 	}
-	_, b, _ := e.as(admin, "GET", "/api/v1/users", nil)
+	_, b, _ = e.as(admin, "GET", "/api/v1/users", nil)
 	_ = json.Unmarshal(b, &users)
 	var anaID int64
 	for _, u := range users {
@@ -296,9 +305,11 @@ func TestSessionsExpireAndPasswordChangesEndOthers(t *testing.T) {
 	}
 	_, a = login(t, e, "ana", "violet amber harbour")
 	_, c := login(t, e, "ana", "violet amber harbour")
-	if s, _, _ := e.as(a, "POST", "/api/v1/auth/password", map[string]any{"current": "violet amber harbour", "new": "a brand new phrase"}); s != 204 {
+	s, _, ph := e.as(a, "POST", "/api/v1/auth/password", map[string]any{"current": "violet amber harbour", "new": "a brand new phrase"})
+	if s != 204 {
 		t.Fatalf("change: %d", s)
 	}
+	a = cookieOf(t, ph)
 	if s, _, _ := e.as(a, "GET", "/api/v1/assets", nil); s != 200 {
 		t.Fatalf("the session that changed the password: %d", s)
 	}
@@ -322,5 +333,57 @@ func TestTheAutomationTokenStillWorksWithAccounts(t *testing.T) {
 	}
 	if s, _ := e.do("GET", "/api/v1/users", nil); s != 403 {
 		t.Fatalf("the token administers accounts: %d, want 403", s)
+	}
+}
+
+// REQ-TR-1: the browser that changed the password keeps working with a new token; the old one
+// and every other session stop.
+func TestPasswordChangeRotatesTheSession(t *testing.T) {
+	defer server.SetAuthFailDelay(0)()
+	e := newEnv(t, withLogin(setupCode))
+	before := setupAdmin(t, e)
+	s, _, h := e.as(before, "POST", "/api/v1/auth/password", map[string]any{"current": "violet amber harbour", "new": "an entirely new phrase"})
+	after := cookieOf(t, h)
+	if s != 204 || after == "" || after == before {
+		t.Fatalf("change: %d, new token %q", s, after)
+	}
+	if s, _, _ := e.as(before, "GET", "/api/v1/assets", nil); s != 401 {
+		t.Fatalf("old token: %d, want 401", s)
+	}
+	if s, _, _ := e.as(after, "GET", "/api/v1/assets", nil); s != 200 {
+		t.Fatalf("new token: %d, want 200", s)
+	}
+}
+
+// REQ-TR-2: over HTTPS (here: a TLS-terminating proxy says so) the cookie carries the __Host-
+// prefix, is Secure, Path=/ and has no Domain; the server reads it back.
+func TestSessionCookieUsesTheHostPrefixOverHTTPS(t *testing.T) {
+	defer server.SetAuthFailDelay(0)()
+	e := newEnv(t, withLogin(setupCode))
+	_, _, h := e.req("POST", "/api/v1/auth/setup", map[string]any{"code": setupCode, "username": "ana", "password": "violet amber harbour"},
+		map[string]string{"X-Forwarded-Proto": "https"})
+	var got *http.Cookie
+	for _, c := range (&http.Response{Header: h}).Cookies() {
+		if c.Name == "__Host-ch_session" {
+			got = c
+		}
+	}
+	if got == nil || !got.Secure || got.Path != "/" || got.Domain != "" || !got.HttpOnly {
+		t.Fatalf("cookie over HTTPS: %+v", got)
+	}
+	if s, _, _ := e.req("GET", "/api/v1/assets", nil, map[string]string{"Cookie": "__Host-ch_session=" + got.Value, "Authorization": ""}); s != 200 {
+		t.Fatalf("the __Host- cookie is not read back: %d", s)
+	}
+}
+
+// REQ-TR-3: a setup code past its expiry is refused, and says how to get a new one.
+func TestSetupCodeExpires(t *testing.T) {
+	defer server.SetAuthFailDelay(0)()
+	clock := &fakeClock{t: time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)}
+	e := newEnv(t, withLogin(setupCode), withClock(clock), withSetupExpiry(clock.t.Add(24*time.Hour)))
+	clock.Advance(25 * time.Hour)
+	s, b, _ := e.req("POST", "/api/v1/auth/setup", map[string]any{"code": setupCode, "username": "ana", "password": "violet amber harbour"}, nil)
+	if s != 403 || !strings.Contains(string(b), "expired") || !strings.Contains(string(b), "restart") {
+		t.Fatalf("expired code: %d %s", s, b)
 	}
 }

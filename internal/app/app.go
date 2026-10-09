@@ -74,12 +74,15 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return importCmd(ctx, args[1:], env)
 	case "db":
 		return dbCmd(args[1:], env)
+	case "scripts":
+		return scriptsCmd(args[1:], env)
 	case "user", "users":
 		return userCmd(args[1:], env)
 	case "healthcheck":
 		return healthcheckCmd(ctx, args[1:], env)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(env.Stdout, "cipherhorizon", version.Get())
+		_, _ = fmt.Fprintln(env.Stdout, OneLiner)
 		return ExitOK
 	case "help", "-h", "-help", "--help":
 		usage(env.Stdout)
@@ -99,15 +102,20 @@ func hostEnv(e Env) hostcmd.Env {
 	}
 }
 
+// OneLiner says what the product is, the same words everywhere it introduces itself: --help,
+// version, the container image's description, the README (PRD-007 REQ-ST-4).
+const OneLiner = "Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted."
+
 func usage(w io.Writer) {
-	_, _ = fmt.Fprint(w, `cipherhorizon: cryptographic inventory (CycloneDX CBOM), TLS posture and post-quantum readiness.
+	_, _ = fmt.Fprint(w, "CipherHorizon by Offset Security. "+OneLiner+`
 
 Usage:
   cipherhorizon run [--config FILE] [-o FILE] [--root DIR] [--redact-host]
   cipherhorizon tls scan [flags] HOST[:PORT]...
   cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--tls-cert F --tls-key F] [--token TOKEN] [--no-login]
   cipherhorizon import [--server URL] (--system ID | --new-system NAME) FILE|-
-  cipherhorizon db rebuild-graph|stats [--db FILE]
+  cipherhorizon db rebuild-graph|stats|backup [--db FILE] [BACKUP-FILE]
+  cipherhorizon scripts list|export DIR   the inventory scripts' hashes, from this binary
   cipherhorizon user list|add|reset-password|unlock [--db FILE] [USERNAME]
   cipherhorizon plugins       list the built-in sensors
   cipherhorizon healthcheck [--addr HOST:PORT] [--tls]   for a container orchestrator; see below
@@ -124,25 +132,34 @@ and what it can do, never what it is used for. Running without elevated privileg
 allowed and may leave results incomplete; run as Administrator (Windows) or root (Linux)
 for a fuller result. It never reads keys or secrets.
 
-tls scan probes each target's TLS/SSL support: protocol versions, every cipher suite,
-key-exchange groups (including post-quantum hybrids) and certificates. Flags go before
-targets: --json, --cbom, --timeout, --concurrency, --max-connections, --min-interval,
---no-certs. --cbom prints what was observed (protocols, suites, groups, certificates) as a
-CycloneDX CBOM instead of text, for exactly one target; PQC verdicts are annotated onto it
-the same way a host inventory's are. Scan only systems you are authorised to test.
+tls scan probes each target's TLS/SSL support (protocol versions, every cipher suite,
+key-exchange groups including post-quantum hybrids, certificates) and prints the verdict
+first: post-quantum readiness level, TLS hygiene score, what was checked, and what to do,
+worst first. Flags go before targets:
+  --details       also print the protocols, suites, groups and certificates behind the verdict
+  --json          one {target, report, evaluation} per target, as a JSON array
+  --cbom          what was observed as a CycloneDX CBOM, for exactly one target
+  --fail-on COND  exit 3 when a target meets COND (repeatable, or comma separated):
+                  level<L3, score<70, severity>=high, finding=PROTO.TLS10; a target that
+                  cannot be scanned also fails. For CI: see docs/CI.md
+  --timeout, --concurrency, --max-connections, --min-interval, --no-certs, --http-checks
+Scan only systems you are authorised to test.
 
 serve runs the web UI and API: add endpoints, scan them, watch progress, see history and
-post-quantum readiness. Sign-in is required: on first start the log prints a one-time code
-that creates the administrator. It listens on 127.0.0.1:8080 by default. Any other address
+post-quantum readiness. Sign-in is off until someone turns it on in Settings, which creates
+the administrator; --sign-in on requires it from the start (the log then prints a one-time
+setup code), --sign-in off never. A database with accounts keeps sign-in on. It listens on 127.0.0.1:8080 by default. Any other address
 needs HTTPS (--tls-cert and --tls-key) or --plain-http when a TLS-terminating proxy is in
 front (name that proxy with --trusted-proxy so rate limits see real client addresses);
---no-login is refused off loopback. --token (or CIPHERHORIZON_TOKEN) adds an automation
+Beyond loopback without sign-in the server refuses to start unless --open-network says it
+is meant to be open. --token (or CIPHERHORIZON_TOKEN) adds an automation
 token for scripts, which act as an analyst. Data is kept in --db (SQLite).
 
 healthcheck asks a running "serve" for its health, without a token, and exits 0 or 1; it is
 what the container image's HEALTHCHECK runs, since the distroless base has no shell or curl.
 
-Exit codes: 0 success; 1 fatal error; 2 result produced, but incomplete or a target failed.
+Exit codes: 0 success; 1 fatal error; 2 result produced, but incomplete or a target failed;
+3 a --fail-on condition was met.
 `)
 }
 

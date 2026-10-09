@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted.">
+  <title>Getting started · CipherHorizon</title>
+  <link rel="icon" href="img/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="img/mark-on-navy.svg" alt=""><span>CipherHorizon<small>TLS and post-quantum scanner</small></span></a>
+      <nav aria-label="Documentation">
+      <a href="index.html">Home</a>
+      <a href="start.html" aria-current="page">Getting started</a>
+      <a href="deploy.html">Deploy</a>
+      <a href="ci.html">CLI and CI</a>
+      <a href="methodology.html">Methodology</a>
+      <a href="security.html">Security</a>
+      <a href="faq.html">FAQ</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <h1>Getting started</h1>
+    <h2>1. Run it</h2>
+    <p>With Docker or Podman, from the source tree:</p>
+<pre><code>docker compose up -d
+# then open http://127.0.0.1:8080</code></pre>
+    <p>Or with a release binary for Linux, macOS or Windows (amd64 and arm64):</p>
+<pre><code>cipherhorizon serve                   # http://127.0.0.1:8080, data in ./cipherhorizon.db</code></pre>
+    <p>Check the download first: the release's <code>checksums.txt</code> is signed with Sigstore; see <a href="security.html#verify">Security</a>.</p>
+    <h2>2. Sign-in, when you want it</h2>
+    <p>Sign-in is off, so you can scan straight away. For a team, open <em>Settings</em> and turn it on: that creates the
+      administrator, who adds the other accounts under <em>Users</em> (analysts scan and edit, viewers read and download).
+      To require it from the first start, run <code>serve --sign-in on</code>: the log prints a one-time setup code.</p>
+    <h2>3. Scan an endpoint</h2>
+    <p>Type an address on the Overview and press Enter: <code>example.com</code>, <code>api.example.com:8443</code>, or
+      <code>smtp://mail.example.com</code> for a service that starts with STARTTLS. The report opens with the verdict: the
+      readiness level, the TLS hygiene score and what to fix first. Every check is listed under <em>Weaknesses</em>.</p>
+    <p><img src="img/report-hybrid.png" alt="An endpoint report"></p>
+    <h2>4. Inventory a machine</h2>
+    <p>Under <em>Inventory</em>, take the script for the machine: PowerShell for Windows, shell for Linux. Read it (it is plain
+      text), check its SHA-256, run it, and upload the <code>cipherhorizon-facts-&lt;machine&gt;.txt</code> it writes.</p>
+<pre><code>Unblock-File .\cipherhorizon-inventory.ps1; powershell -NoProfile -ExecutionPolicy RemoteSigned -File .\cipherhorizon-inventory.ps1
+sudo sh ./cipherhorizon-inventory.sh</code></pre>
+    <p>The scripts install nothing, change nothing, make no network connection and never read a private key.</p>
+    <h2>5. Try it safely</h2>
+    <p>From the source tree, <code>go run ./cmd/demo-targets</code> starts servers of known posture on <code>127.0.0.1:9440</code> and
+      up (start the server with <code>--allow-loopback</code> to scan them). Scan only systems you own or are authorised to test.</p>
+
+  </main>
+  <footer><div>CipherHorizon is open source (Apache 2.0), made by <a href="https://offsetsecurity.net/">Offset Security</a>.
+    Planning the move to post-quantum cryptography? See Offset's <a href="https://offsetsecurity.net/post-quantum-cryptography-readiness.html">post-quantum readiness practice</a>.</div></footer>
+</body>
+</html>

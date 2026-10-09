@@ -63,6 +63,26 @@ func Scan(ctx context.Context, t Target, opts Options) (rep *Report, err error) 
 
 	sc := &stageClock{p: p}
 
+	// A STARTTLS service is asked once before anything else: if it will not switch to TLS (or is
+	// not the protocol), every probe would fail the same way, so the scan stops here and says why
+	// (PRD-007 REQ-SX-4).
+	if t.StartTLS != "" {
+		p.progress("negotiating STARTTLS (" + StartTLSName(t.StartTLS) + ")")
+		conn, release, cerr := p.connect(ctx)
+		if cerr != nil {
+			rep.Incomplete = true
+			why := "the service did not switch to TLS"
+			var se *StartTLSError
+			if !errors.As(cerr, &se) {
+				why = "the endpoint could not be reached"
+			}
+			rep.Stages = notReached(nil, why)
+			return rep, cerr
+		}
+		_ = conn.Close()
+		release()
+	}
+
 	// Stage 1: which protocol versions does the server speak?
 	p.progress("testing protocol versions")
 	sc.begin()
@@ -227,6 +247,8 @@ func Scan(ctx context.Context, t Target, opts Options) (rep *Report, err error) 
 	// Stage 6: the HTTP-layer check (HSTS), attempted only when the handshake it
 	// would ride on succeeded.
 	switch {
+	case t.StartTLS != "":
+		rep.Stages = append(rep.Stages, sc.skip(StageHTTP, "not an HTTP service: "+StartTLSName(t.StartTLS)+" over STARTTLS", ReasonNotApplicable))
 	case !opts.HTTPChecks:
 		rep.Stages = append(rep.Stages, sc.skip(StageHTTP, "HTTP checks are off for this scan (--http-checks=false)", ReasonOptionOff))
 	case rep.Negotiated == nil || rep.Negotiated.Error != "":

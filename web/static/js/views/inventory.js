@@ -160,7 +160,7 @@ function ring(segments, big, small, size = 148) {
 
 function legend(items) {
   return h('ul', { class: 'legend' }, items.map((it) => h('li', null,
-    h('span', { class: `swatch sw-${it.tone}`, 'aria-hidden': 'true' }), h('span', null, it.label), h('b', null, String(it.n)))));
+    h('span', { class: `swatch sw-${it.tone}`, 'aria-hidden': 'true' }), h('span', null, it.label), it.n === undefined ? null : h('b', null, String(it.n)))));
 }
 
 function card(title, sub, content, foot, extra = '') {
@@ -236,16 +236,15 @@ async function dashboard(root) {
   const bp = d.byPurpose || [];
   if (bp.length) {
     const maxP = Math.max(1, ...bp.map((p) => p.vulnerable + p.safe + p.unknown));
-    grid.appendChild(card('Algorithms by purpose', 'what each algorithm is used for',
+    grid.appendChild(card('Algorithms by purpose', 'algorithms only; keys are counted under Post-quantum status',
       h('div', null,
         h('ul', { class: 'bar-list' }, bp.map((p) => h('li', { class: 'bar-row' },
           h('span', { class: 'bar-label' }, p.purpose),
           hbar([{ n: p.vulnerable, tone: 'bad' }, { n: p.safe, tone: 'good' }, { n: p.unknown, tone: 'neutral' }], maxP,
             { label: `${p.vulnerable} quantum-vulnerable, ${p.safe} quantum-safe, ${p.unknown} not classified` }),
           h('span', { class: 'bar-count' }, String(p.vulnerable + p.safe + p.unknown))))),
-        legend([{ tone: 'bad', label: 'quantum-vulnerable', n: bp.reduce((a, p) => a + p.vulnerable, 0) },
-          { tone: 'good', label: 'quantum-safe', n: bp.reduce((a, p) => a + p.safe, 0) },
-          { tone: 'neutral', label: 'not classified', n: bp.reduce((a, p) => a + p.unknown, 0) }].filter((x) => x.tone !== 'neutral' || x.n))),
+        legend([{ tone: 'bad', label: 'quantum-vulnerable' }, { tone: 'good', label: 'quantum-safe' },
+          ...(bp.some((p) => p.unknown) ? [{ tone: 'neutral', label: 'not classified' }] : [])])),
       h('a', { href: '#/inventory/algorithms' }, 'All algorithms →')));
   }
 

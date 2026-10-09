@@ -29,3 +29,6 @@ Thumbs.db
 /RELEASE_NOTES.md
 *.sigstore.json
 /checksums.txt
+
+# inventory scripts exported for a release by .goreleaser.yaml
+/build/

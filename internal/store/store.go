@@ -49,6 +49,12 @@ type Store struct {
 	now  func() time.Time
 	log  *slog.Logger
 
+	// opened holds what Open did on its own (a backup, a deleted old backup) until SetLogger
+	// gives it somewhere to go: Open runs before the caller has set a logger.
+	noticeMu sync.Mutex
+	holding  bool
+	opened   [][]any
+
 	// correlation runs are coalesced: see correlateQuietly.
 	corrMu      sync.Mutex
 	corrCond    *sync.Cond
@@ -79,12 +85,15 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("store: opening %s: %w", path, err)
 	}
-	s := &Store{db: db, path: path, now: time.Now, log: slog.New(slog.DiscardHandler)}
+	s := &Store{db: db, path: path, now: time.Now, log: slog.New(slog.DiscardHandler), holding: true}
 	s.corrCond = sync.NewCond(&s.corrMu)
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
+	s.noticeMu.Lock()
+	s.holding = false
+	s.noticeMu.Unlock()
 	if err := s.ensureProjection(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -114,9 +123,29 @@ func dsnFor(path string) string {
 // SetLogger sets where the store reports what it does on its own (derived data it could not
 // rebuild, maintenance that failed). Default: discarded.
 func (s *Store) SetLogger(l *slog.Logger) {
-	if l != nil {
-		s.log = l
+	if l == nil {
+		return
 	}
+	s.noticeMu.Lock()
+	s.log = l
+	held := s.opened
+	s.opened = nil
+	s.noticeMu.Unlock()
+	for _, n := range held {
+		l.Info(n[0].(string), n[1:]...)
+	}
+}
+
+// notice reports something the store did on its own: logged now, or, during Open, held for the
+// logger SetLogger sets.
+func (s *Store) notice(msg string, args ...any) {
+	s.noticeMu.Lock()
+	defer s.noticeMu.Unlock()
+	if s.holding {
+		s.opened = append(s.opened, append([]any{msg}, args...))
+		return
+	}
+	s.log.Info(msg, args...)
 }
 
 // SetClock replaces the time source (tests).
@@ -393,6 +422,17 @@ var migrations = []string{
 	// not sort as the times do ("...05Z" after "...05.3Z") and comparisons in SQL were off within a
 	// second. The rewrite is Go (backfillTimestamps); the SQL step only records the version.
 	`UPDATE projection_state SET built_at = built_at WHERE id = 1;`,
+	// 11: who started a scan (PRD-007 REQ-AC-4): a person's user name, "api-token" or "schedule".
+	// Earlier scans keep an empty value, shown as not recorded. audit_log gains an index by time
+	// for the Activity list (REQ-AC-3).
+	// An endpoint's STARTTLS choice (REQ-SX-3): "auto" (by well-known port), "none" or a protocol.
+	`ALTER TABLE scans ADD COLUMN started_by TEXT NOT NULL DEFAULT '';
+	CREATE INDEX audit_log_at ON audit_log(at);
+	ALTER TABLE assets ADD COLUMN starttls TEXT NOT NULL DEFAULT 'auto';`,
+	// 12: server settings a person changes in the interface (UX-REVIEW-008 S3). Sign-in is off by
+	// default; a database that already has accounts keeps it on, so an upgrade never opens a server.
+	`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+	INSERT INTO settings (key, value) SELECT 'sign_in', 'on' WHERE EXISTS (SELECT 1 FROM users);`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same
@@ -584,6 +624,7 @@ type Asset struct {
 	Name            string     `json:"name"`
 	Host            string     `json:"host"`
 	Port            int        `json:"port"`
+	StartTLS        string     `json:"starttls"` // "auto" (by well-known port), "none" or a protocol
 	Tags            []string   `json:"tags"`
 	Notes           string     `json:"notes"`
 	IntervalSeconds int        `json:"intervalSeconds"`
@@ -611,6 +652,7 @@ type ScanSummary struct {
 	AssetID        int64      `json:"assetId"`
 	Status         string     `json:"status"`
 	Trigger        string     `json:"trigger"`
+	StartedBy      string     `json:"startedBy"` // a user name, "api-token", "schedule", or "" (before 1.0)
 	Stage          string     `json:"stage"`
 	ProgressPct    int        `json:"progressPct"`
 	Connections    int        `json:"connections"`
@@ -674,7 +716,7 @@ func decodeTags(s string) []string {
 
 // ---- assets --------------------------------------------------------------------------------
 
-const assetCols = `id, COALESCE(system_id, 0), kind, name, host, port, tags, notes, interval_seconds, next_scan_at, created_at, updated_at`
+const assetCols = `id, COALESCE(system_id, 0), kind, name, host, port, tags, notes, interval_seconds, next_scan_at, created_at, updated_at, starttls`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -682,7 +724,7 @@ func scanAsset(r scanner) (Asset, error) {
 	var a Asset
 	var tags, created, updated string
 	var next sql.NullString
-	if err := r.Scan(&a.ID, &a.SystemID, &a.Kind, &a.Name, &a.Host, &a.Port, &tags, &a.Notes, &a.IntervalSeconds, &next, &created, &updated); err != nil {
+	if err := r.Scan(&a.ID, &a.SystemID, &a.Kind, &a.Name, &a.Host, &a.Port, &tags, &a.Notes, &a.IntervalSeconds, &next, &created, &updated, &a.StartTLS); err != nil {
 		return Asset{}, err
 	}
 	a.Tags = decodeTags(tags)
@@ -710,8 +752,11 @@ func (s *Store) CreateAsset(a Asset) (Asset, error) {
 		return Asset{}, err
 	}
 	sysID, _ := sys.LastInsertId()
-	res, err := tx.Exec(`INSERT INTO assets (kind, name, host, port, tags, notes, interval_seconds, created_at, updated_at, system_id)
-		VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`, a.Kind, a.Name, a.Host, a.Port, encodeTags(a.Tags), a.Notes, now, now, sysID)
+	if a.StartTLS == "" {
+		a.StartTLS = "auto"
+	}
+	res, err := tx.Exec(`INSERT INTO assets (kind, name, host, port, tags, notes, interval_seconds, created_at, updated_at, system_id, starttls)
+		VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`, a.Kind, a.Name, a.Host, a.Port, encodeTags(a.Tags), a.Notes, now, now, sysID, a.StartTLS)
 	if isConstraint(err) {
 		return Asset{}, ErrDuplicate
 	}
@@ -796,6 +841,7 @@ type AssetPatch struct {
 	Tags            *[]string
 	Notes           *string
 	IntervalSeconds *int
+	StartTLS        *string
 }
 
 // UpdateAsset applies a patch. Setting an interval schedules the next scan.
@@ -823,6 +869,9 @@ func (s *Store) UpdateAsset(id int64, p AssetPatch) (Asset, error) {
 	if p.Notes != nil {
 		a.Notes = *p.Notes
 	}
+	if p.StartTLS != nil {
+		a.StartTLS = *p.StartTLS
+	}
 	var next *time.Time
 	if p.IntervalSeconds != nil {
 		a.IntervalSeconds = *p.IntervalSeconds
@@ -833,8 +882,8 @@ func (s *Store) UpdateAsset(id int64, p AssetPatch) (Asset, error) {
 	} else {
 		next = a.NextScanAt
 	}
-	_, err = tx.Exec(`UPDATE assets SET name = ?, tags = ?, notes = ?, interval_seconds = ?, next_scan_at = ?, updated_at = ? WHERE id = ?`,
-		a.Name, encodeTags(a.Tags), a.Notes, a.IntervalSeconds, nullTS(next), ts(s.now()), id)
+	_, err = tx.Exec(`UPDATE assets SET name = ?, tags = ?, notes = ?, interval_seconds = ?, next_scan_at = ?, updated_at = ?, starttls = ? WHERE id = ?`,
+		a.Name, encodeTags(a.Tags), a.Notes, a.IntervalSeconds, nullTS(next), ts(s.now()), a.StartTLS, id)
 	if err != nil {
 		return Asset{}, err
 	}
@@ -870,7 +919,7 @@ func (s *Store) DeleteAsset(id int64) error {
 	return tx.Commit()
 }
 
-const scanCols = `id, asset_id, status, trigger, stage, progress_pct, connections, queued_at, started_at, finished_at, error,
+const scanCols = `id, asset_id, status, trigger, started_by, stage, progress_pct, connections, queued_at, started_at, finished_at, error,
 	band, score, readiness_level, hndl_exposed, crit, high, medium, low, info, cert_not_after, incomplete`
 
 func scanSummary(r scanner) (ScanSummary, error) {
@@ -879,7 +928,7 @@ func scanSummary(r scanner) (ScanSummary, error) {
 	var started, finished, certEnd sql.NullString
 	var level sql.NullInt64
 	var hndl, incomplete int
-	if err := r.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
+	if err := r.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.StartedBy, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
 		&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete); err != nil {
 		return ScanSummary{}, err
 	}

@@ -1,5 +1,5 @@
 // All scans across every endpoint, with live progress and cancel.
-import { h, clear, relTime, fmtDate, duration } from '../dom.js';
+import { h, clear, relTime, fmtDate, duration, startedByWord } from '../dom.js';
 import { api } from '../api.js';
 import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, skeleton } from '../ui.js';
 
@@ -27,7 +27,7 @@ export async function render(root, ctx = {}) {
       return;
     }
     list.appendChild(h('div', { class: 'tablewrap' }, h('table', null,
-      h('thead', null, h('tr', null, ['Endpoint', 'Status', 'Readiness', 'TLS hygiene', 'Trigger', 'Started', 'Took', ''].map((c) => h('th', { scope: 'col' }, c)))),
+      h('thead', null, h('tr', null, ['Endpoint', 'Status', 'Readiness', 'TLS hygiene', 'Started by', 'Started', 'Took', ''].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, scans.map((s) => {
         const active = s.status === 'queued' || s.status === 'running';
         return h('tr', null,
@@ -37,7 +37,7 @@ export async function render(root, ctx = {}) {
             s.error ? h('div', { class: 'hint' }, s.error) : null),
           h('td', null, s.status === 'done' ? levelBadge(s.readinessLevel) : '·'),
           h('td', null, s.status === 'done' ? bandBadge(s.band, s.score) : '·'),
-          h('td', { class: 'muted' }, s.trigger),
+          h('td', { class: 'muted' }, startedByWord(s)),
           h('td', { class: 'muted', title: fmtDate(s.startedAt || s.queuedAt) }, relTime(s.startedAt || s.queuedAt)),
           h('td', { class: 'muted' }, s.startedAt ? duration(s.startedAt, s.finishedAt) : '·'),
           h('td', null, active ? button('Cancel', async () => {

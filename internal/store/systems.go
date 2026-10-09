@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -724,5 +725,62 @@ func (s *Store) backup(version int) error {
 		_ = os.Remove(dst)
 		return err
 	}
+	if err := restrictFile(dst); err != nil {
+		return err
+	}
+	s.notice("backed up the database before migrating it", "backup", dst)
+	s.pruneBackups()
+	return nil
+}
+
+// BackupTo writes a consistent copy of the database to dst, owner-only, while it stays in use
+// (VACUUM INTO reads one snapshot). dst must not exist: a backup never overwrites anything.
+func (s *Store) BackupTo(dst string) error {
+	if _, err := os.Lstat(dst); err == nil {
+		return fmt.Errorf("%s already exists; choose a new name", dst)
+	}
+	if err := restrictFile(dst); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`VACUUM INTO ?`, dst); err != nil {
+		_ = os.Remove(dst)
+		return err
+	}
 	return restrictFile(dst)
+}
+
+// keepBackups is how many pre-migration backups stay next to the database (audit L-14): each is
+// a full copy, password and session hashes included, so old ones are not left to pile up.
+const keepBackups = 3
+
+// pruneBackups deletes all but the newest keepBackups pre-migration backups and reports each one
+// it deletes. A backup it cannot delete is reported and left; the migration goes on.
+func (s *Store) pruneBackups() {
+	names, err := filepath.Glob(s.path + ".bak-v*")
+	if err != nil || len(names) <= keepBackups {
+		return
+	}
+	type bak struct {
+		name string
+		mod  time.Time
+	}
+	baks := make([]bak, 0, len(names))
+	for _, n := range names {
+		if fi, err := os.Stat(n); err == nil && fi.Mode().IsRegular() {
+			baks = append(baks, bak{n, fi.ModTime()})
+		}
+	}
+	sort.Slice(baks, func(i, j int) bool { // newest first; the name breaks a tie (it holds the time)
+		if !baks[i].mod.Equal(baks[j].mod) {
+			return baks[i].mod.After(baks[j].mod)
+		}
+		return baks[i].name > baks[j].name
+	})
+	for _, b := range baks[min(keepBackups, len(baks)):] {
+		if err := os.Remove(b.name); err != nil {
+			s.notice("could not delete an old backup", "backup", b.name, "err", err.Error())
+			continue
+		}
+		s.notice("deleted an old backup; the newest three are kept", "backup", b.name)
+	}
 }

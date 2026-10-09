@@ -98,8 +98,9 @@ function hero() {
   const link = (label, fn) => h('a', { href: '#', onclick: (e) => { e.preventDefault(); fn(); } }, label);
   const section = h('section', { class: 'hero', 'aria-labelledby': 'scan-h' },
     h('div', { class: 'hero-main' },
-      h('h1', { id: 'scan-h', class: 'hero-title' }, 'Scan a website or endpoint'),
-      h('p', { class: 'hero-lede' }, 'TLS configuration, certificate, weaknesses, post-quantum readiness and a CBOM, from one address.'),
+      h('p', { class: 'eyebrow' }, 'Post-quantum readiness · TLS scanner · CBOM'),
+      h('h1', { id: 'scan-h', class: 'hero-title' }, 'Scan an endpoint for post‑quantum readiness'),
+      h('p', { class: 'hero-lede' }, 'A deep TLS scan, a readiness level from L0 to L4, every check with its source, and a CycloneDX CBOM, from one address.'),
       ...nodes,
       h('p', { class: 'hero-more' },
         link('Scan many endpoints', () => openAddDialog(() => { location.hash = '#/endpoints'; })),
@@ -107,11 +108,27 @@ function hero() {
         link('Import a CBOM', () => addDataDialog()))),
     h('aside', { class: 'hero-scale', 'aria-labelledby': 'scale-h' },
       h('h2', { id: 'scale-h' }, 'Post-quantum readiness levels'),
-      h('ol', { class: 'levels' }, SCALE.map(([l, code, name, what]) => h('li', { class: `level lv${l}` },
+      h('ol', { class: 'levels' }, SCALE.map(([l, code, name, what]) => h('li', { class: `level lv${l}`, 'data-level': String(l) },
         h('span', { class: 'level-code' }, code),
         h('span', { class: 'level-name' }, name),
+        h('span', { class: 'level-count' }),
         h('span', { class: 'level-what' }, what))))));
   return { section, input };
+}
+
+// UX-REVIEW-008 O1: once endpoints are scanned, the scale counts them, so the legend becomes the
+// fleet's readiness at a glance instead of the same five lines on every visit.
+function countLevels(assets) {
+  const scanned = assets.filter((a) => a.lastDone && a.lastDone.readinessLevel !== null && a.lastDone.readinessLevel !== undefined);
+  if (!scanned.length) return;
+  const h2 = document.getElementById('scale-h');
+  if (h2) h2.textContent = 'Your endpoints by post-quantum readiness';
+  for (const li of document.querySelectorAll('.hero-scale .level')) {
+    const n = scanned.filter((a) => a.lastDone.readinessLevel === Number(li.dataset.level)).length;
+    const slot = li.querySelector('.level-count');
+    clear(slot).append(n ? h('a', { href: '#/endpoints', title: `${n} endpoint${n === 1 ? '' : 's'} at this level` }, String(n)) : h('span', { class: 'muted' }, '0'));
+    li.classList.toggle('level-empty', !n);
+  }
 }
 
 export async function render(root) {
@@ -129,6 +146,7 @@ export async function render(root) {
     return null;
   }
   band.replaceWith(statusBand(assets, hosts, inv));
+  countLevels(assets);
   const shown = assets.filter((a) => a.lastDone || a.latest)
     .sort((a, b) => new Date(b.lastDone?.finishedAt || b.latest?.queuedAt || 0) - new Date(a.lastDone?.finishedAt || a.latest?.queuedAt || 0))
     .slice(0, 6);

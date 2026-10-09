@@ -228,36 +228,54 @@ func (s *Server) importSystemsCSV(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "could not read the request body")
 		return
 	}
+	patches, problems, refusal := parseSystemsCSV(raw)
+	if refusal != "" {
+		writeErr(w, http.StatusBadRequest, refusal)
+		return
+	}
+	if len(problems) > 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "the CSV was not applied", "problems": problems})
+		return
+	}
+	if err := s.cfg.Store.UpdateSystems(patches, s.actor(r), reason); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusBadRequest, "the CSV names a system id that does not exist; nothing was applied")
+			return
+		}
+		systemErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"applied": len(patches)})
+}
+
+// parseSystemsCSV reads a systems CSV into patches. A refusal is a problem with the file as a
+// whole (its header); problems are per line, each naming its line. It changes nothing, so it is
+// fuzzed on its own (PRD-007 REQ-TR-6).
+func parseSystemsCSV(raw []byte) (patches []store.SystemPatchByID, problems []string, refusal string) {
 	cr := csv.NewReader(strings.NewReader(strings.TrimPrefix(string(raw), "\ufeff")))
 	cr.FieldsPerRecord = -1
 	cr.LazyQuotes = false
 	header, err := cr.Read()
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "the CSV has no header row")
-		return
+		return nil, nil, "the CSV has no header row"
 	}
 	col := map[string]int{}
 	for i, h := range header {
 		h = strings.TrimSpace(h)
 		if h == "id" || store.IsSystemField(h) {
 			if _, dup := col[h]; dup {
-				writeErr(w, http.StatusBadRequest, fmt.Sprintf("column %q appears twice", h))
-				return
+				return nil, nil, fmt.Sprintf("column %q appears twice", clip(h, 40))
 			}
 			col[h] = i
 			continue
 		}
-		writeErr(w, http.StatusBadRequest, fmt.Sprintf("unknown column %q; columns are id and %s", h, strings.Join(store.SystemFields, ", ")))
-		return
+		return nil, nil, fmt.Sprintf("unknown column %q; columns are id and %s", clip(h, 40), strings.Join(store.SystemFields, ", "))
 	}
 	idCol, hasID := col["id"]
 	if !hasID {
-		writeErr(w, http.StatusBadRequest, "the first column must be id: rows are matched to systems by id")
-		return
+		return nil, nil, "the first column must be id: rows are matched to systems by id"
 	}
 
-	var problems []string
-	var patches []store.SystemPatchByID
 	seen := map[int64]bool{}
 	for {
 		line, _ := cr.FieldPos(0)
@@ -317,17 +335,5 @@ func (s *Server) importSystemsCSV(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if len(problems) > 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "the CSV was not applied", "problems": problems})
-		return
-	}
-	if err := s.cfg.Store.UpdateSystems(patches, s.actor(r), reason); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeErr(w, http.StatusBadRequest, "the CSV names a system id that does not exist; nothing was applied")
-			return
-		}
-		systemErr(w, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"applied": len(patches)})
+	return patches, problems, ""
 }

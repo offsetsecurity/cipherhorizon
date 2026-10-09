@@ -158,3 +158,13 @@ func TestInventoryReport(t *testing.T) {
 		t.Error("a certificate key is named by its common name")
 	}
 }
+
+// PRD-007 REQ-BR-6: every report cover carries the flat lockup, the Offset credit and the standards.
+func TestPDFCarriesTheLockup(t *testing.T) {
+	info := render(t, "full")
+	for _, want := range []string{"CipherHorizon", "TLS and post-quantum scanner", "NIST IR 8547", "FIPS 203/204/205", "CycloneDX"} {
+		if !strings.Contains(info.Text, want) {
+			t.Errorf("the cover lacks %q", want)
+		}
+	}
+}

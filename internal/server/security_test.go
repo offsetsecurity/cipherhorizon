@@ -342,7 +342,7 @@ func TestDeletingAnAssetMidScanIsSafe(t *testing.T) {
 func TestAC12_RestartMarksInterruptedScansFailed(t *testing.T) {
 	e := newEnv(t)
 	a := e.addAsset("never-reached.example")
-	sc, _, err := e.st.EnqueueScan(a.ID, "manual")
+	sc, _, err := e.st.EnqueueScan(a.ID, "manual", "test")
 	if err != nil {
 		t.Fatal(err)
 	}

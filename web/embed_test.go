@@ -51,9 +51,9 @@ func TestNoExternalRequests(t *testing.T) {
 				if strings.Contains(m, "example.com") {
 					ok = true
 				}
-				// Links to standards shown to the reader (About page) are plain text hrefs the user
+				// Links to standards shown to the reader (Help's sources) are plain text hrefs the user
 				// clicks; they are never fetched by the page itself.
-				if !ok && strings.HasSuffix(name, "about.js") {
+				if !ok && (strings.HasSuffix(name, "about.js") || strings.HasSuffix(name, "help.js")) {
 					ok = true
 				}
 				// The footer's credit link to the project's origin (Offset Security) is the same

@@ -270,7 +270,7 @@ func TestFailedMigrationLeavesTheDatabaseIntact(t *testing.T) {
 
 func finishWith(t *testing.T, s *store.Store, a store.Asset, rep []byte) int64 {
 	t.Helper()
-	sc, _, err := s.EnqueueScan(a.ID, "manual")
+	sc, _, err := s.EnqueueScan(a.ID, "manual", "test")
 	if err != nil {
 		t.Fatal(err)
 	}

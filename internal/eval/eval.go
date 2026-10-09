@@ -122,7 +122,8 @@ type Evaluation struct {
 }
 
 // Check is one check the evaluation ran. Title names what was looked for (a problem, as a
-// finding would be titled); Result is found, not-found or not-checked (its stage did not run).
+// finding would be titled); Result is found, not-found, not-checked (its stage did not run) or
+// not-applicable (the area does not exist for this service).
 type Check struct {
 	ID       string   `json:"id"`
 	Title    string   `json:"title"`
@@ -230,15 +231,18 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	}
 	ev.Sections = sections(c, findings)
 	// A check whose stage did not run was not checked, whatever its rule returned.
-	skipped := map[string]bool{}
+	skipped := map[string]string{}
 	for _, s := range ev.Sections {
-		if s.Status == StatusNotChecked || s.Status == StatusNotCollected {
-			skipped[s.ID] = true
+		switch s.Status {
+		case StatusNotChecked, StatusNotCollected:
+			skipped[s.ID] = "not-checked"
+		case StatusNotApplicable:
+			skipped[s.ID] = "not-applicable"
 		}
 	}
 	for i := range checks {
-		if checks[i].Result == "not-found" && skipped[checks[i].Section] {
-			checks[i].Result = "not-checked"
+		if r := skipped[checks[i].Section]; checks[i].Result == "not-found" && r != "" {
+			checks[i].Result = r
 		}
 	}
 	ev.Checks = checks

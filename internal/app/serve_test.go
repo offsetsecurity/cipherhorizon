@@ -113,3 +113,40 @@ func TestServeRunsAndShutsDownGracefully(t *testing.T) {
 		t.Fatal("server did not shut down")
 	}
 }
+
+// UX-REVIEW-008 S3: sign-in is off by default, so a server on the network must either require it
+// or say, with --open-network, that it is meant to be open.
+func TestServeOnTheNetworkNeedsSignInOrOpenNetwork(t *testing.T) {
+	t.Setenv("CIPHERHORIZON_TOKEN", "")
+	var errb bytes.Buffer
+	code := app.Main(context.Background(), []string{"serve", "--addr", "0.0.0.0:0", "--plain-http", "--db", filepath.Join(t.TempDir(), "x.db")},
+		app.Env{Stdout: io.Discard, Stderr: &errb})
+	if code != app.ExitFatal || !strings.Contains(errb.String(), "--sign-in on") || !strings.Contains(errb.String(), "--open-network") {
+		t.Fatalf("exit %d: %q", code, errb.String())
+	}
+	for _, extra := range [][]string{{"--open-network"}, {"--sign-in", "on"}, {"--login"}} {
+		ctx, cancel := context.WithCancel(context.Background())
+		errs := &lockedBuf{}
+		done := make(chan int, 1)
+		go func() {
+			done <- app.Main(ctx, append([]string{"serve", "--addr", "0.0.0.0:0", "--plain-http", "--db", filepath.Join(t.TempDir(), "x.db")}, extra...),
+				app.Env{Stdout: io.Discard, Stderr: errs})
+		}()
+		deadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(deadline) && !strings.Contains(errs.String(), "UI and API on") {
+			time.Sleep(20 * time.Millisecond)
+		}
+		cancel()
+		if c := <-done; c != app.ExitOK {
+			t.Errorf("%v: exit %d\n%s", extra, c, errs.String())
+		}
+		wantCode := extra[0] != "--open-network"
+		if got := strings.Contains(errs.String(), "one-time setup code"); got != wantCode {
+			t.Errorf("%v: setup code printed %v, want %v\n%s", extra, got, wantCode, errs.String())
+		}
+	}
+	if code := app.Main(context.Background(), []string{"serve", "--login", "--no-login", "--db", filepath.Join(t.TempDir(), "x.db")},
+		app.Env{Stdout: io.Discard, Stderr: io.Discard}); code != app.ExitFatal {
+		t.Errorf("--login with --no-login: exit %d", code)
+	}
+}
