@@ -52,7 +52,7 @@ export async function render(root) {
 
   const body = h('div', { class: 'help-body' },
     sec('scan', 'Scan an endpoint',
-      h('p', null, 'Type an address on the Overview, or use ', h('b', null, 'Scan a URL'), ' in the sidebar, and press Enter. An address is a host name or IP with an optional port (443 by default); a pasted URL is reduced to its host and port.'),
+      h('p', null, 'Type an address on the Overview, or use ', h('b', null, 'Scan a URL'), ' on the Endpoints page, and press Enter. An address is a host name or IP with an optional port (443 by default); a pasted URL is reduced to its host and port.'),
       h('p', null, 'Mail, directory and database services that start in plain text are scanned through STARTTLS. It is chosen by port (25, 587, 143, 110, 21, 5222, 389 and 5432), by a scheme such as ', code('smtp://mail.example.com'),
         ', or when you add the endpoint (', h('i', null, 'How it starts TLS'), ').'),
       h('p', null, 'To add many at once, use ', h('b', null, 'Endpoints → Add endpoints → Paste a list'), '. Each endpoint can be rescanned on a schedule from its page.'),

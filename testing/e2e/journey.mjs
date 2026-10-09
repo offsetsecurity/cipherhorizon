@@ -121,9 +121,9 @@ async function main() {
   // (type an address, press Enter) gives a report; a bad address is refused inline.
   await go('#/');
   const menu = await js(`return [...document.querySelectorAll('#nav a')].map((a) => a.innerText.trim().replace(/\\s+\\d+$/, ''))`);
-  const navMeta = await js(`return { groups: [...document.querySelectorAll('#nav .navgroup')].map((g) => g.textContent.trim()), scan: document.getElementById('nav-scan')?.textContent.trim() || '' }`);
-  check('F-M2', 'the menu is Overview, then Results (Endpoints, Machines, Findings, Inventory) and Plan & share (Systems, Reports), under a Scan a URL button (UX-DESIGN-005)',
-    menu.join() === 'Overview,Endpoints,Machines,Findings,Inventory,Systems,Reports' && navMeta.groups.join('|') === 'Results|Plan & share' && navMeta.scan === 'Scan a URL',
+  const navMeta = await js(`return { groups: [...document.querySelectorAll('#nav .navgroup')].map((g) => g.textContent.trim()), scanInRail: [...document.querySelectorAll('.sidebar button, .sidebar a')].some((e) => /^\\s*scan/i.test(e.textContent)), railScrolls: (() => { const n = document.getElementById('nav'); return getComputedStyle(n).overflowY === 'auto' || n.scrollHeight > n.clientHeight + 1; })() }`);
+  check('F-M2', 'the menu is Overview, then Results (Endpoints, Machines, Findings, Inventory) and Plan & share (Systems, Reports); the rail holds places only and has no scroll pane of its own (UX-REVIEW-008 N1)',
+    menu.join() === 'Overview,Endpoints,Machines,Findings,Inventory,Systems,Reports' && navMeta.groups.join('|') === 'Results|Plan & share' && !navMeta.scanInRail && !navMeta.railScrolls,
     JSON.stringify({ menu, navMeta }));
   const hero = await js(`return { h1: document.querySelector('main h1')?.innerText || '', input: !!document.getElementById('scan-target'), focused: document.activeElement?.id || '' }`);
   check('E2E-F.0', 'the first screen is a scan box, focused', /Scan an endpoint for post.quantum readiness/.test(hero.h1) && hero.input && hero.focused === 'scan-target', JSON.stringify(hero));
@@ -513,15 +513,15 @@ async function main() {
     window.fetch = async (...a) => { const r = await orig(...a); got = { url: String(a[0]), type: r.headers.get('content-type') }; return r; };
     b.click(); await new Promise((ok) => setTimeout(ok, 1500)); window.fetch = orig; return got;`);
   check('E2E-N.2', 'a document downloads in one click from Reports', !!pdf && /report\.pdf\?kind=full/.test(pdf.url) && /application\/pdf/.test(pdf.type), JSON.stringify(pdf));
-  // The Scan a URL button works from any page and lands on the new report.
-  await go('#/inventory');
+  // Scan a URL on the Endpoints page opens the scan box and lands on the new report.
+  await go('#/endpoints');
   await sleep(700);
-  await js(`document.getElementById('nav-scan').click()`);
+  await js(`document.getElementById('endpoints-scan').click()`);
   await sleep(300);
   const scanDlg = await js(`return { open: !!document.querySelector('.modal[aria-label="Scan a URL"]'), focused: document.activeElement?.id }`);
   await js(`const i = document.getElementById('scan-dialog-target'); i.value = '127.0.0.1:9440'; i.form.requestSubmit();`);
   const viaButton = await waitFor(async () => { const h = await js(`return location.hash`); return /^#\/endpoints\/\d+/.test(h) ? h : null; }, 8000, 200);
-  check('E2E-N.3', 'Scan a URL opens a scan box from any page and lands on that endpoint\'s report', scanDlg.open && scanDlg.focused === 'scan-dialog-target' && viaButton === `#/endpoints/${by[9440].id}`,
+  check('E2E-N.3', 'Scan a URL on Endpoints opens a scan box and lands on that endpoint\'s report', scanDlg.open && scanDlg.focused === 'scan-dialog-target' && viaButton === `#/endpoints/${by[9440].id}`,
     JSON.stringify({ scanDlg, viaButton }));
   await sleep(500);
   await go('#/findings');

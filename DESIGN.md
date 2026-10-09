@@ -162,11 +162,13 @@ Flat. **No gradients, no glows, no coloured shadows.**
 ## 7. Components
 
 **Navigation rail.**
-- Brand at the top, then the primary action *Scan a URL* as a full-width solid accent button, then the places.
+- Brand at the top, then the places. The rail holds places only; actions live on pages (*Scan a URL* is the scan
+  box on the Overview and the primary button of Endpoints).
+- The rail fits a laptop screen without a scroll pane of its own; on a very short window the whole rail scrolls.
 - Group labels (*Results*, *Plan & share*) are 12px, sentence case and muted.
 - Items are 36px high with an 18px icon, colour `--rail-text` and white on hover.
 - The current item gets a navy-2 fill, white text and a 4px skewed accent bar on its left edge.
-- The account chip, About and the publisher credit sit at the foot.
+- The foot holds Settings, Help and About (32px rows), then the account, then one quiet line with the credit and the version.
 
 **Buttons.** 36px high (32px small), 4px radius, weight 550.
 - *Primary:* solid accent, white text. At most one per view region.
@@ -212,7 +214,7 @@ sentence, one action at most.
 **CTAs.** A page has one primary action, top right in its header (or the scan form on the Overview). Duplicate
 intents are not allowed: one label per action across the product.
 
-**Footer.** In the rail: account, About, the "Developed by" credit and the version, all muted.
+**Footer.** In the rail: Settings, Help, About, the account, then the "Developed by" credit and the version on one muted line.
 
 **Sign-in gate.** Two columns: the navy value panel (§8) and the form, 400px wide, labels above fields, a
 full-width primary button, the error inline above the fields.

@@ -1,5 +1,5 @@
 // Scan a URL: the product's main action (UX-DESIGN-005 principle 3). The same box sits on top of
-// the Overview and opens from the "Scan a URL" button on every page; either way a scan lands on the
+// the Overview and opens from "Scan a URL" on the Endpoints page; either way a scan lands on the
 // endpoint's report.
 import { h } from '../dom.js';
 import { api, ApiError } from '../api.js';
@@ -67,7 +67,7 @@ export function scanForm(id, onStarted) {
   return { input, nodes: [form, err, help] };
 }
 
-/** openScanDialog is the "Scan a URL" button of the sidebar. */
+/** openScanDialog is the "Scan a URL" button of the Endpoints page. */
 export function openScanDialog() {
   modal('Scan a URL', (close) => {
     const { input, nodes } = scanForm('scan-dialog-target', close);

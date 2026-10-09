@@ -30,6 +30,10 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - **Help:** how to use it and how it judges, with a contents list.
   - **Settings:** sign-in and the server's configuration.
 - **Overview:** the readiness scale counts your endpoints at each level.
+- **The navigation rail holds places only:**
+  - **Scan a URL** moved from the rail to the Overview's scan box and the Endpoints page.
+  - **The foot is compact:** Settings, Help, About, the account, then one line for the credit and the version.
+  - **No scroll pane:** the rail fits a laptop screen without a scroll pane of its own.
 - **Endpoints:** one way into a row, one findings badge per row, and the STARTTLS protocol under the address.
 - **The endpoint summary** leads with post-quantum readiness on its L0 to L4 scale. The certificate's colour follows its
   expiry, with trust said in words.

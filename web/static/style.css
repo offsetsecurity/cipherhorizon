@@ -211,17 +211,19 @@ code, .mono { font-family: var(--font-mono); font-size: .86em; font-feature-sett
 .sidebar {
   width: var(--sidebar-w); flex: 0 0 var(--sidebar-w); position: sticky; top: 0; height: 100vh; height: 100dvh;
   display: flex; flex-direction: column; background: var(--rail); color: var(--on-navy); border-right: 1px solid var(--rail-line);
+  /* One column that fits a laptop screen; on a very short window the whole rail scrolls, never a pane inside it. */
+  overflow: hidden auto; scrollbar-width: thin; scrollbar-color: var(--rail-line) transparent;
 }
-.brandblock { padding: 18px 16px 14px; }
+.brandblock { padding: 18px 16px 10px; }
 .brandlink { display: flex; align-items: center; gap: .65rem; color: #fff; }
 .brandlink:hover { color: #fff; text-decoration: none; }
 .brandmark { flex: 0 0 auto; display: grid; place-items: center; width: 28px; height: 28px; }
 .brandmark svg, .brandmark img { width: 28px; height: 28px; display: block; }
 .brandtext { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
 .brandname { font-weight: 600; font-size: 1rem; letter-spacing: -.01em; color: #fff; }
-.brandsub { font-size: .7rem; color: var(--rail-text-2); font-weight: 450; white-space: nowrap; }
+.brandsub { font-size: .7rem; color: var(--rail-text-2); font-weight: 450; }
 
-#nav { display: flex; flex-direction: column; gap: 2px; padding: 4px 12px; flex: 1; overflow-y: auto; }
+#nav { display: flex; flex-direction: column; gap: 2px; padding: 4px 12px 12px; flex: 1 0 auto; }
 #nav a {
   position: relative; display: flex; align-items: center; gap: .65rem; min-height: 36px; padding: 0 .65rem; border-radius: var(--radius-sm);
   color: var(--rail-text); font-weight: 500; font-size: var(--fs-ui); white-space: nowrap; transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
@@ -229,29 +231,25 @@ code, .mono { font-family: var(--font-mono); font-size: .86em; font-feature-sett
 #nav a:hover { background: var(--rail-hover); color: #fff; text-decoration: none; }
 #nav a[aria-current="page"] { background: var(--rail-current); color: #fff; }
 #nav a[aria-current="page"]::before { content: ""; position: absolute; left: -9px; top: 9px; bottom: 9px; width: 4px; background: var(--rail-accent); transform: skewX(var(--skew)); }
-#nav .navgroup { margin: 18px .65rem 4px; font-size: .75rem; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--rail-text-2); }
+#nav .navgroup { margin: 16px .65rem 4px; font-size: .75rem; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--rail-text-2); }
 .navicon { width: 18px; height: 18px; flex: 0 0 auto; }
 .navcount { margin-left: auto; min-width: 1.3rem; padding: 0 .35rem; border-radius: 999px; background: var(--rail-accent); color: var(--navy); font-size: .7rem; font-weight: 700; text-align: center; line-height: 1.3rem; }
 .navcount[hidden] { display: none; }
 
-.navscan-wrap { padding: 0 12px 6px; }
-.navscan { width: 100%; display: flex; align-items: center; justify-content: center; gap: .5rem; min-height: 38px; font: inherit; font-weight: 600; font-size: var(--fs-ui);
-  color: #fff; background: #2457d6; border: 1px solid #2457d6; border-radius: var(--radius-sm); cursor: pointer; transition: background-color var(--dur-fast) ease; }
-.navscan:hover { background: #3a6ae0; border-color: #3a6ae0; }
-.navscan:focus-visible { outline: 2px solid var(--rail-accent); outline-offset: 2px; }
 
-.sidefoot { padding: 12px 12px 16px; border-top: 1px solid var(--rail-line); }
-.sidefoot-action { display: flex; align-items: center; gap: .65rem; min-height: 34px; padding: 0 .65rem; border-radius: var(--radius-sm); color: var(--rail-text);
+.sidefoot { padding: 8px 12px 12px; border-top: 1px solid var(--rail-line); }
+.sidefoot-action { display: flex; align-items: center; gap: .65rem; min-height: 32px; padding: 0 .65rem; border-radius: var(--radius-sm); color: var(--rail-text);
   font-size: var(--fs-sm); font-weight: 500; }
 .sidefoot-action:hover { background: var(--rail-hover); color: #fff; text-decoration: none; }
 .sidefoot-action[aria-current="page"] { background: var(--rail-current); color: #fff; }
 .sidefoot-action .navicon { width: 16px; height: 16px; }
-.sidefoot-divider { height: 1px; background: var(--rail-line); margin: 12px 0; }
-.sidefoot-label { display: block; font-size: .7rem; font-weight: 500; color: var(--rail-text-2); margin: 0 .65rem .45rem; }
-.offset-credit { display: block; line-height: 0; opacity: .85; margin: 0 .65rem; transition: opacity var(--dur-fast) ease; }
-.offset-credit:hover { opacity: 1; }
-.offset-logo { width: 100%; max-width: 128px; height: auto; display: block; }
-.sidefoot-version { display: block; margin: .5rem .65rem 0; font: 500 .68rem var(--font-mono); color: var(--rail-text-2); }
+/* The credit and the version share one quiet line at the very bottom. */
+.sidecredit { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 8px .65rem 0; padding-top: 10px; border-top: 1px solid var(--rail-line); }
+.sidefoot-label { font-size: .68rem; font-weight: 500; color: var(--rail-text-2); white-space: nowrap; }
+.offset-credit { display: inline-flex; align-items: center; gap: .4rem; opacity: .85; transition: opacity var(--dur-fast) ease; }
+.offset-credit:hover { opacity: 1; text-decoration: none; }
+.offset-logo { height: 18px; width: auto; display: block; }
+.sidefoot-version { font: 500 .66rem var(--font-mono); color: var(--rail-text-2); white-space: nowrap; }
 .sidefoot-version:empty { display: none; }
 
 .workarea { flex: 1; min-width: 0; }
@@ -1139,9 +1137,12 @@ a.stat:hover .stat-label::after { color: var(--primary); }
   .hero { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .hero-scale { border-left: 0; padding-left: 0; }
   .levels { flex-direction: row; flex-wrap: wrap; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-  .level { flex: 1 1 0; min-width: 9rem; grid-template-columns: minmax(0, 1fr); padding: .6rem .8rem; border-bottom: 0; border-left: 1px solid var(--border); }
+  .level { flex: 1 1 0; min-width: 9rem; grid-template-columns: minmax(0, 1fr) auto; padding: .6rem .8rem; border-bottom: 0; border-left: 1px solid var(--border); }
   .level:first-child { border-left: 0; }
-  .level-what { grid-column: 1; }
+  /* As a card: the code and the count on the first line, then the name and what it means. */
+  .level-code { grid-column: 1; grid-row: 1; }
+  .level-count { grid-column: 2; grid-row: 1; }
+  .level-name, .level-what { grid-column: 1 / -1; }
 }
 @media (max-width: 1000px) { .overview-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 700px) {
@@ -1303,7 +1304,7 @@ a.sumtile:hover, a.sumtile:focus-visible { background: var(--surface-2); text-de
 .start-card .row { margin-top: var(--space-3); }
 .start-foot { margin-top: var(--space-5); }
 .guide-card { max-width: 780px; }
-.steps { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-5); }
+.steps { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
 .step { display: flex; gap: var(--space-4); align-items: flex-start; color: var(--text); font-size: var(--fs-base); }
 .step-n { flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: var(--fs-sm); font-family: var(--font-mono);
   background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); }
@@ -1315,7 +1316,8 @@ a.sumtile:hover, a.sumtile:focus-visible { background: var(--surface-2); text-de
 .step.active { font-weight: 600; } .step.active .step-dot { border-color: var(--primary); color: var(--primary); }
 .step.done .step-dot { background: var(--good); border-color: var(--good); color: #fff; }
 .cmdblock { display: flex; align-items: center; gap: .5rem; margin: 0 0 .7rem; padding: .5rem .55rem .5rem .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.cmdblock code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-size: .8rem; color: var(--text); }
+/* A long command wraps inside its box (the copy button copies it whole), never widening the page. */
+.cmdblock code { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; line-height: 1.5; color: var(--text); }
 .cmdblock .copybtn { opacity: 1; margin-top: 0; }
 .scriptrow { flex-wrap: wrap; }
 .scriptrow .script-read { flex-basis: 100%; margin-top: .4rem; }
@@ -1408,7 +1410,7 @@ body.gated .shell, body.gated .skip { display: none; }
 .gate-error { background: var(--bad-bg); color: var(--bad); border-left: 3px solid var(--bad); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: .55rem .75rem; font-size: var(--fs-ui); }
 .gate-submit { width: 100%; min-height: 40px; margin-top: 4px; }
 .gate-foot { color: var(--muted); font-size: var(--fs-xs); margin-top: 16px; }
-.acct { position: relative; margin-bottom: 8px; }
+.acct { position: relative; margin-top: 6px; }
 .acct-chip { list-style: none; display: flex; align-items: center; gap: .6rem; cursor: pointer; padding: .4rem .5rem; border-radius: var(--radius-sm); color: var(--on-navy); }
 .acct-chip::-webkit-details-marker { display: none; }
 .acct-chip:hover { background: var(--rail-hover); }
@@ -1419,13 +1421,8 @@ body.gated .shell, body.gated .skip { display: none; }
 .acct-menu { position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-float); padding: 4px; display: flex; flex-direction: column; z-index: 30; }
 .acct-menu a, .acct-menu button { font: inherit; font-size: var(--fs-ui); text-align: left; padding: .5rem .65rem; border-radius: var(--radius-sm); color: var(--text); background: none; border: 0; cursor: pointer; }
 .acct-menu a:hover, .acct-menu button:hover { background: var(--surface-2); text-decoration: none; color: var(--text); }
-.acct-local { color: var(--rail-text-2); font-size: .74rem; margin: 0 .65rem 8px; }
+.acct-local { color: var(--rail-text-2); font-size: .74rem; margin: 8px .65rem 0; }
 
-@media (max-width: 860px) {
-  .navscan-wrap { padding: .35rem; order: 2; }
-  .navscan { width: auto; min-height: 40px; padding: 0 .7rem; }
-  .navscan span { display: none; }
-}
 .failcard { border-left: 3px solid var(--bad); } .failcard h2 { margin-top: 0; } .failcard .mono { overflow-wrap: anywhere; }
 
 /* Action items grouped by why they matter (the reason once, then each fix). */

@@ -163,10 +163,5 @@ setAuthHandler(() => {
 });
 
 window.addEventListener('hashchange', route);
-// "Scan a URL" is an action on every page, not a place (UX-DESIGN-005 principle 3).
-document.getElementById('nav-scan')?.addEventListener('click', async () => {
-  const { openScanDialog } = await import('./views/scan.js');
-  openScanDialog();
-});
 boot();
 export { api };

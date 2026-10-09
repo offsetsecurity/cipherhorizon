@@ -125,7 +125,7 @@ export async function render(root, ctx = {}) {
   const state = { q: '', sort: 'level', exposed: false, selected: new Set(), frozen: null };
 
   const actions = h('div', { class: 'row toolbar-actions' },
-      button('Add endpoints', () => openAddDialog(load), 'primary'),
+      button('Add endpoints', () => openAddDialog(load)),
       button('Scan all', async () => {
         try {
           const r = await api.scanMany({ all: true });

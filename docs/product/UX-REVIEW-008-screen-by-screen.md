@@ -135,3 +135,26 @@ The first build answered this badly in four ways:
 
 "Their views" means the reports, filters and dashboards people look at. None of it is stored per person: every view
 is computed from the shared data, so nobody loses a view when sign-in goes off or comes back.
+
+## Addendum: the navigation rail (owner feedback, 2026-10-09)
+
+The owner found the rail cluttered: it had a scroll bar of its own on a laptop screen, and asked whether *Scan a
+URL* belongs there.
+
+**Findings:**
+- **A scroll pane inside the rail.** The foot (account, Settings, Help, About, a large publisher logo and the
+  version) took about 330px. That left too little room for seven places, so the list of places scrolled on a
+  900px-high window.
+- **An action among places.** *Scan a URL* was a full-width button between the brand and the places. It repeated
+  the scan box that leads the Overview, and it was the loudest thing in the rail.
+- **Readiness cards collapse between 860 and 1100px.** A column rule from the wide layout left each level card in
+  one-word columns, with the code overlapping the name.
+
+**Decisions (N1):**
+- **The rail holds places only.** *Scan a URL* is the Overview's scan box and the primary button of the Endpoints
+  page, top right, where endpoints live.
+- **A compact foot.** Settings, Help and About come first, at 32px each. Then the account. Then one muted line for
+  the "Developed by" credit, with a small logo, and the version.
+- **No inner scroll pane.** The places are not a scroll pane. The rail needs about 590px; on a shorter window the
+  whole rail scrolls, with a thin scroll bar.
+- **Level cards as cards.** The code and the count share the first line; the name and its meaning follow.

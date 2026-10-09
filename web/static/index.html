@@ -23,12 +23,6 @@
           </span>
         </a>
       </div>
-      <div class="navscan-wrap">
-        <button type="button" class="navscan" id="nav-scan" aria-haspopup="dialog">
-          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4" stroke="currentColor" stroke-width="1.8"/><path d="M12.6 12.6L17 17" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-          <span>Scan a URL</span>
-        </button>
-      </div>
       <nav aria-label="Main" id="nav">
         <a href="#/" data-route="overview">
           <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.8" y="2.8" width="6.2" height="8" rx="1.4" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="2.8" width="6.2" height="4.6" rx="1.4" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="9.4" width="6.2" height="7.8" rx="1.4" stroke="currentColor" stroke-width="1.6"/><rect x="2.8" y="12.8" width="6.2" height="4.4" rx="1.4" stroke="currentColor" stroke-width="1.6"/></svg>
@@ -62,7 +56,6 @@
         </a>
       </nav>
       <div class="sidefoot">
-        <div id="account-chip"></div>
         <a class="sidefoot-action" href="#/settings" data-route="settings">
           <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3.5 6h8M15 6h1.5M3.5 14h1.5M8.5 14h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="13.2" cy="6" r="1.9" stroke="currentColor" stroke-width="1.6"/><circle cx="6.8" cy="14" r="1.9" stroke="currentColor" stroke-width="1.6"/></svg>
           <span>Settings</span>
@@ -75,12 +68,14 @@
           <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.6"/><path d="M10 9.2v4.3M10 6.6v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           <span>About</span>
         </a>
-        <div class="sidefoot-divider" role="presentation"></div>
-        <span class="sidefoot-label">Developed by</span>
-        <a class="offset-credit" href="https://offsetsecurity.net/" target="_blank" rel="noopener" aria-label="Offset Security">
-          <img class="offset-logo" src="/img/offset-logo-mono.svg" alt="Offset Security">
-        </a>
-        <span class="sidefoot-version" id="sidebar-version"></span>
+        <div id="account-chip"></div>
+        <div class="sidecredit">
+          <a class="offset-credit" href="https://offsetsecurity.net/" target="_blank" rel="noopener" aria-label="Developed by Offset Security">
+            <span class="sidefoot-label">Developed by</span>
+            <img class="offset-logo" src="/img/offset-logo-mono.svg" alt="">
+          </a>
+          <span class="sidefoot-version" id="sidebar-version"></span>
+        </div>
       </div>
     </aside>
     <div class="workarea">
