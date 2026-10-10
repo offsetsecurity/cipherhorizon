@@ -1,4 +1,4 @@
-module github.com/example/cipherhorizon
+module github.com/offsetsecurity/cipherhorizon
 
 go 1.25.0
 

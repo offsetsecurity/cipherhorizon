@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/server"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // PRD-007 REQ-AC-2 (audit L-02): every state-changing route is accounted for, and each audited

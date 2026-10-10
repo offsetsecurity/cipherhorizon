@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 var certNow = time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)

@@ -3,7 +3,7 @@ package server
 import (
 	"net/http"
 
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 func (s *Server) listLinks(w http.ResponseWriter, r *http.Request) {

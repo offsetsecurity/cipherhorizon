@@ -23,8 +23,8 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/knowledge"
-	"github.com/example/cipherhorizon/internal/signatures"
+	"github.com/offsetsecurity/cipherhorizon/internal/knowledge"
+	"github.com/offsetsecurity/cipherhorizon/internal/signatures"
 )
 
 var now = time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)

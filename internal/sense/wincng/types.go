@@ -1,6 +1,6 @@
 package wincng
 
-import "github.com/example/cipherhorizon/internal/winapi"
+import "github.com/offsetsecurity/cipherhorizon/internal/winapi"
 
 // The platform layer's types, under this package's names, so the sensor reads as one
 // unit while every call into Windows stays in internal/winapi.

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/app"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/app"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // PRD-007 REQ-TR-7 (audit L-04): the hashes the binary prints are the hashes of the bytes a

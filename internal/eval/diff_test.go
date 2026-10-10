@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 func compare(a, b *tlsprobe.Report) eval.Diff {

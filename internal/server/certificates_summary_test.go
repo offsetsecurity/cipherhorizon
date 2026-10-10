@@ -16,11 +16,11 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/discover"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/schematest"
-	"github.com/example/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/discover"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
 )
 
 type pkiCert struct {

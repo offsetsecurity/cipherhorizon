@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // PRD-007 REQ-TR-5 (audit L-14): a migration keeps the newest three backups, deletes the rest,

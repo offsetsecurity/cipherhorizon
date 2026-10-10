@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
 )
 
 // getAssetFindings fetches fresh into a new slice each time: json.Unmarshal

@@ -25,14 +25,14 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/config"
-	"github.com/example/cipherhorizon/internal/discover"
-	"github.com/example/cipherhorizon/internal/hostinfo"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/sense"
-	_ "github.com/example/cipherhorizon/internal/sense/all" // registers the built-in sensors
-	"github.com/example/cipherhorizon/internal/version"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/config"
+	"github.com/offsetsecurity/cipherhorizon/internal/discover"
+	"github.com/offsetsecurity/cipherhorizon/internal/hostinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	_ "github.com/offsetsecurity/cipherhorizon/internal/sense/all" // registers the built-in sensors
+	"github.com/offsetsecurity/cipherhorizon/internal/version"
 )
 
 // Exit codes.

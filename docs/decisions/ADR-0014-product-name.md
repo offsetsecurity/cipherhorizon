@@ -15,7 +15,7 @@ Keep **CipherHorizon**. This deliberately departs from the owner's stated prefer
 
 ## Consequences
 
-- No rename work now. The module path is still the placeholder `github.com/example/cipherhorizon` (`scripts/set-owner.sh` fixes that at publication).
+- No rename work now. The module path is still the placeholder `github.com/offsetsecurity/cipherhorizon` (`scripts/set-owner.sh` fixes that at publication).
 - Namespace registration of `cipherhorizon:*` with the CycloneDX property taxonomy waits until trademark clearance, because a rename after registration is costly.
 - A rename must stay mechanical: module path, binary names, the `cipherhorizon:` property prefix, the `CIPHERHORIZON_*` environment variables, documentation. PRD-003 REQ-REL-3 requires that these be reachable by one documented procedure.
 - **Owner actions before public launch:** trademark search in intended jurisdictions; domain, GitHub organisation and package-name availability.

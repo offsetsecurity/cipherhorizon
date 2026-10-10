@@ -16,7 +16,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/offsetsecurity/cipherhorizon/internal/collector"
 )
 
 // Algorithm is one catalogue entry.

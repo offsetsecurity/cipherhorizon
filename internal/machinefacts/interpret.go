@@ -11,12 +11,12 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/collector"
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/knowledge"
-	"github.com/example/cipherhorizon/internal/sense"
-	"github.com/example/cipherhorizon/internal/signatures"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/collector"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/knowledge"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/signatures"
 )
 
 // Interpretation of version 2 facts (PRD-006 REQ-SG-5). The signature database says how

@@ -7,10 +7,10 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/algo"
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/cdxschema"
-	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/cdxschema"
+	"github.com/offsetsecurity/cipherhorizon/internal/collector"
 )
 
 func has(list []string, s string) bool {

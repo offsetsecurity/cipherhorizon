@@ -10,10 +10,10 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/package-url/packageurl-go"
 
-	"github.com/example/cipherhorizon/internal/algo"
-	"github.com/example/cipherhorizon/internal/collector"
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/knowledge"
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
+	"github.com/offsetsecurity/cipherhorizon/internal/collector"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/knowledge"
 )
 
 // HostOptions carries what the projection cannot read from the graph.

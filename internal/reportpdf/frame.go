@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/pdf"
+	"github.com/offsetsecurity/cipherhorizon/internal/pdf"
 )
 
 // The palette follows the web UI (web/static/style.css, DESIGN.md v2: the Offset theme).

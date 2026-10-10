@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // Readiness levels. This scale is the product's own (PRD-001 section 7); the

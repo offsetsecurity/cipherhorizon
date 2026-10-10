@@ -11,7 +11,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
 )
 
 // ImportInput is a third-party document that passed the importer, with the operator's

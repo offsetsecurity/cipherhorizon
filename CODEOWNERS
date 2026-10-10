@@ -4,15 +4,15 @@
 # Replace the placeholder below with your GitHub username or team (e.g. @your-org/maintainers)
 # before publishing. Until then this file has no effect (GitHub ignores unresolvable owners).
 
-*   @OWNER-PLACEHOLDER
+*   @offsetsecurity
 
 # Anything touching a cited rule or verdict — the part of the codebase this project is most
 # careful about — gets the same owner for now; split this out once there's more than one
 # maintainer with standing to approve a new citation.
-/internal/pqc/       @OWNER-PLACEHOLDER
-/internal/eval/       @OWNER-PLACEHOLDER
+/internal/pqc/       @offsetsecurity
+/internal/eval/       @offsetsecurity
 
 # Security-sensitive surface: the SSRF guard, auth/CSRF middleware, the wire-protocol parsers.
-/internal/server/guard.go   @OWNER-PLACEHOLDER
-/internal/server/server.go  @OWNER-PLACEHOLDER
-/internal/tlsprobe/wire/    @OWNER-PLACEHOLDER
+/internal/server/guard.go   @offsetsecurity
+/internal/server/server.go  @offsetsecurity
+/internal/tlsprobe/wire/    @offsetsecurity

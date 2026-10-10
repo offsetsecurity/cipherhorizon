@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe"
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // Servers the standard library cannot be: SSLv3, export-grade and NULL suites,

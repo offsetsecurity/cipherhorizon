@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
 )
 
 // Source describes where a bundled list came from.

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/sense/pefiles/pefilestest"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/pefiles/pefilestest"
 )
 
 func peImage(fileVersion string, imports ...string) []byte {

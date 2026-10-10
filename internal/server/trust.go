@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/refdata"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // Private trust anchors, reference data and re-evaluation (PRD-004 REQ-TTRS-2,

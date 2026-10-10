@@ -24,7 +24,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // The suites a deliberately terrible SSLv3 server prefers, in its order.

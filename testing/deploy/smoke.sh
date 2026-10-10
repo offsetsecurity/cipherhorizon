@@ -41,7 +41,7 @@ HARDEN=(--read-only --tmpfs /tmp:size=16m,mode=1777 --cap-drop ALL --security-op
 echo "== build"
 if [ -z "${SKIP_BUILD:-}" ]; then
   fmt=(); [ "$ENGINE" = podman ] && fmt=(--format docker) # OCI images drop HEALTHCHECK
-  $ENGINE build "${fmt[@]}" -t "$IMAGE" --build-arg VERSION=0.0.0-smoke --build-arg MODULE="$(go list -m 2>/dev/null || echo github.com/example/cipherhorizon)" . >"$WORK/build.log" 2>&1 \
+  $ENGINE build "${fmt[@]}" -t "$IMAGE" --build-arg VERSION=0.0.0-smoke --build-arg MODULE="$(go list -m 2>/dev/null || echo github.com/offsetsecurity/cipherhorizon)" . >"$WORK/build.log" 2>&1 \
     && ok "the image builds" || { bad "the image does not build (see below)"; tail -30 "$WORK/build.log"; exit 1; }
 fi
 v=$($ENGINE run --rm "$IMAGE" version | head -1)

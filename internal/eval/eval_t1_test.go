@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/pki"
-	"github.com/example/cipherhorizon/internal/pki/pkitest"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki/pkitest"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // The T1 rules need tls-report/2 data: raw certificates, staples, SCTs. These

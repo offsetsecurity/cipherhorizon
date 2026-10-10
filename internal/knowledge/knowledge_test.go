@@ -3,7 +3,7 @@ package knowledge
 import (
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/algo"
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
 )
 
 func TestParseDebian(t *testing.T) {

@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/pki"
-	"github.com/example/cipherhorizon/internal/sense/certfiles"
-	"github.com/example/cipherhorizon/internal/store"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/certfiles"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // Evaluation inputs beyond the report (ENG-HANDOFF-003 D-6, D-10, D-11): the

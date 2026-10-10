@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/signatures"
+	"github.com/offsetsecurity/cipherhorizon/internal/signatures"
 )
 
 //go:embed scripts/cipherhorizon-inventory.sh scripts/cipherhorizon-inventory.ps1

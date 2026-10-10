@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // PRD-007 REQ-SX-3: an endpoint keeps its STARTTLS choice, a scan uses it, the report says so,

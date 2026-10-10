@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe"
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // PRD-007 REQ-SX-1: a scan through each STARTTLS protocol finds the same protocols, suites and

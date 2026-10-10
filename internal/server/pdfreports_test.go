@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/pdf/pdfcheck"
+	"github.com/offsetsecurity/cipherhorizon/internal/pdf/pdfcheck"
 )
 
 // TestDownloadsAreGeneratedPDFs: the report and inventory downloads are PDF documents the server

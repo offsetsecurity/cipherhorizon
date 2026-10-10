@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/sense"
-	"github.com/example/cipherhorizon/internal/sense/sensetest"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/sensetest"
 )
 
 func registry(t *testing.T, fakes ...*sensetest.Fake) *sense.Registry {

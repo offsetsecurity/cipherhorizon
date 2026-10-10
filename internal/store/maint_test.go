@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/store"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 func openStore(t *testing.T) *store.Store {

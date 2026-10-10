@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
 )
 
 // The whole sensor against the real machine. Exact contents differ between Windows

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/hostcmd"
-	"github.com/example/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/hostcmd"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
 )
 
 const fixturesDir = "../../testing/fixtures"

@@ -22,11 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/certinfo"
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/hostinfo"
-	"github.com/example/cipherhorizon/internal/sense"
-	"github.com/example/cipherhorizon/internal/winapi"
+	"github.com/offsetsecurity/cipherhorizon/internal/certinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/hostinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/winapi"
 )
 
 const (

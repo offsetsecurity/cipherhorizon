@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/app"
+	"github.com/offsetsecurity/cipherhorizon/internal/app"
 )
 
 type lockedBuf struct {

@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/example/cipherhorizon/internal/app"
+	"github.com/offsetsecurity/cipherhorizon/internal/app"
 )
 
 func main() {

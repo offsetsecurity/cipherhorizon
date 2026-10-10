@@ -5,7 +5,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/offsetsecurity/cipherhorizon/internal/collector"
 )
 
 func TestCryptoAssetValidate(t *testing.T) {

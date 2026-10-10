@@ -13,6 +13,9 @@ permissions:
 
 jobs:
   analyze:
+    # Code scanning on a private repository needs GitHub Advanced Security. A scheduled run has no
+    # repository in its event, so it runs only where the repository variable CODE_SCANNING is "true".
+    if: vars.CODE_SCANNING == 'true' || (github.event_name != 'schedule' && github.event.repository.private == false)
     runs-on: ubuntu-latest
     permissions:
       contents: read

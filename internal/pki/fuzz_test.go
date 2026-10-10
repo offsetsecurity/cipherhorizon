@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/pki"
-	"github.com/example/cipherhorizon/internal/pki/pkitest"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki/pkitest"
 )
 
 func FuzzParseOCSP(f *testing.F) {

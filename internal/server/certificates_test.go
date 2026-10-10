@@ -16,13 +16,13 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/discover"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/schematest"
-	"github.com/example/cipherhorizon/internal/sense"
-	_ "github.com/example/cipherhorizon/internal/sense/all"
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/discover"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	_ "github.com/offsetsecurity/cipherhorizon/internal/sense/all"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // hostCBOMWithCertificates runs the real collector pipeline over a Linux-shaped filesystem

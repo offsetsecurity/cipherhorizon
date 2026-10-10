@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/cdxschema"
+	"github.com/offsetsecurity/cipherhorizon/internal/cdxschema"
 )
 
 const minimal16 = `{"bomFormat":"CycloneDX","specVersion":"1.6","version":1,"components":[

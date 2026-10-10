@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/pdf/pdfcheck"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/pdf/pdfcheck"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 var now = time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)

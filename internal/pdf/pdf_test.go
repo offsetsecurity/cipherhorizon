@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/pdf"
-	"github.com/example/cipherhorizon/internal/pdf/pdfcheck"
+	"github.com/offsetsecurity/cipherhorizon/internal/pdf"
+	"github.com/offsetsecurity/cipherhorizon/internal/pdf/pdfcheck"
 )
 
 func TestDocumentIsWellFormedAndReadsBack(t *testing.T) {

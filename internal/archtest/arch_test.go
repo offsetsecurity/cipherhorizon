@@ -19,7 +19,7 @@ import (
 	"testing"
 )
 
-const module = "github.com/example/cipherhorizon"
+const module = "github.com/offsetsecurity/cipherhorizon"
 
 // importsOf returns every import path used by the non-test Go files under dir
 // (recursively), ignoring build tags: a windows-only file still counts.

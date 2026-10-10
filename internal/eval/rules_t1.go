@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/pki"
-	"github.com/example/cipherhorizon/internal/refdata"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // The rules added in eval/3 (PRD-004). Those that need the raw certificates,

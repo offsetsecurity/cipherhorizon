@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/algo"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // M-23-02 structured export (PRD-003 REQ-EXP-3).

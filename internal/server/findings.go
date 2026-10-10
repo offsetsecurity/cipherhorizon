@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 func parseIDPath(v string) (int64, error) {

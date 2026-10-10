@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/pdf"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/pdf"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // The PDF shows what the web report shows (PRD-006): what each TLS version ran, and

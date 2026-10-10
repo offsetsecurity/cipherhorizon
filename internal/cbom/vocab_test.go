@@ -9,7 +9,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
 )
 
 // schemaEnum reads an enumeration out of the vendored bom-1.6 schema.

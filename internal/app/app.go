@@ -11,10 +11,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/hostcmd"
-	"github.com/example/cipherhorizon/internal/hostinfo"
-	"github.com/example/cipherhorizon/internal/sense"
-	"github.com/example/cipherhorizon/internal/version"
+	"github.com/offsetsecurity/cipherhorizon/internal/hostcmd"
+	"github.com/offsetsecurity/cipherhorizon/internal/hostinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/version"
 )
 
 // Exit codes.

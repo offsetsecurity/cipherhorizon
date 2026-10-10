@@ -20,7 +20,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/example/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
 )
 
 // Env is what a sensor may use to look at the host. Everything a sensor reads

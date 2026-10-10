@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/certinfo"
-	"github.com/example/cipherhorizon/internal/pki/pkitest"
+	"github.com/offsetsecurity/cipherhorizon/internal/certinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki/pkitest"
 )
 
 func TestExtensionFacts(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
 )
 
 type invRow struct {

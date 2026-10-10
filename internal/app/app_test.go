@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/app"
-	"github.com/example/cipherhorizon/internal/cdxschema"
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/schematest"
-	"github.com/example/cipherhorizon/internal/sense"
-	"github.com/example/cipherhorizon/internal/sense/sensetest"
+	"github.com/offsetsecurity/cipherhorizon/internal/app"
+	"github.com/offsetsecurity/cipherhorizon/internal/cdxschema"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/sensetest"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden CBOMs in testing/golden")

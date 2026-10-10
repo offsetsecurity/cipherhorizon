@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/machinefacts"
+	"github.com/offsetsecurity/cipherhorizon/internal/machinefacts"
 )
 
 // ScriptsSumsFile is the name of the checksum list `scripts export` writes beside the scripts,

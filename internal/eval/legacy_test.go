@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // TestLegacyReportsEvaluate is PRD-004 T1-M7 at the evaluation level: every stored

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 type linkJSON struct {

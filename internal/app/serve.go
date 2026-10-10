@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/auth"
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/server"
-	"github.com/example/cipherhorizon/internal/store"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
-	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
-	"github.com/example/cipherhorizon/internal/version"
+	"github.com/offsetsecurity/cipherhorizon/internal/auth"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/registry"
+	"github.com/offsetsecurity/cipherhorizon/internal/version"
 )
 
 const serveNotice = `notice: the web UI lets its users make this machine connect to the endpoints they add,

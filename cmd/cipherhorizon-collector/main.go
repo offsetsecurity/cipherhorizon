@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/example/cipherhorizon/internal/hostcmd"
+	"github.com/offsetsecurity/cipherhorizon/internal/hostcmd"
 )
 
 func main() {

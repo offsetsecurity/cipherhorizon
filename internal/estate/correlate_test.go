@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
 )
 
 // The estate fixture (PRD-003 AC-COR-1): unique and shared certificates, a wildcard on 40 hosts,

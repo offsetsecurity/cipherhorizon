@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/config"
+	"github.com/offsetsecurity/cipherhorizon/internal/config"
 )
 
 func TestEmptyInputYieldsDefaults(t *testing.T) {

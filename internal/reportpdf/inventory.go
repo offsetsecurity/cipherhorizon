@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/pdf"
+	"github.com/offsetsecurity/cipherhorizon/internal/pdf"
 )
 
 // InvItem is one inventory row: an algorithm, key, protocol or software component.

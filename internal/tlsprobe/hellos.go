@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
-	"github.com/example/cipherhorizon/internal/tlsprobe/wire"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/registry"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/wire"
 )
 
 // signatureSchemes are offered so a server can pick a certificate of any common

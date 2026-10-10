@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/cdxschema"
+	"github.com/offsetsecurity/cipherhorizon/internal/cdxschema"
 )
 
 // Validate fails t if doc is not a valid CycloneDX JSON document of the version it declares.

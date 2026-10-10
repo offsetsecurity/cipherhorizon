@@ -10,15 +10,15 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/discover"
-	"github.com/example/cipherhorizon/internal/estate"
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/sense"
-	_ "github.com/example/cipherhorizon/internal/sense/all"
-	"github.com/example/cipherhorizon/internal/sense/pefiles/pefilestest"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/discover"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	_ "github.com/offsetsecurity/cipherhorizon/internal/sense/all"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/pefiles/pefilestest"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 func sampleReport() *tlsprobe.Report {

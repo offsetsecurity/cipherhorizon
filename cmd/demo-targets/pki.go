@@ -13,7 +13,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 // A small private PKI for the certificate and trust sections: a root (never

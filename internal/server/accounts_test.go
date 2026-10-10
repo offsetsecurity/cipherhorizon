@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/auth"
-	"github.com/example/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/auth"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
 )
 
 // ADR-0018: accounts, sessions, roles and the defences around signing in.

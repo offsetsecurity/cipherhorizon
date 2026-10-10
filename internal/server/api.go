@@ -11,12 +11,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/store"
-	"github.com/example/cipherhorizon/internal/tlscbom"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // assetView adds the address the UI shows to a stored asset, plus any assets

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/cdxschema"
+	"github.com/offsetsecurity/cipherhorizon/internal/cdxschema"
 )
 
 // REQ-EXP-1: the scan CBOM is CycloneDX 1.7 unless 1.6 is asked for, each validates against its own

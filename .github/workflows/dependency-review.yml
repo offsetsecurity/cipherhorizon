@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   review:
+    # Needs GitHub Advanced Security on a private repository (or the variable CODE_SCANNING="true").
+    if: vars.CODE_SCANNING == 'true' || github.event.repository.private == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

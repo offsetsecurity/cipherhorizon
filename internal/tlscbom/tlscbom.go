@@ -11,10 +11,10 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/algo"
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/collector"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/collector"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // FromTLSReport turns an active TLS scan's observations into CBOM assets: one

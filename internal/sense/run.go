@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
 )
 
 // Status is the outcome of one sensor in one run.

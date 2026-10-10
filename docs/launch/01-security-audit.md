@@ -80,7 +80,7 @@ informational ones, and **3 launch blockers** in repository hygiene.
 | I-01 | Info | `golang.org/x/text` v0.39.0 has GO-2026-6629 in `secure/precis`, which this code does not use. | Not reachable. | Upgrade to v0.41.0 with the next dependency bump. |
 | I-02 | Info | The database is not encrypted at rest. | SQLite; the file is owner-only. | Document disk encryption as part of deployment. |
 | I-03 | Info | The sign-in log stores client addresses (personal data in some jurisdictions). | Capped at 5,000 lines. | State the retention in the docs. |
-| B-01 | **Launch blocker** | The module path is `github.com/example/cipherhorizon` (161 Go files), and `<owner>` placeholders remain in the README, Dockerfile, compose and GoReleaser. | `go install`, image names and links do not work publicly. | Decide the GitHub organisation, then run the rename (`docs/engineering/RENAME.md`). |
+| B-01 | **Launch blocker** | The module path is `github.com/offsetsecurity/cipherhorizon` (161 Go files), and `<owner>` placeholders remain in the README, Dockerfile, compose and GoReleaser. | `go install`, image names and links do not work publicly. | Decide the GitHub organisation, then run the rename (`docs/engineering/RENAME.md`). |
 | B-02 | **Launch blocker** | `SECURITY.md` has a placeholder security contact. | A reporter has nowhere to send a vulnerability. | Use a real address (for example `security@offsetsecurity.net`) and enable GitHub private vulnerability reporting. |
 | B-03 | **Launch blocker** | The image label still describes the product as a ranking tool, and the README is long and inward-facing (see `02-market-research.md`). | Not a vulnerability; first impressions. | Covered by the launch plan. |
 

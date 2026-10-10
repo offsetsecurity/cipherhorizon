@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/auth"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/auth"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // Settings (UX-REVIEW-008 S3, S4): sign-in is off by default, because most people come for a TLS

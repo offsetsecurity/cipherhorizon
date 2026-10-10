@@ -1,8 +1,8 @@
 // Package version holds the build identity, stamped at link time by the release build:
 //
-//	go build -ldflags "-X github.com/example/cipherhorizon/internal/version.Version=1.2.3 \
-//	  -X github.com/example/cipherhorizon/internal/version.Commit=abc1234 \
-//	  -X github.com/example/cipherhorizon/internal/version.Date=2026-01-02T03:04:05Z" ./cmd/cipherhorizon
+//	go build -ldflags "-X github.com/offsetsecurity/cipherhorizon/internal/version.Version=1.2.3 \
+//	  -X github.com/offsetsecurity/cipherhorizon/internal/version.Commit=abc1234 \
+//	  -X github.com/offsetsecurity/cipherhorizon/internal/version.Date=2026-01-02T03:04:05Z" ./cmd/cipherhorizon
 //
 // A plain "go build" or "go install ...@vX.Y.Z" leaves the variables at their defaults; Info then
 // falls back to what the Go toolchain embedded, so those builds still identify themselves.

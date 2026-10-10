@@ -6,7 +6,7 @@ For the owner. Each step names how to check it. The general procedure is in
 ## 1. Decide and rename (blockers B-01, B-02, B-03)
 
 - [ ] Choose the GitHub organisation and repository. Run `scripts/set-owner.sh <owner>` (module path
-      `github.com/example/cipherhorizon` in every Go file) and check `go build ./... && go test ./...`.
+      `github.com/offsetsecurity/cipherhorizon` in every Go file) and check `go build ./... && go test ./...`.
 - [ ] Decide whether the name stays (ADR-0014). If not: [RENAME.md](RENAME.md).
 - [ ] Put the security contact in `SECURITY.md` (the placeholder `<maintainer-security-contact ...>`).
 - [ ] `grep -rn "example/cipherhorizon\|<owner>\|OWNER/" --include=*.go --include=*.md --include=*.yml .`

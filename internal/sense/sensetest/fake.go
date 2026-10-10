@@ -5,8 +5,8 @@ package sensetest
 import (
 	"context"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
 )
 
 // Fake is a sensor whose behaviour is set by its fields. Nil funcs behave as

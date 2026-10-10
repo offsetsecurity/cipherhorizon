@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/app"
+	"github.com/offsetsecurity/cipherhorizon/internal/app"
 )
 
 // The container image's HEALTHCHECK: it has no shell, curl or wget, so the binary checks

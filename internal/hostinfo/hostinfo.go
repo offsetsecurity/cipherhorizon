@@ -14,7 +14,7 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
 )
 
 // Privilege tiers. The default and complete-in-itself tier is user; elevation is

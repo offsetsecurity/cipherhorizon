@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // hit is one place a rule fired.

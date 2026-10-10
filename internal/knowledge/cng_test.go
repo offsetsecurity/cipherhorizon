@@ -3,8 +3,8 @@ package knowledge_test
 import (
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/algo"
-	"github.com/example/cipherhorizon/internal/knowledge"
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
+	"github.com/offsetsecurity/cipherhorizon/internal/knowledge"
 )
 
 // Every catalogue ID the CNG tables name must exist, or the CBOM projection would refuse the run.

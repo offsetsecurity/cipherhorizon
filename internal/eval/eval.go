@@ -12,8 +12,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/refdata"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations

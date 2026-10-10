@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
 )
 
 // HostSnapshot is one uploaded CBOM of a host, with its analysis summary.

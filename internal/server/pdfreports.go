@@ -8,9 +8,9 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/reportpdf"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/reportpdf"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 var unsafeFileChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)

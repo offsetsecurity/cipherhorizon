@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/server"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // PRD-007 REQ-AC-1 (audit L-01): with --scan-allow, an endpoint outside the scope is refused when

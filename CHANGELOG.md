@@ -561,5 +561,5 @@ deviations from the original plan and what has and hasn't been tested. In short:
 evaluation (only `--cbom` and the web UI/API do), and testing so far has used hermetic test servers rather than
 real-world TLS implementations.
 
-[Unreleased]: https://github.com/OWNER-PLACEHOLDER/cipherhorizon/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/OWNER-PLACEHOLDER/cipherhorizon/releases/tag/v0.1.0
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/offsetsecurity/cipherhorizon/releases/tag/v0.1.0

@@ -4,7 +4,7 @@ import (
 	"io/fs"
 	"runtime"
 
-	"github.com/example/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
 )
 
 // Describe builds the evidence.Host for a scan of fsys on the given OS family.

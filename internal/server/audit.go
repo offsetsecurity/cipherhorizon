@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // The audit trail (PRD-007 REQ-AC-2, audit L-02). Every state-changing route is in exactly one

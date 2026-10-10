@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe/wire"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/wire"
 )
 
 // Options bound and shape a scan. The zero value is usable and conservative.

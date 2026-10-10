@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
 )
 
 func pkgObs(name, version, family string) evidence.Observation {

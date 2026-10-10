@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 var fingerprintRE = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/server"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // REQ-ING-1 (CLI): the command sends a document to a running server, naming the system itself.

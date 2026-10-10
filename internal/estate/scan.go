@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // FromScanReport projects one TLS scan report into observations. Every fact in a

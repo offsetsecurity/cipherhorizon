@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
 )
 
 // Link states.

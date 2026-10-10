@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/tlscbom"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
-	"github.com/example/cipherhorizon/internal/version"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/version"
 )
 
 const tlsNotice = `notice: "tls scan" connects to each target and makes a few hundred short handshakes.

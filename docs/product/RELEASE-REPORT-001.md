@@ -82,7 +82,7 @@ These are decisions made while building, listed so none is a surprise.
 
 ## 6. Decisions still open for you
 
-- **Project name and module path** (`cipherhorizon`, `github.com/example/cipherhorizon` are placeholders).
+- **Project name and module path** (`cipherhorizon`, `github.com/offsetsecurity/cipherhorizon` are placeholders).
 - **Licence holder/notice** (Apache-2.0 is in place).
 - **Git history**: the repository has no commits yet; nothing has been committed for you.
 - **Push the CI changes**: the new `e2e` job and the extra build targets have not run anywhere.

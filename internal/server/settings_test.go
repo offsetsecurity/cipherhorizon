@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/server"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 type settingsJSON struct {

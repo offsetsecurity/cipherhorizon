@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
 )
 
 // SourceClass says who produced a document and therefore how far it is trusted

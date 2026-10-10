@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/estate"
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/importer"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/importer"
 )
 
 func fixture(t testing.TB, name string) []byte {

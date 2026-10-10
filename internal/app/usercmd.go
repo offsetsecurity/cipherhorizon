@@ -10,8 +10,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/example/cipherhorizon/internal/auth"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/auth"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // userCmd implements "cipherhorizon user": account recovery and set-up from the server's own

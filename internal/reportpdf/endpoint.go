@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/pdf"
-	"github.com/example/cipherhorizon/internal/pki"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/pdf"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // The kinds of endpoint report.

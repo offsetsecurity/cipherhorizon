@@ -11,17 +11,17 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/discover"
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/schematest"
-	"github.com/example/cipherhorizon/internal/sense"
-	_ "github.com/example/cipherhorizon/internal/sense/all"
-	"github.com/example/cipherhorizon/internal/sense/pefiles/pefilestest"
-	"github.com/example/cipherhorizon/internal/sense/sensetest"
-	"github.com/example/cipherhorizon/internal/sense/wincng"
-	"github.com/example/cipherhorizon/internal/winapi"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/discover"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	_ "github.com/offsetsecurity/cipherhorizon/internal/sense/all"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/pefiles/pefilestest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/sensetest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/wincng"
+	"github.com/offsetsecurity/cipherhorizon/internal/winapi"
 )
 
 func pe(fileVersion, product string, ms, ls uint32) *fstest.MapFile {

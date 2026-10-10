@@ -16,9 +16,9 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/estate"
-	"github.com/example/cipherhorizon/internal/store"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // The first three migrations are what 0.1.0 shipped. Editing one would make the

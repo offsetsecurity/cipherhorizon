@@ -3,7 +3,7 @@ package server
 import (
 	"net/http"
 
-	"github.com/example/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 )
 
 // estateRanking is the prioritised list of systems, each row explained by cited rules. There is

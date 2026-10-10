@@ -13,8 +13,8 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/estate"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // ProjectionVersion identifies the projection code. When it changes the graph is

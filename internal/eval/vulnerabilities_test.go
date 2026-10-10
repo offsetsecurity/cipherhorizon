@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // An exposed attack is never shown under a "good" section, and a line that says "not

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 func certObs(key, alg, bits, ca string) store.ObservationRow {

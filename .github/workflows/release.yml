@@ -76,6 +76,8 @@ jobs:
           version: "~> v2"
           args: release --clean --release-notes=RELEASE_NOTES.md
       - name: Attest build provenance for every archive
+        # Attestations on a private repository need GitHub Enterprise Cloud.
+        if: github.event.repository.private == false
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-checksums: dist/checksums.txt
@@ -135,6 +137,7 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           cosign sign --yes "${image}@${DIGEST}"
       - name: Attest the image's build provenance
+        if: github.event.repository.private == false
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ghcr.io/${{ github.repository }}

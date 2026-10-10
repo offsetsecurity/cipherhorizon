@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/auth"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/auth"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // Accounts and sign-in (ADR-0018). Who is calling is decided once per request by identify: a

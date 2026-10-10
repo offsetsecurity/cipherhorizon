@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/pki"
-	"github.com/example/cipherhorizon/internal/pki/pkitest"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki/pkitest"
 )
 
 // TestWriteOracleFixtures writes the served-chain fixtures and this package's

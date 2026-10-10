@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // A bug in a probe goroutine must fail the scan with a PanicError, not end the process:

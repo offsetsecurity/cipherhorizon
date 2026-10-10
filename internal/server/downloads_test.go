@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
 )
 
 type binariesReply struct {

@@ -32,10 +32,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/certinfo"
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/hostinfo"
-	"github.com/example/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/certinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/hostinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
 )
 
 const (

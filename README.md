@@ -1,15 +1,10 @@
 # CipherHorizon
 
-[![CI](https://github.com/example/cipherhorizon/actions/workflows/ci.yml/badge.svg)](https://github.com/example/cipherhorizon/actions/workflows/ci.yml)
+[![CI](https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml/badge.svg)](https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml)
 [![Go Reference](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CycloneDX](https://img.shields.io/badge/CBOM-CycloneDX%201.7-2457d6)](docs/exporting.md)
 
-<!-- placeholder-owner -->
-> **Before the first push:** the module path `github.com/example/cipherhorizon` uses a placeholder owner. Run
-> `scripts/set-owner.sh <your-github-username>` (rewrites the module path, release config and links, and removes
-> this notice). See [docs/engineering/BRANCHING.md](docs/engineering/BRANCHING.md#first-push).
-<!-- /placeholder-owner -->
 
 **Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a
 CycloneDX CBOM, self-hosted.** By [Offset Security](https://offsetsecurity.net/).

@@ -56,7 +56,7 @@ already on this server.
 
 ## What a release contains
 
-On the GitHub Releases page (`https://github.com/<owner>/cipherhorizon/releases`):
+On the GitHub Releases page (`https://github.com/offsetsecurity/cipherhorizon/releases`):
 
 | File | What |
 |---|---|
@@ -73,7 +73,7 @@ Each full-product archive holds `cipherhorizon[.exe]` (a collector archive holds
 `docs/config.example.yaml`. The demo servers (`cmd/demo-targets`) are development tooling and are **not**
 shipped.
 
-Container image: `ghcr.io/<owner>/cipherhorizon:<version>` (multi-arch: `linux/amd64`, `linux/arm64`),
+Container image: `ghcr.io/offsetsecurity/cipherhorizon:<version>` (multi-arch: `linux/amd64`, `linux/arm64`),
 built from the `Dockerfile`: distroless `static` base, non-root (uid 65532), data in `/data`. Tags: exact
 version always; `<major>.<minor>` and `latest` only for stable (non-0.x, non-pre-release) versions, so
 **`latest` does not exist until 1.0**. Pin an exact version.
@@ -89,14 +89,14 @@ tar -xzf cipherhorizon_0.1.0_linux_amd64.tar.gz
 docker run -d --name cipherhorizon -p 8080:8080 \
   -e CIPHERHORIZON_TOKEN="$(openssl rand -hex 24)" \
   -v cipherhorizon-data:/data \
-  ghcr.io/<owner>/cipherhorizon:0.1.0
+  ghcr.io/offsetsecurity/cipherhorizon:0.1.0
 
 # container, built locally (docker-compose.yml at the repository root)
 echo "CIPHERHORIZON_TOKEN=$(openssl rand -hex 24)" > .env
 docker compose up -d
 
 # from source, with Go installed
-go install github.com/<owner>/cipherhorizon/cmd/cipherhorizon@v0.1.0
+go install github.com/offsetsecurity/cipherhorizon/cmd/cipherhorizon@v0.1.0
 ```
 
 The image has no shell (distroless), so its `HEALTHCHECK` runs `cipherhorizon healthcheck` — a hidden CLI
@@ -109,7 +109,7 @@ path.
 
 ## Verifying a download
 
-Three independent checks, from cheapest to strongest. Replace `<owner>/cipherhorizon` and the version.
+Three independent checks, from cheapest to strongest. Replace `offsetsecurity/cipherhorizon` and the version.
 
 **1. Checksum** (catches corruption, not tampering on its own):
 ```sh
@@ -120,7 +120,7 @@ sha256sum --check --ignore-missing checksums.txt
 workflow; needs [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) v2+):
 ```sh
 cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/<owner>/cipherhorizon/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-identity-regexp '^https://github.com/offsetsecurity/cipherhorizon/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 There is no public key to distribute or rotate: the signing identity is the workflow file at a release tag,
@@ -128,15 +128,15 @@ recorded in the Sigstore transparency log.
 
 **3. Build provenance** (proves *which commit and workflow* built the file; needs the GitHub CLI):
 ```sh
-gh attestation verify cipherhorizon_0.1.0_linux_amd64.tar.gz --repo <owner>/cipherhorizon
+gh attestation verify cipherhorizon_0.1.0_linux_amd64.tar.gz --repo offsetsecurity/cipherhorizon
 ```
 
 **Container image:**
 ```sh
-cosign verify ghcr.io/<owner>/cipherhorizon:0.1.0 \
-  --certificate-identity-regexp '^https://github.com/<owner>/cipherhorizon/\.github/workflows/release\.yml@refs/tags/v' \
+cosign verify ghcr.io/offsetsecurity/cipherhorizon:0.1.0 \
+  --certificate-identity-regexp '^https://github.com/offsetsecurity/cipherhorizon/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/<owner>/cipherhorizon:0.1.0 --repo <owner>/cipherhorizon
+gh attestation verify oci://ghcr.io/offsetsecurity/cipherhorizon:0.1.0 --repo offsetsecurity/cipherhorizon
 ```
 
 Air-gapped users: the archives are self-contained, so download on a connected machine, verify there, and move

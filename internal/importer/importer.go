@@ -24,8 +24,8 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/cdxschema"
-	"github.com/example/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/cdxschema"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
 )
 
 // Limits bound what a document may make the server do.

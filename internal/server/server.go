@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/store"
-	"github.com/example/cipherhorizon/web"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/web"
 )
 
 // Config configures the HTTP server.

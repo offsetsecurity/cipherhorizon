@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/sense/pefiles/pefilestest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/pefiles/pefilestest"
 )
 
 func read(t *testing.T, b []byte) VersionInfo {

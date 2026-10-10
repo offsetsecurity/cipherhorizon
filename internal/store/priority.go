@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 )
 
 // Facts describes the certificate for the certificate rules.

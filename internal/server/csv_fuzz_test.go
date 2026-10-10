@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // FuzzImportSystemsCSV (PRD-007 REQ-TR-6, audit L-15): a systems CSV is a spreadsheet a person

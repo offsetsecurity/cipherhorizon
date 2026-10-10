@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/app"
-	"github.com/example/cipherhorizon/internal/schematest"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/app"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 func hybridServer(t *testing.T) string {

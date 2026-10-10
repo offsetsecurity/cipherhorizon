@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/refdata"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // Section identifiers, in page order (PRD-004 REQ-TUI-4, REQ-TUI-8).

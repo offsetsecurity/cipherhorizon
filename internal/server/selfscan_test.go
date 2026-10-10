@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/server"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // selfSignedPair is a short-lived ECDSA P-256 certificate for 127.0.0.1, like the one an operator

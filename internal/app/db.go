@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // dbCmd runs maintenance on the database file. The estate graph is a projection of

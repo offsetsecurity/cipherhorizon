@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/eval"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // ExitPolicy is the exit code when a --fail-on condition is met (PRD-007 REQ-CL-3): the scan

@@ -13,8 +13,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/knowledge"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/knowledge"
 )
 
 // RelProvidedBy is the relation kind a derived capability uses to point back at the

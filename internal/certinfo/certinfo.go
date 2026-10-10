@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/algo"
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
 )
 
 // Facts is what a certificate says about itself. Text fields come from the

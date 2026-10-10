@@ -10,10 +10,10 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/algo"
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/collector"
-	"github.com/example/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/collector"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
 )
 
 func fixed() cbom.Options {

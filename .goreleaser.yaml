@@ -25,9 +25,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/example/cipherhorizon/internal/version.Version={{ .Version }}
-      - -X github.com/example/cipherhorizon/internal/version.Commit={{ .FullCommit }}
-      - -X github.com/example/cipherhorizon/internal/version.Date={{ .CommitDate }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Version={{ .Version }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Date={{ .CommitDate }}
     # Reproducible: file times come from the commit, not the clock.
     mod_timestamp: "{{ .CommitTimestamp }}"
 
@@ -44,9 +44,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/example/cipherhorizon/internal/version.Version={{ .Version }}
-      - -X github.com/example/cipherhorizon/internal/version.Commit={{ .FullCommit }}
-      - -X github.com/example/cipherhorizon/internal/version.Date={{ .CommitDate }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Version={{ .Version }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Date={{ .CommitDate }}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:

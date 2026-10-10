@@ -17,10 +17,10 @@ import (
 
 	"github.com/package-url/packageurl-go"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/hostinfo"
-	"github.com/example/cipherhorizon/internal/knowledge"
-	"github.com/example/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/hostinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/knowledge"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
 )
 
 const (

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // actor names who is making a change, for the audit log. There is one shared token,

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/registry"
 )
 
 // WriteText renders the report for a person. It states what was observed and the

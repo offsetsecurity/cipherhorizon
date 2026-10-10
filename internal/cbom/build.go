@@ -15,7 +15,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/collector"
+	"github.com/offsetsecurity/cipherhorizon/internal/collector"
 )
 
 // SpecVersion is the CycloneDX version emitted. 1.7 is a later, opt-in step.

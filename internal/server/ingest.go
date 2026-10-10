@@ -15,12 +15,12 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/estate"
-	"github.com/example/cipherhorizon/internal/importer"
-	"github.com/example/cipherhorizon/internal/machinefacts"
-	"github.com/example/cipherhorizon/internal/pqc"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/importer"
+	"github.com/offsetsecurity/cipherhorizon/internal/machinefacts"
+	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 const maxCBOM = 32 << 20

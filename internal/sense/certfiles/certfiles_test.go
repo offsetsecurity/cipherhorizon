@@ -22,8 +22,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
 )
 
 // ---- fixtures ------------------------------------------------------------------------------------

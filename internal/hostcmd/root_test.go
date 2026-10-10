@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/config"
+	"github.com/offsetsecurity/cipherhorizon/internal/config"
 )
 
 // SR-16: for a root that is not this machine's own, a symbolic link inside the tree cannot

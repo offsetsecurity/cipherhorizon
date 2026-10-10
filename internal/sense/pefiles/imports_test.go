@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/sense/pefiles/pefilestest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/pefiles/pefilestest"
 )
 
 func imports(t *testing.T, b []byte) []string {

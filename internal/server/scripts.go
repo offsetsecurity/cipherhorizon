@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/example/cipherhorizon/internal/machinefacts"
-	"github.com/example/cipherhorizon/internal/signatures"
+	"github.com/offsetsecurity/cipherhorizon/internal/machinefacts"
+	"github.com/offsetsecurity/cipherhorizon/internal/signatures"
 )
 
 // listInventoryScripts describes the machine inventory scripts (name, platform, command, SHA-256).

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
 )
 
 type openAPIDoc struct {

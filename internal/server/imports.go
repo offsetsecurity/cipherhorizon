@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/example/cipherhorizon/internal/importer"
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/importer"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 // importReply is what an upload returns: the record, what the producer profile made of it, and

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/server"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
 )
 
 // SECARCH-001 SR-12: a route added later cannot forget the token, the anti-forgery

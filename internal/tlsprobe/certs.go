@@ -8,9 +8,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 
-	"github.com/example/cipherhorizon/internal/certinfo"
-	"github.com/example/cipherhorizon/internal/tlsprobe/registry"
-	"github.com/example/cipherhorizon/internal/tlsprobe/wire"
+	"github.com/offsetsecurity/cipherhorizon/internal/certinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/registry"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/wire"
 )
 
 // Suite lists for the restricted TLS 1.2-and-earlier handshakes that coax a

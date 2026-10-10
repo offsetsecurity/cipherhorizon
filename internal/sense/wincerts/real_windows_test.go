@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/sense"
-	"github.com/example/cipherhorizon/internal/winapi"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/winapi"
 )
 
 // The whole sensor against the real machine's certificate stores. Exact contents differ

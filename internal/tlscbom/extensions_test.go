@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/cbom"
-	"github.com/example/cipherhorizon/internal/pki/pkitest"
-	"github.com/example/cipherhorizon/internal/schematest"
-	"github.com/example/cipherhorizon/internal/tlscbom"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki/pkitest"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // TestCertificateExtensionsOnlyIn17 is PRD-004 REQ-TNFR-7: the certificate facts a

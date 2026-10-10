@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/app"
-	"github.com/example/cipherhorizon/internal/schematest"
-	"github.com/example/cipherhorizon/internal/sense/pefiles/pefilestest"
+	"github.com/offsetsecurity/cipherhorizon/internal/app"
+	"github.com/offsetsecurity/cipherhorizon/internal/schematest"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense/pefiles/pefilestest"
 )
 
 // ADR-0009: a run below the highest privilege tier says so, every time, and says that

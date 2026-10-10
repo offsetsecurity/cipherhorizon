@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/tlsprobe"
-	"github.com/example/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
 )
 
 func target(t testing.TB, s *testserver.Server) tlsprobe.Target {

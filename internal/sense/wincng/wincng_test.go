@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/evidence"
-	"github.com/example/cipherhorizon/internal/knowledge"
-	"github.com/example/cipherhorizon/internal/sense"
+	"github.com/offsetsecurity/cipherhorizon/internal/evidence"
+	"github.com/offsetsecurity/cipherhorizon/internal/knowledge"
+	"github.com/offsetsecurity/cipherhorizon/internal/sense"
 )
 
 const primitive = "Microsoft Primitive Provider"

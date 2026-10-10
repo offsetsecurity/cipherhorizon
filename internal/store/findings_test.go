@@ -3,7 +3,7 @@ package store_test
 import (
 	"testing"
 
-	"github.com/example/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
 func TestFindingStatusSetGetClear(t *testing.T) {

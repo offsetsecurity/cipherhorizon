@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/cipherhorizon/internal/pki"
-	"github.com/example/cipherhorizon/internal/refdata"
-	"github.com/example/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // Input is everything evaluation reads besides the report. The zero value
