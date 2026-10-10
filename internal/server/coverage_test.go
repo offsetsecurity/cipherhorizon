@@ -1,0 +1,94 @@
+package server
+
+import (
+	"strings"
+	"testing"
+
+	cdx "github.com/CycloneDX/cyclonedx-go"
+)
+
+func bomWith(props ...[2]string) *cdx.BOM {
+	ps := make([]cdx.Property, 0, len(props))
+	for _, p := range props {
+		ps = append(ps, cdx.Property{Name: p[0], Value: p[1]})
+	}
+	return &cdx.BOM{Metadata: &cdx.Metadata{Properties: &ps}}
+}
+
+func TestCoverageIsReadFromTheRunProperties(t *testing.T) {
+	cov := coverageFromBOM(bomWith(
+		[2]string{"cipherhorizon:privilege-tier", "user"},
+		[2]string{"cipherhorizon:host-os", "windows 10.0.26200"},
+		[2]string{"cipherhorizon:coverage-note", "129 location(s) could not be read"},
+		[2]string{"cipherhorizon:coverage", "sensor=pe-files status=partial reason=permission denied=129 scope=crypto-library files under Program Files"},
+		[2]string{"cipherhorizon:coverage", "sensor=dpkg status=unsupported"},
+		[2]string{"cipherhorizon:not-seen", "certificates"},
+		[2]string{"unrelated:thing", "ignored"},
+	))
+	if cov == nil {
+		t.Fatal("coverage not found")
+	}
+	if cov.Privilege != "user" || cov.OS != "windows 10.0.26200" || cov.Note == "" || len(cov.NotSeen) != 1 {
+		t.Errorf("run properties = %+v", cov)
+	}
+	if len(cov.Sensors) != 2 {
+		t.Fatalf("sensors = %+v", cov.Sensors)
+	}
+	s := cov.Sensors[0]
+	if s.Sensor != "pe-files" || s.Status != "partial" || s.Reason != "permission" || s.Denied != 129 || !strings.HasPrefix(s.Scope, "crypto-library files") {
+		t.Errorf("first sensor = %+v", s)
+	}
+	if s := cov.Sensors[1]; s.Sensor != "dpkg" || s.Status != "unsupported" || s.Reason != "" || s.Denied != 0 || s.Scope != "" {
+		t.Errorf("second sensor = %+v", s)
+	}
+}
+
+func TestCoverageIsAbsentNotCompleteWhenTheCBOMDoesNotSay(t *testing.T) {
+	if coverageFromBOM(&cdx.BOM{}) != nil || coverageFromBOM(bomWith([2]string{"other:x", "y"})) != nil {
+		t.Error("a CBOM without run properties must yield no coverage, not an empty one")
+	}
+}
+
+func TestCoverageBoundsHostileText(t *testing.T) {
+	long := strings.Repeat("é", 5000)
+	props := [][2]string{{"cipherhorizon:coverage-note", long}}
+	for i := 0; i < 100; i++ {
+		props = append(props, [2]string{"cipherhorizon:not-seen", long})
+	}
+	cov := coverageFromBOM(bomWith(props...))
+	if len([]rune(cov.Note)) > 400 || len(cov.NotSeen) > 30 || len([]rune(cov.NotSeen[0])) > 300 {
+		t.Errorf("unbounded: note %d, not-seen %d", len([]rune(cov.Note)), len(cov.NotSeen))
+	}
+}
+
+func TestLegacyAlgorithmsAreListedWithTheirSourceAndProviders(t *testing.T) {
+	md5 := cdx.Component{BOMRef: "crypto/algorithm/md5", Type: cdx.ComponentTypeCryptographicAsset, Name: "MD5", Properties: &[]cdx.Property{
+		{Name: "cipherhorizon:classical-status", Value: "has updated security considerations because of weaknesses"},
+		{Name: "cipherhorizon:classical-basis", Value: "RFC 6151 (https://www.rfc-editor.org/rfc/rfc6151)"},
+	}}
+	aes := cdx.Component{BOMRef: "crypto/algorithm/aes", Type: cdx.ComponentTypeCryptographicAsset, Name: "AES"}
+	prov := cdx.Component{BOMRef: "provider:cng:x", Type: cdx.ComponentTypeLibrary, Name: "Microsoft Primitive Provider"}
+	provides := []string{"crypto/algorithm/md5", "crypto/algorithm/aes"}
+	bom := &cdx.BOM{Components: &[]cdx.Component{md5, aes, prov}, Dependencies: &[]cdx.Dependency{{Ref: "provider:cng:x", Provides: &provides}}}
+	sum := summarizeCBOM(bom, "h")
+	if len(sum.Legacy) != 1 {
+		t.Fatalf("legacy = %+v", sum.Legacy)
+	}
+	l := sum.Legacy[0]
+	if l.Name != "MD5" || !strings.Contains(l.Basis, "rfc6151") || len(l.ProvidedBy) != 1 || l.ProvidedBy[0] != "Microsoft Primitive Provider" {
+		t.Errorf("legacy entry = %+v", l)
+	}
+	if got := summarizeCBOM(&cdx.BOM{}, "h").Legacy; got == nil || len(got) != 0 {
+		t.Errorf("a CBOM with no legacy algorithms must give an empty list, not null: %#v", got)
+	}
+}
+
+func TestLegacyTextFromADocumentIsBounded(t *testing.T) {
+	long := strings.Repeat("x", 5000)
+	c := cdx.Component{BOMRef: "a", Type: cdx.ComponentTypeCryptographicAsset, Name: "MD5", Properties: &[]cdx.Property{
+		{Name: "cipherhorizon:classical-status", Value: long}, {Name: "cipherhorizon:classical-basis", Value: long}}}
+	l := legacyFromBOM(&cdx.BOM{Components: &[]cdx.Component{c}}, map[string]string{})
+	if len(l) != 1 || len([]rune(l[0].Status)) > 300 || len([]rune(l[0].Basis)) > 400 {
+		t.Errorf("unbounded: %+v", l)
+	}
+}

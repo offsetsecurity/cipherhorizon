@@ -1,0 +1,3482 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CipherHorizon API",
+    "version": "0.2.0-draft",
+    "summary": "Cryptographic estate: systems, certificates, imports, correlation, ranking and export.",
+    "description": "Hand-maintained. A test fails when a registered route is missing here or a documented route does not exist. Every route but /api/v1/health needs the bearer token when the server was started with one. Every state-changing request must send the header X-Requested-With: cipherhorizon and application/json (text/csv on one route).",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "server"
+    },
+    {
+      "name": "assets"
+    },
+    {
+      "name": "scans"
+    },
+    {
+      "name": "findings"
+    },
+    {
+      "name": "systems"
+    },
+    {
+      "name": "estate"
+    },
+    {
+      "name": "certificates"
+    },
+    {
+      "name": "imports"
+    },
+    {
+      "name": "correlation"
+    },
+    {
+      "name": "hosts"
+    },
+    {
+      "name": "export"
+    },
+    {
+      "name": "collector"
+    },
+    {
+      "name": "inventory",
+      "description": "The cryptographic inventory across scans, machines and imported CBOMs (PRD-005)."
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Liveness check; the only route that needs no token.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/about": {
+      "get": {
+        "summary": "Version, limits and whether a token is required.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_about",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/summary": {
+      "get": {
+        "summary": "Fleet summary of TLS endpoints: score bands, readiness, trend.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_summary",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/assets": {
+      "get": {
+        "summary": "List assets, optionally of one kind.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "get_assets",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tls",
+                "host"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a TLS endpoint asset.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "post_assets",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/assets/bulk": {
+      "post": {
+        "summary": "Add many endpoints from lines of text; the reply says what happened to each line.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "post_assets_bulk",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{id}": {
+      "get": {
+        "summary": "One asset with its latest scan.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "get_assets_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Change an asset (name, tags, rescan interval).",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "patch_assets_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an asset and its scans.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "delete_assets_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/scan": {
+      "post": {
+        "summary": "Start a scan of one asset.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "post_assets_id_scan",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/history": {
+      "get": {
+        "summary": "Scan history of an asset.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "get_assets_id_history",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/diff": {
+      "get": {
+        "summary": "Difference between two scans of an asset; 409 when it has fewer than two.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "get_assets_id_diff",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/findings": {
+      "get": {
+        "summary": "Findings of an asset with the person-entered status of each.",
+        "tags": [
+          "findings"
+        ],
+        "operationId": "get_assets_id_findings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/findings/{key}/status": {
+      "put": {
+        "summary": "Acknowledge a finding or accept its risk.",
+        "tags": [
+          "findings"
+        ],
+        "operationId": "put_assets_id_findings_key_status",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear a finding status.",
+        "tags": [
+          "findings"
+        ],
+        "operationId": "delete_assets_id_findings_key_status",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/links/{otherId}": {
+      "put": {
+        "summary": "Link two assets, for example a host and the endpoint it serves.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "put_assets_id_links_otherId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "otherId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a link between two assets.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "delete_assets_id_links_otherId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "otherId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/findings": {
+      "get": {
+        "summary": "Findings across the fleet, filterable.",
+        "tags": [
+          "findings"
+        ],
+        "operationId": "get_findings",
+        "parameters": [
+          {
+            "name": "severity",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "new",
+                "acknowledged",
+                "accepted-risk"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/systems": {
+      "get": {
+        "summary": "List systems with their metadata and the allowed values of the enumerated fields.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "get_systems",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/export.csv": {
+      "get": {
+        "summary": "Systems as CSV, to edit and import back.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "get_systems_export_csv",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/import.csv": {
+      "post": {
+        "summary": "Update systems from CSV; all or nothing, every problem names its line.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "post_systems_import_csv",
+        "parameters": [
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Recorded in the audit log beside the change."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/csv": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}": {
+      "get": {
+        "summary": "One system.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "get_systems_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Change system metadata; null clears a field.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "patch_systems_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Recorded in the audit log beside the change."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/m2302.json": {
+      "get": {
+        "summary": "The nine-item M-23-02 structure for one system, each item marked provided or not provided. Supports the structure; not a compliance statement.",
+        "tags": [
+          "export"
+        ],
+        "operationId": "get_systems_id_m2302_json",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/m2302.csv": {
+      "get": {
+        "summary": "The same as CSV, one line per item 4 element.",
+        "tags": [
+          "export"
+        ],
+        "operationId": "get_systems_id_m2302_csv",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/audit": {
+      "get": {
+        "summary": "Who changed what on a system, and why.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "get_systems_id_audit",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/observations": {
+      "get": {
+        "summary": "What was observed about a system, by whom, and how well.",
+        "tags": [
+          "estate"
+        ],
+        "operationId": "get_systems_id_observations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "current",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1 limits it to the latest picture of each source."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/certificates": {
+      "get": {
+        "summary": "Certificates of one system.",
+        "tags": [
+          "certificates"
+        ],
+        "operationId": "get_systems_id_certificates",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/links": {
+      "get": {
+        "summary": "Proposed and decided correlation links of a system.",
+        "tags": [
+          "correlation"
+        ],
+        "operationId": "get_systems_id_links",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/certificates": {
+      "get": {
+        "summary": "End-entity certificates one by one; CA certificates summarised.",
+        "tags": [
+          "certificates"
+        ],
+        "operationId": "get_certificates",
+        "parameters": [
+          {
+            "name": "include",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "current",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/certificates/{fingerprint}": {
+      "get": {
+        "summary": "One certificate by SHA-256 fingerprint, with where it was seen.",
+        "tags": [
+          "certificates"
+        ],
+        "operationId": "get_certificates_fingerprint",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/imports": {
+      "post": {
+        "summary": "Import a third-party CycloneDX CBOM (1.6 or 1.7) into a system the operator names.",
+        "tags": [
+          "imports"
+        ],
+        "operationId": "post_imports",
+        "parameters": [
+          {
+            "name": "system",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "An existing system. Exactly one of system and newSystem."
+          },
+          {
+            "name": "newSystem",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Name of a new system."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      },
+      "get": {
+        "summary": "Imported documents.",
+        "tags": [
+          "imports"
+        ],
+        "operationId": "get_imports",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/imports/{id}": {
+      "get": {
+        "summary": "One import with what was and was not interpreted.",
+        "tags": [
+          "imports"
+        ],
+        "operationId": "get_imports_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/imports/{id}/withdraw": {
+      "post": {
+        "summary": "Withdraw an import: its facts stop counting; the raw document stays.",
+        "tags": [
+          "imports"
+        ],
+        "operationId": "post_imports_id_withdraw",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/links": {
+      "get": {
+        "summary": "Correlation links.",
+        "tags": [
+          "correlation"
+        ],
+        "operationId": "get_links",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "proposed",
+                "confirmed",
+                "rejected",
+                "all"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/links/{id}/confirm": {
+      "post": {
+        "summary": "Confirm a proposed link.",
+        "tags": [
+          "correlation"
+        ],
+        "operationId": "post_links_id_confirm",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          }
+        }
+      }
+    },
+    "/api/v1/links/{id}/reject": {
+      "post": {
+        "summary": "Reject a proposed link.",
+        "tags": [
+          "correlation"
+        ],
+        "operationId": "post_links_id_reject",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          }
+        }
+      }
+    },
+    "/api/v1/estate": {
+      "get": {
+        "summary": "Systems ranked for post-quantum migration, each row with the rules and citations behind its place.",
+        "tags": [
+          "estate"
+        ],
+        "operationId": "get_estate",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/entities": {
+      "get": {
+        "summary": "Entities in the estate graph.",
+        "tags": [
+          "estate"
+        ],
+        "operationId": "get_entities",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 5000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/graph/stats": {
+      "get": {
+        "summary": "Counts by kind and source class, and whether the projection is stale.",
+        "tags": [
+          "estate"
+        ],
+        "operationId": "get_graph_stats",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/scans": {
+      "post": {
+        "summary": "Start scans of several assets.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "post_scans",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      },
+      "get": {
+        "summary": "Recent scans.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "get_scans",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/scans/{id}": {
+      "get": {
+        "summary": "One scan and its status.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "get_scans_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/scans/{id}/cancel": {
+      "post": {
+        "summary": "Cancel a running scan.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "post_scans_id_cancel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          }
+        }
+      }
+    },
+    "/api/v1/scans/{id}/report": {
+      "get": {
+        "summary": "The stored TLS probe report.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "get_scans_id_report",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1 sends the body as an attachment."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/scans/{id}/evaluation": {
+      "get": {
+        "summary": "The cited evaluation of a scan.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "get_scans_id_evaluation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/scans/{id}/cbom": {
+      "get": {
+        "summary": "A CycloneDX CBOM of what the scan observed; 1.7 by default.",
+        "tags": [
+          "export"
+        ],
+        "operationId": "get_scans_id_cbom",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1 sends the body as an attachment."
+          },
+          {
+            "name": "spec",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1.6",
+                "1.7"
+              ],
+              "default": "1.7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/scans/{id}/report.pdf": {
+      "get": {
+        "summary": "The scan as a formatted A4 PDF report: kind=full (summary, Fix first, every section and finding with sources, how it was tested), tls (the TLS configuration sections) or cert (certificates, trust, revocation and every certificate field).",
+        "tags": [
+          "export"
+        ],
+        "operationId": "get_scans_id_report_pdf",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "full",
+                "tls",
+                "cert"
+              ],
+              "default": "full"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/export/assets.csv": {
+      "get": {
+        "summary": "Endpoints and their latest results as CSV.",
+        "tags": [
+          "export"
+        ],
+        "operationId": "get_export_assets_csv",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts/ingest": {
+      "post": {
+        "summary": "Upload a host CBOM from the collector. Also accepts the plain-text facts file an inventory script writes (Content-Type: text/plain); the server turns it into a CBOM with the collector's own sensors and knowledge.",
+        "tags": [
+          "hosts"
+        ],
+        "operationId": "post_hosts_ingest",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts": {
+      "get": {
+        "summary": "Hosts and their latest summaries.",
+        "tags": [
+          "hosts"
+        ],
+        "operationId": "get_hosts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts/{id}": {
+      "get": {
+        "summary": "One host with its snapshot history.",
+        "tags": [
+          "hosts"
+        ],
+        "operationId": "get_hosts_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/hosts/{id}/snapshots/{snapshotId}/cbom": {
+      "get": {
+        "summary": "A host snapshot exactly as uploaded (not converted).",
+        "tags": [
+          "hosts"
+        ],
+        "operationId": "get_hosts_id_snapshots_snapshotId_cbom",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "snapshotId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1 sends the body as an attachment."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/collector/scripts": {
+      "get": {
+        "summary": "The machine inventory scripts (PowerShell for Windows, shell for Linux): name, platform, the command that runs each, size and SHA-256 of the text served.",
+        "tags": [
+          "collector"
+        ],
+        "operationId": "get_collector_scripts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/collector/scripts/{name}": {
+      "get": {
+        "summary": "One inventory script as plain text, to read or to save (download=1). The X-Content-SHA256 header carries its SHA-256.",
+        "tags": [
+          "collector"
+        ],
+        "operationId": "get_collector_scripts_name",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1 sends the text as an attachment."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/collector/signatures": {
+      "get": {
+        "summary": "The signature database: everything the inventory scripts collect, with the capability each uses, its parameters, why it is collected and how the server interprets it.",
+        "tags": [
+          "collector"
+        ],
+        "operationId": "get_collector_signatures",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/collector/binaries": {
+      "get": {
+        "summary": "Collector binaries this server has on disk and can hand to a fleet; empty when none are present.",
+        "tags": [
+          "collector"
+        ],
+        "operationId": "get_collector_binaries",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/collector/binaries/{name}": {
+      "get": {
+        "summary": "Download one collector binary by the exact filename the list gave.",
+        "tags": [
+          "collector"
+        ],
+        "operationId": "get_collector_binaries_name",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "summary": "This document.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_openapi_json",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/trust-anchors": {
+      "get": {
+        "summary": "The system's private CA bundle: fingerprint, subject, expiry, who added it and when.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "get_systems_id_trust_anchors",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add CA certificates to the system's private bundle. Body {\"pem\": \"...\"} (at most 64 KiB, 50 anchors per system). Certificates only: an upload containing a private-key block is refused unread, and non-CA certificates are refused. The latest scan of each of the system's endpoints is re-evaluated.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "post_systems_id_trust_anchors",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "pem"
+                ],
+                "properties": {
+                  "pem": {
+                    "type": "string",
+                    "maxLength": 65536
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "413": {
+            "description": "Request body too large"
+          }
+        }
+      }
+    },
+    "/api/v1/systems/{id}/trust-anchors/{fingerprint}": {
+      "delete": {
+        "summary": "Remove one anchor from the system's bundle (audited); its endpoints are re-evaluated.",
+        "tags": [
+          "systems"
+        ],
+        "operationId": "delete_systems_id_trust_anchors_fingerprint",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/trust-anchors": {
+      "get": {
+        "summary": "The server-wide private CA bundle (--ca-bundle), read-only.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_trust_anchors",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/reference-data": {
+      "get": {
+        "summary": "Each bundled reference list (root stores, CT logs, DH groups, lifetime limits): source, retrieval date, count, licence, age and whether it is stale.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_reference_data",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/scans/{id}/reevaluate": {
+      "post": {
+        "summary": "Recompute a completed scan's evaluation from its stored report with the current anchors, reference data and time. The report is never rewritten; a scan event records the old and new evaluation versions.",
+        "tags": [
+          "scans"
+        ],
+        "operationId": "post_scans_id_reevaluate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory": {
+      "get": {
+        "summary": "Inventory rows of one kind, read from the merged CBOM: name, detail, cited quantum status, the endpoints, machines and imports it was seen in (places, each with when it reported) and lastSeen.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "Entity kind (default algorithm)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "algorithm",
+                "key",
+                "protocol",
+                "software"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Name contains",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "vulnerable",
+            "in": "query",
+            "required": false,
+            "description": "1: only quantum-vulnerable",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Seen in this kind of source",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "endpoint",
+                "machine",
+                "import"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/summary": {
+      "get": {
+        "summary": "Counts for the inventory summary: algorithms, keys, protocols, software, quantum-vulnerable and quantum-safe algorithms, certificates and those expiring within 30 days, endpoints, machines and imports.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory_summary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cbom": {
+      "get": {
+        "summary": "The whole current inventory as one CycloneDX CBOM: the latest CBOM of every endpoint and machine merged by bom-ref, each cryptographic component with cipherhorizon:seen-in; imported CBOMs only with imported=1. At most 20,000 components.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory_cbom",
+        "parameters": [
+          {
+            "name": "spec",
+            "in": "query",
+            "required": false,
+            "description": "CycloneDX version (default 1.7)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1.6",
+                "1.7"
+              ]
+            }
+          },
+          {
+            "name": "imported",
+            "in": "query",
+            "required": false,
+            "description": "1: include imported CBOMs",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "description": "1: send as an attachment",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CycloneDX JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "413": {
+            "description": "More than 20,000 components"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/dashboard": {
+      "get": {
+        "summary": "Every figure of the Inventory dashboard, from the merged CBOM (imported CBOMs included) and the certificate store: totals, post-quantum split, what to replace first, algorithms by purpose, protocol versions, software, certificate expiry and sources.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory_dashboard",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "413": {
+            "description": "The inventory is too large to merge"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/report.pdf": {
+      "get": {
+        "summary": "The whole inventory as a formatted A4 PDF report: post-quantum status, what to replace first, protocol versions, certificates, every algorithm, key and software component, and the sources.",
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_inventory_report_pdf",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "413": {
+            "description": "The inventory is too large to merge"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/state": {
+      "get": {
+        "summary": "Whether sign-in or first-run setup is needed, and who is signed in (public)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "get_auth_state"
+      }
+    },
+    "/api/v1/auth/setup": {
+      "post": {
+        "summary": "Create the first administrator with the one-time setup code printed in the server log (public; only while no account exists)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created and signed in"
+          },
+          "403": {
+            "description": "Wrong setup code"
+          },
+          "409": {
+            "description": "Setup already complete"
+          },
+          "429": {
+            "description": "Too many failed attempts"
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "operationId": "post_auth_setup"
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Sign in with username and password; sets an HttpOnly, SameSite=Strict session cookie (public)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed in"
+          },
+          "401": {
+            "description": "Wrong username or password, disabled or locked"
+          },
+          "429": {
+            "description": "Too many failed attempts"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "operationId": "post_auth_login"
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "summary": "Sign out this browser",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          }
+        },
+        "operationId": "post_auth_logout"
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "summary": "The signed-in account",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          }
+        },
+        "operationId": "get_auth_me"
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "summary": "Change your password (ends your other sessions)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Changed"
+          },
+          "403": {
+            "description": "Current password wrong"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "operationId": "post_auth_password"
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "get": {
+        "summary": "Your signed-in sessions",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          }
+        },
+        "operationId": "get_auth_sessions"
+      }
+    },
+    "/api/v1/auth/sessions/{id}": {
+      "delete": {
+        "summary": "End one of your sessions",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "delete_auth_sessions_id"
+      }
+    },
+    "/api/v1/auth/events": {
+      "get": {
+        "summary": "Sign-in audit trail, newest first (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          }
+        },
+        "operationId": "get_auth_events"
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "summary": "Accounts (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          }
+        },
+        "operationId": "get_users"
+      },
+      "post": {
+        "summary": "Add an account with a temporary password (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "409": {
+            "description": "Username taken"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "operationId": "post_users"
+      }
+    },
+    "/api/v1/users/{id}": {
+      "patch": {
+        "summary": "Change an account's name, role or enabled state (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "patch_users_id"
+      },
+      "delete": {
+        "summary": "Delete an account (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "delete_users_id"
+      }
+    },
+    "/api/v1/users/{id}/password": {
+      "post": {
+        "summary": "Set a temporary password; the owner must change it at next sign-in (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "post_users_id_password"
+      }
+    },
+    "/api/v1/users/{id}/unlock": {
+      "post": {
+        "summary": "Clear a lockout (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard or by the account's role"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "operationId": "post_users_id_unlock"
+      }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "summary": "Activity: every change made through the API and every sign-in event, newest first (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "person",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Only what this user did, or (for sign-in events) what concerned their account"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "change",
+                "sign-in"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {entries: [{at, source, actor, action, objectKind, objectId, username, client, detail, reason}]}"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          },
+          "400": {
+            "description": "A filter is not valid"
+          }
+        },
+        "operationId": "get_audit"
+      }
+    },
+    "/api/v1/audit.csv": {
+      "get": {
+        "summary": "The Activity list as CSV, formula-safe (administrators)",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "person",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Only what this user did, or (for sign-in events) what concerned their account"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "change",
+                "sign-in"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/csv"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          },
+          "400": {
+            "description": "A filter is not valid"
+          }
+        },
+        "operationId": "get_audit_csv"
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "summary": "Settings: whether sign-in is required and who decided it, and the server's configuration (administrators; anyone when sign-in is off)",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {signIn: {required, lockedBy, accounts, canTurnOff}, server: {...}}"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          }
+        },
+        "operationId": "get_settings"
+      }
+    },
+    "/api/v1/settings/sign-in": {
+      "put": {
+        "summary": "Turn sign-in on or off. Turning it on with no account yet creates the first administrator from username and password and signs this browser in.",
+        "tags": [
+          "accounts"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {required, signedIn}"
+          },
+          "400": {
+            "description": "A username or password that is not allowed"
+          },
+          "409": {
+            "description": "Locked by the command line, or turning it off would open a server reachable from the network"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
+          },
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
+          }
+        },
+        "operationId": "put_settings_sign_in"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The server token. Optional when the server listens on loopback only."
+      }
+    },
+    "parameters": {
+      "id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      }
+    }
+  }
+}

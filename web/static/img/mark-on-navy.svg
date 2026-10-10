@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>CipherHorizon</title>
+  <!-- The CipherHorizon icon: a padlock on a rounded square. Flat: one colour per shape. -->
+  <rect width="32" height="32" rx="7" fill="#2457D6"/>
+  <path d="M10.75 15V11.75a5.25 5.25 0 0 1 10.5 0V15h-2.9v-3.25a2.35 2.35 0 0 0-4.7 0V15Z" fill="#FFFFFF"/>
+  <rect x="8.5" y="14.5" width="15" height="11" rx="2.2" fill="#FFFFFF"/>
+  <path d="M16 17.4a1.7 1.7 0 0 1 .85 3.17V22.6h-1.7v-2.03A1.7 1.7 0 0 1 16 17.4Z" fill="#2457D6"/>
+</svg>

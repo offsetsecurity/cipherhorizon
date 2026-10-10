@@ -1,0 +1,72 @@
+OCSP Response Data:
+    OCSP Response Status: successful (0x0)
+    Response Type: Basic OCSP Response
+    Version: 1 (0x0)
+    Responder Id: CN = CipherHorizon Test OCSP Responder
+    Produced At: Oct  2 14:37:24 2026 GMT
+    Responses:
+    Certificate ID:
+      Hash Algorithm: sha1
+      Issuer Name Hash: B019A47D17DB76653FA1AA8AA3A86D1542240CD6
+      Issuer Key Hash: DF4C3D51C1AA240ACCFFB42007A51EB5ECF2D7A9
+      Serial Number: 1001
+    Cert Status: good
+    This Update: Oct  2 14:37:24 2026 GMT
+    Next Update: Oct  9 14:37:24 2026 GMT
+
+    Signature Algorithm: ecdsa-with-SHA256
+    Signature Value:
+        30:46:02:21:00:92:44:17:26:8d:e1:0c:d4:30:b6:45:c6:76:
+        60:f5:79:9d:63:9f:4e:a6:08:bd:aa:6b:ca:0f:78:30:6f:0f:
+        93:02:21:00:d2:a7:9c:53:58:1b:4b:65:f1:01:02:b9:c0:c0:
+        29:fe:96:d3:8a:20:c9:ca:55:50:1f:32:a3:c3:3f:49:a0:88
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 4100 (0x1004)
+        Signature Algorithm: ecdsa-with-SHA256
+        Issuer: CN=CipherHorizon Test Intermediate
+        Validity
+            Not Before: Jan  1 00:00:00 2025 GMT
+            Not After : Jan  1 00:00:00 2045 GMT
+        Subject: CN=CipherHorizon Test OCSP Responder
+        Subject Public Key Info:
+            Public Key Algorithm: id-ecPublicKey
+                Public-Key: (256 bit)
+                pub:
+                    04:53:96:43:51:02:44:0b:29:f4:83:24:db:d8:00:
+                    49:10:8d:79:bd:0b:4f:33:0f:11:31:27:a3:28:11:
+                    eb:2b:a3:4d:4d:6b:16:fa:fd:4a:23:74:b3:e3:94:
+                    96:9d:e8:37:a0:cb:40:62:f4:69:56:2e:41:b9:eb:
+                    28:ef:18:50:81
+                ASN1 OID: prime256v1
+                NIST CURVE: P-256
+        X509v3 extensions:
+            X509v3 Basic Constraints: critical
+                CA:FALSE
+            X509v3 Key Usage: critical
+                Digital Signature
+            X509v3 Extended Key Usage: 
+                OCSP Signing
+            X509v3 Authority Key Identifier: 
+                DF:4C:3D:51:C1:AA:24:0A:CC:FF:B4:20:07:A5:1E:B5:EC:F2:D7:A9
+            X509v3 Subject Key Identifier: 
+                70:1E:E9:BD:62:79:D2:4A:7A:38:DE:E5:F3:B7:58:A3:7D:30:6C:F9
+    Signature Algorithm: ecdsa-with-SHA256
+    Signature Value:
+        30:45:02:20:29:cd:72:dc:0e:e2:9e:b2:a6:e3:31:9c:44:4b:
+        dd:17:47:5c:07:32:1d:16:6a:dd:64:47:7d:77:13:8d:2b:f5:
+        02:21:00:f2:60:e2:69:e8:a5:dd:6b:1e:55:fb:73:c4:ac:1b:
+        e9:35:be:a5:ec:78:32:cd:fd:5f:8d:2a:da:91:5a:b0:e2
+-----BEGIN CERTIFICATE-----
+MIIBuzCCAWGgAwIBAgICEAQwCgYIKoZIzj0EAwIwKjEoMCYGA1UEAwwfQ2lwaGVy
+SG9yaXpvbiBUZXN0IEludGVybWVkaWF0ZTAeFw0yNTAxMDEwMDAwMDBaFw00NTAx
+MDEwMDAwMDBaMCwxKjAoBgNVBAMMIUNpcGhlckhvcml6b24gVGVzdCBPQ1NQIFJl
+c3BvbmRlcjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFOWQ1ECRAsp9IMk29gA
+SRCNeb0LTzMPETEnoygR6yujTU1rFvr9SiN0s+OUlp3oN6DLQGL0aVYuQbnrKO8Y
+UIGjdTBzMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQMMAoG
+CCsGAQUFBwMJMB8GA1UdIwQYMBaAFN9MPVHBqiQKzP+0IAelHrXs8tepMB0GA1Ud
+DgQWBBRwHum9YnnSSno43uXzt1ijfTBs+TAKBggqhkjOPQQDAgNIADBFAiApzXLc
+DuKesqbjMZxES90XR1wHMh0Wat1kR313E40r9QIhAPJg4mnopd1rHlX7c8SsG+k1
+vqXseDLN/V+NKtqRWrDi
+-----END CERTIFICATE-----

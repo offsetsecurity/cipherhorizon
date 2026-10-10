@@ -1,0 +1,37 @@
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.txt
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+# local dev server config: has machine-specific absolute paths
+.claude/
+
+# docker compose reads this automatically for CIPHERHORIZON_TOKEN and the like; never the
+# committed default (see docker-compose.yml)
+.env
+
+# collected release/QA evidence (screenshots, logs, samples, binaries): regenerate with
+# testing/e2e and the Makefile targets; never committed (see docs/program/QA-REPORT-002.md for
+# the durable, written-up form of this evidence instead)
+/artifacts/
+
+# local databases and scratch from running the server or the e2e journey
+*.db
+*.db-shm
+*.db-wal
+
+# release build output and local release scratch
+/RELEASE_NOTES.md
+*.sigstore.json
+/checksums.txt
+
+# inventory scripts exported for a release by .goreleaser.yaml
+/build/
+
+# Windows version resources made by scripts/winres.sh before a build
+rsrc_windows_*.syso

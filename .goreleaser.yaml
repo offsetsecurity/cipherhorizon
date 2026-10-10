@@ -1,0 +1,129 @@
+# GoReleaser configuration: how a tagged commit becomes the files people download.
+# Run by .github/workflows/release.yml on a v* tag. See docs/engineering/RELEASING.md.
+#
+# Try it locally without publishing anything:  make snapshot   (needs goreleaser installed)
+version: 2
+
+project_name: cipherhorizon
+
+before:
+  hooks:
+    - go mod verify
+    # The inventory scripts as this version serves them, with their hashes: published beside the
+    # archives and listed in checksums.txt, so the signature covers them (PRD-007 REQ-TR-7).
+    - go run ./cmd/cipherhorizon scripts export build/inventory-scripts
+    # Windows version information and icon (Properties > Details), from this release's version.
+    - bash scripts/winres.sh {{ .Version }}
+
+builds:
+  - id: cipherhorizon
+    main: ./cmd/cipherhorizon
+    binary: cipherhorizon
+    env:
+      - CGO_ENABLED=0 # one static binary with no libc (SQLite is the pure-Go modernc.org/sqlite)
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Version={{ .Version }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Date={{ .CommitDate }}
+    # Reproducible: file times come from the commit, not the clock.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # The collector: the small program to deploy on endpoints (no web server, no database, no
+  # TLS scanner). See docs/decisions/ADR-0011 and docs/engineering/DISTRIBUTION.md.
+  - id: collector
+    main: ./cmd/cipherhorizon-collector
+    binary: cipherhorizon-collector
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Version={{ .Version }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/offsetsecurity/cipherhorizon/internal/version.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: collector
+    ids: [collector]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "cipherhorizon-collector_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - SECURITY.md
+      - docs/config.example.yaml
+
+  - id: default
+    ids: [cipherhorizon]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - SECURITY.md
+      - docs/config.example.yaml
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+  extra_files:
+    - glob: ./build/inventory-scripts/*
+
+# A software bill of materials for every archive (Syft; the workflow installs it).
+sboms:
+  - artifacts: archive
+
+# Sign the checksum file with the workflow's own OIDC identity (Sigstore keyless: no key to
+# store or leak). Signing checksums.txt covers every archive listed in it.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--yes", "--bundle=${signature}", "${artifact}"]
+    artifacts: checksum
+    output: true
+
+# Release notes come from CHANGELOG.md (scripts/release-notes.sh), not from commit messages.
+changelog:
+  disable: true
+
+release:
+  # Created as a draft; the release workflow publishes it only after the container image and the
+  # provenance attestations are also in place. 0.x releases are flagged pre-release there.
+  draft: true
+  replace_existing_draft: true
+  name_template: "CipherHorizon v{{ .Version }}"
+  extra_files:
+    - glob: ./build/inventory-scripts/*
+  footer: |
+    ### Verify what you downloaded
+
+    ```sh
+    sha256sum --check --ignore-missing checksums.txt
+    cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+      --certificate-identity-regexp '^https://github.com/{{ .Env.GITHUB_REPOSITORY }}/\.github/workflows/release\.yml@refs/tags/v' \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com
+    ```
+
+    The inventory scripts a server of this version hands out are attached too, with
+    `inventory-scripts.sha256`; `cipherhorizon scripts list` prints the same hashes offline.
+
+    Full instructions, including the container image and build provenance: docs/engineering/DISTRIBUTION.md.
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"

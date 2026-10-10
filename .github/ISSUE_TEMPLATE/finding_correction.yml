@@ -1,0 +1,31 @@
+name: Incorrect finding, verdict, or citation
+description: A PQC classification, a TLS finding, or a readiness/hygiene claim looks wrong, or its citation doesn't say what the rule claims.
+labels: [correctness, evidence]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project's rules (`internal/pqc/rules.go`, `internal/eval/rules.go`) are only as good as their
+        citations. If one is wrong, outdated, or you've found a primary source that says something different,
+        this is the most valuable kind of report you can file.
+  - type: input
+    id: claim
+    attributes:
+      label: The claim you're disputing
+      description: The exact rule ID, algorithm name, or finding text (e.g. "CIPHER.RC4", "X25519MLKEM768 classified quantum-safe").
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it's wrong
+      description: What should it say instead, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Primary source
+      description: An RFC, FIPS/SP/IR, CVE, IANA registry entry, or equivalent that supports the correction. A link and, if useful, a quote.
+    validations:
+      required: true

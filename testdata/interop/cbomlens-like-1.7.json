@@ -1,0 +1,27 @@
+{
+  "bomFormat": "CycloneDX", "specVersion": "1.7", "serialNumber": "urn:uuid:aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "version": 1,
+  "metadata": {"timestamp": "2026-01-02T03:04:05Z", "lifecycles": [{"phase": "operations"}],
+    "component": {"type": "application", "name": "CBOM-Lens", "version": "1.0.0"}},
+  "components": [
+    {"type": "cryptographic-asset", "bom-ref": "crypto/certificate/leaf", "name": "leaf.example.test",
+     "hashes": [{"alg": "SHA-256", "content": "abababababababababababababababababababababababababababababababab"}],
+     "evidence": {"occurrences": [{"location": "/srv/tls/leaf.pem"}, {"location": "tcp://host.example.test:443"}]},
+     "cryptoProperties": {"assetType": "certificate", "certificateProperties": {"subjectName": "CN=leaf.example.test", "issuerName": "CN=Test CA",
+       "notValidBefore": "2026-01-01T00:00:00Z", "notValidAfter": "2027-01-01T00:00:00Z", "certificateFormat": "X.509",
+       "signatureAlgorithmRef": "crypto/algorithm/sig", "subjectPublicKeyRef": "crypto/key/leaf"}}},
+    {"type": "cryptographic-asset", "bom-ref": "crypto/key/leaf", "name": "leaf public key",
+     "cryptoProperties": {"assetType": "related-crypto-material", "relatedCryptoMaterialProperties": {"type": "public-key", "size": 2048, "algorithmRef": "crypto/algorithm/rsa"}}},
+    {"type": "cryptographic-asset", "bom-ref": "crypto/algorithm/rsa", "name": "RSA-2048",
+     "cryptoProperties": {"assetType": "algorithm", "oid": "1.2.840.113549.1.1.1", "algorithmProperties": {"primitive": "pke", "algorithmFamily": "RSASSA-PKCS1", "parameterSetIdentifier": "2048"}}},
+    {"type": "cryptographic-asset", "bom-ref": "crypto/algorithm/sig", "name": "SHA256withRSA",
+     "cryptoProperties": {"assetType": "algorithm", "algorithmProperties": {"primitive": "signature"}}},
+    {"type": "cryptographic-asset", "bom-ref": "crypto/protocol/tls", "name": "TLSv1.3",
+     "evidence": {"occurrences": [{"location": "tcp://host.example.test:443"}]},
+     "cryptoProperties": {"assetType": "protocol", "protocolProperties": {"type": "tls", "version": "1.3",
+       "cipherSuites": [{"name": "TLS_AES_128_GCM_SHA256", "identifiers": ["0x13", "0x01"]}, {"name": "TLS_ODD", "identifiers": ["0x99"]}]}}},
+    {"type": "cryptographic-asset", "bom-ref": "pw1", "name": "generic-password",
+     "cryptoProperties": {"assetType": "related-crypto-material", "relatedCryptoMaterialProperties": {"type": "password"}}},
+    {"type": "cryptographic-asset", "bom-ref": "cert2", "name": "no-hash.example.test",
+     "cryptoProperties": {"assetType": "certificate", "certificateProperties": {"subjectName": "CN=no-hash"}}}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "bomFormat": "CycloneDX", "specVersion": "1.6", "serialNumber": "urn:uuid:11111111-2222-4333-8444-555555555555", "version": 1,
+  "metadata": {"timestamp": "2025-02-26T09:01:57Z", "tools": {"components": [{"type": "application", "name": "sonar-cryptography", "version": "1.4.0"}]},
+    "properties": [{"name": "gitUrl", "value": "https://example.test/org/app"}, {"name": "revision", "value": "main"}]},
+  "components": [
+    {"type": "cryptographic-asset", "bom-ref": "a1", "name": "AES-256-GCM",
+     "evidence": {"occurrences": [{"location": "src/main/java/App.java", "line": 42, "offset": 9, "additionalContext": "javax.crypto.Cipher#getInstance"}]},
+     "cryptoProperties": {"assetType": "algorithm", "algorithmProperties": {"primitive": "ae", "parameterSetIdentifier": "256", "mode": "gcm"}, "oid": "2.16.840.1.101.3.4.1.46"}},
+    {"type": "cryptographic-asset", "bom-ref": "a2", "name": "RSA",
+     "cryptoProperties": {"assetType": "algorithm", "algorithmProperties": {"primitive": "pke"}}},
+    {"type": "cryptographic-asset", "bom-ref": "p1", "name": "TLS",
+     "cryptoProperties": {"assetType": "protocol", "protocolProperties": {"type": "tls"}}},
+    {"type": "cryptographic-asset", "bom-ref": "k1", "name": "key@k1",
+     "cryptoProperties": {"assetType": "related-crypto-material", "relatedCryptoMaterialProperties": {"type": "secret-key"}}},
+    {"type": "library", "bom-ref": "l1", "name": "bcprov-jdk18on", "version": "1.78", "purl": "pkg:maven/org.bouncycastle/bcprov-jdk18on@1.78"}
+  ],
+  "dependencies": []
+}

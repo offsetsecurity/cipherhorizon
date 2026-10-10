@@ -1,0 +1,158 @@
+# CipherHorizon
+
+[![CI](https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml/badge.svg)](https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml)
+[![Go Reference](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![CycloneDX](https://img.shields.io/badge/CBOM-CycloneDX%201.7-2457d6)](docs/exporting.md)
+
+
+**Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a
+CycloneDX CBOM, self-hosted.** By [Offset Security](https://offsetsecurity.net/).
+
+Recorded traffic is protected today only if the key exchange was post-quantum: NIST IR 8547 deprecates the
+quantum-vulnerable algorithms after 2030 and disallows them after 2035, and anything harvested before then can be
+decrypted later. CipherHorizon tells you which of your endpoints are exposed, which machines carry quantum-vulnerable
+cryptography, and what to fix first. It runs on your network and sends nothing anywhere.
+
+![The Overview: a scan box, the L0 to L4 readiness scale, and the state of every endpoint scanned](docs/img/overview.png)
+
+## Quick start
+
+```sh
+docker compose up -d                                          # http://127.0.0.1:8080
+```
+
+or, with a [release binary](../../releases) (Linux, macOS, Windows; amd64 and arm64):
+
+```sh
+cipherhorizon serve                                            # http://127.0.0.1:8080
+```
+
+Open <http://127.0.0.1:8080>, type an address, press Enter. Sign-in is off until you want it: turn it on in
+**Settings** to give a team accounts and roles, or start with `--sign-in on`.
+
+From the command line, no server needed:
+
+```sh
+cipherhorizon tls scan example.com                     # the verdict: readiness, TLS hygiene score, what to fix
+cipherhorizon tls scan smtp://mail.example.com         # STARTTLS: SMTP, IMAP, POP3, FTP, XMPP, LDAP, PostgreSQL
+cipherhorizon tls scan --fail-on 'level<L3' api.example.com   # exit 3 when it fails: a CI gate
+```
+
+Scan only systems you own or are authorised to test.
+
+## Three things it does well
+
+**Post-quantum readiness.** Every endpoint gets a level from L0 (no TLS 1.3, so no post-quantum key exchange is
+possible) to L4 (post-quantum key exchange and certificate), and is flagged when recorded traffic is exposed to
+harvest-now-decrypt-later. Systems are ranked for migration by exposure and by how long their data must stay secret.
+
+**A TLS scanner that shows its work.** Its own wire implementation tests every protocol from SSLv2 to TLS 1.3,
+every cipher suite and key-exchange group (including `X25519MLKEM768`), the certificate chain against the bundled root
+stores, OCSP stapling, CT and HSTS. Each of its 55 checks says what it found or that it passed, why it matters,
+what to do and its sources (RFCs, NIST, IANA). The TLS hygiene score (0 to 100) shows its arithmetic.
+
+**An inventory you can hand over.** Two short, readable scripts (PowerShell and shell) inventory a machine without
+installing anything; CBOMs from other tools can be imported. Endpoints and machines merge into one CycloneDX 1.7
+CBOM, with PDF reports for each endpoint and for the whole inventory, and the OMB M-23-02 items per system.
+
+| A report: verdict first, then every check | STARTTLS services, the same depth |
+|---|---|
+| ![An endpoint report: readiness L3, TLS hygiene score, the one thing to fix](docs/img/report-hybrid.png) | ![An SMTP endpoint scanned through STARTTLS](docs/img/report-starttls.png) |
+
+## How it compares
+
+| | CipherHorizon | testssl.sh, SSLyze | SSL Labs | New PQC CLIs |
+|---|---|---|---|---|
+| Form | Self-hosted web app and CLI | CLI | Public web service | CLI |
+| Internal endpoints | Yes | Yes | No (public HTTPS only) | Yes |
+| History, schedules, accounts and roles | Yes | No | No | No |
+| A post-quantum readiness level per endpoint | L0 to L4, with HNDL exposure | Lists groups | No | Varies |
+| STARTTLS | 7 protocols | Yes | No | Rarely |
+| Machine inventory and one CBOM | Yes | No | No | Some |
+| Active vulnerability probes (Heartbleed, ROBOT) | No, by design: it sends no exploit traffic | Yes | Yes | No |
+| Rating | Its own TLS hygiene score, arithmetic shown | Letter grade | Letter grade | Own scores |
+
+Use testssl.sh when you need active vulnerability probes on one host; use CipherHorizon when you need to know where
+your estate stands on post-quantum, keep track of it, and show the evidence.
+
+## Standards
+
+[NIST IR 8547](https://csrc.nist.gov/pubs/ir/8547/ipd) (transition timeline) ·
+[FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) ML-KEM ·
+[FIPS 204](https://csrc.nist.gov/pubs/fips/204/final) ML-DSA · FIPS 205 SLH-DSA ·
+[RFC 8446](https://www.rfc-editor.org/rfc/rfc8446) and [RFC 9325](https://www.rfc-editor.org/rfc/rfc9325) (TLS) ·
+[CycloneDX 1.6 and 1.7](https://cyclonedx.org/capabilities/cbom/) (CBOM) · OMB M-23-02 (export structure).
+The readiness level and the TLS hygiene score are this project's own; how each is worked out is in
+[docs/methodology.md](docs/methodology.md).
+
+## Security and trust
+
+- **Self-hosted and offline.** One static binary with the interface inside; no telemetry, no external requests
+  but the scans you start. A scan contacts only its target.
+- **It passes its own scan.** Served over HTTPS, it speaks TLS 1.2 (forward-secret AEAD only) and TLS 1.3 with the
+  hybrid post-quantum key exchange, sends HSTS, and the test suite scans it with its own scanner.
+- **Accounts when you want them.** Sign-in is off for one person on their own machine and one click away for a
+  team: administrator, analyst and viewer roles, PBKDF2 password hashes, sessions that end, lock-outs, and every
+  sign-in and change in an activity log an administrator can export. A server on the network will not start open
+  unless told to (`--open-network`).
+- **Limits you set.** `--scan-allow` restricts what can be scanned; loopback, link-local and cloud-metadata
+  addresses are refused by default.
+- **Verifiable releases.** Signed checksums (Sigstore), an SBOM per archive, build provenance, and the inventory
+  scripts' hashes from `cipherhorizon scripts list`.
+
+Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
+
+## Documentation
+
+| | |
+|---|---|
+| [docs/deploy.md](docs/deploy.md) | Docker, Caddy with automatic HTTPS, systemd, Windows, backups |
+| [docs/CI.md](docs/CI.md) | `tls scan --fail-on` and a GitHub Actions example |
+| [docs/methodology.md](docs/methodology.md) | Every check, the readiness levels, the TLS hygiene score |
+| [docs/tls-scanning.md](docs/tls-scanning.md) | How the scanner works and what it sends |
+| [docs/estate-guide.md](docs/estate-guide.md) | Systems, machines, migration order |
+| [docs/importing.md](docs/importing.md), [docs/exporting.md](docs/exporting.md) | CBOM in and out, OMB M-23-02 |
+| [docs/architecture.md](docs/architecture.md) | How it is built |
+| `/api/v1/openapi.json` on a running server | The API |
+
+## Try it without touching anyone else's systems
+
+```sh
+go run ./cmd/demo-targets                    # servers of known posture on 127.0.0.1:9440 and up
+cipherhorizon serve --allow-loopback         # loopback scans are refused unless you say so
+```
+
+`demo-targets` prints what each server is and what to expect: a hybrid post-quantum server (L3), classical TLS 1.3
+(L1), TLS 1.2 only (L0), a deliberately terrible SSLv3 server, a slow one, a private CA chain, and one STARTTLS
+service per protocol.
+
+## Building and testing
+
+Go 1.25 or newer; no C compiler, no Node, no database server.
+
+```sh
+go build -o cipherhorizon ./cmd/cipherhorizon
+go test ./...                       # unit and integration tests, including the UI and design rules
+golangci-lint run ./...
+bash testing/deploy/smoke.sh        # the container, as docker-compose.yml runs it
+node testing/e2e/journey.mjs        # the browser journey, see testing/README.md
+```
+
+The interface is plain HTML, CSS and JavaScript modules embedded with `go:embed`; storage is SQLite through a pure-Go
+driver; the TLS scanner is its own wire implementation (`internal/tlsprobe`). The design rules are in
+[DESIGN.md](DESIGN.md).
+
+## Contributing
+
+Bug reports, corrections to a finding or a citation, and pull requests are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md) for the setup, conventions and the evidence rule every finding follows.
+Everyone participating follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+**Status:** pre-release (`0.x`), heading for 1.0 ([release checklist](docs/engineering/RELEASE-CHECKLIST-1.0.md)).
+
+## License and credits
+
+[Apache 2.0](LICENSE). Made by [Offset Security](https://offsetsecurity.net/), whose
+[post-quantum readiness practice](https://offsetsecurity.net/post-quantum-cryptography-readiness.html) helps teams
+plan the move. Fonts: Geist and Geist Mono (Vercel) and Newsreader, all under the SIL Open Font License.

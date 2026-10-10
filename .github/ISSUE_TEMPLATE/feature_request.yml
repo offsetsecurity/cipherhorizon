@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest something this project should do that it doesn't yet.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything larger than a small addition, opening this before a PR saves you from building on an
+        assumption that doesn't match the project's direction — see CONTRIBUTING.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do that the tool doesn't support today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would the feature look like? A CLI flag, a UI view, a new finding — the more concrete, the easier to evaluate.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approach, or existing tool, you've weighed.

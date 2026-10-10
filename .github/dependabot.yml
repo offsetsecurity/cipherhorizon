@@ -1,0 +1,31 @@
+# Dependabot: keeps the three things that are pinned by hand from going stale. Updates arrive as
+# ordinary pull requests, so they pass CI like any other change. Security updates are separate
+# (enable "Dependabot security updates" in the repository settings) and are not batched.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      go-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions # every action is pinned to a commit SHA; this moves the pin
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "build(deps)"

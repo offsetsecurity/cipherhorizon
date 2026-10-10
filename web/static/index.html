@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>CipherHorizon · post-quantum readiness and TLS scanner</title>
+  <link rel="icon" href="/img/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brandblock">
+        <a class="brandlink" href="#/" aria-label="CipherHorizon home">
+          <span class="brandmark" aria-hidden="true">
+            <img src="/img/mark-on-navy.svg" alt="" width="28" height="28">
+          </span>
+          <span class="brandtext">
+            <span class="brandname">CipherHorizon</span>
+            <span class="brandsub">TLS and post-quantum scanner</span>
+          </span>
+        </a>
+      </div>
+      <nav aria-label="Main" id="nav">
+        <a href="#/" data-route="overview">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.8" y="2.8" width="6.2" height="8" rx="1.4" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="2.8" width="6.2" height="4.6" rx="1.4" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="9.4" width="6.2" height="7.8" rx="1.4" stroke="currentColor" stroke-width="1.6"/><rect x="2.8" y="12.8" width="6.2" height="4.4" rx="1.4" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span>Overview</span>
+        </a>
+        <div class="navgroup" role="presentation">Results</div>
+        <a href="#/endpoints" data-route="endpoints">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.6"/><path d="M2.8 10h14.4M10 2.8c2 2 3 4.4 3 7.2s-1 5.2-3 7.2c-2-2-3-4.4-3-7.2s1-5.2 3-7.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span>Endpoints</span>
+        </a>
+        <a href="#/machines" data-route="machines">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="5.6" rx="1.4" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="11.4" width="14" height="5.6" rx="1.4" stroke="currentColor" stroke-width="1.6"/><path d="M6 5.8h.1M6 14.2h.1" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span>Machines</span>
+        </a>
+        <a href="#/findings" data-route="findings">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.8l7.6 13.4H2.4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v3.8M10 14.3v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>Findings</span>
+        </a>
+        <a href="#/inventory" data-route="inventory">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.6l7 3.6-7 3.6-7-3.6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 10l7 3.6 7-3.6M3 13.8l7 3.6 7-3.6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span>Inventory</span>
+        </a>
+        <div class="navgroup" role="presentation">Plan &amp; share</div>
+        <a href="#/systems" data-route="systems">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="3" width="6" height="6" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="11" width="6" height="6" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="11" y="11" width="6" height="6" rx="1.3" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span>Systems</span> <span class="navcount" id="nav-review-count" hidden></span>
+        </a>
+        <a href="#/reports" data-route="reports">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 2.8h7l3 3v11.4H5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7.5 9.5h5M7.5 12.5h5M7.5 6.5h2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span>Reports</span>
+        </a>
+      </nav>
+      <div class="sidefoot">
+        <a class="sidefoot-action" href="#/settings" data-route="settings">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3.5 6h8M15 6h1.5M3.5 14h1.5M8.5 14h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="13.2" cy="6" r="1.9" stroke="currentColor" stroke-width="1.6"/><circle cx="6.8" cy="14" r="1.9" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span>Settings</span>
+        </a>
+        <a class="sidefoot-action" href="#/help" data-route="help">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.6"/><path d="M7.9 8a2.2 2.2 0 1 1 3 2c-.6.3-.9.7-.9 1.4M10 14v.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Help</span>
+        </a>
+        <a class="sidefoot-action" href="#/about" data-route="about">
+          <svg class="navicon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.6"/><path d="M10 9.2v4.3M10 6.6v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>About</span>
+        </a>
+        <div id="account-chip"></div>
+        <div class="sidecredit">
+          <a class="offset-credit" href="https://offsetsecurity.net/" target="_blank" rel="noopener" aria-label="Developed by Offset Security">
+            <span class="sidefoot-label">Developed by</span>
+            <img class="offset-logo" src="/img/offset-logo-mono.svg" alt="">
+          </a>
+          <span class="sidefoot-version" id="sidebar-version"></span>
+        </div>
+      </div>
+    </aside>
+    <div class="workarea">
+      <main id="main" tabindex="-1"></main>
+    </div>
+  </div>
+  <div id="gate" hidden></div>
+  <div id="modal-root"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <noscript><p class="noscript">This application needs JavaScript.</p></noscript>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

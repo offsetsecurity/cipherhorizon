@@ -1,0 +1,11 @@
+{
+  "bomFormat": "CycloneDX", "specVersion": "1.6", "serialNumber": "urn:uuid:99999999-8888-4777-8666-555555555555", "version": 1,
+  "metadata": {"timestamp": "2024-01-09T12:00:00Z", "component": {"type": "application", "name": "my application", "version": "1.0"}},
+  "components": [
+    {"type": "cryptographic-asset", "bom-ref": "crypto/certificate/example.test@sha256:abababababababababababababababababababababababababababababababab", "name": "example.test",
+     "cryptoProperties": {"assetType": "certificate", "certificateProperties": {"subjectName": "CN = example.test", "issuerName": "CN = Some CA",
+       "notValidBefore": "2024-01-01T00:00:00Z", "notValidAfter": "2025-01-01T00:00:00Z", "subjectPublicKeyRef": "crypto/key/rsa-2048"}}},
+    {"type": "cryptographic-asset", "bom-ref": "crypto/key/rsa-2048", "name": "RSA-2048",
+     "cryptoProperties": {"assetType": "related-crypto-material", "relatedCryptoMaterialProperties": {"type": "public-key", "size": 4096}}}
+  ]
+}

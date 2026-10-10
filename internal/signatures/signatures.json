@@ -1,0 +1,196 @@
+{
+  "version": "2026.10.04",
+  "about": "What the CipherHorizon inventory scripts collect. Each signature names one read-only capability of the script engine and its parameters; the server interprets what comes back. Edit this file to collect something new: the engines do not change.",
+  "maps": {
+    "ssh": {
+      "curve25519-sha256": "X25519",
+      "curve25519-sha256@libssh.org": "X25519",
+      "mlkem768x25519-sha256": "X25519MLKEM768",
+      "sntrup761x25519-sha512": "sntrup761x25519",
+      "sntrup761x25519-sha512@openssh.com": "sntrup761x25519",
+      "ecdh-sha2-nistp256": "ECDH",
+      "ecdh-sha2-nistp384": "ECDH",
+      "ecdh-sha2-nistp521": "ECDH",
+      "diffie-hellman-group1-sha1": "DH",
+      "diffie-hellman-group14-sha1": "DH",
+      "diffie-hellman-group14-sha256": "DH",
+      "diffie-hellman-group16-sha512": "DH",
+      "diffie-hellman-group18-sha512": "DH",
+      "diffie-hellman-group-exchange-sha1": "DH",
+      "diffie-hellman-group-exchange-sha256": "DH",
+      "aes128-gcm@openssh.com": "AES-128-GCM",
+      "aes256-gcm@openssh.com": "AES-256-GCM",
+      "chacha20-poly1305@openssh.com": "ChaCha20-Poly1305",
+      "aes128-ctr": "AES",
+      "aes192-ctr": "AES",
+      "aes256-ctr": "AES",
+      "aes128-cbc": "AES-128-CBC",
+      "aes256-cbc": "AES-256-CBC",
+      "3des-cbc": "3DES",
+      "hmac-sha2-256": "SHA-256",
+      "hmac-sha2-256-etm@openssh.com": "SHA-256",
+      "hmac-sha2-512": "SHA-512",
+      "hmac-sha2-512-etm@openssh.com": "SHA-512",
+      "hmac-sha1": "SHA-1",
+      "hmac-sha1-etm@openssh.com": "SHA-1",
+      "hmac-md5": "MD5",
+      "ssh-ed25519": "Ed25519",
+      "ssh-ed25519-cert-v01@openssh.com": "Ed25519",
+      "sk-ssh-ed25519@openssh.com": "Ed25519",
+      "ecdsa-sha2-nistp256": "ECDSA",
+      "ecdsa-sha2-nistp384": "ECDSA",
+      "ecdsa-sha2-nistp521": "ECDSA",
+      "sk-ecdsa-sha2-nistp256@openssh.com": "ECDSA",
+      "ssh-rsa": "RSA",
+      "rsa-sha2-256": "RSA",
+      "rsa-sha2-512": "RSA",
+      "ssh-dss": "DSA"
+    }
+  },
+  "signatures": [
+    {
+      "id": "win.certificate-stores",
+      "platform": "windows",
+      "title": "Certificates in the Windows certificate stores",
+      "why": "Server, client and CA certificates, with their keys' algorithms and expiry; and whether Windows holds a private key for each (the key itself is never read).",
+      "capability": "certstore",
+      "params": { "locations": "LocalMachine|CurrentUser", "stores": "My|Root|CA|TrustedPeople|TrustedPublisher|AuthRoot" },
+      "interpret": "certificate"
+    },
+    {
+      "id": "win.schannel.protocols",
+      "platform": "windows",
+      "title": "TLS and SSL versions set for Windows (Schannel)",
+      "why": "IIS, Remote Desktop, SQL Server and .NET use Schannel: a version explicitly enabled or disabled here applies to all of them.",
+      "capability": "registry",
+      "params": { "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL\\Protocols", "values": "Enabled|DisabledByDefault", "depth": "2" },
+      "interpret": "schannel-protocols"
+    },
+    {
+      "id": "win.schannel.ciphers",
+      "platform": "windows",
+      "title": "Ciphers and hashes set for Windows (Schannel)",
+      "why": "Old ciphers (RC4, DES, 3DES) and hashes (MD5, SHA-1) explicitly enabled or disabled for every Schannel program.",
+      "capability": "registry",
+      "params": { "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL", "values": "Enabled", "depth": "2" },
+      "interpret": "schannel-ciphers"
+    },
+    {
+      "id": "win.schannel.suite-order",
+      "platform": "windows",
+      "title": "Cipher suite order set on this machine (Schannel)",
+      "why": "The suites Windows offers, in order, when an administrator has set them; empty means the Windows default.",
+      "capability": "registry",
+      "params": { "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Cryptography\\Configuration\\Local\\SSL\\00010002", "values": "Functions", "depth": "0" },
+      "interpret": "schannel-suite-order"
+    },
+    {
+      "id": "win.schannel.suite-policy",
+      "platform": "windows",
+      "title": "Cipher suite order set by Group Policy (Schannel)",
+      "why": "A suite order and curve list pushed by Group Policy override the local order.",
+      "capability": "registry",
+      "params": { "key": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Cryptography\\Configuration\\SSL\\00010002", "values": "Functions|EccCurves", "depth": "0" },
+      "interpret": "schannel-suite-order"
+    },
+    {
+      "id": "win.dotnet.tls",
+      "platform": "windows",
+      "title": ".NET Framework TLS settings",
+      "why": "Without these, older .NET applications may still use TLS 1.0.",
+      "capability": "registry",
+      "params": { "key": "HKLM:\\SOFTWARE\\Microsoft\\.NETFramework\\v4.0.30319", "values": "SchUseStrongCrypto|SystemDefaultTlsVersions", "depth": "0" },
+      "interpret": "config"
+    },
+    {
+      "id": "win.crypto-libraries",
+      "platform": "windows",
+      "title": "Cryptographic libraries installed with applications",
+      "why": "Applications that ship their own OpenSSL, NSS, libsodium or similar: their version decides which algorithms they can use, post-quantum ones included.",
+      "capability": "file",
+      "params": { "roots": "%ProgramFiles%|%ProgramFiles(x86)%|%ProgramData%", "names": "libcrypto-*.dll|libssl-*.dll|libeay32.dll|ssleay32.dll|nss3.dll|libsodium*.dll|libgcrypt-*.dll|libgnutls-*.dll|*wolfssl*.dll|*mbedcrypto*.dll|*mbedtls*.dll|*botan*.dll|libssh*.dll|openssl.exe|gpg.exe", "depth": "6", "max": "500" },
+      "interpret": "library-file"
+    },
+    {
+      "id": "win.programs",
+      "platform": "windows",
+      "title": "Installed programs that bring their own cryptography",
+      "why": "OpenSSL, OpenSSH, PuTTY, GnuPG and similar, as Windows lists them under installed programs.",
+      "capability": "program",
+      "params": { "match": "(?i)openssl|openssh|putty|gnupg|gpg4win|wolfssl|libsodium|stunnel|winscp|filezilla|keepass|veracrypt" },
+      "interpret": "software"
+    },
+    {
+      "id": "win.ssh.server-config",
+      "platform": "windows",
+      "title": "OpenSSH server algorithms (Windows)",
+      "why": "The key exchange, ciphers, MACs and host key types the built-in OpenSSH server is set to accept.",
+      "capability": "lines",
+      "params": { "paths": "%ProgramData%\\ssh\\sshd_config", "match": "^\\s*(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms|PubkeyAcceptedAlgorithms)\\s", "max": "50" },
+      "interpret": "ssh-config"
+    },
+    {
+      "id": "win.ssh.host-keys",
+      "platform": "windows",
+      "title": "OpenSSH server host key types (Windows)",
+      "why": "The public half of each host key says which signature algorithm clients verify the server with.",
+      "capability": "lines",
+      "params": { "paths": "%ProgramData%\\ssh\\ssh_host_*_key.pub", "match": "^(ssh-|ecdsa-|sk-)", "max": "10" },
+      "interpret": "ssh-host-key"
+    },
+    {
+      "id": "linux.packages",
+      "platform": "linux",
+      "title": "Installed cryptographic packages",
+      "why": "OpenSSL, GnuTLS, NSS, libgcrypt, OpenSSH and similar, with versions: the version decides which algorithms they can use, post-quantum ones included.",
+      "capability": "package",
+      "params": { "match": "^(openssl.*|libssl.*|libcrypto.*|gnupg.*|gpg.*|libgcrypt.*|.*gnutls.*|.*nettle.*|libhogweed.*|.*sodium.*|libnss3|nss|.*mbed(tls|crypto|x509).*|.*wolfssl.*|libbotan.*|libssh.*|openssh.*|libk5crypto.*|libkrb5.*|krb5-libs|libcrypt[0-9]*|libcryptsetup.*|python3-(cryptography|openssl))$" },
+      "interpret": "package"
+    },
+    {
+      "id": "linux.certificates",
+      "platform": "linux",
+      "title": "Certificate files in the usual places",
+      "why": "Trust stores and the certificates web, mail and proxy servers are configured with. Only CERTIFICATE blocks leave the machine; key directories and key files are never opened.",
+      "capability": "certfiles",
+      "params": { "dirs": "/etc/ssl/certs|/etc/pki/ca-trust/source/anchors|/etc/pki/ca-trust/extracted/pem|/etc/pki/tls/certs|/usr/local/share/ca-certificates|/usr/share/ca-certificates|/etc/letsencrypt/live|/etc/nginx|/etc/apache2|/etc/httpd|/etc/haproxy|/etc/postfix|/etc/dovecot", "depth": "6", "max": "5000" },
+      "interpret": "certificate"
+    },
+    {
+      "id": "linux.ssh.server-config",
+      "platform": "linux",
+      "title": "OpenSSH server algorithms",
+      "why": "The key exchange, ciphers, MACs and host key types the SSH server is set to accept, including post-quantum hybrids.",
+      "capability": "lines",
+      "params": { "paths": "/etc/ssh/sshd_config|/etc/ssh/sshd_config.d/*.conf", "match": "^[[:space:]]*(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms|PubkeyAcceptedAlgorithms)[[:space:]]", "max": "50" },
+      "interpret": "ssh-config"
+    },
+    {
+      "id": "linux.ssh.host-keys",
+      "platform": "linux",
+      "title": "OpenSSH server host key types",
+      "why": "The public half of each host key says which signature algorithm clients verify the server with.",
+      "capability": "lines",
+      "params": { "paths": "/etc/ssh/ssh_host_*_key.pub", "match": "^(ssh-|ecdsa-|sk-)", "max": "10" },
+      "interpret": "ssh-host-key"
+    },
+    {
+      "id": "linux.openssl.defaults",
+      "platform": "linux",
+      "title": "OpenSSL system-wide TLS defaults",
+      "why": "The minimum protocol, cipher string and groups every program using the system OpenSSL starts from.",
+      "capability": "lines",
+      "params": { "paths": "/etc/ssl/openssl.cnf|/usr/lib/ssl/openssl.cnf|/etc/pki/tls/openssl.cnf", "match": "^[[:space:]]*(MinProtocol|MaxProtocol|CipherString|Ciphersuites|Groups|SignatureAlgorithms)[[:space:]]*=", "max": "40" },
+      "interpret": "openssl-config"
+    },
+    {
+      "id": "linux.crypto-policy",
+      "platform": "linux",
+      "title": "System cryptographic policy (RHEL, Fedora)",
+      "why": "One setting (DEFAULT, LEGACY, FUTURE, FIPS) that sets the algorithms every system library allows.",
+      "capability": "lines",
+      "params": { "paths": "/etc/crypto-policies/config", "match": "^[A-Z]", "max": "5" },
+      "interpret": "crypto-policy"
+    }
+  ]
+}

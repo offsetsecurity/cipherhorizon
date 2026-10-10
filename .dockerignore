@@ -1,0 +1,35 @@
+# Kept small on purpose: the build stage only needs the Go module cache and the source tree
+# (COPY go.mod go.sum, then COPY . .). Everything below either never belongs in the build context
+# or is already fetched/built inside the image, so excluding it keeps `docker build` fast and
+# keeps local-only files (history, scratch databases, prior local builds) off the daemon entirely.
+
+.git
+.github
+
+# build output and local release scratch (also gitignored; see .gitignore for what each holds)
+/dist/
+/bin/
+/artifacts/
+*.exe
+*.test
+*.out
+coverage.txt
+*.db
+*.db-shm
+*.db-wal
+/checksums.txt
+*.sigstore.json
+/RELEASE_NOTES.md
+
+# editor/OS cruft
+.idea/
+.vscode/
+.claude/
+.DS_Store
+Thumbs.db
+
+# documentation and dev-only tooling: irrelevant to the image, no reason to send it to the daemon
+docs/
+testing/
+scripts/
+*.md

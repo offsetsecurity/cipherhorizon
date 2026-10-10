@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/offsetsecurity/cipherhorizon/security/advisories/new
+    about: Please report vulnerabilities privately — see SECURITY.md. Do not open a public issue.
+  - name: Questions and discussion
+    url: https://github.com/offsetsecurity/cipherhorizon/discussions
+    about: Usage questions and general discussion that isn't a bug or a concrete proposal.

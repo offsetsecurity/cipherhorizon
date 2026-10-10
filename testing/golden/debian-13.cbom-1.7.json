@@ -1,0 +1,1335 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.7.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.7",
+  "serialNumber": "urn:uuid:00000000-0000-4000-8000-000000000000",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-01-02T03:04:05Z",
+    "lifecycles": [
+      {
+        "phase": "operations"
+      }
+    ],
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "cipherhorizon",
+          "version": "0.0.0-dev"
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "host:fixture-host",
+      "type": "device",
+      "name": "fixture-host"
+    },
+    "properties": [
+      {
+        "name": "cipherhorizon:privilege-tier",
+        "value": "user"
+      },
+      {
+        "name": "cipherhorizon:host-os",
+        "value": "linux debian 13"
+      },
+      {
+        "name": "cipherhorizon:coverage-note",
+        "value": "Running without elevated privileges: some evidence may be unavailable, so results may be incomplete. Running as Administrator (Windows) or root (Linux) may reveal more."
+      },
+      {
+        "name": "cipherhorizon:coverage",
+        "value": "sensor=apt status=complete scope=installed packages (dpkg status database)"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "configuration, certificates, key material and application association (not collected by this version)"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "cryptography statically linked into applications or embedded in custom software"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "libraries bundled inside applications, containers and language-runtime environments"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "software not installed through dpkg"
+      },
+      {
+        "name": "cipherhorizon:not-seen",
+        "value": "what any installed software actually does: a package being installed says nothing about use"
+      }
+    ]
+  },
+  "components": [
+    {
+      "bom-ref": "crypto/algorithm/aes",
+      "type": "cryptographic-asset",
+      "name": "AES",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Symmetric block cipher. The best known quantum attack on key search, Grover's algorithm, gives only a quadratic speed-up, so an n-bit key keeps about n/2 bits of quantum security. NIST defines post-quantum security categories 1, 3 and 5 as the cost of key search against AES-128, AES-192 and AES-256, so AES at any key size the standard defines meets at least category 1. This is a statement about the algorithm, not about the key size or mode in use on a given host."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "name \"AES\""
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search <https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 197, Advanced Encryption Standard (AES) <https://doi.org/10.6028/NIST.FIPS.197>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "block-cipher",
+          "algorithmFamily": "AES"
+        }
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/dh@1.2.840.10046.2.1",
+      "type": "cryptographic-asset",
+      "name": "DH",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Relies on the hardness of the discrete logarithm problem in a finite field. Shor's algorithm solves discrete logarithms in polynomial time on a sufficiently large quantum computer."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 1.2.840.10046.2.1"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "RFC 3279 (id-dsa 1.2.840.10040.4.1, dhpublicnumber 1.2.840.10046.2.1) <https://www.rfc-editor.org/rfc/rfc3279>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "key-agree",
+          "algorithmFamily": "FFDH"
+        },
+        "oid": "1.2.840.10046.2.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/dsa@1.2.840.10040.4.1",
+      "type": "cryptographic-asset",
+      "name": "DSA",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Relies on the hardness of the discrete logarithm problem in a finite field. Shor's algorithm solves discrete logarithms in polynomial time on a sufficiently large quantum computer."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 1.2.840.10040.4.1"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "RFC 3279 (id-dsa 1.2.840.10040.4.1, dhpublicnumber 1.2.840.10046.2.1) <https://www.rfc-editor.org/rfc/rfc3279>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "DSA"
+        },
+        "oid": "1.2.840.10040.4.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ecdh@1.3.132.1.12",
+      "type": "cryptographic-asset",
+      "name": "ECDH",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Relies on the hardness of the elliptic-curve discrete logarithm problem. Shor's algorithm extends to elliptic-curve groups and solves it in polynomial time on a sufficiently large quantum computer."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 1.3.132.1.12"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "Proos & Zalka, Shor's discrete logarithm quantum algorithm for elliptic curves, QIC 3(4), 2003 <https://arxiv.org/abs/quant-ph/0301141>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "RFC 5480 (id-ecPublicKey under ansi-X9-62 1.2.840.10045; id-ecDH 1.3.132.1.12) <https://www.rfc-editor.org/rfc/rfc5480>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "key-agree",
+          "algorithmFamily": "ECDH"
+        },
+        "oid": "1.3.132.1.12"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ecdsa",
+      "type": "cryptographic-asset",
+      "name": "ECDSA",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Relies on the hardness of the elliptic-curve discrete logarithm problem. Shor's algorithm extends to elliptic-curve groups and solves it in polynomial time on a sufficiently large quantum computer."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "name \"ECDSA\""
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "Proos & Zalka, Shor's discrete logarithm quantum algorithm for elliptic curves, QIC 3(4), 2003 <https://arxiv.org/abs/quant-ph/0301141>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "RFC 5480 (id-ecPublicKey under ansi-X9-62 1.2.840.10045; id-ecDH 1.3.132.1.12) <https://www.rfc-editor.org/rfc/rfc5480>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "ECDSA"
+        }
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ml-dsa-44@2.16.840.1.101.3.4.3.17",
+      "type": "cryptographic-asset",
+      "name": "ML-DSA-44",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.17"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 204, Module-Lattice-Based Digital Signature Standard (ML-DSA) <https://doi.org/10.6028/NIST.FIPS.204>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "ML-DSA",
+          "nistQuantumSecurityLevel": 2
+        },
+        "oid": "2.16.840.1.101.3.4.3.17"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ml-dsa-65@2.16.840.1.101.3.4.3.18",
+      "type": "cryptographic-asset",
+      "name": "ML-DSA-65",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.18"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 204, Module-Lattice-Based Digital Signature Standard (ML-DSA) <https://doi.org/10.6028/NIST.FIPS.204>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "ML-DSA",
+          "nistQuantumSecurityLevel": 3
+        },
+        "oid": "2.16.840.1.101.3.4.3.18"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ml-dsa-87@2.16.840.1.101.3.4.3.19",
+      "type": "cryptographic-asset",
+      "name": "ML-DSA-87",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.19"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 204, Module-Lattice-Based Digital Signature Standard (ML-DSA) <https://doi.org/10.6028/NIST.FIPS.204>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "ML-DSA",
+          "nistQuantumSecurityLevel": 5
+        },
+        "oid": "2.16.840.1.101.3.4.3.19"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ml-kem-1024@2.16.840.1.101.3.4.4.3",
+      "type": "cryptographic-asset",
+      "name": "ML-KEM-1024",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.4.3"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 203, Module-Lattice-Based Key-Encapsulation Mechanism Standard (ML-KEM) <https://doi.org/10.6028/NIST.FIPS.203>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "kem",
+          "algorithmFamily": "ML-KEM",
+          "nistQuantumSecurityLevel": 5
+        },
+        "oid": "2.16.840.1.101.3.4.4.3"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ml-kem-512@2.16.840.1.101.3.4.4.1",
+      "type": "cryptographic-asset",
+      "name": "ML-KEM-512",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.4.1"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 203, Module-Lattice-Based Key-Encapsulation Mechanism Standard (ML-KEM) <https://doi.org/10.6028/NIST.FIPS.203>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "kem",
+          "algorithmFamily": "ML-KEM",
+          "nistQuantumSecurityLevel": 1
+        },
+        "oid": "2.16.840.1.101.3.4.4.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/ml-kem-768@2.16.840.1.101.3.4.4.2",
+      "type": "cryptographic-asset",
+      "name": "ML-KEM-768",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.4.2"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 203, Module-Lattice-Based Key-Encapsulation Mechanism Standard (ML-KEM) <https://doi.org/10.6028/NIST.FIPS.203>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "kem",
+          "algorithmFamily": "ML-KEM",
+          "nistQuantumSecurityLevel": 3
+        },
+        "oid": "2.16.840.1.101.3.4.4.2"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/rsa@1.2.840.113549.1.1.1",
+      "type": "cryptographic-asset",
+      "name": "RSA",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-vulnerable"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Relies on the hardness of integer factorization. Shor's algorithm factors integers in polynomial time on a sufficiently large quantum computer, so larger keys raise the quantum resources needed only polynomially and give no lasting protection."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 1.2.840.113549.1.1.1"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer, SIAM J. Comput. 26(5), 1997 <https://arxiv.org/abs/quant-ph/9508027>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "RFC 8017, PKCS #1 v2.2 (RSA); the 1.2.840.113549.1.1 arc is pkcs-1 <https://www.rfc-editor.org/rfc/rfc8017>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "pke"
+        },
+        "oid": "1.2.840.113549.1.1.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/sha-256@2.16.840.1.101.3.4.2.1",
+      "type": "cryptographic-asset",
+      "name": "SHA-256",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Hash function. NIST defines post-quantum security categories 2 and 4 as the cost of collision search against 256-bit and 384-bit hash functions (SHA-256, SHA-384), i.e. it treats them as the benchmark of quantum-era strength; SHA-512 is larger still."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.2.1"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search <https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 180-4, Secure Hash Standard (SHA-2) <https://doi.org/10.6028/NIST.FIPS.180-4>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "hash",
+          "algorithmFamily": "SHA-2"
+        },
+        "oid": "2.16.840.1.101.3.4.2.1"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/sha-384@2.16.840.1.101.3.4.2.2",
+      "type": "cryptographic-asset",
+      "name": "SHA-384",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Hash function. NIST defines post-quantum security categories 2 and 4 as the cost of collision search against 256-bit and 384-bit hash functions (SHA-256, SHA-384), i.e. it treats them as the benchmark of quantum-era strength; SHA-512 is larger still."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.2.2"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search <https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 180-4, Secure Hash Standard (SHA-2) <https://doi.org/10.6028/NIST.FIPS.180-4>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "hash",
+          "algorithmFamily": "SHA-2"
+        },
+        "oid": "2.16.840.1.101.3.4.2.2"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/sha-512@2.16.840.1.101.3.4.2.3",
+      "type": "cryptographic-asset",
+      "name": "SHA-512",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Hash function. NIST defines post-quantum security categories 2 and 4 as the cost of collision search against 256-bit and 384-bit hash functions (SHA-256, SHA-384), i.e. it treats them as the benchmark of quantum-era strength; SHA-512 is larger still."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.2.3"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search <https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria)>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 180-4, Secure Hash Standard (SHA-2) <https://doi.org/10.6028/NIST.FIPS.180-4>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "hash",
+          "algorithmFamily": "SHA-2"
+        },
+        "oid": "2.16.840.1.101.3.4.2.3"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-sha2-128f@2.16.840.1.101.3.4.3.21",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHA2-128f",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.21"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 1
+        },
+        "oid": "2.16.840.1.101.3.4.3.21"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-sha2-128s@2.16.840.1.101.3.4.3.20",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHA2-128s",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.20"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 1
+        },
+        "oid": "2.16.840.1.101.3.4.3.20"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-sha2-192f@2.16.840.1.101.3.4.3.23",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHA2-192f",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.23"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 3
+        },
+        "oid": "2.16.840.1.101.3.4.3.23"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-sha2-192s@2.16.840.1.101.3.4.3.22",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHA2-192s",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.22"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 3
+        },
+        "oid": "2.16.840.1.101.3.4.3.22"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-sha2-256f@2.16.840.1.101.3.4.3.25",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHA2-256f",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.25"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 5
+        },
+        "oid": "2.16.840.1.101.3.4.3.25"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-sha2-256s@2.16.840.1.101.3.4.3.24",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHA2-256s",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.24"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 5
+        },
+        "oid": "2.16.840.1.101.3.4.3.24"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-shake-128f@2.16.840.1.101.3.4.3.27",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHAKE-128f",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.27"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 1
+        },
+        "oid": "2.16.840.1.101.3.4.3.27"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-shake-128s@2.16.840.1.101.3.4.3.26",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHAKE-128s",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.26"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 1
+        },
+        "oid": "2.16.840.1.101.3.4.3.26"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-shake-192f@2.16.840.1.101.3.4.3.29",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHAKE-192f",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.29"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 3
+        },
+        "oid": "2.16.840.1.101.3.4.3.29"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-shake-192s@2.16.840.1.101.3.4.3.28",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHAKE-192s",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.28"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 3
+        },
+        "oid": "2.16.840.1.101.3.4.3.28"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-shake-256f@2.16.840.1.101.3.4.3.31",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHAKE-256f",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.31"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 5
+        },
+        "oid": "2.16.840.1.101.3.4.3.31"
+      }
+    },
+    {
+      "bom-ref": "crypto/algorithm/slh-dsa-shake-256s@2.16.840.1.101.3.4.3.30",
+      "type": "cryptographic-asset",
+      "name": "SLH-DSA-SHAKE-256s",
+      "properties": [
+        {
+          "name": "cipherhorizon:pqc:status",
+          "value": "quantum-safe"
+        },
+        {
+          "name": "cipherhorizon:pqc:rationale",
+          "value": "Standardized by NIST as a post-quantum algorithm, designed to resist attacks by both classical and quantum computers; its standard assigns the parameter set a NIST security category."
+        },
+        {
+          "name": "cipherhorizon:pqc:matched-by",
+          "value": "OID 2.16.840.1.101.3.4.3.30"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "FIPS 205, Stateless Hash-Based Digital Signature Standard (SLH-DSA) <https://doi.org/10.6028/NIST.FIPS.205>"
+        },
+        {
+          "name": "cipherhorizon:pqc:basis",
+          "value": "NIST CSOR algorithm registration (OIDs) <https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration>"
+        }
+      ],
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "algorithmFamily": "SLH-DSA",
+          "nistQuantumSecurityLevel": 5
+        },
+        "oid": "2.16.840.1.101.3.4.3.30"
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/debian/libgcrypt20@1.11.0-7?arch=amd64&distro=debian-13",
+      "type": "library",
+      "name": "libgcrypt20",
+      "version": "1.11.0-7",
+      "purl": "pkg:deb/debian/libgcrypt20@1.11.0-7?arch=amd64&distro=debian-13",
+      "properties": [
+        {
+          "name": "cipherhorizon:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cipherhorizon:package-family",
+          "value": "libgcrypt"
+        },
+        {
+          "name": "cipherhorizon:version-source",
+          "value": "package-database"
+        },
+        {
+          "name": "cipherhorizon:claim",
+          "value": "present"
+        },
+        {
+          "name": "cipherhorizon:method",
+          "value": "debian.dpkg.status@1"
+        },
+        {
+          "name": "cipherhorizon:method-quality",
+          "value": "authoritative"
+        },
+        {
+          "name": "cipherhorizon:privilege",
+          "value": "user"
+        }
+      ],
+      "evidence": {
+        "identity": [
+          {
+            "field": "purl",
+            "methods": [
+              {
+                "technique": "manifest-analysis",
+                "confidence": 1,
+                "value": "debian.dpkg.status@1"
+              }
+            ]
+          }
+        ],
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/debian/libssl3t64@3.5.1-1?arch=amd64&distro=debian-13",
+      "type": "library",
+      "name": "libssl3t64",
+      "version": "3.5.1-1",
+      "purl": "pkg:deb/debian/libssl3t64@3.5.1-1?arch=amd64&distro=debian-13",
+      "properties": [
+        {
+          "name": "cipherhorizon:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cipherhorizon:package-family",
+          "value": "openssl"
+        },
+        {
+          "name": "cipherhorizon:evidence",
+          "value": "installed-package-capability"
+        },
+        {
+          "name": "cipherhorizon:capability-basis",
+          "value": "OpenSSL manual: EVP_PKEY-RSA, EVP_PKEY-DSA, EVP_PKEY-DH, EVP_PKEY-EC, EVP_CIPHER-AES, EVP_MD-SHA2 (https://docs.openssl.org/3.0/man7/)"
+        },
+        {
+          "name": "cipherhorizon:capability-basis",
+          "value": "OpenSSL 3.5.0 (2025-04-08) CHANGES.md: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), 'added in OpenSSL 3.5' (https://docs.openssl.org/3.5/man7/EVP_PKEY-ML-KEM/)"
+        },
+        {
+          "name": "cipherhorizon:version-source",
+          "value": "package-database"
+        },
+        {
+          "name": "cipherhorizon:claim",
+          "value": "present"
+        },
+        {
+          "name": "cipherhorizon:method",
+          "value": "debian.dpkg.status@1"
+        },
+        {
+          "name": "cipherhorizon:method-quality",
+          "value": "authoritative"
+        },
+        {
+          "name": "cipherhorizon:privilege",
+          "value": "user"
+        },
+        {
+          "name": "cipherhorizon:provides-claim",
+          "value": "capable-mapped"
+        }
+      ],
+      "evidence": {
+        "identity": [
+          {
+            "field": "purl",
+            "methods": [
+              {
+                "technique": "manifest-analysis",
+                "confidence": 1,
+                "value": "debian.dpkg.status@1"
+              }
+            ]
+          }
+        ],
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    },
+    {
+      "bom-ref": "pkg:deb/debian/openssl@3.5.1-1?arch=amd64&distro=debian-13",
+      "type": "application",
+      "name": "openssl",
+      "version": "3.5.1-1",
+      "purl": "pkg:deb/debian/openssl@3.5.1-1?arch=amd64&distro=debian-13",
+      "properties": [
+        {
+          "name": "cipherhorizon:collector",
+          "value": "apt"
+        },
+        {
+          "name": "cipherhorizon:package-family",
+          "value": "openssl"
+        },
+        {
+          "name": "cipherhorizon:evidence",
+          "value": "installed-package-capability"
+        },
+        {
+          "name": "cipherhorizon:capability-basis",
+          "value": "OpenSSL manual: EVP_PKEY-RSA, EVP_PKEY-DSA, EVP_PKEY-DH, EVP_PKEY-EC, EVP_CIPHER-AES, EVP_MD-SHA2 (https://docs.openssl.org/3.0/man7/)"
+        },
+        {
+          "name": "cipherhorizon:capability-basis",
+          "value": "OpenSSL 3.5.0 (2025-04-08) CHANGES.md: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), 'added in OpenSSL 3.5' (https://docs.openssl.org/3.5/man7/EVP_PKEY-ML-KEM/)"
+        },
+        {
+          "name": "cipherhorizon:version-source",
+          "value": "package-database"
+        },
+        {
+          "name": "cipherhorizon:claim",
+          "value": "present"
+        },
+        {
+          "name": "cipherhorizon:method",
+          "value": "debian.dpkg.status@1"
+        },
+        {
+          "name": "cipherhorizon:method-quality",
+          "value": "authoritative"
+        },
+        {
+          "name": "cipherhorizon:privilege",
+          "value": "user"
+        },
+        {
+          "name": "cipherhorizon:provides-claim",
+          "value": "capable-mapped"
+        }
+      ],
+      "evidence": {
+        "identity": [
+          {
+            "field": "purl",
+            "methods": [
+              {
+                "technique": "manifest-analysis",
+                "confidence": 1,
+                "value": "debian.dpkg.status@1"
+              }
+            ]
+          }
+        ],
+        "occurrences": [
+          {
+            "location": "/var/lib/dpkg/status"
+          }
+        ]
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:deb/debian/libssl3t64@3.5.1-1?arch=amd64&distro=debian-13",
+      "provides": [
+        "crypto/algorithm/aes",
+        "crypto/algorithm/dh@1.2.840.10046.2.1",
+        "crypto/algorithm/dsa@1.2.840.10040.4.1",
+        "crypto/algorithm/ecdh@1.3.132.1.12",
+        "crypto/algorithm/ecdsa",
+        "crypto/algorithm/ml-dsa-44@2.16.840.1.101.3.4.3.17",
+        "crypto/algorithm/ml-dsa-65@2.16.840.1.101.3.4.3.18",
+        "crypto/algorithm/ml-dsa-87@2.16.840.1.101.3.4.3.19",
+        "crypto/algorithm/ml-kem-1024@2.16.840.1.101.3.4.4.3",
+        "crypto/algorithm/ml-kem-512@2.16.840.1.101.3.4.4.1",
+        "crypto/algorithm/ml-kem-768@2.16.840.1.101.3.4.4.2",
+        "crypto/algorithm/rsa@1.2.840.113549.1.1.1",
+        "crypto/algorithm/sha-256@2.16.840.1.101.3.4.2.1",
+        "crypto/algorithm/sha-384@2.16.840.1.101.3.4.2.2",
+        "crypto/algorithm/sha-512@2.16.840.1.101.3.4.2.3",
+        "crypto/algorithm/slh-dsa-sha2-128f@2.16.840.1.101.3.4.3.21",
+        "crypto/algorithm/slh-dsa-sha2-128s@2.16.840.1.101.3.4.3.20",
+        "crypto/algorithm/slh-dsa-sha2-192f@2.16.840.1.101.3.4.3.23",
+        "crypto/algorithm/slh-dsa-sha2-192s@2.16.840.1.101.3.4.3.22",
+        "crypto/algorithm/slh-dsa-sha2-256f@2.16.840.1.101.3.4.3.25",
+        "crypto/algorithm/slh-dsa-sha2-256s@2.16.840.1.101.3.4.3.24",
+        "crypto/algorithm/slh-dsa-shake-128f@2.16.840.1.101.3.4.3.27",
+        "crypto/algorithm/slh-dsa-shake-128s@2.16.840.1.101.3.4.3.26",
+        "crypto/algorithm/slh-dsa-shake-192f@2.16.840.1.101.3.4.3.29",
+        "crypto/algorithm/slh-dsa-shake-192s@2.16.840.1.101.3.4.3.28",
+        "crypto/algorithm/slh-dsa-shake-256f@2.16.840.1.101.3.4.3.31",
+        "crypto/algorithm/slh-dsa-shake-256s@2.16.840.1.101.3.4.3.30"
+      ]
+    },
+    {
+      "ref": "pkg:deb/debian/openssl@3.5.1-1?arch=amd64&distro=debian-13",
+      "provides": [
+        "crypto/algorithm/aes",
+        "crypto/algorithm/dh@1.2.840.10046.2.1",
+        "crypto/algorithm/dsa@1.2.840.10040.4.1",
+        "crypto/algorithm/ecdh@1.3.132.1.12",
+        "crypto/algorithm/ecdsa",
+        "crypto/algorithm/ml-dsa-44@2.16.840.1.101.3.4.3.17",
+        "crypto/algorithm/ml-dsa-65@2.16.840.1.101.3.4.3.18",
+        "crypto/algorithm/ml-dsa-87@2.16.840.1.101.3.4.3.19",
+        "crypto/algorithm/ml-kem-1024@2.16.840.1.101.3.4.4.3",
+        "crypto/algorithm/ml-kem-512@2.16.840.1.101.3.4.4.1",
+        "crypto/algorithm/ml-kem-768@2.16.840.1.101.3.4.4.2",
+        "crypto/algorithm/rsa@1.2.840.113549.1.1.1",
+        "crypto/algorithm/sha-256@2.16.840.1.101.3.4.2.1",
+        "crypto/algorithm/sha-384@2.16.840.1.101.3.4.2.2",
+        "crypto/algorithm/sha-512@2.16.840.1.101.3.4.2.3",
+        "crypto/algorithm/slh-dsa-sha2-128f@2.16.840.1.101.3.4.3.21",
+        "crypto/algorithm/slh-dsa-sha2-128s@2.16.840.1.101.3.4.3.20",
+        "crypto/algorithm/slh-dsa-sha2-192f@2.16.840.1.101.3.4.3.23",
+        "crypto/algorithm/slh-dsa-sha2-192s@2.16.840.1.101.3.4.3.22",
+        "crypto/algorithm/slh-dsa-sha2-256f@2.16.840.1.101.3.4.3.25",
+        "crypto/algorithm/slh-dsa-sha2-256s@2.16.840.1.101.3.4.3.24",
+        "crypto/algorithm/slh-dsa-shake-128f@2.16.840.1.101.3.4.3.27",
+        "crypto/algorithm/slh-dsa-shake-128s@2.16.840.1.101.3.4.3.26",
+        "crypto/algorithm/slh-dsa-shake-192f@2.16.840.1.101.3.4.3.29",
+        "crypto/algorithm/slh-dsa-shake-192s@2.16.840.1.101.3.4.3.28",
+        "crypto/algorithm/slh-dsa-shake-256f@2.16.840.1.101.3.4.3.31",
+        "crypto/algorithm/slh-dsa-shake-256s@2.16.840.1.101.3.4.3.30"
+      ]
+    }
+  ]
+}
