@@ -178,3 +178,25 @@ func keyAlgorithm(f CertFacts, emit func(id string) (string, bool), emitAsset fu
 	}
 	return emit(ki.Algorithm)
 }
+
+// PublicKeyAsset is a public key seen on its own, such as an SSH host key: the same
+// related-crypto-material component a certificate's key gets, at the same precision (RSA-2048,
+// ECDSA-P256), under the caller's bom-ref. false when the key's algorithm cannot be named.
+func PublicKeyAsset(ref, name, algorithm string, bits int, curve string, emit func(id string) (string, bool), emitAsset func(collector.CryptoAsset) string) (collector.CryptoAsset, bool) {
+	algRef, ok := keyAlgorithm(CertFacts{KeyAlgorithm: algorithm, KeyBits: bits, Curve: curve}, emit, emitAsset)
+	if !ok {
+		return collector.CryptoAsset{}, false
+	}
+	rp := &cdx.RelatedCryptoMaterialProperties{Type: cdx.RelatedCryptoMaterialTypePublicKey, AlgorithmRef: cdx.BOMReference(algRef)}
+	if bits > 0 {
+		b := bits
+		rp.Size = &b
+	}
+	return collector.CryptoAsset{
+		Component: cdx.Component{
+			BOMRef: ref, Type: cdx.ComponentTypeCryptographicAsset, Name: name,
+			CryptoProperties: &cdx.CryptoProperties{AssetType: cdx.CryptoAssetTypeRelatedCryptoMaterial, RelatedCryptoMaterialProperties: rp},
+		},
+		DependsOn: []string{algRef},
+	}, true
+}

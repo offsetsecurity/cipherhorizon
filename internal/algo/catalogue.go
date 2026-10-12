@@ -46,6 +46,12 @@ var catalogue = []Algorithm{
 	{ID: "AES-128-GCM", Primitive: cdx.CryptoPrimitiveAE, OID: "2.16.840.1.101.3.4.1.6", ParameterSet: "128", Mode: "gcm"},
 	{ID: "AES-256-GCM", Primitive: cdx.CryptoPrimitiveAE, OID: "2.16.840.1.101.3.4.1.46", ParameterSet: "256", Mode: "gcm"},
 	{ID: "AES-128-CCM", Primitive: cdx.CryptoPrimitiveAE, OID: "2.16.840.1.101.3.4.1.7", ParameterSet: "128", Mode: "ccm"},
+	// SSH ciphers (PRD-008). id-aes192-CBC is 2.16.840.1.101.3.4.1.22 (RFC 3565). NIST registers no
+	// OID for AES in CTR mode, so the CTR variants have none.
+	{ID: "AES-192-CBC", Primitive: cdx.CryptoPrimitiveBlockCipher, OID: "2.16.840.1.101.3.4.1.22", ParameterSet: "192", Mode: "cbc"},
+	{ID: "AES-128-CTR", Primitive: cdx.CryptoPrimitiveBlockCipher, ParameterSet: "128", Mode: "ctr"},
+	{ID: "AES-192-CTR", Primitive: cdx.CryptoPrimitiveBlockCipher, ParameterSet: "192", Mode: "ctr"},
+	{ID: "AES-256-CTR", Primitive: cdx.CryptoPrimitiveBlockCipher, ParameterSet: "256", Mode: "ctr"},
 	{ID: "AES-256-CCM", Primitive: cdx.CryptoPrimitiveAE, OID: "2.16.840.1.101.3.4.1.47", ParameterSet: "256", Mode: "ccm"},
 	// ChaCha20-Poly1305 (RFC 8439) has no single authoritative OID: unlike AES, no
 	// PKIX or CMS registration assigns it one, so, as with ECDSA, OID is left empty.
@@ -105,6 +111,28 @@ var catalogue = []Algorithm{
 	{ID: "X25519MLKEM768", Primitive: cdx.CryptoPrimitiveCombiner},
 	{ID: "SecP256r1MLKEM768", Primitive: cdx.CryptoPrimitiveCombiner},
 	{ID: "SecP384r1MLKEM1024", Primitive: cdx.CryptoPrimitiveCombiner},
+
+	// RFC 10042: SSH hybrid key exchange with ML-KEM, by its SSH method names. Like the TLS
+	// groups, no OID: IANA registers SSH method names, not object identifiers.
+	{ID: "mlkem768x25519-sha256", Primitive: cdx.CryptoPrimitiveCombiner},
+	{ID: "mlkem768nistp256-sha256", Primitive: cdx.CryptoPrimitiveCombiner},
+	{ID: "mlkem1024nistp384-sha384", Primitive: cdx.CryptoPrimitiveCombiner},
+	// RFC 9941: Streamlined NTRU Prime combined with X25519. NTRU Prime is not a NIST standard
+	// and no cited NIST analysis covers it, so the catalogue asserts no verdict; the readiness
+	// level counts it as post-quantum for recorded traffic (PRD-008 PD-3, docs/methodology.md).
+	{ID: "sntrup761x25519-sha512", Primitive: cdx.CryptoPrimitiveCombiner, NoPQCVerdict: "Streamlined NTRU Prime (RFC 9941) is not a NIST-standardised algorithm and no cited NIST analysis covers it, so no post-quantum verdict is asserted here; the readiness level counts it as post-quantum for recorded traffic."},
+
+	// SSH MACs and legacy SSH ciphers (PRD-008). HMAC OIDs: RFC 8018 appendix B.1
+	// (hmacWithSHA1 1.2.840.113549.2.7, hmacWithSHA256 .2.9, hmacWithSHA512 .2.11).
+	{ID: "HMAC-SHA-1", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveMAC, OID: "1.2.840.113549.2.7"},
+	{ID: "HMAC-SHA-256", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveMAC, OID: "1.2.840.113549.2.9"},
+	{ID: "HMAC-SHA-512", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveMAC, OID: "1.2.840.113549.2.11"},
+	{ID: "HMAC-MD5", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveMAC, Legacy: &Legacy{
+		Summary:  "has updated security considerations because of weaknesses in MD5",
+		Citation: "RFC 6151, Updated Security Considerations for the MD5 Message-Digest and the HMAC-MD5 Algorithms", URL: "https://www.rfc-editor.org/rfc/rfc6151"}},
+	{ID: "UMAC", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveMAC},
+	{ID: "Blowfish", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveBlockCipher},
+	{ID: "CAST-128", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveBlockCipher},
 
 	// FIPS 204: ML-DSA.
 	{ID: "ML-DSA-44", Primitive: cdx.CryptoPrimitiveSignature, OID: "2.16.840.1.101.3.4.3.17", QuantumLevel: 2},

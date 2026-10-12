@@ -324,9 +324,13 @@ func Scan(ctx context.Context, t Target, opts Options) (rep *Report, err error) 
 	}
 	if rep.Identification == nil {
 		why := "the service did not send an SSH identification line"
-		if s != nil && len(s.pre) > 0 {
+		switch {
+		case s != nil && len(s.pre) > 0:
 			why += " (it sent: " + s.pre[0] + ")"
-		} else if err != nil {
+		case s != nil:
+			// Connected, but nothing SSH came back: a TLS port closes on our identification.
+			why += "; it closed the connection or answered in another protocol. Check the port, or scan it as TLS"
+		case err != nil:
 			why = "the endpoint could not be reached: " + err.Error()
 		}
 		rep.Incomplete = true

@@ -53,7 +53,7 @@ func (s *Store) FleetSummary(trendDays int) (Fleet, error) {
 	}
 	f := Fleet{Readiness: map[int]int{}, Bands: map[string]int{}}
 
-	assets, err := s.ListAssets(KindTLS)
+	assets, err := s.ListAssets(KindEndpoint)
 	if err != nil {
 		return f, err
 	}

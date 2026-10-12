@@ -298,3 +298,32 @@ func keys(m map[string]bool) []string {
 	sort.Strings(out)
 	return out
 }
+
+// REQ-SHE-7: changes between two SSH scans.
+func TestSSHDiff(t *testing.T) {
+	from := modernSSH()
+	from.Algorithms.Kex = []string{"curve25519-sha256"}
+	from.Negotiated.Kex = "curve25519-sha256"
+	to := modernSSH()
+	to.HostKeys[0].Fingerprint = "SHA256:new"
+	to.Algorithms.CipherC2S = append(to.Algorithms.CipherC2S, "aes128-cbc")
+	d := eval.CompareSSH(from, to, sshEval(from), sshEval(to))
+	want := map[string]eval.Impact{
+		"readiness:PQC readiness level":          eval.Better,
+		"kex:mlkem768x25519-sha256":              eval.Better,
+		"cipher:aes128-cbc":                      eval.Worse,
+		"host-key:ssh-ed25519 host key replaced": eval.Neutral,
+	}
+	got := map[string]eval.Impact{}
+	for _, c := range d.Changes {
+		got[c.Area+":"+c.Subject] = c.Impact
+	}
+	for k, imp := range want {
+		if got[k] != imp {
+			t.Errorf("%s: %q, want %q (all: %v)", k, got[k], imp, got)
+		}
+	}
+	if d.Better == 0 || d.Worse == 0 {
+		t.Errorf("summary %q", d.Summary)
+	}
+}

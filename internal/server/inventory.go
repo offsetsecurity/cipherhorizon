@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,8 +15,6 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
-	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
-	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // The cryptographic inventory (PRD-005 REQ-INV, ENG-HANDOFF-004 E-4..E-6). The inventory IS the
@@ -341,18 +338,19 @@ func (s *Server) mergeInventory(includeImported bool) (*mergedInventory, error) 
 	}
 	for assetID, scanID := range latest {
 		a, err := s.cfg.Store.GetAsset(assetID)
-		if err != nil || a.Kind != store.KindTLS {
+		if err != nil || !store.IsEndpoint(a.Kind) {
 			continue
 		}
 		raw, err := s.cfg.Store.Report(scanID)
 		if err != nil {
 			continue
 		}
-		var rep tlsprobe.Report
-		if json.Unmarshal(raw, &rep) != nil {
+		dec, err := decodeReport(raw)
+		if err != nil {
 			continue
 		}
-		bom, _ := cbom.Build(tlscbom.FromTLSReport(&rep), cbom.Options{
+		assets, _ := endpointAssets(dec)
+		bom, _ := cbom.Build(assets, cbom.Options{
 			Tool: cbom.Tool{Name: "cipherhorizon", Version: s.cfg.Version}, Endpoint: a.Address(),
 		})
 		var when time.Time

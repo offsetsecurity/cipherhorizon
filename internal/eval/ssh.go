@@ -46,8 +46,8 @@ var (
 	citOpenSSH88  = Citation{Title: "OpenSSH 8.8 release notes (ssh-rsa SHA-1 signatures disabled by default)", URL: "https://www.openssh.org/txt/release-8.8"}
 	citOpenSSH100 = Citation{Title: "OpenSSH 10.0 release notes (mlkem768x25519-sha256 the default key exchange; DSA removed)", URL: "https://www.openssh.org/txt/release-10.0"}
 	citOpenSSH106 = Citation{Title: "OpenSSH 10.6 release notes (ssh-mldsa44-ed25519 host keys enabled)", URL: "https://www.openssh.org/releasenotes.html"}
-	citSSHMLKEM   = Citation{Title: "IETF draft-ietf-sshm-mlkem-hybrid-kex: PQ/T hybrid key exchange with ML-KEM in SSH", URL: "https://datatracker.ietf.org/doc/draft-ietf-sshm-mlkem-hybrid-kex/"}
-	citSSHSntrup  = Citation{Title: "IETF draft-ietf-sshm-ntruprime-ssh: Streamlined NTRU Prime sntrup761 in SSH", URL: "https://datatracker.ietf.org/doc/draft-ietf-sshm-ntruprime-ssh/"}
+	citSSHMLKEM   = rfc("10042", "Hybrid Post-Quantum Key Exchange with ML-KEM in the Secure Shell (SSH) Protocol")
+	citSSHSntrup  = rfc("9941", "Secure Shell (SSH) Key Exchange Method Using Hybrid Streamlined NTRU Prime sntrup761 and X25519 with SHA-512")
 	citSSHComp    = Citation{Title: "IETF draft-miller-sshm-composite-sigs: ML-DSA composite signatures in SSH", URL: "https://datatracker.ietf.org/doc/draft-miller-sshm-composite-sigs/"}
 )
 

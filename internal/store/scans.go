@@ -72,11 +72,12 @@ type ScanWithAsset struct {
 	ScanSummary
 	AssetName    string `json:"assetName"`
 	AssetAddress string `json:"assetAddress"`
+	AssetKind    string `json:"assetKind"`
 }
 
 // ListScans returns scans, newest first.
 func (s *Store) ListScans(f ScanFilter) ([]ScanWithAsset, error) {
-	q := `SELECT ` + prefixed("s", scanCols) + `, a.name, a.host, a.port FROM scans s JOIN assets a ON a.id = s.asset_id WHERE 1=1` //nolint:gosec // scanCols is a constant column list, not input
+	q := `SELECT ` + prefixed("s", scanCols) + `, a.name, a.host, a.port, a.kind FROM scans s JOIN assets a ON a.id = s.asset_id WHERE 1=1` //nolint:gosec // scanCols is a constant column list, not input
 	var args []any
 	if f.AssetID != 0 {
 		q += ` AND s.asset_id = ?`
@@ -100,32 +101,27 @@ func (s *Store) ListScans(f ScanFilter) ([]ScanWithAsset, error) {
 	out := []ScanWithAsset{}
 	for rows.Next() {
 		var w ScanWithAsset
-		var name, host string
+		var host string
 		var port int
-		var queued string
-		var started, finished, certEnd sql.NullString
-		var level sql.NullInt64
-		var hndl, incomplete int
-		v := &w.ScanSummary
-		if err := rows.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.StartedBy, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
-			&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete, &name, &host, &port); err != nil {
+		v, err := scanSummary(withExtra{rows, []any{&w.AssetName, &host, &port, &w.AssetKind}})
+		if err != nil {
 			return nil, err
 		}
-		if t := parseTS(sql.NullString{String: queued, Valid: true}); t != nil {
-			v.QueuedAt = *t
-		}
-		v.StartedAt, v.FinishedAt, v.CertNotAfter = parseTS(started), parseTS(finished), parseTS(certEnd)
-		if level.Valid {
-			l := int(level.Int64)
-			v.ReadinessLevel = &l
-		}
-		v.HNDLExposed, v.Incomplete = hndl != 0, incomplete != 0
-		w.AssetName = name
+		w.ScanSummary = v
 		w.AssetAddress = Asset{Host: host, Port: port}.Address()
 		out = append(out, w)
 	}
 	return out, rows.Err()
 }
+
+// withExtra reads the scan columns and then extra ones from the same row.
+type withExtra struct {
+	r     scanner
+	extra []any
+}
+
+// Scan reads the row into dest, then into the extra destinations.
+func (w withExtra) Scan(dest ...any) error { return w.r.Scan(append(dest, w.extra...)...) }
 
 // prefixed puts a table alias in front of every column in a comma list.
 func prefixed(alias, cols string) string {
@@ -212,9 +208,9 @@ func (s *Store) FinishScan(id int64, r Result) error {
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`UPDATE scans SET status = 'done', finished_at = ?, stage = 'done', progress_pct = 100, error = '',
 		report_json = ?, eval_json = ?, band = ?, score = ?, readiness_level = ?, hndl_exposed = ?, crit = ?, high = ?, medium = ?,
-		low = ?, info = ?, cert_not_after = ?, incomplete = ? WHERE id = ? AND status = 'running'`,
+		low = ?, info = ?, cert_not_after = ?, incomplete = ?, service = ?, host_key = ? WHERE id = ? AND status = 'running'`,
 		ts(s.now()), r.Report, r.Evaluation, r.Band, r.Score, r.ReadinessLevel, b2i(r.HNDLExposed), r.Critical, r.High, r.Medium, r.Low, r.Info,
-		nullTS(r.CertNotAfter), b2i(r.Incomplete), id)
+		nullTS(r.CertNotAfter), b2i(r.Incomplete), r.Service, r.HostKey, id)
 	if err != nil {
 		return err
 	}
@@ -333,7 +329,7 @@ func (s *Store) FailInterrupted() (int, error) {
 
 // DueAssets returns assets whose scheduled scan is due and that have no active scan.
 func (s *Store) DueAssets(now time.Time) ([]Asset, error) {
-	rows, err := s.db.Query(`SELECT `+assetCols+` FROM assets a WHERE kind = 'tls-endpoint' AND interval_seconds > 0 AND next_scan_at IS NOT NULL AND next_scan_at <= ?
+	rows, err := s.db.Query(`SELECT `+assetCols+` FROM assets a WHERE kind IN ('tls-endpoint', 'ssh-endpoint') AND interval_seconds > 0 AND next_scan_at IS NOT NULL AND next_scan_at <= ?
 		AND NOT EXISTS (SELECT 1 FROM scans s WHERE s.asset_id = a.id AND s.status IN ('queued','running')) ORDER BY next_scan_at`, ts(now))
 	if err != nil {
 		return nil, err

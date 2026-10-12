@@ -50,6 +50,14 @@ var registryFamily = map[string]struct{ Family, Why string }{
 	"SecP256r1MLKEM768":  {"", "a TLS hybrid group of two families (ECDH and ML-KEM)"},
 	"SecP384r1MLKEM1024": {"", "a TLS hybrid group of two families (ECDH and ML-KEM)"},
 	"X25519MLKEM768":     {"", "a TLS hybrid group of two families (ECDH and ML-KEM)"},
+	// SSH (PRD-008). CAST-128 is the registry's CAST5 (RFC 2144 names the cipher both ways).
+	"AES-192-CBC": {"AES", ""}, "AES-128-CTR": {"AES", ""}, "AES-192-CTR": {"AES", ""}, "AES-256-CTR": {"AES", ""},
+	"HMAC-SHA-1": {"HMAC", ""}, "HMAC-SHA-256": {"HMAC", ""}, "HMAC-SHA-512": {"HMAC", ""}, "HMAC-MD5": {"HMAC", ""},
+	"UMAC": {"UMAC", ""}, "Blowfish": {"Blowfish", ""}, "CAST-128": {"CAST5", ""},
+	"mlkem768x25519-sha256":    {"", "an SSH hybrid key exchange of two families (ECDH and ML-KEM)"},
+	"mlkem768nistp256-sha256":  {"", "an SSH hybrid key exchange of two families (ECDH and ML-KEM)"},
+	"mlkem1024nistp384-sha384": {"", "an SSH hybrid key exchange of two families (ECDH and ML-KEM)"},
+	"sntrup761x25519-sha512":   {"", "an SSH hybrid key exchange; the registry has no NTRU Prime family"},
 }
 
 // slhDSA covers the twelve SLH-DSA parameter sets by prefix.

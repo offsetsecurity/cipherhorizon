@@ -76,7 +76,7 @@ func (s *Server) assetFindings(a store.Asset) ([]FlatFinding, error) {
 	}
 	var out []FlatFinding
 	switch a.Kind {
-	case store.KindTLS:
+	case store.KindTLS, store.KindSSH:
 		if a.LastDone == nil {
 			return []FlatFinding{}, nil
 		}

@@ -77,8 +77,8 @@ const (
 	srcOpenSSH = "OpenSSH PROTOCOL"
 	srcCertkey = "OpenSSH PROTOCOL.certkeys"
 	srcStrict  = "OpenSSH PROTOCOL (strict key exchange, CVE-2023-48795)"
-	srcMLKEM   = "draft-ietf-sshm-mlkem-hybrid-kex; FIPS 203"
-	srcSntrup  = "draft-ietf-sshm-ntruprime-ssh"
+	srcMLKEM   = "RFC 10042; FIPS 203"
+	srcSntrup  = "RFC 9941"
 	srcMLDSA   = "draft-sfluhrer-ssh-mldsa; FIPS 204"
 	srcComp    = "draft-miller-sshm-composite-sigs; FIPS 204"
 	srcUMAC    = "OpenSSH PROTOCOL; RFC 4418"
@@ -159,16 +159,16 @@ func init() {
 		Algorithm{Name: "aes192-ctr", Kind: KindCipher, Display: "AES-192 in CTR", Cipher: "AES", KeyBits: 192, BlockBits: 128, Mode: "CTR", Catalogue: "AES-192-CTR", Source: srcRFC4344},
 		Algorithm{Name: "aes256-ctr", Kind: KindCipher, Display: "AES-256 in CTR", Cipher: "AES", KeyBits: 256, BlockBits: 128, Mode: "CTR", Catalogue: "AES-256-CTR", Source: srcRFC4344},
 		Algorithm{Name: "aes128-cbc", Kind: KindCipher, Display: "AES-128 in CBC", Cipher: "AES", KeyBits: 128, BlockBits: 128, Mode: "CBC", Catalogue: "AES-128-CBC", Source: srcRFC4253},
-		Algorithm{Name: "aes192-cbc", Kind: KindCipher, Display: "AES-192 in CBC", Cipher: "AES", KeyBits: 192, BlockBits: 128, Mode: "CBC", Catalogue: "AES", Source: srcRFC4253},
+		Algorithm{Name: "aes192-cbc", Kind: KindCipher, Display: "AES-192 in CBC", Cipher: "AES", KeyBits: 192, BlockBits: 128, Mode: "CBC", Catalogue: "AES-192-CBC", Source: srcRFC4253},
 		Algorithm{Name: "aes256-cbc", Kind: KindCipher, Display: "AES-256 in CBC", Cipher: "AES", KeyBits: 256, BlockBits: 128, Mode: "CBC", Catalogue: "AES-256-CBC", Source: srcRFC4253},
 		Algorithm{Name: "rijndael-cbc@lysator.liu.se", Kind: KindCipher, Display: "AES-256 in CBC (old name)", Cipher: "AES", KeyBits: 256, BlockBits: 128, Mode: "CBC", Catalogue: "AES-256-CBC", Source: srcOpenSSH},
 		Algorithm{Name: "3des-cbc", Kind: KindCipher, Display: "3DES in CBC", Cipher: "3DES", KeyBits: 168, BlockBits: 64, Mode: "CBC", Catalogue: "3DES", Source: srcRFC4253},
 		Algorithm{Name: "3des-ctr", Kind: KindCipher, Display: "3DES in CTR", Cipher: "3DES", KeyBits: 168, BlockBits: 64, Mode: "CTR", Catalogue: "3DES", Source: srcRFC4344},
 		Algorithm{Name: "des-cbc", Kind: KindCipher, Display: "DES in CBC", Cipher: "DES", KeyBits: 56, BlockBits: 64, Mode: "CBC", Catalogue: "DES", Source: srcRFC4253},
-		Algorithm{Name: "blowfish-cbc", Kind: KindCipher, Display: "Blowfish in CBC", Cipher: "Blowfish", KeyBits: 128, BlockBits: 64, Mode: "CBC", Source: srcRFC4253},
-		Algorithm{Name: "blowfish-ctr", Kind: KindCipher, Display: "Blowfish in CTR", Cipher: "Blowfish", KeyBits: 256, BlockBits: 64, Mode: "CTR", Source: srcRFC4344},
-		Algorithm{Name: "cast128-cbc", Kind: KindCipher, Display: "CAST-128 in CBC", Cipher: "CAST-128", KeyBits: 128, BlockBits: 64, Mode: "CBC", Source: srcRFC4253},
-		Algorithm{Name: "cast128-ctr", Kind: KindCipher, Display: "CAST-128 in CTR", Cipher: "CAST-128", KeyBits: 128, BlockBits: 64, Mode: "CTR", Source: srcRFC4344},
+		Algorithm{Name: "blowfish-cbc", Kind: KindCipher, Display: "Blowfish in CBC", Cipher: "Blowfish", KeyBits: 128, BlockBits: 64, Mode: "CBC", Catalogue: "Blowfish", Source: srcRFC4253},
+		Algorithm{Name: "blowfish-ctr", Kind: KindCipher, Display: "Blowfish in CTR", Cipher: "Blowfish", KeyBits: 256, BlockBits: 64, Mode: "CTR", Catalogue: "Blowfish", Source: srcRFC4344},
+		Algorithm{Name: "cast128-cbc", Kind: KindCipher, Display: "CAST-128 in CBC", Cipher: "CAST-128", KeyBits: 128, BlockBits: 64, Mode: "CBC", Catalogue: "CAST-128", Source: srcRFC4253},
+		Algorithm{Name: "cast128-ctr", Kind: KindCipher, Display: "CAST-128 in CTR", Cipher: "CAST-128", KeyBits: 128, BlockBits: 64, Mode: "CTR", Catalogue: "CAST-128", Source: srcRFC4344},
 		Algorithm{Name: "idea-cbc", Kind: KindCipher, Display: "IDEA in CBC", Cipher: "IDEA", KeyBits: 128, BlockBits: 64, Mode: "CBC", Source: srcRFC4253},
 		Algorithm{Name: "twofish-cbc", Kind: KindCipher, Display: "Twofish-256 in CBC", Cipher: "Twofish", KeyBits: 256, BlockBits: 128, Mode: "CBC", Source: srcRFC4253},
 		Algorithm{Name: "twofish256-cbc", Kind: KindCipher, Display: "Twofish-256 in CBC", Cipher: "Twofish", KeyBits: 256, BlockBits: 128, Mode: "CBC", Source: srcRFC4253},
@@ -181,15 +181,15 @@ func init() {
 
 	// MACs, each with its encrypt-then-MAC variant (OpenSSH PROTOCOL 1.7).
 	for _, m := range []Algorithm{
-		{Name: "hmac-sha2-256", Display: "HMAC-SHA-256", Hash: "SHA-256", TagBits: 256, Source: srcRFC6668},
-		{Name: "hmac-sha2-512", Display: "HMAC-SHA-512", Hash: "SHA-512", TagBits: 512, Source: srcRFC6668},
-		{Name: "hmac-sha1", Display: "HMAC-SHA-1", Hash: "SHA-1", TagBits: 160, Source: srcRFC4253},
-		{Name: "hmac-sha1-96", Display: "HMAC-SHA-1 truncated to 96 bits", Hash: "SHA-1", TagBits: 96, Source: srcRFC4253},
-		{Name: "hmac-md5", Display: "HMAC-MD5", Hash: "MD5", TagBits: 128, Source: srcRFC4253},
-		{Name: "hmac-md5-96", Display: "HMAC-MD5 truncated to 96 bits", Hash: "MD5", TagBits: 96, Source: srcRFC4253},
+		{Name: "hmac-sha2-256", Display: "HMAC-SHA-256", Hash: "SHA-256", TagBits: 256, Catalogue: "HMAC-SHA-256", Source: srcRFC6668},
+		{Name: "hmac-sha2-512", Display: "HMAC-SHA-512", Hash: "SHA-512", TagBits: 512, Catalogue: "HMAC-SHA-512", Source: srcRFC6668},
+		{Name: "hmac-sha1", Display: "HMAC-SHA-1", Hash: "SHA-1", TagBits: 160, Catalogue: "HMAC-SHA-1", Source: srcRFC4253},
+		{Name: "hmac-sha1-96", Display: "HMAC-SHA-1 truncated to 96 bits", Hash: "SHA-1", TagBits: 96, Catalogue: "HMAC-SHA-1", Source: srcRFC4253},
+		{Name: "hmac-md5", Display: "HMAC-MD5", Hash: "MD5", TagBits: 128, Catalogue: "HMAC-MD5", Source: srcRFC4253},
+		{Name: "hmac-md5-96", Display: "HMAC-MD5 truncated to 96 bits", Hash: "MD5", TagBits: 96, Catalogue: "HMAC-MD5", Source: srcRFC4253},
 		{Name: "hmac-ripemd160@openssh.com", Display: "HMAC-RIPEMD-160", Hash: "RIPEMD-160", TagBits: 160, Source: srcOpenSSH},
-		{Name: "umac-64@openssh.com", Display: "UMAC, 64-bit tag", Hash: "UMAC", TagBits: 64, Source: srcUMAC},
-		{Name: "umac-128@openssh.com", Display: "UMAC, 128-bit tag", Hash: "UMAC", TagBits: 128, Source: srcUMAC},
+		{Name: "umac-64@openssh.com", Display: "UMAC, 64-bit tag", Hash: "UMAC", TagBits: 64, Catalogue: "UMAC", Source: srcUMAC},
+		{Name: "umac-128@openssh.com", Display: "UMAC, 128-bit tag", Hash: "UMAC", TagBits: 128, Catalogue: "UMAC", Source: srcUMAC},
 	} {
 		m.Kind = KindMAC
 		add(m)
