@@ -101,7 +101,9 @@ type Finding struct {
 
 // Evaluation is the full judgement of one scan.
 type Evaluation struct {
-	Version   string           `json:"version"`
+	Version string `json:"version"`
+	// Protocol is "ssh" for an SSH endpoint and empty for TLS, so stored TLS evaluations are unchanged.
+	Protocol  string           `json:"protocol,omitempty"`
 	Findings  []Finding        `json:"findings"`
 	Readiness Readiness        `json:"readiness"`
 	Hygiene   Hygiene          `json:"hygiene"`
