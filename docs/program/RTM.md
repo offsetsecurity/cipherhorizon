@@ -259,7 +259,7 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 
 ## PRD-008 · Post-quantum signatures in TLS, and SSH endpoints ([PRD-008](../product/PRD-008-pq-signatures-and-ssh.md); WP-A results in [QA-REPORT-008](QA-REPORT-008.md))
 
-WP-B to WP-F (SSH) ship in a second pull request and are being amended per [STRATEGY-003](../strategy/STRATEGY-003-multi-protocol-product.md) (a page per protocol, baseline conformance), so they stay `todo` here.
+WP-B to WP-G (SSH) ship in a second pull request, amended 2026-10-13 per [STRATEGY-003](../strategy/STRATEGY-003-multi-protocol-product.md) (a page per protocol, baseline conformance), so they stay `todo` here.
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -293,6 +293,16 @@ WP-B to WP-F (SSH) ship in a second pull request and are being amended per [STRA
 | REQ-SHW-4 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
 | REQ-SHW-5 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
 | REQ-SHW-6 | P1 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHW-7 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHW-8 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHB-1 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHB-2 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHB-3 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHB-4 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHB-5 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHB-6 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHB-7 | P1 | WP-G | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHB-8 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
 | REQ-SHO-1 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
 | REQ-SHO-2 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
 | REQ-SHO-3 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |

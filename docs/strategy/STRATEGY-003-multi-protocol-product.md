@@ -6,7 +6,7 @@
 | Role | Product management |
 | Trigger | Owner, after the SSH build: SSH, and later IKE, may need to be separate, with their own kind of evaluation. Mixing TLS scoring with SSH scoring (and later VPN) will confuse. Re-look at the product as a whole: positioning, marketing, UI. |
 | Inputs | The SSH build on `feat/pq-signatures-and-ssh` (screens walked 2026-10-12). [STRATEGY-001](STRATEGY-001-product-review.md), [STRATEGY-002](STRATEGY-002-cryptolyzer-evaluation.md). ssh-audit (jtesta/ssh-audit, MIT). sshcheck.com. |
-| Status | Analysis and recommendation. Owner decisions in §9 block the UI work. |
+| Status | Decided 2026-10-12: the owner chose B (a page per protocol), baseline conformance, the PR split and the positioning. Baselines: ours first; BSI TR-02102-4 waits for a verified transcription (PRD-008 REQ-SHB-7). |
 
 ## 1. What has changed
 
