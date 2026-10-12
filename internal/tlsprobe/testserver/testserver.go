@@ -10,11 +10,13 @@ package testserver
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"math/big"
 	"net"
 	"strconv"
@@ -31,6 +33,11 @@ const (
 	CertECDSA CertKind = iota // one ECDSA P-256 certificate
 	CertRSA                   // one RSA-2048 certificate
 	CertBoth                  // both; the suite chosen decides which is used
+	// CertMLDSA is one ML-DSA-65 certificate (FIPS 204), usable only in TLS 1.3.
+	CertMLDSA
+	// CertECDSAAndMLDSA is an ECDSA P-256 and an ML-DSA-65 certificate; the client's
+	// signature_algorithms decide which is used, the ECDSA one when both would do.
+	CertECDSAAndMLDSA
 )
 
 // Config configures a TLS server. Zero values mean crypto/tls defaults.
@@ -61,6 +68,10 @@ type Config struct {
 	// server say no instead.
 	StartTLS       string
 	RefuseStartTLS bool
+	// SelectCertFirst makes the server choose its certificate from the first ClientHello and
+	// refuse with an alert when none fits the offered signature_algorithms, before any
+	// HelloRetryRequest. OpenSSL works this way; Go's server sends a HelloRetryRequest first.
+	SelectCertFirst bool
 }
 
 // Server is a running test server.
@@ -87,6 +98,7 @@ var (
 	certOnce sync.Once
 	ecCert   tls.Certificate
 	rsaCert  tls.Certificate
+	mlCert   tls.Certificate
 	certErr  error
 )
 
@@ -126,7 +138,25 @@ func makeCerts() {
 		certErr = err
 		return
 	}
-	rsaCert, certErr = mk(&rk.PublicKey, rk)
+	if rsaCert, certErr = mk(&rk.PublicKey, rk); certErr != nil {
+		return
+	}
+	mk2, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	if err != nil {
+		certErr = err
+		return
+	}
+	mlCert, certErr = mk(mk2.Public(), mk2)
+}
+
+// MLDSACertificate returns the test ML-DSA-65 certificate (self-signed).
+func MLDSACertificate(t testing.TB) tls.Certificate {
+	t.Helper()
+	certOnce.Do(makeCerts)
+	if certErr != nil {
+		t.Fatalf("testserver: generating certificates: %v", certErr)
+	}
+	return mlCert
 }
 
 // LoadCertificates returns the ECDSA and RSA certificates (self-signed).
@@ -180,6 +210,10 @@ func Listen(cfg Config) (*Server, error) {
 		tc.Certificates = []tls.Certificate{rsaC}
 	case cfg.Cert == CertBoth:
 		tc.Certificates = []tls.Certificate{ec, rsaC}
+	case cfg.Cert == CertMLDSA:
+		tc.Certificates = []tls.Certificate{mlCert}
+	case cfg.Cert == CertECDSAAndMLDSA:
+		tc.Certificates = []tls.Certificate{ec, mlCert}
 	default:
 		tc.Certificates = []tls.Certificate{ec}
 	}
@@ -198,6 +232,18 @@ func Listen(cfg Config) (*Server, error) {
 		}
 		// crypto/tls consults GetCertificate only when Certificates is empty or SNI was sent.
 		tc.Certificates = nil
+	}
+
+	if cfg.SelectCertFirst {
+		certs := tc.Certificates
+		tc.GetConfigForClient = func(hi *tls.ClientHelloInfo) (*tls.Config, error) {
+			for i := range certs {
+				if hi.SupportsCertificate(&certs[i]) == nil {
+					return nil, nil
+				}
+			}
+			return nil, errNoCertificate
+		}
 	}
 
 	addr := cfg.Addr
@@ -311,3 +357,6 @@ func addrOf(l net.Listener) (*Server, error) {
 	port, _ := strconv.Atoi(portStr)
 	return &Server{Host: host, Port: port, Addr: l.Addr().String()}, nil
 }
+
+// errNoCertificate is what a SelectCertFirst server refuses with (crypto/tls sends an alert).
+var errNoCertificate = errors.New("testserver: no certificate for the offered signature schemes")

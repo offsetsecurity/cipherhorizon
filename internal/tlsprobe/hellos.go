@@ -20,6 +20,14 @@ var signatureSchemes = []uint16{
 	0x0201, 0x0203, // rsa_pkcs1_sha1, ecdsa_sha1 (legacy: only to let old servers pick a cert)
 }
 
+// signatureSchemes13 adds ML-DSA (FIPS 204; code points of draft-ietf-tls-mldsa, pinned against
+// crypto/tls in tests) to every hello that offers TLS 1.3, ML-DSA's only version. Without them a
+// server whose only certificate is ML-DSA, and which picks its certificate before answering (as
+// OpenSSL does), refuses the hello, and TLS 1.3 would look unsupported (PRD-008 REQ-PQS-1).
+var signatureSchemes13 = append(append([]uint16(nil), signatureSchemes...),
+	0x0904, 0x0905, 0x0906, // mldsa44, mldsa65, mldsa87
+)
+
 const (
 	scsvRenegotiation uint16 = 0x00FF
 	scsvFallback      uint16 = 0x5600
@@ -108,7 +116,7 @@ func (p *prober) tls13Hello(suites, groups []uint16) (*wire.ClientHello, error) 
 	}
 	h.Extensions = append(h.Extensions,
 		wire.SupportedVersions(wire.VersionTLS13), wire.SupportedGroups(groups),
-		wire.SignatureAlgorithms(signatureSchemes), wire.KeyShareEmpty(), wire.PSKKeyExchangeModes())
+		wire.SignatureAlgorithms(signatureSchemes13), wire.KeyShareEmpty(), wire.PSKKeyExchangeModes())
 	return h, nil
 }
 

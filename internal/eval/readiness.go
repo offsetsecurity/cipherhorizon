@@ -107,7 +107,7 @@ func assessReadiness(c *ctx) Readiness {
 			r.Level = LevelHybridAvail
 		}
 	}
-	if r.Level == LevelHybridNeg && hasPQCertificate(rep) {
+	if r.Level == LevelHybridNeg && (hasPQCertificate(rep) || len(pqSchemes(rep)) > 0) {
 		r.Level = LevelPQAuth
 	}
 	r.Label = LevelLabel(r.Level)
@@ -220,6 +220,14 @@ func authDimension(rep *tlsprobe.Report) Dimension {
 		d.Detail = "Certificate key algorithm(s): " + strings.Join(algs, ", ") + "."
 		return d
 	}
+	// The certificate a default client got is classical, but the signature stage may have shown
+	// the server also holds a post-quantum key (PRD-008 REQ-PQS-5).
+	if names := pqSchemes(rep); len(names) > 0 {
+		d.Status = "post-quantum"
+		d.Detail = "The server accepted " + strings.Join(names, ", ") + " when it was the only signature scheme offered, so it holds a post-quantum key for it. " +
+			"The certificate a default client received uses " + strings.Join(algs, ", ") + "."
+		return d
+	}
 	d.Status = "classical"
 	d.Detail = "Certificate key algorithm(s): " + strings.Join(algs, ", ") +
 		". All are quantum-vulnerable signatures; this matters for future forgery, not for recorded traffic."
@@ -313,6 +321,18 @@ func pref(rep *tlsprobe.Report, version, subject string) string {
 		}
 	}
 	return ""
+}
+
+// pqSchemes names the post-quantum signature schemes the signature stage proved accepted (only
+// when its control hello was refused, so the answers mean something).
+func pqSchemes(rep *tlsprobe.Report) []string {
+	var out []string
+	for _, s := range rep.Signatures.Accepted() {
+		if s.PQ {
+			out = append(out, s.Algorithm)
+		}
+	}
+	return out
 }
 
 func hasPQCertificate(rep *tlsprobe.Report) bool {

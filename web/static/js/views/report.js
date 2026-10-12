@@ -781,6 +781,7 @@ function keyExchangeBody(ctx) {
     r.hndlExposed ? 'Traffic recorded today could be decrypted by a future quantum computer (harvest now, decrypt later).' : null,
     rep.dh ? (ev.dhGroup ? `Diffie-Hellman uses ${ev.dhGroup.name} (${ev.dhGroup.source}), ${rep.dh.primeBits} bits.`
       : `Diffie-Hellman uses a ${rep.dh.primeBits}-bit prime that is not a published group.`) : null,
+    signatureFact(rep.signatures),
   ];
   const dim = (title, d) => h('div', { class: 'dim' }, h('h4', null, title, badge(d.status, 'neutral'), evidenceBadge(d.evidence)), h('div', null, d.detail), citations(d.citations));
   const lead = h('div', { class: 'pqpanel' },
@@ -804,8 +805,46 @@ function keyExchangeBody(ctx) {
       h('tbody', null, groups.filter((g) => g.version === v).map(groupRow)))));
   const all = h('div', null, gv.map(groupTable),
     rep.dh ? h('p', null, `DHE prime fingerprint ${rep.dh.primeSha256}, sampled from `, h('code', null, rep.dh.suite)) : null,
+    signatureTable(rep.signatures),
     h('details', null, h('summary', null, 'Sources for the readiness assessment'), citations(r.citations)));
   return { facts, all: h('div', null, lead, all) };
+}
+
+/** One sentence on the TLS 1.3 signature schemes the server holds keys for (PRD-008 REQ-PQS-6). */
+function signatureFact(sig) {
+  if (!sig) return null;
+  if (sig.control !== 'refused') return 'Which signature schemes the server can use could not be told: it answers whatever is offered.';
+  const acc = (sig.schemes || []).filter((s) => s.result === 'accepted');
+  const pq = acc.filter((s) => s.pq).map((s) => s.algorithm);
+  if (!acc.length) return null;
+  return pq.length ? `The server can authenticate with ${pq.join(', ')} (post-quantum) as well as ${[...new Set(acc.filter((s) => !s.pq).map((s) => s.algorithm))].join(', ') || 'nothing classical'}.`
+    : `The server authenticates with ${[...new Set(acc.map((s) => s.algorithm))].join(', ')}; no post-quantum signature scheme is accepted.`;
+}
+
+/** The signature-scheme table: what the server answered when each scheme was the only one offered. */
+function signatureTable(sig) {
+  if (!sig) return null;
+  const title = h('h3', null, 'Signature schemes the server can authenticate with (TLS 1.3)');
+  if (sig.control !== 'refused') {
+    return h('div', null, title, h('div', { class: 'callout info', role: 'note' },
+      sig.control === 'accepted'
+        ? 'This server answers whatever signature scheme is offered, so which keys it holds can not be told from a handshake.'
+        : `The control probe got no clear answer (${sig.controlWhy || 'no reply'}), so the per-scheme answers prove nothing.`));
+  }
+  const status = (s) => {
+    if (s.result === 'accepted') return versionState(['good', '✔', 'Accepted', s.pq ? `post-quantum (${s.algorithm})` : 'fine']);
+    if (s.result === 'refused') return versionState(['neutral', '·', 'Not accepted', s.pq ? 'no post-quantum key yet' : 'no key of this kind']);
+    return versionState(['warn', '?', 'Not determined', s.why || 'no clear answer']);
+  };
+  return h('div', null, title,
+    h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
+      h('thead', null, h('tr', null, ['Scheme', 'Key', 'Status'].map((c) => h('th', { scope: 'col' }, c)))),
+      h('tbody', null, (sig.schemes || []).map((s) => h('tr', null,
+        h('td', null, h('code', null, s.name)),
+        h('td', null, `${s.algorithm}${s.detail ? ` (${s.detail})` : ''}`),
+        h('td', null, status(s))))))),
+    h('p', { class: 'hint' }, 'Tested by offering one scheme per handshake; a server answers only for keys it holds. ',
+      `A control scheme no key can match was refused, so the answers are meaningful. Key shares: ${sig.keyShare || 'x25519'}.`));
 }
 
 function featuresBody(ctx) {
