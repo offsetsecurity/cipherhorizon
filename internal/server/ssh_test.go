@@ -184,3 +184,14 @@ func TestSSHScanOfANonSSHPortFails(t *testing.T) {
 		t.Errorf("scan %+v", sc)
 	}
 }
+
+// REQ-SHO-6: the API document describes SSH endpoints.
+func TestOpenAPIDescribesSSH(t *testing.T) {
+	e := newEnv(t)
+	_, body := e.do("GET", "/api/v1/openapi.json", nil)
+	for _, want := range []string{`"ssh-endpoint"`, `"protocol"`, "ssh-report/1", "ssh://"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("openapi.json lacks %s", want)
+		}
+	}
+}

@@ -301,7 +301,7 @@ func TestFailOnConditions(t *testing.T) {
 		{"level not met", "level<L3", hybrid, app.ExitOK, ""},
 		{"level as a number", "level<4", hybrid, app.ExitPolicy, "readiness below L4"},
 		{"score not met", "score<" + strconv.Itoa(score), hybrid, app.ExitOK, ""},
-		{"score met", "score<" + strconv.Itoa(score+1), hybrid, app.ExitPolicy, "TLS hygiene score below"},
+		{"score met", "score<" + strconv.Itoa(score+1), hybrid, app.ExitPolicy, "hygiene score below"},
 		{"severity met", "severity>=high", hybrid, app.ExitPolicy, "CERT.UNTRUSTED"},
 		{"severity not met", "severity>=critical", hybrid, app.ExitOK, ""},
 		{"finding met", "finding=PROTO.NO-TLS13", old, app.ExitPolicy, "finding PROTO.NO-TLS13"},

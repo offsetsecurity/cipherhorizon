@@ -28,7 +28,7 @@ type policyCond struct {
 // parsePolicy reads --fail-on values; each may hold several conditions separated by commas.
 //
 //	level<L3        readiness below level 3 (L3 or 3)
-//	score<70        TLS hygiene score below 70 (an unrated score fails)
+//	score<70        hygiene score below 70 (TLS or SSH) (an unrated score fails)
 //	severity>=high  any finding of this severity or worse (critical, high, medium, low, info)
 //	finding=ID      this finding, e.g. PROTO.TLS10
 func parsePolicy(values []string) ([]policyCond, error) {
@@ -53,7 +53,7 @@ func parsePolicy(values []string) ([]policyCond, error) {
 				if err != nil || n < 1 || n > 100 {
 					return nil, fmt.Errorf("--fail-on %q: the score is 1 to 100", c)
 				}
-				pc.kind, pc.n, pc.label = "score", n, fmt.Sprintf("TLS hygiene score below %d", n)
+				pc.kind, pc.n, pc.label = "score", n, fmt.Sprintf("hygiene score below %d", n)
 			case strings.HasPrefix(c, "severity>="):
 				sev := eval.Severity(strings.ToLower(strings.TrimPrefix(c, "severity>=")))
 				switch sev {
@@ -134,6 +134,10 @@ func targetName(t tlsprobe.Target) string {
 func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 	var b strings.Builder
 	r, hy := ev.Readiness, ev.Hygiene
+	scoreLabel := "TLS hygiene score       "
+	if ev.Protocol == eval.ProtocolSSH {
+		scoreLabel = "SSH hygiene score       "
+	}
 	fmt.Fprintf(&b, "%s\n\n", target)
 	if r.Level < 0 {
 		b.WriteString("  Post-quantum readiness   not determined\n")
@@ -147,9 +151,9 @@ func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 		b.WriteString("                           Recorded traffic could be decrypted later (harvest now, decrypt later).\n")
 	}
 	if hy.Score >= 0 {
-		fmt.Fprintf(&b, "  TLS hygiene score        %d / 100  %s\n", hy.Score, hy.Band)
+		fmt.Fprintf(&b, "  %s %d / 100  %s\n", scoreLabel, hy.Score, hy.Band)
 	} else {
-		b.WriteString("  TLS hygiene score        not rated\n")
+		fmt.Fprintf(&b, "  %s not rated\n", scoreLabel)
 	}
 	run, found, notChecked := 0, 0, 0
 	for _, c := range ev.Checks {

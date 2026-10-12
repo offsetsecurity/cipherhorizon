@@ -68,6 +68,8 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return hostcmd.Plugins(hostEnv(env))
 	case "tls":
 		return tlsCmd(ctx, args[1:], env)
+	case "ssh":
+		return sshCmd(ctx, args[1:], env)
 	case "serve":
 		return serveCmd(ctx, args[1:], env)
 	case "import":
@@ -114,6 +116,7 @@ func usage(w io.Writer) {
 Usage:
   cipherhorizon run [--config FILE] [-o FILE] [--root DIR] [--redact-host]
   cipherhorizon tls scan [flags] HOST[:PORT]...
+  cipherhorizon ssh scan [flags] HOST[:PORT]...
   cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--tls-cert F --tls-key F] [--token TOKEN] [--no-login]
   cipherhorizon import [--server URL] (--system ID | --new-system NAME) FILE|-
   cipherhorizon db rebuild-graph|stats|backup [--db FILE] [BACKUP-FILE]
@@ -134,6 +137,11 @@ run inventories the cryptographic software on this machine and reports what is p
 and what it can do, never what it is used for. Running without elevated privileges is
 allowed and may leave results incomplete; run as Administrator (Windows) or root (Linux)
 for a fuller result. It never reads keys or secrets.
+
+ssh scan reads each SSH server's identification and algorithm lists, negotiates as OpenSSH
+10.6 would, and fetches every host key, never logging in. It prints the same verdict
+(readiness level, SSH hygiene score, what to do) and takes --details, --json, --cbom and
+--fail-on as tls scan does. The port is 22 unless given.
 
 tls scan probes each target's TLS/SSL support (protocol versions, every cipher suite,
 key-exchange groups including post-quantum hybrids, certificates) and prints the verdict
