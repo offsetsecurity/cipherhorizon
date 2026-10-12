@@ -346,3 +346,24 @@ func TestSSHAlgorithmVerdicts(t *testing.T) {
 		t.Error("the negotiated key exchange is not the one marked used")
 	}
 }
+
+// Oracle finding (QA-REPORT-008): OpenSSH's default MAC list includes umac-64-etm; a 64-bit UMAC
+// tag alone is Low, MD5 or a truncated HMAC is Medium.
+func TestUMAC64AloneIsLow(t *testing.T) {
+	sev := func(macs ...string) eval.Severity {
+		r := modernSSH()
+		r.Algorithms.MACC2S = append(r.Algorithms.MACC2S, macs...)
+		for _, f := range sshEval(r).Findings {
+			if f.ID == "SSH.MAC-WEAK" {
+				return f.Severity
+			}
+		}
+		return ""
+	}
+	if s := sev("umac-64-etm@openssh.com"); s != eval.Low {
+		t.Errorf("umac-64 alone: %q", s)
+	}
+	if s := sev("umac-64-etm@openssh.com", "hmac-md5"); s != eval.Medium {
+		t.Errorf("with hmac-md5: %q", s)
+	}
+}

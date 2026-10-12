@@ -95,7 +95,7 @@ export async function launchPhase({ check, js, go, sleep, shot, viewport, clickT
   await sleep(700);
   await clickText('Add endpoints');
   await sleep(300);
-  await js(`document.getElementById('add-target').value = '127.0.0.1:9451'; document.getElementById('add-starttls').value = 'smtp';
+  await js(`document.getElementById('add-target').value = '127.0.0.1:9451'; document.getElementById('add-protocol').value = 'smtp';
     document.getElementById('add-name').value = 'mail-starttls'; document.querySelector('.modal form').requestSubmit();`);
   await sleep(1200);
   const assets = await js(`return (await fetch('/api/v1/assets')).json()`);

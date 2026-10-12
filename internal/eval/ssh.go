@@ -224,7 +224,13 @@ var sshRules = []sshRule{
 		citations:   []Citation{citRFC6151, citRFC6668},
 		remediation: "Remove hmac-md5*, hmac-sha1-96* and umac-64* from MACs in sshd_config; keep hmac-sha2-256-etm@openssh.com and hmac-sha2-512-etm@openssh.com.",
 		check: func(c *sshCtx) []hit {
-			return offered(pick(c.macs, registry.KindMAC, func(a registry.Algorithm) bool { return a.Hash == "MD5" || a.TagBits > 0 && a.TagBits < 128 }))
+			weak := pick(c.macs, registry.KindMAC, func(a registry.Algorithm) bool { return a.Hash == "MD5" || a.TagBits > 0 && a.TagBits < 128 })
+			hits := offered(weak)
+			// A 64-bit UMAC tag alone (in OpenSSH's own default list) is a smaller margin, not a break: Low.
+			if len(hits) > 0 && len(pick(weak, registry.KindMAC, func(a registry.Algorithm) bool { return a.Hash != "UMAC" })) == 0 {
+				hits[0].severity = Low
+			}
+			return hits
 		}},
 	{id: "SSH.MAC-SHA1", title: "HMAC-SHA-1 is offered", category: "mac", severity: Info, evidence: Observed,
 		citations:   []Citation{citRFC6668, citSP800131A},
