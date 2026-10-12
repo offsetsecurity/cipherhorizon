@@ -17,10 +17,14 @@ var sshDemo = []struct{ name, expect string }{
 	{"ssh-composite", "ssh-mldsa44-ed25519 host key, classical kex -> expect L1, PQ host key"},
 	{"ssh-1", "an SSH-1.5 banner                           -> expect L0"},
 	{"ssh-sntrup", "sntrup761 only (lists only, no key exchange) -> L3 computed, host keys not fetched"},
+	{"ssh-hardened", "ssh-hybrid with encrypt-then-MAC MACs only  -> expect L3, meets the baseline"},
 }
 
 // modernMACs are what a current OpenSSH server offers: SHA-2, encrypt-then-MAC first.
 var modernMACs = []string{ssh.HMACSHA256ETM, ssh.HMACSHA512ETM, ssh.HMACSHA256, ssh.HMACSHA512}
+
+// etmMACs are the MACs a hardened server keeps: encrypt-then-MAC only, as the baseline asks.
+var etmMACs = []string{ssh.HMACSHA256ETM, ssh.HMACSHA512ETM}
 
 // startSSHDemo starts the SSH demo servers; addr gives base+offset.
 func startSSHDemo(addr func(int) string) error {
@@ -57,8 +61,12 @@ func startSSHDemo(addr func(int) string) error {
 	if _, err := sshtest.ListenScript(addr(25), sshtest.Script{Ident: "SSH-1.5-OldServer_1.2", NoKexInit: true}); err != nil {
 		return err
 	}
+	if err := listen(27, sshtest.Config{KeyExchanges: []string{ssh.KeyExchangeMLKEM768X25519, ssh.KeyExchangeCurve25519},
+		MACs: etmMACs, Keys: []string{sshtest.KeyEd25519, sshtest.KeyECDSA}}); err != nil {
+		return err
+	}
 	_, err = sshtest.ListenScript(addr(26), sshtest.Script{Ident: "SSH-2.0-OpenSSH_9.6",
-		Kex: []string{"sntrup761x25519-sha512", "sntrup761x25519-sha512@openssh.com", "kex-strict-s-v00@openssh.com"},
+		Kex:     []string{"sntrup761x25519-sha512", "sntrup761x25519-sha512@openssh.com", "kex-strict-s-v00@openssh.com"},
 		HostKey: []string{"ssh-ed25519"}, Ciphers: []string{"chacha20-poly1305@openssh.com", "aes256-gcm@openssh.com"},
 		MACs: []string{"hmac-sha2-256-etm@openssh.com"}})
 	return err

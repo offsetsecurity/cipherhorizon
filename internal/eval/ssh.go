@@ -386,7 +386,7 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 	}
 	ev := Evaluation{Version: Version, Protocol: ProtocolSSH, Findings: findings, Readiness: ready, Counts: counts,
 		EvaluatedAt: in.Now.UTC(), PKI: []ChainView{}, ReferenceData: []RefInfo{}}
-	ev.Hygiene = sshHygiene(c, findings)
+	ev.Hygiene = Hygiene{Score: -1, Deductions: []Deduction{}, NotMeasured: []string{}, Methodology: sshNoScore}
 	ev.Sections = sshSections(c, findings)
 	skipped := map[string]string{}
 	for _, s := range ev.Sections {
@@ -405,29 +405,18 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 	ev.Checks = checks
 	ev.FixFirst = fixFirst(findings)
 	ev.Vulnerabilities = sshAttacks(findings)
-	ev.SSHAlgorithms = sshAlgorithmViews(c)
+	b, ok := SSHBaselineByID(in.SSHBaseline)
+	if !ok {
+		b, _ = SSHBaselineByID(BaselineDefault)
+	}
+	ev.Baseline = sshConformance(c, b)
+	ev.SSHAlgorithms = sshAlgorithmViews(c, b)
 	return ev
 }
 
-const sshHygieneMethodology = "SSH hygiene score: the same arithmetic as the TLS hygiene score. Start at 100 and take off points for each finding " +
-	"(critical 40, high 20, medium 10, low 4, info 0); post-quantum findings are not counted, readiness is reported separately. " +
-	"Each distinct problem counts once. A critical finding limits the score to 29 (Broken) and a high finding to 74 (Fair). " +
-	"Bands: Strong 90 and above, Sound 75, Fair 55, Weak 30, Broken below. The weights are this project's own choice."
-
-func sshHygiene(c *sshCtx, findings []Finding) Hygiene {
-	h := Hygiene{Deductions: []Deduction{}, Methodology: sshHygieneMethodology, NotMeasured: []string{
-		"The server software's own vulnerabilities: they depend on its version, which is shown but not judged.",
-		"Authentication: no login is attempted, so password and key policies are out of view.",
-		"Group-exchange (diffie-hellman-group-exchange-*) group sizes: judged by name only.",
-	}}
-	if c.rep.Algorithms == nil && (c.rep.Identification == nil || !c.rep.Identification.SSH1Only) {
-		h.Score, h.Band = -1, BandNotRated
-		h.NotMeasured = append(h.NotMeasured, "The server's algorithm lists were not read, so the endpoint could not be rated.")
-		return h
-	}
-	scoreFindings(&h, findings)
-	return h
-}
+// sshNoScore is the Hygiene.Methodology of an SSH evaluation: SSH servers get no 0 to 100 score
+// (PRD-008 REQ-SHE-5); they are judged against a baseline, which Evaluation.Baseline holds.
+const sshNoScore = "SSH servers are not scored. They are judged against an SSH baseline: see the baseline verdict."
 
 func sshSections(c *sshCtx, findings []Finding) []Section {
 	stages := map[string]tlsprobe.Stage{}
@@ -720,10 +709,12 @@ type SSHAlgorithm struct {
 	Verdict string `json:"verdict"`
 	// Used: a current client (OpenSSH 10.6 defaults) uses it.
 	Used bool `json:"used,omitempty"`
+	// Baseline is allowed or off against the evaluation's baseline (PRD-008 REQ-SHB-3).
+	Baseline string `json:"baseline"`
 }
 
 // sshAlgorithmViews lists every advertised algorithm, kind by kind, in the server's order.
-func sshAlgorithmViews(c *sshCtx) []SSHAlgorithm {
+func sshAlgorithmViews(c *sshCtx, b *SSHBaseline) []SSHAlgorithm {
 	n := c.rep.Negotiated
 	if n == nil {
 		n = &sshprobe.Negotiated{}
@@ -736,7 +727,12 @@ func sshAlgorithmViews(c *sshCtx) []SSHAlgorithm {
 	}{{registry.KindKex, c.alg.Kex}, {registry.KindHostKey, c.alg.HostKey}, {registry.KindCipher, c.ciphers}, {registry.KindMAC, c.macs}, {registry.KindCompression, c.comp}} {
 		for _, name := range l.names {
 			a, ok := registry.Lookup(l.kind, name)
-			v := SSHAlgorithm{Kind: l.kind, Name: name, Display: a.Display, Used: used[l.kind] == name}
+			v := SSHAlgorithm{Kind: l.kind, Name: name, Display: a.Display, Used: used[l.kind] == name, Baseline: BaselineOff}
+			if registry.IsPseudo(name) {
+				v.Baseline = ""
+			} else if b.allows(l.kind, name) {
+				v.Baseline = BaselineAllowed
+			}
 			switch {
 			case !ok:
 				v.Verdict = "unknown"

@@ -78,6 +78,7 @@ func SSH(in SSHInput) ([]byte, error) {
 		x.secOf[s.ID] = s
 	}
 	x.sshSummary()
+	x.sshBaseline()
 	x.fixFirst()
 	x.glance()
 	for _, id := range sshSectionIDs {
@@ -89,14 +90,25 @@ func SSH(in SSHInput) ([]byte, error) {
 }
 
 func (x *endpoint) sshSummary() {
-	r, g := x.ev.Readiness, x.ev.Hygiene
+	r := x.ev.Readiness
 	lvl := fmt.Sprintf("L%d", r.Level)
 	if r.Level < 0 {
 		lvl = "?"
 	}
-	score := "-"
-	if g.Score >= 0 {
-		score = fmt.Sprint(g.Score)
+	// An SSH server has no score (PRD-008 REQ-SHE-5): its second tile is the baseline verdict.
+	baseBig, baseSub, baseT := "Not judged", "lists not read", toneInfo
+	if b := x.ev.Baseline; b != nil {
+		baseSub = b.Title
+		switch {
+		case !b.Judged:
+			baseSub = b.Reason
+		case b.Meets:
+			baseBig, baseT = "Meets", toneGood
+		case len(b.Changes) == 1:
+			baseBig, baseT = "1 change", toneBad
+		default:
+			baseBig, baseT = fmt.Sprintf("%d changes", len(b.Changes)), toneBad
+		}
 	}
 	keyBig, keySub, keyT := "None", "no host key fetched", toneInfo
 	if len(x.ssh.HostKeys) > 0 {
@@ -129,7 +141,7 @@ func (x *endpoint) sshSummary() {
 	}
 	x.tiles([]tile{
 		{lvl, "PQC readiness", r.Label, levelTone(r.Level)},
-		{score, "SSH hygiene", fmt.Sprintf("%s, out of 100", g.Band), bandTone(g.Band)},
+		{baseBig, "Baseline", baseSub, baseT},
 		{keyBig, "Host key", keySub, keyT},
 		{fmt.Sprint(open), "Findings to act on", sub, findT},
 	})
@@ -148,39 +160,78 @@ func hostKeyLabel(k sshprobe.HostKey) string {
 	return k.Algorithm
 }
 
-// algoVerdict is the status word for one advertised algorithm: what it is, then whether that is right.
-func algoVerdict(kind, name string) (string, tone) {
-	a, ok := registry.Lookup(kind, name)
-	switch {
-	case !ok:
-		return "OFFERED · NOT IN REGISTRY", toneInfo
-	case a.PQ:
-		return "OFFERED · POST-QUANTUM", toneGood
-	case sshWeakName(kind, a):
-		return "OFFERED · SHOULD BE OFF", toneBad
+// algoVerdict is the status word for one advertised algorithm against the evaluation's baseline,
+// as the web report shows it: allowed (and post-quantum) or should be off.
+func (x *endpoint) algoVerdict(kind, name string) (string, tone) {
+	for _, a := range x.ev.SSHAlgorithms {
+		if a.Kind != kind || a.Name != name {
+			continue
+		}
+		switch {
+		case a.Baseline == eval.BaselineOff:
+			return "SHOULD BE OFF", toneBad
+		case a.Verdict == "post-quantum":
+			return "ALLOWED · POST-QUANTUM", toneGood
+		}
+		return "ALLOWED", toneOK
 	}
-	return "OFFERED · FINE", toneOK
+	return "OFFERED", toneInfo
 }
 
-func sshWeakName(kind string, a registry.Algorithm) bool {
-	switch kind {
-	case registry.KindKex:
-		return a.Hash == "SHA-1" || a.GroupBits > 0 && a.GroupBits < 2048
-	case registry.KindHostKey:
-		return a.Key == "DSA" || a.Hash == "SHA-1"
-	case registry.KindCipher:
-		return a.Cipher == "none" || a.Cipher == "RC4" || a.Cipher == "DES" || a.BlockBits == 64 || a.Mode == "CBC"
-	case registry.KindMAC:
-		return a.Hash == "none" || a.Hash == "MD5" || a.TagBits > 0 && a.TagBits < 128
+// sshBaseline is the baseline page: the verdict, the requirements, the changes and the sshd_config
+// lines that would make the server meet it (PRD-008 REQ-SHB-8).
+func (x *endpoint) sshBaseline() {
+	b := x.ev.Baseline
+	if b == nil {
+		return
 	}
-	return false
+	x.h2("Baseline: " + b.Title)
+	switch {
+	case !b.Judged:
+		x.callout(toneInfo, bold("Not judged. "), body(b.Reason))
+		return
+	case b.Meets:
+		x.callout(toneGood, bold("Meets the baseline. "), body("Every algorithm offered is on it and every requirement holds."))
+	default:
+		x.callout(toneBad, bold("Does not meet the baseline. "), body(fmt.Sprintf("%s to make; the sshd_config lines below make them.", plural(len(b.Changes), "change"))))
+	}
+	var rows [][]pdf.Cell
+	for _, r := range b.Requires {
+		word, t := "MET", toneGood
+		if !r.Met {
+			word, t = "NOT MET", toneBad
+		}
+		rows = append(rows, []pdf.Cell{txt(r.Text, pdf.Bold, ink), chipCell(word, t), txt(r.Detail+" "+r.Cite.Title, pdf.Regular, text2)})
+	}
+	if len(rows) > 0 {
+		x.table([]pdf.Col{{Title: "Requirement", W: 2.2}, {Title: "Status", W: 1}, {Title: "Detail and source", W: 3.4}}, rows)
+	}
+	rows = nil
+	for _, c := range b.Changes {
+		rows = append(rows, []pdf.Cell{chipCell(strings.ToUpper(strings.ReplaceAll(c.Action, "-", " ")), toneBad), txt(c.Text, pdf.Regular, ink), txt(c.Cite.Title, pdf.Regular, text2)})
+	}
+	if len(rows) > 0 {
+		x.table([]pdf.Col{{Title: "Change", W: 1.1}, {Title: "What", W: 3.2}, {Title: "Source", W: 2.3}}, rows)
+	}
+	if b.SSHDConfig != "" {
+		var blocks []pdf.Block
+		blocks = append(blocks, pdf.Para{Spans: []pdf.Span{bold("sshd_config lines")}, After: 4})
+		for _, line := range strings.Split(strings.TrimRight(b.SSHDConfig, "\n"), "\n") {
+			sp := mono(line)
+			if strings.HasPrefix(line, "#") {
+				sp = span(line, pdf.Mono, smallSize, text2)
+			}
+			blocks = append(blocks, pdf.Para{Spans: []pdf.Span{sp}, After: 1})
+		}
+		x.f.Box(pdf.BoxStyle{Fill: warmBG, HasFill: true, Accent: warm, AccentWidth: 3.5, Pad: 10, Radius: 4, After: 12}, blocks...)
+	}
 }
 
 // algoTable lists one category of the server's lists with a verdict per name.
 func (x *endpoint) algoTable(kind string, names []string, used string) {
 	var rows [][]pdf.Cell
 	for _, n := range names {
-		word, t := algoVerdict(kind, n)
+		word, t := x.algoVerdict(kind, n)
 		a, _ := registry.Lookup(kind, n)
 		what := a.Display
 		if n == used {

@@ -18,7 +18,7 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/7"
+const Version = "eval/8"
 
 // eval/7 (PRD-008): a post-quantum signature scheme proved accepted by the signature stage counts
 // toward L4, and SSH endpoints are judged into the same shape (Protocol "ssh").
@@ -126,6 +126,9 @@ type Evaluation struct {
 	LegacyReport bool `json:"legacyReport,omitempty"`
 	// SSHAlgorithms is, for an SSH endpoint, every advertised algorithm with its verdict.
 	SSHAlgorithms []SSHAlgorithm `json:"sshAlgorithms,omitempty"`
+	// Baseline is, for an SSH endpoint, how it measures against an SSH baseline (PRD-008 WP-G).
+	// SSH servers are judged this way and get no hygiene score (REQ-SHE-5).
+	Baseline *Conformance `json:"baseline,omitempty"`
 }
 
 // Check is one check the evaluation ran. Title names what was looked for (a problem, as a

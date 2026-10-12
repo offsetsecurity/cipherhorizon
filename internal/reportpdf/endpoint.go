@@ -1383,7 +1383,7 @@ type scanMeta struct {
 
 func (x *endpoint) meta() scanMeta {
 	if r := x.ssh; r != nil {
-		return scanMeta{r.Address, r.Addresses, r.Started, r.DurationMS, r.Connections, r.SchemaVersion, r.Stages, r.Notes, sshStageTitles, "SSH hygiene"}
+		return scanMeta{r.Address, r.Addresses, r.Started, r.DurationMS, r.Connections, r.SchemaVersion, r.Stages, r.Notes, sshStageTitles, ""}
 	}
 	r := x.rep
 	schema := r.SchemaVersion
@@ -1411,7 +1411,17 @@ func (x *endpoint) about() {
 		{"Generated", stamp(x.in.Generated) + " by CipherHorizon " + x.in.Version},
 	})
 
-	g := ev.Hygiene
+	if m.hygiene == "" {
+		x.sshVerdictMethod()
+	} else {
+		x.hygieneMethod(m)
+	}
+	x.howTested(m)
+}
+
+// hygieneMethod explains the TLS hygiene score. SSH servers have none (PRD-008 REQ-SHE-5).
+func (x *endpoint) hygieneMethod(m scanMeta) {
+	g := x.ev.Hygiene
 	x.h2("How the " + m.hygiene + " score was worked out")
 	if g.Score >= 0 {
 		x.p(body(fmt.Sprintf("Score %d of 100, band %s. ", g.Score, g.Band)), soft("Each finding takes points off 100; the weights are this product's own choice, not a standard."))
@@ -1435,7 +1445,19 @@ func (x *endpoint) about() {
 	if g.Methodology != "" {
 		x.f.Add(para(6, small(g.Methodology)))
 	}
+}
 
+// sshVerdictMethod explains how an SSH server was judged: against a named baseline, not a score.
+func (x *endpoint) sshVerdictMethod() {
+	x.h2("How the baseline verdict was worked out")
+	x.p(body("Each algorithm the server offers is checked against the baseline's allow-list, and each requirement is checked. "),
+		soft("The server meets the baseline when nothing offered should be off and every requirement holds. SSH servers get no score: "+
+			"the baseline's entries are cited and can be listed with cipherhorizon ssh baselines."))
+}
+
+// howTested is the stage table and reference data of the About section.
+func (x *endpoint) howTested(m scanMeta) {
+	ev := x.ev
 	stages := map[string]tlsprobe.Stage{}
 	for _, s := range m.stages {
 		stages[s.Name] = s

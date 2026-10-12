@@ -236,26 +236,11 @@ func TestSSHEvaluationHasTheSameShape(t *testing.T) {
 			t.Errorf("check %s in section %q", c.ID, c.Section)
 		}
 	}
-	if ev.Hygiene.Score != 100 || ev.Hygiene.Band != "Strong" || !strings.HasPrefix(ev.Hygiene.Methodology, "SSH hygiene") {
-		t.Errorf("hygiene %+v", ev.Hygiene)
+	if ev.Hygiene.Score != -1 || ev.Hygiene.Band != "" || ev.Baseline == nil || !ev.Baseline.Meets {
+		t.Errorf("hygiene %+v baseline %+v: an SSH server is judged by its baseline, not scored", ev.Hygiene, ev.Baseline)
 	}
 	if ev.Counts == nil || ev.FixFirst == nil || ev.Vulnerabilities == nil {
 		t.Error("an empty shape field")
-	}
-}
-
-// REQ-SHE-5: the same arithmetic as TLS: deductions, ceilings, bands.
-func TestSSHHygieneUsesTheSameArithmetic(t *testing.T) {
-	r := modernSSH()
-	r.Algorithms.HostKey = append(r.Algorithms.HostKey, "ssh-rsa") // medium: -10
-	r.Algorithms.CipherC2S = append(r.Algorithms.CipherC2S, "aes128-cbc")
-	h := sshEval(r).Hygiene
-	if h.Score != 86 || h.Band != "Sound" || len(h.Deductions) != 2 {
-		t.Errorf("hygiene %+v; want 100 - 10 (ssh-rsa) - 4 (CBC) = 86", h)
-	}
-	r.Identification.ProtoVersion, r.Identification.SSH1 = "1.99", true
-	if h := sshEval(r).Hygiene; h.Score > 29 || h.Ceiling == nil {
-		t.Errorf("a critical finding must cap the score at 29: %+v", h)
 	}
 }
 

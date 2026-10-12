@@ -1908,7 +1908,7 @@
     },
     "/api/v1/scans/{id}/evaluation": {
       "get": {
-        "summary": "The cited evaluation of a scan.",
+        "summary": "The cited evaluation of a scan. For an SSH server it has no hygiene score (score -1); it carries baseline, the conformance to an SSH baseline: baseline id, title, judged, meets, changes (each with kind, name, action remove|add|upgrade|replace-key, text, cite), requires (each with id, text, met, detail, cite) and sshdConfig, the sshd_config lines that would make the server meet it.",
         "tags": [
           "scans"
         ],
@@ -2613,6 +2613,30 @@
           "server"
         ],
         "operationId": "get_reference_data",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/ssh/baselines": {
+      "get": {
+        "summary": "The SSH baselines this server judges SSH servers against: id, title, version, the allowed algorithms per kind (each with the OpenSSH version that first offers it and its citation), the requirements and the minimum RSA host key size.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_ssh_baselines",
         "responses": {
           "200": {
             "description": "OK",

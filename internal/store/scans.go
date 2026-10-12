@@ -208,9 +208,10 @@ func (s *Store) FinishScan(id int64, r Result) error {
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`UPDATE scans SET status = 'done', finished_at = ?, stage = 'done', progress_pct = 100, error = '',
 		report_json = ?, eval_json = ?, band = ?, score = ?, readiness_level = ?, hndl_exposed = ?, crit = ?, high = ?, medium = ?,
-		low = ?, info = ?, cert_not_after = ?, incomplete = ?, service = ?, host_key = ? WHERE id = ? AND status = 'running'`,
+		low = ?, info = ?, cert_not_after = ?, incomplete = ?, service = ?, host_key = ?,
+		baseline = ?, baseline_meets = ?, baseline_changes = ? WHERE id = ? AND status = 'running'`,
 		ts(s.now()), r.Report, r.Evaluation, r.Band, r.Score, r.ReadinessLevel, b2i(r.HNDLExposed), r.Critical, r.High, r.Medium, r.Low, r.Info,
-		nullTS(r.CertNotAfter), b2i(r.Incomplete), r.Service, r.HostKey, id)
+		nullTS(r.CertNotAfter), b2i(r.Incomplete), r.Service, r.HostKey, r.Baseline, nullBool(r.BaselineMeets), r.BaselineChanges, id)
 	if err != nil {
 		return err
 	}
@@ -423,6 +424,14 @@ func (s *Store) History(assetID int64, limit int) ([]HistoryPoint, error) {
 		out[i], out[j] = out[j], out[i]
 	}
 	return out, nil
+}
+
+// nullBool stores a *bool as NULL, 0 or 1.
+func nullBool(b *bool) any {
+	if b == nil {
+		return nil
+	}
+	return b2i(*b)
 }
 
 func b2i(b bool) int {

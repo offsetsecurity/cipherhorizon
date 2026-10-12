@@ -164,6 +164,9 @@ func (r *Runner) Reevaluate(scanID int64, why string) (ev eval.Evaluation, err e
 		return ev, err
 	}
 	event := fmt.Sprintf("re-evaluated (%s): %s → %s; %s hygiene %s (%d)", why, old, ev.Version, label, ev.Hygiene.Band, ev.Hygiene.Score)
+	if dec.ssh != nil {
+		event = fmt.Sprintf("re-evaluated (%s): %s → %s; baseline %s", why, old, ev.Version, baselineWords(ev.Baseline))
+	}
 	return ev, r.st.ReplaceEvaluation(scanID, res, event)
 }
 

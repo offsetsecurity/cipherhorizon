@@ -86,13 +86,22 @@ func TestSSHEndpointWorkflow(t *testing.T) {
 	var list []struct {
 		Protocol string `json:"protocol"`
 		LastDone struct {
-			Service string `json:"service"`
-			HostKey string `json:"hostKey"`
+			Service         string `json:"service"`
+			HostKey         string `json:"hostKey"`
+			Band            string `json:"band"`
+			Score           int    `json:"score"`
+			Baseline        string `json:"baseline"`
+			BaselineMeets   *bool  `json:"baselineMeets"`
+			BaselineChanges int    `json:"baselineChanges"`
 		} `json:"lastDone"`
 	}
 	if s := e.call("GET", "/api/v1/assets?kind=endpoint", nil, &list); s != 200 || len(list) != 1 ||
 		list[0].Protocol != "ssh" || list[0].LastDone.Service == "" || list[0].LastDone.HostKey == "" {
 		t.Fatalf("list: %d %+v", s, list)
+	}
+	// REQ-SHE-5, REQ-SHB-5: no score; the baseline verdict instead (SHA-1 kex, CBC: does not meet).
+	if d := list[0].LastDone; d.Band != "" || d.Score != -1 || d.Baseline != eval.BaselineDefault || d.BaselineMeets == nil || *d.BaselineMeets || d.BaselineChanges == 0 {
+		t.Errorf("last done %+v", d)
 	}
 	var ev eval.Evaluation
 	if s := e.call("GET", "/api/v1/scans/"+itoa(sc.ID)+"/evaluation", nil, &ev); s != 200 || ev.Protocol != "ssh" {
@@ -124,13 +133,30 @@ func TestSSHEndpointWorkflow(t *testing.T) {
 		t.Errorf("fleet findings: %.400s", body)
 	}
 	var fleet struct {
-		Assets      int         `json:"assets"`
-		Scanned     int         `json:"scanned"`
-		HNDLExposed int         `json:"hndlExposed"`
-		Readiness   map[int]int `json:"readiness"`
+		Assets      int            `json:"assets"`
+		Scanned     int            `json:"scanned"`
+		HNDLExposed int            `json:"hndlExposed"`
+		Readiness   map[int]int    `json:"readiness"`
+		Bands       map[string]int `json:"bands"`
+		Protocols   map[string]struct {
+			Assets        int `json:"assets"`
+			BaselineFails int `json:"baselineFails"`
+		} `json:"protocols"`
 	}
 	if s := e.call("GET", "/api/v1/summary", nil, &fleet); s != 200 || fleet.Assets != 1 || fleet.Scanned != 1 || fleet.HNDLExposed != 1 || fleet.Readiness[1] != 1 {
 		t.Errorf("summary: %d %+v", s, fleet)
+	}
+	if len(fleet.Bands) != 0 || fleet.Protocols["ssh"].Assets != 1 || fleet.Protocols["ssh"].BaselineFails != 1 || fleet.Protocols["tls"].Assets != 0 {
+		t.Errorf("summary by protocol: bands %v protocols %+v", fleet.Bands, fleet.Protocols)
+	}
+	var bl struct {
+		Default   string `json:"default"`
+		Baselines []struct {
+			ID string `json:"id"`
+		} `json:"baselines"`
+	}
+	if s := e.call("GET", "/api/v1/ssh/baselines", nil, &bl); s != 200 || bl.Default != eval.BaselineDefault || len(bl.Baselines) == 0 {
+		t.Errorf("baselines: %d %+v", s, bl)
 	}
 	_, body = e.do("GET", "/api/v1/inventory/cbom", nil)
 	if !strings.Contains(string(body), "protocol/ssh/2.0") {

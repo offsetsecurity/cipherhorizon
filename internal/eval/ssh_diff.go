@@ -8,8 +8,8 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe/registry"
 )
 
-// SSH change areas, after the headline areas TLS also uses (readiness, hygiene, finding).
-var sshAreaOrder = map[string]int{"readiness": 0, "hygiene": 1, "kex": 2, "host-key": 3, "cipher": 4, "mac": 5, "finding": 6}
+// SSH change areas: readiness and the baseline verdict first, then the algorithm lists, then findings.
+var sshAreaOrder = map[string]int{"readiness": 0, "baseline": 1, "kex": 2, "host-key": 3, "cipher": 4, "mac": 5, "finding": 6}
 
 // sshWeak reports whether an algorithm is one an SSH rule judges (so adding it is worse).
 func sshWeak(kind, name string) bool {
@@ -53,9 +53,15 @@ func CompareSSH(from, to *sshprobe.Report, fromEv, toEv Evaluation) Diff {
 			Before: fmt.Sprintf("L%d %s", fromEv.Readiness.Level, fromEv.Readiness.Label),
 			After:  fmt.Sprintf("L%d %s", toEv.Readiness.Level, toEv.Readiness.Label), Impact: imp})
 	}
-	if fromEv.Hygiene.Band != toEv.Hygiene.Band {
-		ch = append(ch, Change{Area: "hygiene", Kind: "changed", Subject: "SSH hygiene",
-			Before: hygieneText(fromEv.Hygiene), After: hygieneText(toEv.Hygiene), Impact: bandImpact(fromEv.Hygiene.Band, toEv.Hygiene.Band)})
+	if before, after := baselineText(fromEv.Baseline), baselineText(toEv.Baseline); before != after && fromEv.Baseline != nil && toEv.Baseline != nil {
+		imp := Neutral
+		switch fb, tb := fromEv.Baseline, toEv.Baseline; {
+		case tb.Meets && !fb.Meets, !tb.Meets && !fb.Meets && len(tb.Changes) < len(fb.Changes):
+			imp = Better
+		case fb.Meets && !tb.Meets, !tb.Meets && !fb.Meets && len(tb.Changes) > len(fb.Changes):
+			imp = Worse
+		}
+		ch = append(ch, Change{Area: "baseline", Kind: "changed", Subject: toEv.Baseline.Title, Before: before, After: after, Impact: imp})
 	}
 	lists := func(r *sshprobe.Report) map[string][]string {
 		a := r.Algorithms
@@ -141,4 +147,17 @@ func CompareSSH(from, to *sshprobe.Report, fromEv, toEv Evaluation) Diff {
 		d.Summary += " One of the scans was incomplete, so some differences may be artefacts of the probing."
 	}
 	return d
+}
+
+// baselineText is a conformance in a few words, for a diff line.
+func baselineText(c *Conformance) string {
+	switch {
+	case c == nil || !c.Judged:
+		return "not judged"
+	case c.Meets:
+		return "meets"
+	case len(c.Changes) == 1:
+		return "does not meet (1 change)"
+	}
+	return fmt.Sprintf("does not meet (%d changes)", len(c.Changes))
 }

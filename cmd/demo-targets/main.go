@@ -112,7 +112,7 @@ func slowProxy(addr, target string, delay time.Duration) (io.Closer, error) {
 }
 
 func main() {
-	base := flag.Int("base-port", 9440, "first port; the targets use base..base+26 (SSH from base+20)")
+	base := flag.Int("base-port", 9440, "first port; the targets use base..base+27 (SSH from base+20)")
 	flag.Parse()
 	// A demo should look like a real service, not one whose certificate expires tomorrow.
 	testserver.CertValidity = 90 * 24 * time.Hour

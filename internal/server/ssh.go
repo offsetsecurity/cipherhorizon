@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/collector"
@@ -73,6 +74,7 @@ func resultOfSSH(rep *sshprobe.Report, ev eval.Evaluation) (store.Result, error)
 		HNDLExposed: ev.Readiness.HNDLExposed, Critical: ev.Counts[eval.Critical], High: ev.Counts[eval.High],
 		Medium: ev.Counts[eval.Medium], Low: ev.Counts[eval.Low], Info: ev.Counts[eval.Info], Incomplete: rep.Incomplete,
 	}
+	res.Baseline, res.BaselineMeets, res.BaselineChanges = eval.SSHBaselineSummary(ev)
 	if id := rep.Identification; id != nil {
 		res.Service = id.Software
 		if res.Service == "" {
@@ -162,8 +164,8 @@ func (r *Runner) executeSSH(parent context.Context, sc store.ScanSummary, asset 
 		r.fail(sc.ID, err.Error(), nil)
 		return
 	}
-	res.FinalEvent = fmt.Sprintf("done: SSH hygiene %s (%d), PQC readiness L%d (%s), %d connections",
-		ev.Hygiene.Band, ev.Hygiene.Score, ev.Readiness.Level, ev.Readiness.Label, rep.Connections)
+	res.FinalEvent = fmt.Sprintf("done: baseline %s, PQC readiness L%d (%s), %d connections",
+		baselineWords(ev.Baseline), ev.Readiness.Level, ev.Readiness.Label, rep.Connections)
 	switch err := r.st.FinishScan(sc.ID, res); {
 	case errors.Is(err, store.ErrNotFound):
 	case err != nil:
@@ -179,4 +181,23 @@ func endpointAssets(d decodedReport) ([]collector.CryptoAsset, string) {
 		return sshcbom.FromSSHReport(d.ssh), fmt.Sprintf("%s:%d", d.ssh.Target.Host, d.ssh.Target.Port)
 	}
 	return tlscbom.FromTLSReport(d.tls), fmt.Sprintf("%s:%d", d.tls.Target.Host, d.tls.Target.Port)
+}
+
+// baselineWords is an SSH server's baseline verdict for an event line.
+func baselineWords(c *eval.Conformance) string {
+	switch {
+	case c == nil || !c.Judged:
+		return "not judged"
+	case c.Meets:
+		return "meets " + c.Baseline
+	case len(c.Changes) == 1:
+		return "1 change to meet " + c.Baseline
+	}
+	return fmt.Sprintf("%d changes to meet %s", len(c.Changes), c.Baseline)
+}
+
+// sshBaselines lists the SSH baselines, entries and citations included (PRD-008 WP-G), for Help
+// and for anyone checking what a verdict was measured against.
+func (s *Server) sshBaselines(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"default": eval.BaselineDefault, "baselines": eval.SSHBaselines()})
 }
