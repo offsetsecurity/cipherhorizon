@@ -1,6 +1,7 @@
 # Dependabot: keeps the three things that are pinned by hand from going stale. Updates arrive as
 # ordinary pull requests, so they pass CI like any other change. Security updates are separate
 # (enable "Dependabot security updates" in the repository settings) and are not batched.
+# Go modules weekly; actions and the base image monthly, since each update pull request costs a CI run.
 version: 2
 updates:
   - package-ecosystem: gomod
@@ -16,7 +17,7 @@ updates:
   - package-ecosystem: github-actions # every action is pinned to a commit SHA; this moves the pin
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: "ci(deps)"
     groups:
@@ -26,6 +27,6 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: "build(deps)"

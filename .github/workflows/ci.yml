@@ -2,16 +2,24 @@ name: ci
 
 # Runs on every pull request and every push to main, and is called by release.yml so a tag can
 # never ship code that did not pass the same checks.
+#
+# Actions minutes cost money on a private repository (macOS bills 10x, Windows 2x), so:
+# - a change that touches only documentation does not run CI;
+# - a newer push cancels the run it supersedes;
+# - pull requests skip the slow or costly jobs (macOS, fuzzing, release dry-run, container
+#   deploy); every push to main and every release still runs everything.
 on:
   push:
     branches: [main]
+    paths-ignore: ["**.md", "docs/**", "site/**", "LICENSE", ".github/ISSUE_TEMPLATE/**"]
   pull_request:
+    paths-ignore: ["**.md", "docs/**", "site/**", "LICENSE", ".github/ISSUE_TEMPLATE/**"]
   merge_group:
   workflow_call:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -23,7 +31,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # macOS only on main and releases: its minutes bill at 10x.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -79,6 +88,8 @@ jobs:
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: latest
+      - name: The workflow files themselves (actionlint)
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/*.yml
 
   vuln:
     # Known vulnerabilities in the dependencies and the standard library, limited to code that is reachable.
@@ -95,6 +106,7 @@ jobs:
 
   fuzz:
     # Short smoke run of the parsers that read untrusted network bytes.
+    if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -166,6 +178,7 @@ jobs:
   deploy:
     # The container as docker-compose.yml runs it (first install, backup, HTTPS, self-scan), and the
     # Linux inventory script on Debian, UBI and Alpine (PRD-007 REQ-DP-1, REQ-DP-5).
+    if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -183,7 +196,8 @@ jobs:
           ENGINE=docker BIN=/tmp/cipherhorizon bash testing/deploy/linux-script.sh
 
   release-dry-run:
-    # Proves the release machinery works on every change, not for the first time on a tag.
+    # Proves the release machinery works on every push to main, not for the first time on a tag.
+    if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
