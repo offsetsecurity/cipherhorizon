@@ -146,16 +146,20 @@ export function summaryView(ctx) {
       h('b', null, 'Scanned by an earlier version. '), 'Some areas were not collected. Scan again to see them.'));
   }
   const worst = act[0] ? act[0].severity : null;
-  wrap.appendChild(h('section', { class: `card verdict${worst ? ` v-${worst}` : ' v-none'}`, 'aria-label': 'Verdict' },
+  // A profile can add an action of its own (SSH: meeting the baseline), counted with the findings.
+  const extra = profileOf(ctx).extraAction ? profileOf(ctx).extraAction(ctx) : null;
+  const todo = act.length + (extra ? 1 : 0);
+  wrap.appendChild(h('section', { class: `card verdict${worst ? ` v-${worst}` : extra ? ' v-medium' : ' v-none'}`, 'aria-label': 'Verdict' },
     h('div', { class: 'verdict-head' },
-      h('h2', null, act.length ? `${plural(act.length, 'thing')} to fix` : 'Nothing to fix'),
+      h('h2', null, todo ? `${plural(todo, 'thing')} to fix` : 'Nothing to fix'),
       ev.readiness.summary ? h('p', { class: 'verdict-line' }, h('b', null, 'Post-quantum: '), ev.readiness.summary) : null,
       coverageLine(ev, () => ctx.goTab('weaknesses'))),
     profileOf(ctx).strip(ctx, sections)));
 
   const items = h('section', { class: 'card fixcard', id: 'fix', 'aria-labelledby': 'fix-h' }, h('h2', { id: 'fix-h' }, 'Action items'));
+  if (extra) items.appendChild(extra);
   if (!act.length) {
-    items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
+    if (!extra) items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
   } else {
     // Findings that matter for the same reason share it: the reason is said once per group, each
     // finding then says only what to do (DESIGN.md: no repeated copy).
@@ -235,7 +239,7 @@ function versionVerdict(v, on, unknown, modernOn) {
 
 function versionState([tone, sym, state, judgement]) {
   return h('span', { class: `vstate vs-${tone}` }, h('span', { class: 'vs-sym', 'aria-hidden': 'true' }, sym),
-    h('b', null, state), h('span', { class: 'vs-judge' }, ` · ${judgement}`));
+    h('b', null, state), judgement ? h('span', { class: 'vs-judge' }, ` · ${judgement}`) : null);
 }
 
 /** The protocol matrix: every version, accepted or not, and for each accepted one what it ran. */
@@ -424,7 +428,7 @@ export function weaknessesView(ctx) {
   }
   const vb = vulnerabilitiesBody(ctx);
   if (vb.detail) wrap.appendChild(h('section', { class: 'card', 'aria-labelledby': 'att-h' }, h('h2', { id: 'att-h' }, 'Published attacks'), vb.detail));
-  if (ctx.hygieneBody) wrap.appendChild(h('section', { class: 'card', id: 'score', 'aria-labelledby': 'score-h' }, h('h2', { id: 'score-h' }, `How the ${profileOf(ctx).hygiene} score was worked out`), ctx.hygieneBody(ev.hygiene)));
+  if (ctx.hygieneBody && profileOf(ctx).hygiene) wrap.appendChild(h('section', { class: 'card', id: 'score', 'aria-labelledby': 'score-h' }, h('h2', { id: 'score-h' }, `How the ${profileOf(ctx).hygiene} score was worked out`), ctx.hygieneBody(ev.hygiene)));
   return wrap;
 }
 

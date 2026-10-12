@@ -20,7 +20,7 @@
 # `systemctl edit cipherhorizon`.
 
 [Unit]
-Description=CipherHorizon: post-quantum readiness and TLS scanner
+Description=CipherHorizon: post-quantum readiness for TLS and SSH
 Documentation=https://offsetsecurity.net/post-quantum-cryptography-readiness.html
 After=network-online.target
 Wants=network-online.target

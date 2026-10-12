@@ -387,7 +387,12 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 	ev := Evaluation{Version: Version, Protocol: ProtocolSSH, Findings: findings, Readiness: ready, Counts: counts,
 		EvaluatedAt: in.Now.UTC(), PKI: []ChainView{}, ReferenceData: []RefInfo{}}
 	ev.Hygiene = Hygiene{Score: -1, Deductions: []Deduction{}, NotMeasured: []string{}, Methodology: sshNoScore}
-	ev.Sections = sshSections(c, findings)
+	b, ok := SSHBaselineByID(in.SSHBaseline)
+	if !ok {
+		b, _ = SSHBaselineByID(BaselineDefault)
+	}
+	ev.Baseline = sshConformance(c, b)
+	ev.Sections = sshSections(c, findings, ev.Baseline)
 	skipped := map[string]string{}
 	for _, s := range ev.Sections {
 		switch s.Status {
@@ -405,11 +410,6 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 	ev.Checks = checks
 	ev.FixFirst = fixFirst(findings)
 	ev.Vulnerabilities = sshAttacks(findings)
-	b, ok := SSHBaselineByID(in.SSHBaseline)
-	if !ok {
-		b, _ = SSHBaselineByID(BaselineDefault)
-	}
-	ev.Baseline = sshConformance(c, b)
 	ev.SSHAlgorithms = sshAlgorithmViews(c, b)
 	return ev
 }
@@ -418,7 +418,28 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 // (PRD-008 REQ-SHE-5); they are judged against a baseline, which Evaluation.Baseline holds.
 const sshNoScore = "SSH servers are not scored. They are judged against an SSH baseline: see the baseline verdict."
 
-func sshSections(c *sshCtx, findings []Finding) []Section {
+// sshBaselineSection is the report section a baseline change belongs to.
+func sshBaselineSection(ch BaselineChange) string {
+	switch {
+	case ch.Kind == registry.KindKex || ch.Action == ChangeUpgrade && ch.Kind == "":
+		return SecKeyExchange
+	case ch.Kind == registry.KindHostKey:
+		return SecHostKeys
+	case ch.Kind == registry.KindCipher:
+		return SecEncryption
+	}
+	return SecIntegrity
+}
+
+// sshSections rates each area from its findings; an area the baseline wants changed is at least
+// "needs attention" (PRD-008 WP-G), so a section never reads good beside a change to make.
+func sshSections(c *sshCtx, findings []Finding, conf *Conformance) []Section {
+	needsChange := map[string]bool{}
+	if conf != nil && conf.Judged && c.rep.Algorithms != nil {
+		for _, ch := range conf.Changes {
+			needsChange[sshBaselineSection(ch)] = true
+		}
+	}
 	stages := map[string]tlsprobe.Stage{}
 	for _, s := range c.rep.Stages {
 		stages[s.Name] = s
@@ -447,6 +468,9 @@ func sshSections(c *sshCtx, findings []Finding) []Section {
 			s.Status = StatusGood
 		}
 		if id == SecVulnerabilities && len(s.Findings) > 0 && s.Status == StatusGood {
+			s.Status = StatusAttention
+		}
+		if needsChange[id] && s.Status == StatusGood {
 			s.Status = StatusAttention
 		}
 		if st, ok := stages[sshStageFor[id]]; ok {

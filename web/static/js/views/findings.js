@@ -1,13 +1,18 @@
 // Findings: every open finding across the fleet, one line per problem, worst first. A line says
 // how many endpoints and machines have it; opening it gives the fix once, then each place with
 // its own evidence and triage actions (PRD-005: detail behind a disclosure, not on every card).
+// Problems that are the same everywhere (harvest-now-decrypt-later) stay one line across protocols;
+// every place says its protocol, and the list narrows to one (UX-DESIGN-007 §6).
 import { h, clear } from '../dom.js';
 import { api } from '../api.js';
 import { sevBadge, evidenceBadge, citations, badge, button, empty, toast, modal, skeleton, playEnter } from '../ui.js';
 
 const SEVERITIES = [['', 'Any severity'], ['critical', 'Critical'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low'], ['info', 'Info'], ['vulnerable', 'Quantum-vulnerable (machine)']];
 const STATUSES = [['', 'Any status'], ['new', 'New'], ['acknowledged', 'Acknowledged'], ['accepted-risk', 'Accepted risk']];
-const KINDS = [['', 'Endpoints & machines'], ['endpoint', 'Endpoints only'], ['host', 'Machines only']];
+const KINDS = [['', 'Everywhere'], ['tls-endpoint', 'TLS endpoints'], ['ssh-endpoint', 'SSH servers'], ['host', 'Machines']];
+// What a place is, as a tag: its protocol, or a machine.
+const PLACE = { 'tls-endpoint': ['TLS', 'TLS endpoint', '#/endpoints'], 'ssh-endpoint': ['SSH', 'SSH server', '#/ssh'], host: ['Machine', 'machine', '#/machines'] };
+const placeOf = (kind) => PLACE[kind] || PLACE['tls-endpoint'];
 
 const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
@@ -55,8 +60,8 @@ export async function render(root, ctx = {}) {
         button('Accept risk', () => acceptRiskDialog(f, redraw), 'secondary', { class: 'btn btn-sm' })];
     return h('li', { class: 'fgroup-place' },
       h('div', { class: 'row' },
-        h('a', { href: f.assetKind === 'host' ? `#/machines/${f.assetId}` : `#/endpoints/${f.assetId}`, class: 'xlink' }, h('b', null, f.assetName)),
-        h('span', { class: 'muted' }, f.assetKind === 'host' ? 'machine' : 'endpoint'),
+        h('a', { href: `${placeOf(f.assetKind)[2]}/${f.assetId}`, class: 'xlink' }, h('b', null, f.assetName)),
+        h('span', { class: 'tag', title: placeOf(f.assetKind)[1] }, placeOf(f.assetKind)[0]),
         h('span', { class: 'fgroup-triage' }, triage)),
       f.detail ? h('details', { class: 'why' }, h('summary', null, 'Why'), h('div', { class: 'detail' }, f.detail, f.evidence ? [' ', evidenceBadge(f.evidence)] : null)) : null);
   };
@@ -68,7 +73,7 @@ export async function render(root, ctx = {}) {
     head.appendChild(h('div', { class: 'toolbar' },
       h('select', { 'aria-label': 'Filter by severity', onchange: (e) => { severity = e.target.value; draw().then(() => playEnter(body, 700)); } }, SEVERITIES.map(([v, l]) => h('option', { value: v, selected: v === severity }, l))),
       h('select', { 'aria-label': 'Filter by triage status', onchange: (e) => { status = e.target.value; draw().then(() => playEnter(body, 700)); } }, STATUSES.map(([v, l]) => h('option', { value: v, selected: v === status }, l))),
-      h('select', { 'aria-label': 'Filter by endpoint or machine', onchange: (e) => { kind = e.target.value; draw().then(() => playEnter(body, 700)); } }, KINDS.map(([v, l]) => h('option', { value: v, selected: v === kind }, l)))));
+      h('select', { 'aria-label': 'Filter by protocol or machine', onchange: (e) => { kind = e.target.value; draw().then(() => playEnter(body, 700)); } }, KINDS.map(([v, l]) => h('option', { value: v, selected: v === kind }, l)))));
 
     clear(body);
     let findings;
@@ -85,21 +90,23 @@ export async function render(root, ctx = {}) {
     }
 
     if (!findings.length) {
-      body.appendChild(empty('No findings match this filter', 'Try a different severity, status or source.'));
+      body.appendChild(empty('No findings match this filter', 'Try a different severity, status, protocol or source.'));
       return;
     }
 
     const groups = groupFindings(findings);
-    body.appendChild(h('p', { class: 'hint' }, `${plural(groups.length, 'problem')} across ${((n) => `${n} ${n === 1 ? 'endpoint or machine' : 'endpoints and machines'}`)(new Set(findings.map((f) => `${f.assetKind}:${f.assetId}`)).size)}. Open a line for the fix and where it is.`));
+    body.appendChild(h('p', { class: 'hint' }, `${plural(groups.length, 'problem')} across ${((n) => `${n} ${n === 1 ? 'place' : 'places'}`)(new Set(findings.map((f) => `${f.assetKind}:${f.assetId}`)).size)}. Open a line for the fix and where it is.`));
     body.appendChild(h('div', { class: 'fgroups' }, groups.map((fs) => {
       const f = fs[0];
       const open = fs.filter((x) => !x.status).length;
-      const where = fs.length === 1 ? fs[0].assetName : plural(fs.length, fs.every((x) => x.assetKind === 'host') ? 'machine' : fs.every((x) => x.assetKind !== 'host') ? 'endpoint' : 'place');
+      const kinds = [...new Set(fs.map((x) => x.assetKind))];
+      const where = fs.length === 1 ? fs[0].assetName : plural(fs.length, kinds.length === 1 ? placeOf(kinds[0])[1] : 'place');
+      const tags = kinds.map((k) => h('span', { class: 'tag' }, placeOf(k)[0]));
       return h('details', { class: `fgroup ${f.severity ? `sev-${f.severity}` : 'sev-medium'}` },
         h('summary', { class: 'fgroup-line' },
           f.severity ? sevBadge(f.severity) : badge('PQC', 'warn', 'quantum-vulnerable: a large quantum computer could break it'),
           h('span', { class: 'fgroup-title' }, f.title),
-          h('span', { class: 'fgroup-where muted' }, where, open < fs.length ? ` · ${fs.length - open} triaged` : '')),
+          h('span', { class: 'fgroup-where muted' }, tags, ' ', where, open < fs.length ? ` · ${fs.length - open} triaged` : '')),
         h('div', { class: 'fgroup-body' },
           f.remediation ? h('p', { class: 'fix' }, h('b', null, 'Fix: '), f.remediation) : null,
           (f.citations || []).length ? h('details', { class: 'why' }, h('summary', null, 'Sources'), citations(f.citations)) : null,

@@ -17,7 +17,7 @@
 # privileges, bounded processes and memory, the port published on loopback only.
 
 [Unit]
-Description=CipherHorizon: post-quantum readiness and TLS scanner (container)
+Description=CipherHorizon: post-quantum readiness for TLS and SSH (container)
 Wants=network-online.target
 After=network-online.target
 

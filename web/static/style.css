@@ -1319,6 +1319,31 @@ a.sumtile:hover, a.sumtile:focus-visible { background: var(--surface-2); text-de
 /* A long command wraps inside its box (the copy button copies it whole), never widening the page. */
 .cmdblock code { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; line-height: 1.5; color: var(--text); }
 .cmdblock .copybtn { opacity: 1; margin-top: 0; }
+/* The sshd_config lines of an SSH report (UX-DESIGN-007 §4.3): copyable as typed, comments muted. */
+.sshdconf { margin: .4rem 0 .6rem; padding: .7rem .9rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: .8rem; line-height: 1.55; white-space: pre; overflow-x: auto; color: var(--text); }
+.sshdconf .cmt { color: var(--muted); }
+/* The scan box's protocol chip (UX-DESIGN-007 §5): says what will be scanned; a click switches it. */
+.scan-chip { display: inline-flex; align-items: center; gap: .4rem; align-self: center; white-space: nowrap; padding: .3rem .6rem; border: 1px solid var(--primary-soft-border); border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--text); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.scan-chip[hidden] { display: none; }
+.scan-chip:hover { border-color: var(--primary); }
+.scan-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.scan-chip-change { color: var(--link); text-decoration: underline; font-size: var(--fs-xs); }
+.baseline .changes { margin: .2rem 0 .6rem; padding-left: 1.2rem; }
+.baseline .reqs { list-style: none; margin: .2rem 0 .8rem; padding: 0; }
+.baseline .reqs li { padding: .45rem 0; border-bottom: 1px solid var(--border); }
+.baseline .reqs li:last-child { border-bottom: 0; }
+.baseline .reqs .cites { margin: .2rem 0 0; }
+/* The readiness scale's per-protocol rules, folded under the scale (UX-DESIGN-007 §5). */
+.level-rules { margin-top: .6rem; font-size: var(--fs-sm); }
+.level-rules summary { cursor: pointer; color: var(--link); }
+.level-rules table { margin-top: .4rem; }
+.recent-name .tag { margin-left: .4rem; }
+/* The one-liner on the sign-in panel (STRATEGY-003 §4), under the headline. */
+.gate-value-lede { margin: -16px 0 24px; color: var(--on-navy-muted); font-size: var(--fs-ui); line-height: 1.5; }
+.about-pillars { margin: .2rem 0 1rem; padding-left: 1.1rem; }
+.about-pillars li { margin-bottom: .35rem; }
+.help-baseline h3 .muted { font-weight: 400; }
+.help-baseline .kv dd code { white-space: nowrap; }
 .scriptrow { flex-wrap: wrap; }
 .scriptrow .script-read { flex-basis: 100%; margin-top: .4rem; }
 .scriptrow .dlrow-main { flex: 1 1 18rem; }

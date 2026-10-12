@@ -3,6 +3,7 @@
 import { h, clear, fmtDate, relTime } from '../dom.js';
 import { api } from '../api.js';
 import { badge, button, toast, skeleton, levelBadge, bandBadge, confirmDialog, crumbs } from '../ui.js';
+import { baselineWords } from './assets.js';
 import { collectDialog } from '../guide.js';
 import { coverageCard } from './host.js';
 import { importDialog, notInterpretedTable } from './imports.js';
@@ -68,7 +69,7 @@ function editor(sys, enums, onSaved) {
 }
 
 function servicesTable(sys, endpointRows, hostRows) {
-  if (!sys.assets.length) return h('p', { class: 'hint' }, 'No service or machine is attached. Its facts come from imported documents.');
+  if (!sys.assets.length) return h('p', { class: 'hint' }, 'No endpoint or machine is attached. Its facts come from imported documents.');
   const dl = (path, name) => api.download(path, name).catch((x) => toast(x.message, 'error'));
   const rows = [];
   for (const a of sys.assets) {
@@ -78,9 +79,10 @@ function servicesTable(sys, endpointRows, hostRows) {
     const d = ep && ep.lastDone;
     const scanId = ep && ep.latest && validId(ep.latest.id) ? ep.latest.id : null;
     rows.push(h('tr', null,
-      h('td', { class: 'namecell' }, h('a', { href: a.kind === 'host' ? `#/machines/${a.id}` : `#/endpoints/${a.id}` }, a.name || a.address)),
-      h('td', null, a.kind === 'host' ? 'machine' : 'service', h('div', { class: 'muted small' }, a.address)),
-      h('td', null, d ? [levelBadge(d.readinessLevel), ' ', bandBadge(d.band, d.score)] : ho && ho.summary
+      h('td', { class: 'namecell' }, h('a', { href: a.kind === 'host' ? `#/machines/${a.id}` : a.kind === 'ssh-endpoint' ? `#/ssh/${a.id}` : `#/endpoints/${a.id}` }, a.name || a.address)),
+      h('td', null, a.kind === 'host' ? 'machine' : a.kind === 'ssh-endpoint' ? 'SSH server' : 'TLS endpoint', h('div', { class: 'muted small' }, a.address)),
+      // Each protocol's own measure (UX-DESIGN-007 §1): TLS hygiene, or the SSH baseline verdict.
+      h('td', null, d ? [levelBadge(d.readinessLevel), ' ', a.kind === 'ssh-endpoint' ? baselineWords(d) : bandBadge(d.band, d.score)] : ho && ho.summary
         ? `${ho.summary.vulnerable} quantum-vulnerable, ${ho.summary.safe} safe` : h('span', { class: 'muted' }, 'not yet observed')),
       h('td', { class: 'muted' }, ep && ep.latest ? relTime(ep.latest.finishedAt || ep.latest.createdAt) : ho && ho.snapshotAt ? relTime(ho.snapshotAt) : '·'),
       h('td', null, scanId ? [
@@ -88,7 +90,7 @@ function servicesTable(sys, endpointRows, hostRows) {
         button('1.6', () => dl(`/api/v1/scans/${scanId}/cbom?spec=1.6&download=1`, 'endpoint.cbom-1.6.json'), 'secondary', { class: 'btn btn-sm btn-secondary' })] : null)));
   }
   return h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-    h('caption', { class: 'sr-only' }, 'Services and machines in this system'),
+    h('caption', { class: 'sr-only' }, 'Endpoints and machines in this system'),
     h('thead', null, h('tr', null, ['Name', 'Kind', 'Result', 'Seen', 'CBOM'].map((c) => h('th', { scope: 'col' }, c)))),
     h('tbody', null, rows)));
 }

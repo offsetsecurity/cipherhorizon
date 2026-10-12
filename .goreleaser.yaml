@@ -121,7 +121,7 @@ nfpms:
       postremove: deploy/packaging/postremove.sh
     rpm:
       group: Applications/System
-      summary: Post-quantum readiness and TLS scanner
+      summary: Post-quantum readiness for TLS and SSH
 
 checksum:
   name_template: "checksums.txt"

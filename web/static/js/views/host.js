@@ -67,7 +67,7 @@ function linkDialog(hostId, alreadyLinked, onDone) {
       }
       const sel = h('select', { 'aria-label': 'Endpoint to link' }, choices.map((e) => h('option', { value: e.id }, `${e.name} (${e.address})`)));
       body.append(
-        h('p', { class: 'muted' }, 'Record that this host and a TLS or SSH endpoint are the same machine. This is never guessed: only what you confirm here counts.'),
+        h('p', { class: 'muted' }, 'Record that this machine is the one behind a TLS endpoint or an SSH server. This is never guessed: only what you confirm here counts.'),
         h('label', { for: 'link-target' }, 'Endpoint'), sel,
         h('div', { class: 'row end' }, button('Cancel', close), button('Link', async () => {
           try { await api.linkAsset(hostId, Number(sel.value)); toast('Linked'); close(); onDone(); } catch (e) { toast(e.message, 'error'); }

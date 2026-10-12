@@ -425,7 +425,7 @@ func hasTag(tags []string, want string) bool {
 
 func (s *Server) listScans(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	f := store.ScanFilter{Status: q.Get("status")}
+	f := store.ScanFilter{Status: q.Get("status"), Kind: q.Get("kind")}
 	f.AssetID, _ = strconv.ParseInt(q.Get("assetId"), 10, 64)
 	f.Limit, _ = strconv.Atoi(q.Get("limit"))
 	scans, err := s.cfg.Store.ListScans(f)
@@ -672,9 +672,10 @@ func (s *Server) exportCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="assets.csv"`)
 	cw := csv.NewWriter(w)
 	_ = cw.Write([]string{"name", "address", "tags", "hygiene_band", "pqc_level", "pqc_label", "hndl_exposed", "critical", "high",
-		"cert_expires", "last_scan", "status", "rescan_interval_seconds", "hygiene_score", "protocol", "service"})
+		"cert_expires", "last_scan", "status", "rescan_interval_seconds", "hygiene_score", "protocol", "service",
+		"ssh_baseline", "ssh_baseline_meets", "ssh_baseline_changes"})
 	for _, a := range as {
-		row := []string{csvSafe(a.Name), csvSafe(a.Address()), csvSafe(strings.Join(a.Tags, ";")), "", "", "", "", "", "", "", "", "", strconv.Itoa(a.IntervalSeconds), "", view(a, nil).Protocol, ""}
+		row := []string{csvSafe(a.Name), csvSafe(a.Address()), csvSafe(strings.Join(a.Tags, ";")), "", "", "", "", "", "", "", "", "", strconv.Itoa(a.IntervalSeconds), "", view(a, nil).Protocol, "", "", "", ""}
 		if a.Latest != nil {
 			row[11] = a.Latest.Status
 		}
@@ -696,6 +697,10 @@ func (s *Server) exportCSV(w http.ResponseWriter, r *http.Request) {
 				row[10] = d.FinishedAt.UTC().Format("2006-01-02T15:04:05Z")
 			}
 			row[15] = csvSafe(d.Service)
+			// An SSH server has no hygiene score: its measure is the baseline (PRD-008 REQ-SHE-5).
+			if d.BaselineMeets != nil {
+				row[16], row[17], row[18] = d.Baseline, strconv.FormatBool(*d.BaselineMeets), strconv.Itoa(d.BaselineChanges)
+			}
 		}
 		_ = cw.Write(row)
 	}

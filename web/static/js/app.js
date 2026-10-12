@@ -8,11 +8,14 @@ const main = document.getElementById('main');
 const modalRoot = document.getElementById('modal-root');
 
 // The places of the menu and the detail pages under them (UX-DESIGN-005): one place per kind of
-// thing; a detail page lights up its home.
+// thing; a detail page lights up its home. Each protocol is a place of its own (UX-DESIGN-007): the
+// fourth element is passed to the page, so one list and one report serve both.
 const routes = [
   [/^#\/?$/, 'overview', () => import('./views/overview.js')],
-  [/^#\/endpoints\/?$/, 'endpoints', () => import('./views/endpoints.js')],
-  [/^#\/endpoints\/(\d+)\/?$/, 'endpoints', () => import('./views/asset.js')],
+  [/^#\/endpoints\/?$/, 'endpoints', () => import('./views/endpoints.js'), { protocol: 'tls' }],
+  [/^#\/endpoints\/(\d+)\/?$/, 'endpoints', () => import('./views/asset.js'), { protocol: 'tls' }],
+  [/^#\/ssh\/?$/, 'ssh', () => import('./views/endpoints.js'), { protocol: 'ssh' }],
+  [/^#\/ssh\/(\d+)\/?$/, 'ssh', () => import('./views/asset.js'), { protocol: 'ssh' }],
   [/^#\/machines\/?$/, 'machines', () => import('./views/hosts.js')],
   [/^#\/machines\/(\d+)\/?$/, 'machines', () => import('./views/host.js')],
   [/^#\/findings\/?$/, 'findings', () => import('./views/findings.js')],
@@ -80,9 +83,9 @@ async function route() {
   const params = new URLSearchParams(query);
 
   let match = null;
-  for (const [re, nav, load] of routes) {
+  for (const [re, nav, load, extra] of routes) {
     const m = re.exec(hashPath);
-    if (m) { match = { nav, load, args: m.slice(1) }; break; }
+    if (m) { match = { nav, load, args: m.slice(1), extra: extra || {} }; break; }
   }
   for (const a of document.querySelectorAll('#nav a, .sidefoot a[data-route]')) {
     if (match && a.dataset.route === match.nav) a.setAttribute('aria-current', 'page');
@@ -96,7 +99,7 @@ async function route() {
   try {
     const mod = await match.load();
     if (gen !== generation) return;
-    const fn = await mod.render(main, { args: match.args, query: params });
+    const fn = await mod.render(main, { args: match.args, query: params, ...match.extra });
     if (gen !== generation) { if (typeof fn === 'function') fn(); return; }
     cleanup = typeof fn === 'function' ? fn : null;
     playEnter(main);

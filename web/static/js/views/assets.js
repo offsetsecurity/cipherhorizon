@@ -1,4 +1,5 @@
-// Endpoints: add, list, filter, select and scan.
+// TLS endpoints and SSH servers: add, list, filter, select and scan. One list serves both pages
+// (UX-DESIGN-007 §3, §4.1); each protocol has its own columns and measure, never mixed.
 import { h, clear, relTime, fmtDate, daysUntil, STARTTLS_NAMES } from '../dom.js';
 import { api } from '../api.js';
 import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, modal, badge, skeleton } from '../ui.js';
@@ -7,8 +8,19 @@ const NOTICE = 'Only add systems you own or are authorised to test. A TLS scan m
 
 // ---- the add dialog (AC-01.1 .. AC-01.4) -------------------------------------------------------
 
-export function openAddDialog(onDone) {
-  modal('Add endpoints', (close) => {
+/** Where a protocol's endpoints live, and what they are called. */
+export const PLACES = {
+  tls: { list: '#/endpoints', one: 'TLS endpoint', many: 'TLS endpoints' },
+  ssh: { list: '#/ssh', one: 'SSH server', many: 'SSH servers' },
+};
+export const protocolOf = (a) => (a.protocol === 'ssh' ? 'ssh' : 'tls');
+export const reportHref = (a) => `${PLACES[protocolOf(a)].list}/${a.id}`;
+
+export function openAddDialog(onDone, { protocol = 'tls' } = {}) {
+  const here = PLACES[protocol];
+  // An endpoint added on the other protocol's page goes there; the toast says where.
+  const added = (a) => (protocolOf(a) === protocol ? `Added ${a.address}` : `Added ${a.address} to ${PLACES[protocolOf(a)].many}`);
+  modal(`Add ${here.many}`, (close) => {
     let mode = 'single';
     const body = h('div', { class: 'modal-body' });
     const results = h('div');
@@ -27,13 +39,14 @@ export function openAddDialog(onDone) {
       const showErr = (m) => { err.textContent = m; err.hidden = false; };
 
       if (mode === 'single') {
-        const target = h('input', { type: 'text', id: 'add-target', placeholder: 'example.com, example.com:8443 or ssh://bastion.example.com', autocomplete: 'off', spellcheck: 'false' });
+        const target = h('input', { type: 'text', id: 'add-target', autocomplete: 'off', spellcheck: 'false',
+          placeholder: protocol === 'ssh' ? 'bastion.example.com or bastion.example.com:2222' : 'example.com, example.com:8443 or ssh://bastion.example.com' });
         const name = h('input', { type: 'text', id: 'add-name', placeholder: 'Optional friendly name' });
         // Protocol (UX-DESIGN-006 §2.2, named Protocol: the product says no "service"): TLS or SSH, and for TLS how it starts.
         const proto = h('select', { id: 'add-protocol' },
           h('option', { value: 'auto' }, 'Automatic (by port)'),
           h('option', { value: 'none' }, 'TLS from the first byte (HTTPS, IMAPS, LDAPS...)'),
-          h('option', { value: 'ssh' }, 'SSH'),
+          h('option', { value: 'ssh', selected: protocol === 'ssh' }, 'SSH'),
           Object.entries(STARTTLS_NAMES).map(([v, l]) => h('option', { value: v }, `STARTTLS: ${l}`)));
         body.appendChild(h('form', { onsubmit: async (e) => {
           e.preventDefault();
@@ -42,7 +55,7 @@ export function openAddDialog(onDone) {
             const ssh = proto.value === 'ssh';
             const a = await api.addAsset(target.value, name.value, parseTags(tags.value), ssh ? 'auto' : proto.value,
               ssh ? 'ssh' : proto.value === 'auto' ? 'auto' : 'tls');
-            toast(`Added ${a.address}`, 'success');
+            toast(added(a), 'success');
             close();
             onDone && onDone(a);
           } catch (ex) { showErr(ex.message); }
@@ -55,10 +68,12 @@ export function openAddDialog(onDone) {
           h('label', { for: 'add-name' }, 'Name'), name,
           h('label', { for: 'add-tags' }, 'Tags'), tags,
           h('p', { class: 'hint' }, NOTICE),
-          h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Add endpoint'))));
+          h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, `Add ${here.one}`))));
         target.focus();
       } else {
-        const text = h('textarea', { id: 'add-list', placeholder: 'api.example.com\nmail.example.com:993\nsmtp://mail.example.com\nssh://bastion.example.com\nhttps://shop.example.com/', spellcheck: 'false' });
+        const text = h('textarea', { id: 'add-list', spellcheck: 'false', placeholder: protocol === 'ssh'
+          ? 'ssh://bastion.example.com\nssh://git.example.com:2222\nbuild.example.com:22'
+          : 'api.example.com\nmail.example.com:993\nsmtp://mail.example.com\nssh://bastion.example.com\nhttps://shop.example.com/' });
         body.appendChild(h('form', { onsubmit: async (e) => {
           e.preventDefault();
           err.hidden = true;
@@ -72,12 +87,14 @@ export function openAddDialog(onDone) {
                 badge(x.status, x.status === 'added' ? 'good' : x.status === 'duplicate' ? 'neutral' : 'bad'), ' ',
                 h('code', null, x.input), x.reason ? h('span', { class: 'muted' }, ` · ${x.reason}`) : null))));
             }
-            if (r.added) { toast(`${r.added} endpoint(s) added`, 'success'); onDone && onDone(); }
+            if (r.added) { toast(`${r.added} added`, 'success'); onDone && onDone(); }
           } catch (ex) { showErr(ex.message); }
         } },
           err,
           h('label', { for: 'add-list' }, 'One endpoint per line'), text,
-          h('div', { class: 'hint' }, 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Port 22 or ssh:// is SSH; STARTTLS is chosen by port, or by a scheme such as smtp:// or ldap://.'),
+          h('div', { class: 'hint' }, protocol === 'ssh'
+            ? 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Use ssh:// or port 22; a line without either is added as a TLS endpoint.'
+            : 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Port 22 or ssh:// is SSH; STARTTLS is chosen by port, or by a scheme such as smtp:// or ldap://.'),
           h('label', { for: 'add-tags' }, 'Tags for all of them'), tags,
           h('p', { class: 'hint' }, NOTICE),
           h('div', { class: 'row end' }, button('Close', close), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Add endpoints'))));
@@ -105,11 +122,22 @@ function findingCounts(d) {
     total > d[worst[0]] ? h('span', { class: 'muted' }, ` of ${total}`) : null);
 }
 
-/** The certificate or key column: an SSH endpoint's host key type (it does not expire), else days left. */
-function keyOrCert(a, d) {
-  if (a.protocol === 'ssh') return d.hostKey ? h('span', null, `${d.hostKey} host key`) : h('span', { class: 'muted', title: 'No key exchange in common with this scanner, or the server answered none' }, 'host key not fetched');
-  return certWords(d.certNotAfter);
+/** An SSH server's default host key type (it does not expire). */
+function hostKeyWords(d) {
+  return d.hostKey ? h('span', null, d.hostKey) : h('span', { class: 'muted', title: 'No key exchange in common with this scanner, or the server answered none' }, 'not fetched');
 }
+
+/** An SSH server's baseline verdict (PRD-008 REQ-SHB-5): meets, N changes, or not judged. Text, never colour alone. */
+export function baselineWords(d) {
+  if (d.baselineMeets === true) return badge('✓ Meets', 'good', 'Meets the CipherHorizon SSH baseline 2026');
+  if (d.baselineMeets === false) {
+    const n = d.baselineChanges || 0;
+    return badge(`${n} change${n === 1 ? '' : 's'}`, 'bad', 'Changes needed to meet the CipherHorizon SSH baseline 2026');
+  }
+  return h('span', { class: 'muted', title: 'The server\'s algorithm lists were not read, so it was not judged' }, 'not judged');
+}
+// meets first, then fewest changes; not judged last.
+const baselineRank = (d) => (!d || d.baselineMeets === undefined || d.baselineMeets === null ? 1e6 : d.baselineMeets ? -1 : d.baselineChanges || 0);
 
 /** Days until the certificate expires, in words (the column says Certificate). */
 function certWords(iso) {
@@ -124,21 +152,26 @@ const SORTS = {
   name: (a, b) => a.name.localeCompare(b.name),
   level: (a, b) => (a.lastDone?.readinessLevel ?? 99) - (b.lastDone?.readinessLevel ?? 99),
   hygiene: (a, b) => (a.lastDone?.score ?? 999) - (b.lastDone?.score ?? 999),
+  baseline: (a, b) => baselineRank(a.lastDone) - baselineRank(b.lastDone),
   expiry: (a, b) => (new Date(a.lastDone?.certNotAfter || 8.64e15)) - (new Date(b.lastDone?.certNotAfter || 8.64e15)),
   findings: (a, b) => problems(b.lastDone) - problems(a.lastDone),
   scanned: (a, b) => (new Date(b.lastDone?.finishedAt || 0)) - (new Date(a.lastDone?.finishedAt || 0)),
 };
 
 export async function render(root, ctx = {}) {
+  const protocol = ctx.protocol === 'ssh' ? 'ssh' : 'tls';
+  const place = PLACES[protocol];
   let assets = [];
   let stopped = false, timer = null;
-  const state = { q: '', sort: 'level', exposed: false, service: '', selected: new Set(), frozen: null };
+  const state = { q: '', sort: 'level', exposed: false, selected: new Set(), frozen: null };
 
   const actions = h('div', { class: 'row toolbar-actions' },
-      button('Add endpoints', () => openAddDialog(load)),
+      button(`Add ${place.many}`, () => openAddDialog(load, { protocol })),
       button('Scan all', async () => {
         try {
-          const r = await api.scanMany({ all: true });
+          // This page's protocol only: Scan all on SSH servers scans the SSH servers.
+          if (!assets.length) { toast(`No ${place.many} to scan yet.`); return; }
+          const r = await api.scanMany({ assetIds: assets.map((a) => a.id) });
           toast(`${r.queued} scan(s) queued${r.alreadyActive ? `, ${r.alreadyActive} already running` : ''}.`, 'success');
           load();
         } catch (e) { toast(e.message, 'error'); }
@@ -146,7 +179,7 @@ export async function render(root, ctx = {}) {
       button('Export CSV', () => api.download('/api/v1/export/assets.csv', 'assets.csv').catch((e) => toast(e.message, 'error'))));
   const bar = h('div');
   const table = h('div');
-  if (!ctx.embedded) root.append(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Endpoints'), h('div', { class: 'sub' }, 'TLS and SSH endpoints you assess'))));
+  if (!ctx.embedded) root.append(h('div', { class: 'page-head' }, h('div', null, h('h1', null, place.many))));
   root.append(bar, table);
   table.appendChild(skeleton(4));
 
@@ -156,7 +189,6 @@ export async function render(root, ctx = {}) {
     const list = assets
       .filter((a) => !state.q || `${a.name} ${a.address} ${a.tags.join(' ')}`.toLowerCase().includes(state.q.toLowerCase()))
       .filter((a) => !state.exposed || a.lastDone?.hndlExposed)
-      .filter((a) => !state.service || a.protocol === state.service)
       .sort(SORTS[state.sort]);
     const busy = assets.some((a) => a.latest && (a.latest.status === 'queued' || a.latest.status === 'running'));
     if (!busy) { state.frozen = null; return list; }
@@ -169,19 +201,20 @@ export async function render(root, ctx = {}) {
     clear(bar); clear(table);
     if (!assets.length) {
       bar.appendChild(h('div', { class: 'toolbar' }, h('span', { class: 'grow' }), actions));
-      table.appendChild(empty('No endpoints yet', 'Add the TLS and SSH endpoints you want to assess.', button('Add endpoints', () => openAddDialog(load), 'primary')));
+      table.appendChild(protocol === 'ssh'
+        ? empty('No SSH servers yet', 'Add the SSH servers you want to assess. A scan reads what the server offers and runs a few key exchanges; it never logs in.',
+          button('Add SSH servers', () => openAddDialog(load, { protocol }), 'primary'))
+        : empty('No TLS endpoints yet', 'Add the websites and TLS services you want to assess.', button('Add TLS endpoints', () => openAddDialog(load, { protocol }), 'primary')));
       return;
     }
     const list = visible();
     bar.appendChild(h('div', { class: 'toolbar' },
-      h('input', { type: 'search', placeholder: 'Filter by name, address or tag', 'aria-label': 'Filter endpoints', value: state.q,
+      h('input', { type: 'search', placeholder: 'Filter by name, address or tag', 'aria-label': `Filter ${place.many}`, value: state.q,
         oninput: (e) => {
           state.q = e.target.value; paint();
           const el = document.querySelector('#main input[type=search]');
           if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
         } }),
-      h('select', { 'aria-label': 'Protocol', onchange: (e) => { state.service = e.target.value; paint(); } },
-        [['', 'All protocols'], ['tls', 'TLS'], ['ssh', 'SSH']].map(([v, l]) => h('option', { value: v, selected: state.service === v }, l))),
       h('label', { class: 'row' }, h('input', { type: 'checkbox', checked: state.exposed, onchange: (e) => { state.exposed = e.target.checked; paint(); } }),
         ' Only exposed to harvest-now-decrypt-later'),
       h('span', { class: 'muted' }, `${list.length} of ${assets.length}`),
@@ -205,28 +238,30 @@ export async function render(root, ctx = {}) {
       onchange: (e) => { for (const a of list) e.target.checked ? state.selected.add(a.id) : state.selected.delete(a.id); paint(); } });
 
     table.appendChild(h('div', { class: 'tablewrap' }, h('table', null,
-      h('thead', null, h('tr', null, h('th', { scope: 'col' }, allBox), th('name', 'Endpoint'), th('level', 'PQC readiness'), th('hygiene', 'Hygiene'),
-        th('findings', 'Findings'), th('expiry', 'Certificate / key'), th('scanned', 'Last scan'), th(null, h('span', { class: 'sr-only' }, 'Actions')))),
+      h('thead', null, h('tr', null, h('th', { scope: 'col' }, allBox), protocol === 'ssh'
+        ? [th('name', 'Server'), th('level', 'PQC readiness'), th('baseline', 'Baseline'), th('findings', 'Findings'), th(null, 'Host key')]
+        : [th('name', 'Endpoint'), th('level', 'PQC readiness'), th('hygiene', 'TLS hygiene'), th('findings', 'Findings'), th('expiry', 'Certificate expiry')],
+        th('scanned', 'Last scan'), th(null, h('span', { class: 'sr-only' }, 'Actions')))),
       h('tbody', null, list.map(row)))));
   };
 
   const row = (a) => {
     const d = a.lastDone;
     const active = a.latest && (a.latest.status === 'queued' || a.latest.status === 'running');
-    const href = `#/endpoints/${a.id}`;
-    const proto = a.protocol === 'ssh' ? `SSH${d && d.service ? ` · ${d.service}` : ''}`
+    const href = reportHref(a);
+    const proto = protocol === 'ssh' ? (d && d.service ? d.service : null)
       : a.starttlsUsed ? `${STARTTLS_NAMES[a.starttlsUsed] || a.starttlsUsed} · STARTTLS` : null;
     const sub = [a.name !== a.address ? a.address : null, proto, ...a.tags.map((t) => h('span', { class: 'tag' }, t))].filter(Boolean);
     // The whole row opens the report; the checkbox and the Scan button keep their own clicks.
     return h('tr', { class: 'rowlink', onclick: (e) => { if (!e.target.closest('a, button, input, label')) location.hash = href; } },
       h('td', null, h('input', { type: 'checkbox', 'aria-label': `Select ${a.name}`, checked: state.selected.has(a.id),
         onchange: (e) => { e.target.checked ? state.selected.add(a.id) : state.selected.delete(a.id); paint(); } })),
-      h('td', { class: 'namecell' }, h('a', { href }, a.name), sub.length ? h('div', { class: 'sub' }, sub.map((x, i) => [i ? ' ' : '', x])) : null),
+      h('td', { class: 'namecell' }, h('a', { href }, a.name), sub.length ? h('div', { class: 'sub' }, sub.map((x, i) => [i ? (typeof x === 'string' && typeof sub[i - 1] === 'string' ? ' · ' : ' ') : '', x])) : null),
       h('td', null, d ? [levelBadge(d.readinessLevel), d.hndlExposed ? h('div', { class: 'hint' }, 'exposed to harvest-now-decrypt-later') : null]
         : (a.latest?.status === 'failed' ? badge('scan failed', 'bad', a.latest.error) : badge('Not scanned', 'none'))),
-      h('td', null, d ? bandBadge(d.band, d.score) : '·'),
-      h('td', null, d ? findingCounts(d) : '·'),
-      h('td', { class: 'nowrap' }, d ? keyOrCert(a, d) : '·'),
+      protocol === 'ssh'
+        ? [h('td', null, d ? baselineWords(d) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? hostKeyWords(d) : '·')]
+        : [h('td', null, d ? bandBadge(d.band, d.score) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? certWords(d.certNotAfter) : '·')],
       h('td', { class: 'nowrap' }, active ? h('div', null, statusPill(a.latest.status), progressBar(a.latest.progressPct))
         : d ? h('span', { class: 'muted', title: fmtDate(d.finishedAt) }, relTime(d.finishedAt)) : '·'),
       h('td', { class: 'rowactions' },
@@ -239,7 +274,7 @@ export async function render(root, ctx = {}) {
     if (stopped) return;
     clearTimeout(timer);
     try {
-      assets = await api.assets();
+      assets = (await api.assets()).filter((a) => protocolOf(a) === protocol);
       const active = assets.some((a) => a.latest && (a.latest.status === 'queued' || a.latest.status === 'running'));
       const typing = document.activeElement && document.activeElement.type === 'search';
       if (!typing) paint();

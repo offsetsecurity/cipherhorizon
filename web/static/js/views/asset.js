@@ -1,14 +1,18 @@
-// One endpoint (TLS or SSH): readiness, hygiene, the configuration, every check and history.
+// One TLS endpoint or SSH server: readiness, its own measure (TLS hygiene, or the SSH baseline), the
+// configuration, every check and history.
 import { h, clear, fmtDate, fmtDay, daysUntil, relTime, INTERVALS, intervalLabel, toCSV, startedByWord, viaStartTLS, STARTTLS_NAMES } from '../dom.js';
 import { api, ApiError } from '../api.js';
 import { historyChart, levelClass, levelName } from '../charts.js';
 import { summaryView, configurationView, weaknessesView, cbomView, SECTIONS } from './report.js';
 import './report-ssh.js'; // registers the SSH report profile (PRD-008)
+import { PLACES, protocolOf, reportHref, baselineWords } from './assets.js';
 import { levelBadge, bandBadge, bandTone, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog, crumbs,
   scanProgress, badge, certExpiry, certChain, playEnter } from '../ui.js';
 
-export async function render(root, { args, query }) {
+export async function render(root, { args, query, protocol = 'tls' }) {
   const id = Number(args[0]);
+  // The page this report lives under (UX-DESIGN-007 §2): its list, its words.
+  let place = PLACES[protocol];
   const viewScanId = Number(query.get('scan')) || null;
   let stopped = false, timer = null;
   // Summary (for anyone), Configuration (what the server ran), Weaknesses (every check), CBOM,
@@ -41,6 +45,13 @@ export async function render(root, { args, query }) {
     clearTimeout(timer);
     try {
       asset = await api.asset(id);
+      // An old #/endpoints/{id} link to an SSH server (or the reverse) lands on its own page.
+      if (protocolOf(asset) !== protocol) {
+        location.replace(reportHref(asset) + (location.hash.includes('?') ? location.hash.slice(location.hash.indexOf('?')) : ''));
+        stopped = true;
+        return;
+      }
+      place = PLACES[protocolOf(asset)];
       history = await api.history(id);
       linkedAssets = (await Promise.all((asset.linkedAssetIds || []).map((lid) => api.asset(lid).catch(() => null)))).filter(Boolean);
       const wanted = viewScanId ? { id: viewScanId } : asset.lastDone;
@@ -53,7 +64,7 @@ export async function render(root, { args, query }) {
       if (active) timer = setTimeout(pollActive, 700);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) {
-        clear(body).appendChild(empty('This endpoint no longer exists', null, button('Back to endpoints', () => { location.hash = '#/endpoints'; }, 'primary')));
+        clear(body).appendChild(empty(`This ${place.one} no longer exists`, null, button(`Back to ${place.many}`, () => { location.hash = place.list; }, 'primary')));
         return;
       }
       if (!stopped) toast(e.message, 'error');
@@ -129,7 +140,7 @@ export async function render(root, { args, query }) {
   };
 
   const EXPORT_TYPES = [
-    ['full', 'Full Security Report', 'Readiness, hygiene, every finding and, for TLS, the certificate chain in one document.', ['pdf', 'json', 'csv']],
+    ['full', 'Full Security Report', 'Readiness, the TLS hygiene score or the SSH baseline verdict, every finding and, for TLS, the certificate chain in one document.', ['pdf', 'json', 'csv']],
     ['tls', 'TLS Report', 'Protocol, cipher suite and key-exchange detail as observed on the wire.', ['pdf', 'json']],
     ['cert', 'Certificate Report', 'The certificate chain and every field inspected, one row per certificate.', ['pdf', 'json', 'csv']],
     ['pqc', 'PQC Assessment', 'Post-quantum readiness level, dimensions and their evidence.', ['json']],
@@ -217,16 +228,16 @@ export async function render(root, { args, query }) {
     const a = asset;
     const active = a.latest && (a.latest.status === 'queued' || a.latest.status === 'running');
     clear(head);
-    head.appendChild(crumbs([['Endpoints', '#/endpoints'], [a.name]]));
+    head.appendChild(crumbs([[place.many, place.list], [a.name]]));
     const scanned = a.lastDone ? `scanned ${relTime(a.lastDone.finishedAt)}` : 'not scanned yet';
     head.appendChild(h('div', { class: 'page-head report-head' },
       h('div', null, h('h1', null, a.name),
         h('div', { class: 'sub' }, a.name !== a.address ? [h('code', null, a.address), ' · '] : null,
           viaStartTLS(a) ? [h('span', { class: 'via' }, viaStartTLS(a)), ' · '] : null,
-          a.protocol === 'ssh' ? [h('span', { class: 'via' }, `SSH${a.lastDone && a.lastDone.service ? ` · ${a.lastDone.service}` : ''}`), ' · '] : null, h('span', { class: 'muted' }, capitalFirst(scanned)),
+          a.protocol === 'ssh' && a.lastDone && a.lastDone.service ? [h('span', { class: 'via' }, a.lastDone.service), ' · '] : null, h('span', { class: 'muted' }, capitalFirst(scanned)),
           a.tags.length ? h('span', null, ' ', a.tags.map((t) => h('span', { class: 'tag' }, t))) : null),
         linkedAssets.length ? h('div', { class: 'sub' }, 'Same machine as ', linkedAssets.map((x, i) => [i ? ', ' : '',
-          h('a', { href: `#/${x.kind === 'host' ? 'machines' : 'endpoints'}/${x.id}` }, x.name)])) : null,
+          h('a', { href: x.kind === 'host' ? `#/machines/${x.id}` : reportHref(x) }, x.name)])) : null,
         a.notes ? h('p', { class: 'muted' }, a.notes) : null),
       h('div', { class: 'row' },
         button(active ? 'Scanning…' : 'Scan again', startScan, 'primary', { class: 'btn btn-primary', disabled: active }),
@@ -243,14 +254,15 @@ export async function render(root, { args, query }) {
     if (viewScanId && shown) {
       const s = history.find((x) => x.scanId === viewScanId);
       body.appendChild(h('div', { class: 'viewing' }, h('b', null, 'Viewing a past scan'),
-        h('span', null, s ? fmtDate(s.at) : ''), '(read-only)', h('a', { href: `#/endpoints/${id}` }, 'Back to the latest result')));
+        h('span', null, s ? fmtDate(s.at) : ''), '(read-only)', h('a', { href: `${place.list}/${id}` }, 'Back to the latest result')));
     }
     if (a.latest && a.latest.status === 'failed' && !(a.lastDone && a.lastDone.id > a.latest.id) && !viewScanId && !active) {
       body.appendChild(failedCard(a, !!ev, startScan));
     }
     if (!ev) {
       if (!active && !(a.latest && a.latest.status === 'failed')) {
-        body.appendChild(empty('Not scanned yet', 'Run a scan to see this endpoint’s post-quantum readiness, hygiene score and findings.',
+        body.appendChild(empty('Not scanned yet', a.protocol === 'ssh' ? 'Run a scan to see this server’s post-quantum readiness, whether it meets the SSH baseline, and its findings.'
+          : 'Run a scan to see this endpoint’s post-quantum readiness, hygiene score and findings.',
           button('Scan now', startScan, 'primary')));
       }
       if (history.some((p) => p.status === 'done')) body.appendChild(historySection());
@@ -331,7 +343,7 @@ export async function render(root, { args, query }) {
         h('hr', { class: 'menu-sep' }),
         item('Delete this endpoint', async () => {
           if (await confirmDialog('Delete this endpoint?', `“${a.name}” and its whole scan history will be permanently deleted.`)) {
-            try { await api.deleteAsset(id); toast('Endpoint deleted'); location.hash = '#/endpoints'; } catch (e) { toast(e.message, 'error'); }
+            try { await api.deleteAsset(id); toast(`${place.one.charAt(0).toUpperCase() + place.one.slice(1)} deleted`); location.hash = place.list; } catch (e) { toast(e.message, 'error'); }
           }
         }, 'danger')));
   };
@@ -541,7 +553,8 @@ export async function render(root, { args, query }) {
     const done = history.filter((p) => p.status === 'done');
     const wrap = h('div', { class: 'stack' });
     wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'Readiness over time'), historyChart(history),
-      h('p', { class: 'hint' }, 'Each point is a completed scan, labelled with its hygiene score.')));
+      h('p', { class: 'hint' }, asset.protocol === 'ssh' ? 'Each point is a completed scan, labelled ✓ when it met the SSH baseline, or with the number of changes it needed.'
+        : 'Each point is a completed scan, labelled with its TLS hygiene score.')));
 
     const diffBox = h('div');
     const loadDiff = async (from, to) => {
@@ -551,7 +564,7 @@ export async function render(root, { args, query }) {
         clear(diffBox).appendChild(diffView(d));
       } catch (e) { clear(diffBox).appendChild(h('p', { class: 'muted' }, e.status === 409 ? 'At least two completed scans are needed to compare.' : e.message)); }
     };
-    const opts = (sel) => done.slice().reverse().map((p) => h('option', { value: String(p.scanId), selected: sel === p.scanId }, `${fmtDate(p.at)} · ${p.band} ${p.score} · L${p.readinessLevel}`));
+    const opts = (sel) => done.slice().reverse().map((p) => h('option', { value: String(p.scanId), selected: sel === p.scanId }, `${fmtDate(p.at)} · ${asset.protocol === 'ssh' ? (p.baselineMeets ? 'meets baseline' : `${p.baselineChanges} changes`) : `${p.band} ${p.score}`} · L${p.readinessLevel}`));
     const fromSel = h('select', { 'aria-label': 'Compare from' }, opts(done.length > 1 ? done[done.length - 2].scanId : null));
     const toSel = h('select', { 'aria-label': 'Compare to' }, opts(done.length ? done[done.length - 1].scanId : null));
     wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'What changed'),
@@ -562,12 +575,12 @@ export async function render(root, { args, query }) {
 
     wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'All scans'),
       h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-        h('thead', null, h('tr', null, ['When', 'Started by', 'Status', 'Readiness', 'Hygiene', 'Findings', ''].map((c) => h('th', { scope: 'col' }, c)))),
+        h('thead', null, h('tr', null, ['When', 'Started by', 'Status', 'Readiness', asset.protocol === 'ssh' ? 'Baseline' : 'TLS hygiene', 'Findings', ''].map((c) => h('th', { scope: 'col' }, c)))),
         h('tbody', null, history.slice().reverse().map((p) => h('tr', null,
           h('td', null, fmtDate(p.at)), h('td', { class: 'muted' }, startedByWord(p)), h('td', null, statusPill(p.status), p.error ? h('div', { class: 'hint' }, p.error) : null),
-          h('td', null, p.status === 'done' ? levelBadge(p.readinessLevel) : '·'), h('td', null, p.status === 'done' ? bandBadge(p.band, p.score) : '·'),
+          h('td', null, p.status === 'done' ? levelBadge(p.readinessLevel) : '·'), h('td', null, p.status !== 'done' ? '·' : asset.protocol === 'ssh' ? baselineWords(p) : bandBadge(p.band, p.score)),
           h('td', null, p.status === 'done' ? `${p.critical} critical, ${p.high} high` : '·'),
-          h('td', null, p.status === 'done' ? h('a', { href: `#/endpoints/${id}?scan=${p.scanId}` }, 'Open') : null))))))));
+          h('td', null, p.status === 'done' ? h('a', { href: `${place.list}/${id}?scan=${p.scanId}` }, 'Open') : null))))))));
     return wrap;
   };
 

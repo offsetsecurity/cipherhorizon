@@ -1764,6 +1764,15 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "Only scans of this asset kind: tls-endpoint or ssh-endpoint.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
