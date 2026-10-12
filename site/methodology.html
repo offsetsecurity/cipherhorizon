@@ -34,7 +34,7 @@
       <tr><td>L1 Exposed</td><td>TLS 1.3, but no post-quantum key exchange offered: recorded traffic is exposed</td></tr>
       <tr><td>L2 Hybrid available</td><td>A hybrid group is accepted, but a current client does not end up using it</td></tr>
       <tr><td>L3 Hybrid negotiated</td><td>A current client negotiates a hybrid post-quantum key exchange</td></tr>
-      <tr><td>L4 PQ-authenticated</td><td>L3 plus a post-quantum certificate signature (ML-DSA)</td></tr>
+      <tr><td>L4 PQ-authenticated</td><td>L3 plus post-quantum authentication (an ML-DSA certificate, presented or held)</td></tr>
     </table>
     <p>Only standardised groups count (FIPS 203 ML-KEM in the IANA TLS registry); pre-standard draft groups are reported but do not
       raise the level.</p>

@@ -12,7 +12,7 @@ const MEANING = {
   1: 'TLS 1.3 is available but no post-quantum key exchange is offered. Recorded traffic is exposed to harvest-now-decrypt-later.',
   2: 'A hybrid post-quantum group is accepted, but a current client does not end up using it.',
   3: 'A current client negotiates a hybrid post-quantum key exchange with this endpoint. Traffic recorded today is protected against a future quantum computer.',
-  4: 'Post-quantum key exchange and a post-quantum certificate signature. Rare today; requires ML-DSA certificates.',
+  4: 'Post-quantum key exchange and post-quantum authentication: the server presents an ML-DSA certificate, or holds one and uses it for clients that ask. Rare today.',
 };
 
 const SOURCES = [

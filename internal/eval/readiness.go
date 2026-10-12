@@ -16,7 +16,7 @@ const (
 	LevelExposed      = 1  // TLS 1.3 but only classical key exchange
 	LevelHybridAvail  = 2  // a standardised hybrid group is supported, not negotiated by a current client
 	LevelHybridNeg    = 3  // a current client negotiates a standardised hybrid group
-	LevelPQAuth       = 4  // level 3 plus a post-quantum certificate
+	LevelPQAuth       = 4  // level 3 plus post-quantum authentication (presented, or accepted by the signature stage)
 )
 
 var levelLabels = map[int]string{
@@ -177,7 +177,7 @@ func narrative(level int) (string, []string) {
 		return "A current client negotiates a standardised hybrid key exchange: recorded traffic is protected against harvest-now-decrypt-later.",
 			[]string{"Keep the hybrid group enabled and preferred.", "Track post-quantum certificates (ML-DSA, FIPS 204) as CAs and clients support them."}
 	default:
-		return "Hybrid key exchange and a post-quantum certificate.",
+		return "Hybrid key exchange and post-quantum authentication: the server presents, or holds and accepts, a post-quantum (ML-DSA) certificate.",
 			[]string{"Maintain; retain classical fallback only while clients require it."}
 	}
 }

@@ -1338,7 +1338,7 @@ func (x *endpoint) vulnerabilities() sectionContent {
 // ---- about -----------------------------------------------------------------------------------
 
 var stageTitles = []struct{ id, title string }{
-	{"protocols", "Protocols"}, {"suites", "Cipher suites"}, {"key-exchange", "Key exchange"}, {"features", "Features"},
+	{"protocols", "Protocols"}, {"suites", "Cipher suites"}, {"key-exchange", "Key exchange"}, {"signatures", "Signature schemes"}, {"features", "Features"},
 	{"certificates", "Certificates"}, {"revocation", "Revocation & transparency"}, {"http", "HTTP"},
 }
 
