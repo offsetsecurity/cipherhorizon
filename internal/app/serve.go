@@ -89,7 +89,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	fl := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
 	addr := fl.String("addr", "127.0.0.1:8080", "address to listen on")
-	dbPath := fl.String("db", "cipherhorizon.db", "SQLite database file (created if missing)")
+	dbPath := fl.String("db", "", dbFlagHelp())
 	token := fl.String("token", "", "an automation token: scripts and tools may call the API with it as a bearer token, acting as an analyst (or set "+tokenEnv+")")
 	signInMode := fl.String("sign-in", "auto", "require sign-in: auto (off until turned on in Settings; on if accounts already exist), "+
 		"on (always; the first start prints a setup code for the administrator) or off (never)")
@@ -191,6 +191,9 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		}
 	}
 
+	if *dbPath, err = resolveDB(*dbPath, env); err != nil {
+		return fatalf(env, "choosing the database: %v", err)
+	}
 	st, err := store.Open(*dbPath)
 	if err != nil {
 		return fatalf(env, "opening the database: %v", err)

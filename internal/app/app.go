@@ -80,6 +80,8 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return userCmd(args[1:], env)
 	case "healthcheck":
 		return healthcheckCmd(ctx, args[1:], env)
+	case "service":
+		return serviceCmd(ctx, args[1:], env)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(env.Stdout, "cipherhorizon", version.Get())
 		_, _ = fmt.Fprintln(env.Stdout, OneLiner)
@@ -119,6 +121,7 @@ Usage:
   cipherhorizon user list|add|reset-password|unlock [--db FILE] [USERNAME]
   cipherhorizon plugins       list the built-in sensors
   cipherhorizon healthcheck [--addr HOST:PORT] [--tls]   for a container orchestrator; see below
+  cipherhorizon service install|status|start|stop|uninstall   Windows: run as a service (administrator)
   cipherhorizon version
 
 run flags:

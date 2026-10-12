@@ -25,13 +25,17 @@ func userCmd(args []string, env Env) int {
 	sub := args[0]
 	fl := flag.NewFlagSet("user "+sub, flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
-	dbPath := fl.String("db", "cipherhorizon.db", "SQLite database file")
+	dbPath := fl.String("db", "", dbFlagHelp())
 	role := fl.String("role", store.RoleAdmin, "role for a new account: admin, analyst or viewer")
 	if err := fl.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return ExitOK
 		}
 		return ExitFatal
+	}
+	var err error
+	if *dbPath, err = resolveDB(*dbPath, env); err != nil {
+		return fatalf(env, "choosing the database: %v", err)
 	}
 	if _, err := os.Stat(*dbPath); err != nil {
 		return fatalf(env, "%s: %v (start the server once to create it)", *dbPath, err)

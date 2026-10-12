@@ -10,6 +10,30 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Linux packages.** `.deb` and `.rpm` (amd64, arm64) install the binary, the hardened systemd unit and
+  `/etc/cipherhorizon/env` for its options (kept on upgrade). The service is installed but not started.
+  Upgrades restart a running service; removal stops it and keeps the database. CI installs both packages on
+  every change.
+- **Windows service.** `cipherhorizon service install|status|start|stop|uninstall`. Install copies the program
+  to Program Files and keeps its data and log in `C:\ProgramData\CipherHorizon` (readable by SYSTEM,
+  Administrators and the service only). The service starts at boot, runs as `LocalService` and restarts after
+  a failure.
+- **Podman Quadlet unit and macOS launchd agent** in `deploy/`, and
+  [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md): each OS, where the data lives, backup, restore,
+  upgrade and removal.
+
+### Changed
+
+- **The database has a home.** Without `--db`, the database now goes in the per-user data folder
+  (`%LOCALAPPDATA%\CipherHorizon`, `~/Library/Application Support/CipherHorizon`,
+  `~/.local/share/cipherhorizon`) instead of whatever folder the server was started from. `CIPHERHORIZON_DB`
+  overrides it. A `cipherhorizon.db` already in the current folder is still used, with a notice, so no history
+  goes missing.
+- `docker-compose.yml` and the Quadlet unit declare the health check themselves (exec form, no shell). An image
+  built by Podman (OCI format) drops the Dockerfile `HEALTHCHECK`, so the container showed no health status.
+
 ## [0.1.0-rc.2] - 2026-10-10
 
 ### Changed (breaking, for scripts that read the CLI)

@@ -1,0 +1,46 @@
+# CipherHorizon under Podman, run by systemd (a Quadlet unit: Podman 4.4 or later).
+#
+# As root (starts at boot):
+#   sudo install -m 0644 deploy/cipherhorizon.container /etc/containers/systemd/
+#   sudo systemctl daemon-reload && sudo systemctl start cipherhorizon
+# As your own user (starts when you log in; add "loginctl enable-linger $USER" to start at boot):
+#   install -D -m 0644 deploy/cipherhorizon.container ~/.config/containers/systemd/cipherhorizon.container
+#   systemctl --user daemon-reload && systemctl --user start cipherhorizon
+#
+# Then open http://127.0.0.1:8080 . Logs: journalctl -u cipherhorizon (or --user -u). The data is in
+# the "cipherhorizon-data" volume (podman volume inspect cipherhorizon-data), which survives
+# upgrades and removing the container. Upgrade: change the tag below, daemon-reload, restart.
+# Back up while it runs:
+#   podman exec cipherhorizon /cipherhorizon db backup --db /data/cipherhorizon.db /data/backup.db
+#
+# The same hardening as docker-compose.yml: read-only root filesystem, no capabilities, no new
+# privileges, bounded processes and memory, the port published on loopback only.
+
+[Unit]
+Description=CipherHorizon: post-quantum readiness and TLS scanner (container)
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=cipherhorizon
+Image=ghcr.io/offsetsecurity/cipherhorizon:0.1.0
+PublishPort=127.0.0.1:8080:8080
+Volume=cipherhorizon-data:/data
+# Options for "serve" go after the image's defaults, e.g. Exec=serve --addr 0.0.0.0:8080 --plain-http --open-network --db /data/cipherhorizon.db --sign-in on
+ReadOnly=true
+Tmpfs=/tmp:size=16m,mode=1777
+DropCapability=ALL
+NoNewPrivileges=true
+PodmanArgs=--pids-limit=256 --memory=1g
+# The binary checks its own /api/v1/health. Exec form (a JSON list): the image has no shell, and an
+# image built by Podman (OCI format) does not carry the Dockerfile HEALTHCHECK.
+HealthCmd=["/cipherhorizon","healthcheck","--addr","127.0.0.1:8080"]
+HealthInterval=30s
+HealthStartPeriod=10s
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target default.target

@@ -89,16 +89,17 @@ func TestDiscoverDoesNotTouchTheOSDirectly(t *testing.T) {
 	forbid(t, "../discover", append(append(append([]string{}, noProcessOrNetwork...), noPlatform...), noCycloneDX...)...)
 }
 
-// The only packages allowed a Windows or unsafe import are the two platform layers:
-// hostinfo (who and what this machine is) and winapi (what Windows cryptography says),
-// each behind build tags. Neither may run subprocesses or use the network, and winapi
-// may import nothing else from this module, so it stays a pure platform layer that
-// answers "what does the system say" and knows nothing of evidence or CBOMs.
+// The only packages allowed a Windows or unsafe import are the three platform layers:
+// hostinfo (who and what this machine is), winapi (what Windows cryptography says) and
+// winsvc (running as a Windows service), each behind build tags. None may run subprocesses or
+// use the network, and winapi and winsvc may import nothing else from this module, so they stay
+// pure platform layers that know nothing of evidence, CBOMs or the server.
 func TestOnlyPlatformLayersTouchTheOS(t *testing.T) {
 	forbid(t, "../hostinfo", "os/exec", "net", "net/http")
 	forbid(t, "../winapi", "os/exec", "net", "net/http", "net/rpc", module+"/internal")
+	forbid(t, "../winsvc", "os/exec", "net", "net/http", "net/rpc", module+"/internal")
 
-	platform := map[string]bool{"hostinfo": true, "winapi": true}
+	platform := map[string]bool{"hostinfo": true, "winapi": true, "winsvc": true}
 	entries, err := os.ReadDir("..")
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +110,7 @@ func TestOnlyPlatformLayersTouchTheOS(t *testing.T) {
 		}
 		for imp, files := range importsOf(t, filepath.Join("..", e.Name())) {
 			if imp == "golang.org/x/sys/windows" || strings.HasPrefix(imp, "golang.org/x/sys/windows/") || imp == "unsafe" {
-				t.Errorf("only internal/hostinfo and internal/winapi may import %s (used in %s)", imp, strings.Join(files, ", "))
+				t.Errorf("only internal/hostinfo, internal/winapi and internal/winsvc may import %s (used in %s)", imp, strings.Join(files, ", "))
 			}
 		}
 	}

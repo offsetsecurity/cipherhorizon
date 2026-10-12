@@ -1,10 +1,12 @@
-# One-command install: `docker compose up -d`, then open http://127.0.0.1:8080 and scan.
+# One-command install: `docker compose up -d` (or `podman compose up -d`), then open
+# http://127.0.0.1:8080 and scan. On Windows and macOS, Podman must run rootless (its default) for
+# the port to reach the host: see docs/engineering/INSTALL.md.
 #
 # Sign-in is off until you turn it on (Settings in the interface). The port is published on this
 # host's loopback only, so only this machine can reach the server while it is open.
 #
-# Builds the image from the local Dockerfile (no registry image is published yet; once one is,
-# replace `build: .` below with `image: ghcr.io/<owner>/cipherhorizon:<version>` and pin a version).
+# Builds the image from this checkout. To run a release instead, replace `build: .` below with
+# `image: ghcr.io/offsetsecurity/cipherhorizon:<version>` (pin an exact version; there is no "latest" before 1.0).
 #
 # To reach it from other machines, use deploy/compose-caddy.yml (automatic HTTPS for a real host name,
 # sign-in always on), or turn sign-in on and serve HTTPS with --tls-cert/--tls-key. Never plain HTTP
@@ -45,8 +47,14 @@ services:
       - no-new-privileges:true
     pids_limit: 256
     mem_limit: 1g
-    # The image itself declares a HEALTHCHECK (the base image has no shell, curl or wget, so
-    # the binary checks its own /api/v1/health); nothing to add here.
+    # The binary checks its own /api/v1/health (the image has no shell, curl or wget). Declared
+    # here as well as in the Dockerfile: an image built by Podman (OCI format) drops HEALTHCHECK.
+    healthcheck:
+      test: ["CMD", "/cipherhorizon", "healthcheck", "--addr", "127.0.0.1:8080"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
 
 volumes:
   data:

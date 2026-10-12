@@ -19,14 +19,14 @@ cryptography, and what to fix first. It runs on your network and sends nothing a
 ## Quick start
 
 ```sh
-docker compose up -d                                          # http://127.0.0.1:8080
+docker compose up -d                                          # or: podman compose up -d
+sudo apt install ./cipherhorizon_<version>_amd64.deb          # Debian, Ubuntu (dnf install … .rpm on RHEL, Fedora)
+cipherhorizon.exe service install                             # Windows, as administrator: a service that starts at boot
+cipherhorizon serve                                           # any OS, from the release archive, in this terminal
 ```
 
-or, with a [release binary](../../releases) (Linux, macOS, Windows; amd64 and arm64):
-
-```sh
-cipherhorizon serve                                            # http://127.0.0.1:8080
-```
+Downloads (Linux, macOS, Windows; amd64 and arm64) are on the [Releases page](../../releases). Each OS, where the
+data lives, backup, upgrade and removal: [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md).
 
 Open <http://127.0.0.1:8080>, type an address, press Enter. Sign-in is off until you want it: turn it on in
 **Settings** to give a team accounts and roles, or start with `--sign-in on`.

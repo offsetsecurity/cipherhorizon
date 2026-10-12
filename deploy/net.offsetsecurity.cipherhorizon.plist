@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CipherHorizon as a macOS launchd agent: it starts when you log in, restarts if it stops, and
+  keeps its database in ~/Library/Application Support/CipherHorizon (the default location).
+
+  launchd does not expand "~", so __HOME__ is filled in by the install command:
+
+    sudo install -m 0755 cipherhorizon /usr/local/bin/cipherhorizon
+    mkdir -p ~/Library/LaunchAgents ~/Library/Logs/CipherHorizon
+    sed "s|__HOME__|$HOME|g" deploy/net.offsetsecurity.cipherhorizon.plist \
+      > ~/Library/LaunchAgents/net.offsetsecurity.cipherhorizon.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/net.offsetsecurity.cipherhorizon.plist
+
+  Then open http://127.0.0.1:8080 . Stop and remove it with:
+    launchctl bootout gui/$(id -u)/net.offsetsecurity.cipherhorizon
+  A binary downloaded with a browser is quarantined by Gatekeeper; clear that once with:
+    xattr -d com.apple.quarantine /usr/local/bin/cipherhorizon
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>net.offsetsecurity.cipherhorizon</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/cipherhorizon</string>
+    <string>serve</string>
+    <string>--addr</string>
+    <string>127.0.0.1:8080</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>Umask</key>
+  <integer>63</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/CipherHorizon/cipherhorizon.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/CipherHorizon/cipherhorizon.log</string>
+</dict>
+</plist>

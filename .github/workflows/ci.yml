@@ -207,3 +207,14 @@ jobs:
             --build-arg MODULE="$(go list -m)" --build-arg VERSION=0.0.0-ci --build-arg COMMIT="${GITHUB_SHA}" .
       - name: The image starts and reports its version
         run: docker run --rm cipherhorizon:ci version
+      - name: The Linux packages install, run and remove cleanly (Debian, Red Hat UBI)
+        run: |
+          check='set -e
+            test -x /usr/bin/cipherhorizon
+            test -f /usr/lib/systemd/system/cipherhorizon.service
+            test "$(stat -c %a /etc/cipherhorizon/env)" = 600
+            cipherhorizon version | grep -q "^cipherhorizon "'
+          docker run --rm -v "$PWD/dist:/dist:ro" debian:12-slim sh -c \
+            "apt-get install -y -q /dist/cipherhorizon_*_amd64.deb && $check && apt-get remove -y -q cipherhorizon && ! test -e /usr/bin/cipherhorizon"
+          docker run --rm -v "$PWD/dist:/dist:ro" registry.access.redhat.com/ubi9/ubi-minimal:latest sh -c \
+            "rpm -i /dist/cipherhorizon-*.x86_64.rpm && $check && rpm -e cipherhorizon && ! test -e /usr/bin/cipherhorizon"

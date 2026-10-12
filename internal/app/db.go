@@ -19,7 +19,7 @@ func dbCmd(args []string, env Env) int {
 	}
 	fl := flag.NewFlagSet("db "+args[0], flag.ContinueOnError)
 	fl.SetOutput(io.Discard)
-	dbPath := fl.String("db", "cipherhorizon.db", "SQLite database file")
+	dbPath := fl.String("db", "", dbFlagHelp())
 	if err := fl.Parse(args[1:]); err != nil || (fl.NArg() != 0) != (args[0] == "backup") || fl.NArg() > 1 {
 		dbUsage(env.Stderr)
 		return ExitFatal
@@ -29,6 +29,10 @@ func dbCmd(args []string, env Env) int {
 	default:
 		dbUsage(env.Stderr)
 		return ExitFatal
+	}
+	var err error
+	if *dbPath, err = resolveDB(*dbPath, env); err != nil {
+		return fatalf(env, "choosing the database: %v", err)
 	}
 	if args[0] == "backup" {
 		if _, err := os.Stat(*dbPath); err != nil {

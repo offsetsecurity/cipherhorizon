@@ -79,6 +79,50 @@ archives:
       - SECURITY.md
       - docs/config.example.yaml
 
+# Linux packages of the full product: the binary, the hardened systemd unit and its settings file.
+# The service is installed but not started (postinstall.sh says how); upgrades restart a running
+# one; removal stops it and keeps the database. See docs/engineering/INSTALL.md.
+nfpms:
+  - id: packages
+    ids: [cipherhorizon]
+    package_name: cipherhorizon
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: Offset Security
+    homepage: https://offsetsecurity.net/post-quantum-cryptography-readiness.html
+    maintainer: Offset Security <khalid.khan@offsetsecurity.net>
+    description: |-
+      Post-quantum readiness for every TLS endpoint you run.
+      A deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted.
+    license: Apache-2.0
+    section: net
+    priority: optional
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    contents:
+      - src: deploy/cipherhorizon.service
+        dst: /usr/lib/systemd/system/cipherhorizon.service
+        file_info: { mode: 0644 }
+      - src: deploy/packaging/cipherhorizon.env
+        dst: /etc/cipherhorizon/env
+        type: config|noreplace
+        file_info: { mode: 0600 }
+      - dst: /etc/cipherhorizon
+        type: dir
+        file_info: { mode: 0750 }
+      - src: LICENSE
+        dst: /usr/share/doc/cipherhorizon/LICENSE
+        file_info: { mode: 0644 }
+      - src: README.md
+        dst: /usr/share/doc/cipherhorizon/README.md
+        file_info: { mode: 0644 }
+    scripts:
+      postinstall: deploy/packaging/postinstall.sh
+      preremove: deploy/packaging/preremove.sh
+      postremove: deploy/packaging/postremove.sh
+    rpm:
+      group: Applications/System
+      summary: Post-quantum readiness and TLS scanner
+
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
@@ -87,7 +131,10 @@ checksum:
 
 # A software bill of materials for every archive (Syft; the workflow installs it).
 sboms:
-  - artifacts: archive
+  - id: archives
+    artifacts: archive
+  - id: packages
+    artifacts: package
 
 # Sign the checksum file with the workflow's own OIDC identity (Sigstore keyless: no key to
 # store or leak). Signing checksums.txt covers every archive listed in it.

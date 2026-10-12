@@ -66,7 +66,8 @@ On the GitHub Releases page (`https://github.com/offsetsecurity/cipherhorizon/re
 | `cipherhorizon_<version>_windows_amd64.zip`, `_windows_arm64.zip` | Windows |
 | `checksums.txt` | SHA-256 of every archive |
 | `checksums.txt.sigstore.json` | keyless cosign signature (Sigstore bundle) over `checksums.txt` |
-| `*.sbom.json` | software bill of materials (SPDX) for each archive |
+| `cipherhorizon_<version>_amd64.deb`, `_arm64.deb`, `cipherhorizon-<version>-1.x86_64.rpm`, `.aarch64.rpm` | Linux packages: binary, systemd unit, settings file ([INSTALL.md](INSTALL.md)) |
+| `*.sbom.json` | software bill of materials (SPDX) for each archive and package |
 | release notes | the version's section of `CHANGELOG.md` |
 
 Each full-product archive holds `cipherhorizon[.exe]` (a collector archive holds `cipherhorizon-collector[.exe]`), `LICENSE`, `README.md`, `CHANGELOG.md`, `SECURITY.md` and
@@ -80,10 +81,12 @@ version always; `<major>.<minor>` and `latest` only for stable (non-0.x, non-pre
 
 ## Install
 
+Per platform, with where the data lives, backup, upgrade and removal: **[INSTALL.md](INSTALL.md)**. In short:
+
 ```sh
 # binary (Linux/macOS): download, verify (below), extract, run
 tar -xzf cipherhorizon_0.1.0_linux_amd64.tar.gz
-./cipherhorizon serve            # http://127.0.0.1:8080, data in ./cipherhorizon.db
+./cipherhorizon serve            # http://127.0.0.1:8080, data in ~/.local/share/cipherhorizon (macOS: ~/Library/Application Support/CipherHorizon)
 
 # container, published image: listening beyond loopback requires a token
 docker run -d --name cipherhorizon -p 8080:8080 \
@@ -103,7 +106,7 @@ The image has no shell (distroless), so its `HEALTHCHECK` runs `cipherhorizon he
 subcommand that asks the server's own `/api/v1/health`, without a token, and exits 0 or 1 — instead of the usual
 `curl`. `docker inspect --format '{{.State.Health.Status}}' cipherhorizon` reads the result.
 
-Windows: unzip and run `cipherhorizon.exe serve`. Upgrade by replacing the binary; the database migrates
+Windows: unzip, then `cipherhorizon.exe service install` as administrator (or `cipherhorizon.exe serve` in a window; data in `%LOCALAPPDATA%CipherHorizon`). Upgrade by replacing the binary; the database migrates
 forward on start. **Back up the `.db` file before upgrading a 0.x release**: 0.x does not promise a downgrade
 path.
 
@@ -161,7 +164,9 @@ Two different questions, two different documents:
 | GHCR container image | **0.1.0** | multi-arch, signed |
 | `go install` from source | **0.1.0** | works because the module path is the repository path |
 | Homebrew tap, Scoop bucket | later | GoReleaser can publish both once a `homebrew-tap` / `scoop-bucket` repo exists |
-| `.deb` / `.rpm`, systemd unit | later | GoReleaser `nfpms`; needs a hardened unit and a decision on the default token/config location |
+| `.deb` / `.rpm` with a systemd unit | **0.1.0** | GoReleaser `nfpms`; hardened unit, settings in `/etc/cipherhorizon/env` |
+| Windows service | **0.1.0** | `cipherhorizon service install`: LocalService account, data in `%ProgramData%` |
+| Podman Quadlet, macOS launchd agent | **0.1.0** | files in `deploy/` |
 | winget, Chocolatey | later | after 1.0; both need a stable, non-pre-release version |
 | Helm chart / Kubernetes manifests | later | when there is a multi-user story (see the product roadmap) |
 | Docker Hub mirror | not planned | GHCR is enough; avoids a second set of credentials |
@@ -170,7 +175,7 @@ Two different questions, two different documents:
 
 - Listens on `127.0.0.1:8080` by default; **refuses to bind elsewhere without a token**. Put a TLS-terminating
   reverse proxy in front if the UI is shared.
-- State is one SQLite file (plus `-wal`/`-shm`): back it up with the process stopped or with `sqlite3 .backup`.
+- State is one SQLite file (plus `-wal`/`-shm`): back it up while it runs with `cipherhorizon db backup` ([INSTALL.md](INSTALL.md#backup-and-restore)).
 - No telemetry, no update check, no external requests at runtime. Version awareness is by watching the
   repository's Releases (Atom feed: `/releases.atom`).
 - Resource use is small (a few scans in flight); the limit is how many concurrent connections your network and

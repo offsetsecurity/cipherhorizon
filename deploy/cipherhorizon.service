@@ -1,12 +1,16 @@
 # CipherHorizon as a systemd service (PRD-007 REQ-DP-3).
 #
-#   sudo install -m 0755 cipherhorizon /usr/local/bin/cipherhorizon
+# The .deb and .rpm packages install this unit, and /etc/cipherhorizon/env for its options. By hand:
+#
+#   sudo install -m 0755 cipherhorizon /usr/bin/cipherhorizon
 #   sudo install -m 0644 deploy/cipherhorizon.service /etc/systemd/system/
+#   sudo install -D -m 0600 deploy/packaging/cipherhorizon.env /etc/cipherhorizon/env
 #   sudo systemctl daemon-reload && sudo systemctl enable --now cipherhorizon
 #   sudo journalctl -u cipherhorizon     (with --sign-in on, the one-time setup code is printed here)
 #
-# Sign-in is off until turned on in Settings (it listens on loopback only). For a shared server add
-# --sign-in on to ExecStart: the journal then prints a one-time setup code for the administrator.
+# Sign-in is off until turned on in Settings (it listens on loopback only). Options go in
+# /etc/cipherhorizon/env (CIPHERHORIZON_OPTS), not here: for a shared server set
+# CIPHERHORIZON_OPTS="--sign-in on", and the journal prints a one-time setup code for the administrator.
 #
 # The service runs as a dynamic, unprivileged user with its own state directory
 # (/var/lib/cipherhorizon), sees the rest of the filesystem read-only, and holds no capabilities.
@@ -23,11 +27,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/cipherhorizon serve --addr 127.0.0.1:8080 --db /var/lib/cipherhorizon/cipherhorizon.db
+# $CIPHERHORIZON_OPTS (from the env file) is split on spaces into further serve options.
+ExecStart=/usr/bin/cipherhorizon serve --addr 127.0.0.1:8080 --db /var/lib/cipherhorizon/cipherhorizon.db $CIPHERHORIZON_OPTS
 Restart=on-failure
 RestartSec=5s
-Environment=CIPHERHORIZON_TOKEN=
-# EnvironmentFile=-/etc/cipherhorizon/env   (for CIPHERHORIZON_TOKEN; make it mode 0600)
+EnvironmentFile=-/etc/cipherhorizon/env
 
 DynamicUser=yes
 StateDirectory=cipherhorizon

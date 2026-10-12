@@ -23,7 +23,7 @@ test `TestSystemdUnitIsSandboxed`.
 ## The binary
 
 ```sh
-cipherhorizon serve                 # http://127.0.0.1:8080, data in ./cipherhorizon.db
+cipherhorizon serve                 # http://127.0.0.1:8080; data in your per-user folder (docs/engineering/INSTALL.md)
 ```
 
 Open the address and scan. Add
