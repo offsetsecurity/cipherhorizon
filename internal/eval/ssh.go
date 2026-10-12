@@ -399,6 +399,7 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 	ev.Checks = checks
 	ev.FixFirst = fixFirst(findings)
 	ev.Vulnerabilities = sshAttacks(findings)
+	ev.SSHAlgorithms = sshAlgorithmViews(c)
 	return ev
 }
 
@@ -699,6 +700,49 @@ func sshPQCFindings(c *sshCtx, r Readiness) []Finding {
 	if r.Symmetric.Status == "inadequate" {
 		add("PQC.SYMMETRIC-INADEQUATE", "Symmetric ciphers below the post-quantum baseline are offered", Medium, r.Symmetric.Detail,
 			"Remove ciphers with keys under 128 bits.", citNISTCategories)
+	}
+	return out
+}
+
+// SSHAlgorithm is one advertised SSH algorithm with its verdict, so the report can show, for each
+// name, what it is and whether that is right (UX-DESIGN-006 §2.4) without judging in the browser.
+type SSHAlgorithm struct {
+	Kind    string `json:"kind"` // kex | host-key | cipher | mac | compression
+	Name    string `json:"name"`
+	Display string `json:"display"`
+	// Verdict is post-quantum, fine, should-be-off or unknown (not in this program's registry).
+	Verdict string `json:"verdict"`
+	// Used: a current client (OpenSSH 10.6 defaults) uses it.
+	Used bool `json:"used,omitempty"`
+}
+
+// sshAlgorithmViews lists every advertised algorithm, kind by kind, in the server's order.
+func sshAlgorithmViews(c *sshCtx) []SSHAlgorithm {
+	n := c.rep.Negotiated
+	if n == nil {
+		n = &sshprobe.Negotiated{}
+	}
+	used := map[string]string{registry.KindKex: n.Kex, registry.KindHostKey: n.HostKey, registry.KindCipher: n.Cipher, registry.KindMAC: n.MAC, registry.KindCompression: n.Compression}
+	out := []SSHAlgorithm{}
+	for _, l := range []struct {
+		kind  string
+		names []string
+	}{{registry.KindKex, c.alg.Kex}, {registry.KindHostKey, c.alg.HostKey}, {registry.KindCipher, c.ciphers}, {registry.KindMAC, c.macs}, {registry.KindCompression, c.comp}} {
+		for _, name := range l.names {
+			a, ok := registry.Lookup(l.kind, name)
+			v := SSHAlgorithm{Kind: l.kind, Name: name, Display: a.Display, Used: used[l.kind] == name}
+			switch {
+			case !ok:
+				v.Verdict = "unknown"
+			case a.PQ:
+				v.Verdict = "post-quantum"
+			case sshWeak(l.kind, name) || l.kind == registry.KindCompression && name == "zlib":
+				v.Verdict = "should-be-off"
+			default:
+				v.Verdict = "fine"
+			}
+			out = append(out, v)
+		}
 	}
 	return out
 }

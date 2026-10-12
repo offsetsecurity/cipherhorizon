@@ -24,11 +24,11 @@ export async function render(root) {
     h('span', { class: 'about-id-mark', 'aria-hidden': 'true' }, brandMark('color')),
     h('div', null,
       h('h1', null, a.name || 'CipherHorizon'),
-      h('p', { class: 'about-id-line' }, 'TLS and post-quantum scanner, and cryptographic inventory'),
+      h('p', { class: 'about-id-line' }, 'TLS, SSH and post-quantum scanner, and cryptographic inventory'),
       h('p', { class: 'muted mono small' }, `Version ${a.version} · evaluation rules ${a.evalVersion}`))));
 
   root.appendChild(h('section', { class: 'card about-body' },
-    h('p', null, 'CipherHorizon scans TLS endpoints and tells you how ready each one is for post-quantum cryptography, what is weak and what to fix first. ',
+    h('p', null, 'CipherHorizon scans TLS endpoints and SSH servers and tells you how ready each one is for post-quantum cryptography, what is weak and what to fix first. ',
       'It can also inventory the cryptography on your machines and export everything as one CycloneDX CBOM. It runs on your own machine or network and makes no connection except the scans you start.'),
     h('div', { class: 'row' },
       h('a', { class: 'btn btn-secondary', href: '#/help' }, 'Help'),
@@ -37,7 +37,7 @@ export async function render(root) {
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Standards'),
     h('dl', { class: 'kv' }, STANDARDS.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
-    h('p', { class: 'hint' }, 'The readiness level and the TLS hygiene score are this product’s own measures; how each is worked out is in Help.')));
+    h('p', { class: 'hint' }, 'The readiness level and the hygiene score are this product’s own measures; how each is worked out is in Help.')));
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Developed by'),
     h('p', null, h('a', { href: 'https://offsetsecurity.net/', target: '_blank', rel: 'noopener' }, 'Offset Security'),

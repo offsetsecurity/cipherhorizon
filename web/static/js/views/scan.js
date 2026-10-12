@@ -5,29 +5,35 @@ import { h } from '../dom.js';
 import { api, ApiError } from '../api.js';
 import { modal } from '../ui.js';
 
+// isSSH: the address names an SSH server by its scheme.
+const isSSH = (s) => s.trim().toLowerCase().startsWith('ssh:');
+
 // normalise turns what a person types into the host:port the server stores, to find an
 // endpoint that already exists (the server is the authority; this only finds the row).
 function normalise(input) {
+  const port = isSSH(input) ? 22 : 443; // ssh:// is an SSH server on 22 (PRD-008)
   let s = input.trim().replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, '');
   if (!s) return '';
-  if (s.startsWith('[')) return /\]:\d+$/.test(s) ? s.toLowerCase() : `${s.toLowerCase()}:443`;
+  if (s.startsWith('[')) return /\]:\d+$/.test(s) ? s.toLowerCase() : `${s.toLowerCase()}:${port}`;
   const parts = s.split(':');
   if (parts.length === 2) return s.toLowerCase();
-  if (parts.length > 2) return `[${s.toLowerCase()}]:443`; // a bare IPv6 address
-  return `${s.toLowerCase()}:443`;
+  if (parts.length > 2) return `[${s.toLowerCase()}]:${port}`; // a bare IPv6 address
+  return `${s.toLowerCase()}:${port}`;
 }
 
 /** quickScan finds or adds the endpoint, starts a scan and returns its id. */
 export async function quickScan(target) {
   // An endpoint scanned before is scanned again, not added twice.
   const want = normalise(target);
-  let asset = want ? (await api.assets('tls-endpoint').catch(() => [])).find((a) => a.address.toLowerCase() === want) : null;
+  const proto = isSSH(target) ? 'ssh' : null;
+  const same = (a) => a.address.toLowerCase() === want && (!proto || a.protocol === proto);
+  let asset = want ? (await api.assets().catch(() => [])).find(same) : null;
   if (!asset) {
     try {
       asset = await api.addAsset(target);
     } catch (e) {
       if (!(e instanceof ApiError) || e.status !== 409) throw e;
-      asset = (await api.assets()).find((a) => a.address.toLowerCase() === want);
+      asset = (await api.assets()).find(same);
       if (!asset) throw e;
     }
   }
@@ -40,7 +46,7 @@ export async function quickScan(target) {
  * and opens the endpoint's report. id names the input (the Overview's is "scan-target").
  */
 export function scanForm(id, onStarted) {
-  const input = h('input', { type: 'text', id, class: 'scan-input', placeholder: 'example.com, https://example.com or host:port',
+  const input = h('input', { type: 'text', id, class: 'scan-input', placeholder: 'example.com, https://example.com or ssh://example.com',
     autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Website or endpoint to scan', 'aria-describedby': `${id}-help` });
   const err = h('div', { class: 'scan-error', role: 'alert', hidden: true });
   const submit = h('button', { type: 'submit', class: 'btn btn-primary scan-button' }, 'Scan');
@@ -63,7 +69,7 @@ export function scanForm(id, onStarted) {
       input.focus();
     }
   } }, input, submit);
-  const help = h('p', { class: 'hint', id: `${id}-help` }, 'Only scan systems you own or are authorised to test. A scan makes a few hundred short TLS handshakes to that address and nothing else.');
+  const help = h('p', { class: 'hint', id: `${id}-help` }, 'Only scan systems you own or are authorised to test. A TLS scan makes a few hundred short handshakes; an SSH scan a handful of key exchanges, never a login.');
   return { input, nodes: [form, err, help] };
 }
 
@@ -72,7 +78,7 @@ export function openScanDialog() {
   modal('Scan a URL', (close) => {
     const { input, nodes } = scanForm('scan-dialog-target', close);
     const body = h('div', { class: 'modal-body scan-dialog' },
-      h('p', { class: 'text-2' }, 'Enter a website or TLS endpoint. You get its protocols, cipher suites, certificate, weaknesses, post-quantum readiness and its CBOM.'),
+      h('p', { class: 'text-2' }, 'Enter a website, a TLS endpoint or an SSH server (ssh://bastion.example.com). You get its configuration, weaknesses, post-quantum readiness and its CBOM.'),
       ...nodes);
     setTimeout(() => input.focus(), 0);
     return body;

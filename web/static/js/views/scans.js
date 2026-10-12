@@ -27,7 +27,7 @@ export async function render(root, ctx = {}) {
       return;
     }
     list.appendChild(h('div', { class: 'tablewrap' }, h('table', null,
-      h('thead', null, h('tr', null, ['Endpoint', 'Status', 'Readiness', 'TLS hygiene', 'Started by', 'Started', 'Took', ''].map((c) => h('th', { scope: 'col' }, c)))),
+      h('thead', null, h('tr', null, ['Endpoint', 'Status', 'Readiness', 'Hygiene', 'Started by', 'Started', 'Took', ''].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, scans.map((s) => {
         const active = s.status === 'queued' || s.status === 'running';
         return h('tr', null,

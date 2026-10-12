@@ -55,20 +55,20 @@ function providers(list) {
 }
 
 function linkDialog(hostId, alreadyLinked, onDone) {
-  modal('Link to a TLS endpoint', (close) => {
+  modal('Link to an endpoint', (close) => {
     const body = h('div', { class: 'modal-body' });
     api.assets().then((endpoints) => {
       const choices = endpoints.filter((e) => !alreadyLinked.includes(e.id));
       clear(body);
       if (!choices.length) {
-        body.appendChild(h('p', { class: 'muted' }, 'No unlinked TLS endpoints exist to link to.'));
+        body.appendChild(h('p', { class: 'muted' }, 'No unlinked endpoints exist to link to.'));
         body.appendChild(h('div', { class: 'row end' }, button('Close', close)));
         return;
       }
       const sel = h('select', { 'aria-label': 'Endpoint to link' }, choices.map((e) => h('option', { value: e.id }, `${e.name} (${e.address})`)));
       body.append(
-        h('p', { class: 'muted' }, 'Record that this host and a TLS endpoint are the same machine. This is never guessed: only what you confirm here counts.'),
-        h('label', { for: 'link-target' }, 'TLS endpoint'), sel,
+        h('p', { class: 'muted' }, 'Record that this host and a TLS or SSH endpoint are the same machine. This is never guessed: only what you confirm here counts.'),
+        h('label', { for: 'link-target' }, 'Endpoint'), sel,
         h('div', { class: 'row end' }, button('Cancel', close), button('Link', async () => {
           try { await api.linkAsset(hostId, Number(sel.value)); toast('Linked'); close(); onDone(); } catch (e) { toast(e.message, 'error'); }
         }, 'primary')));
@@ -87,7 +87,7 @@ async function linkedAssetsCard(linkedIds, hostId, onDone) {
           h('span', { class: 'kind-badge' }, 'Endpoint'),
           h('a', { href: `#/endpoints/${a.id}` }, a.name),
           button('Unlink', async () => { try { await api.unlinkAsset(hostId, a.id); toast('Unlinked'); onDone(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' }))))
-      : h('p', { class: 'muted' }, 'Not linked to any TLS endpoint yet.'));
+      : h('p', { class: 'muted' }, 'Not linked to any endpoint yet.'));
 }
 
 export async function render(root, { args }) {

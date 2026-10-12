@@ -17,11 +17,11 @@ const problemsOf = (d) => (d ? d.critical + d.high + d.medium + (d.low || 0) : 0
 
 // What each level means, in the words a reader needs to judge an endpoint.
 const SCALE = [
-  [4, 'L4', 'PQ-authenticated', 'Post-quantum key exchange and post-quantum certificates.'],
+  [4, 'L4', 'PQ-authenticated', 'Post-quantum key exchange and a post-quantum certificate or host key.'],
   [3, 'L3', 'Hybrid negotiated', 'A current client gets a post-quantum hybrid key exchange.'],
   [2, 'L2', 'Hybrid available', 'Offered, but a current client does not get it by default.'],
-  [1, 'L1', 'Exposed', 'TLS 1.3 without post-quantum key exchange.'],
-  [0, 'L0', 'Not ready', 'No TLS 1.3, so no post-quantum key exchange is possible.'],
+  [1, 'L1', 'Exposed', 'Only classical key exchange: recorded traffic is exposed.'],
+  [0, 'L0', 'Not ready', 'The protocol in use can not carry it: no TLS 1.3, or SSH-1 only.'],
 ];
 
 function stat(href, tone, label, figure, ...rest) {
@@ -100,7 +100,7 @@ function hero() {
     h('div', { class: 'hero-main' },
       h('p', { class: 'eyebrow' }, 'Post-quantum readiness · TLS scanner · CBOM'),
       h('h1', { id: 'scan-h', class: 'hero-title' }, 'Scan an endpoint for post‑quantum readiness'),
-      h('p', { class: 'hero-lede' }, 'A deep TLS scan, a readiness level from L0 to L4, every check with its source, and a CycloneDX CBOM, from one address.'),
+      h('p', { class: 'hero-lede' }, 'A deep TLS or SSH scan, a readiness level from L0 to L4, every check with its source, and a CycloneDX CBOM, from one address.'),
       ...nodes,
       h('p', { class: 'hero-more' },
         link('Scan many endpoints', () => openAddDialog(() => { location.hash = '#/endpoints'; })),
@@ -139,7 +139,7 @@ export async function render(root) {
   input.focus();
 
   const [assets, hosts, inv, findings] = await Promise.all([
-    api.assets('tls-endpoint').catch(() => []), api.hosts().catch(() => []),
+    api.assets().catch(() => []), api.hosts().catch(() => []),
     api.inventorySummary().catch(() => null), api.fleetFindings('').catch(() => [])]);
   if (!assets.length && !hosts.length) {
     lower.appendChild(h('p', { class: 'overview-empty' }, 'Scan an endpoint above, or inventory a machine, and this page shows where you stand.'));

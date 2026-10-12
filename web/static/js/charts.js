@@ -89,7 +89,7 @@ export function sizeBars(root) {
   for (const el of root.querySelectorAll('[data-w]')) el.style.width = `${el.getAttribute('data-w')}%`;
 }
 
-/** A step line of one asset's readiness level over time, with TLS hygiene score labels. */
+/** A step line of one asset's readiness level over time, with hygiene score labels. */
 export function historyChart(points, width = 640, height = 170) {
   const pts = points.filter((p) => p.status === 'done' && p.readinessLevel !== null);
   const pad = { l: 132, r: 30, t: 14, b: 26 };
@@ -119,7 +119,7 @@ export function historyChart(points, width = 640, height = 170) {
   root.appendChild(svg('path', { d, class: 'stepline', fill: 'none', pathLength: '1' }));
   pts.forEach((p) => {
     root.appendChild(svg('circle', { cx: x(p.at), cy: y(p.readinessLevel), r: 5, class: `dot ${levelClass(p.readinessLevel)}` },
-      svg('title', null, `${new Date(p.at).toLocaleString()}: L${p.readinessLevel} ${levelName(p.readinessLevel)}, TLS hygiene ${p.band} ${p.score}`)));
+      svg('title', null, `${new Date(p.at).toLocaleString()}: L${p.readinessLevel} ${levelName(p.readinessLevel)}, hygiene ${p.band} ${p.score}`)));
     root.appendChild(svg('text', { x: x(p.at), y: y(p.readinessLevel) - 9, class: 'dotlabel', 'text-anchor': 'middle' }, String(p.score)));
   });
   root.appendChild(svg('text', { x: pad.l, y: height - 6, class: 'axis' }, stamp(pts[0].at)));

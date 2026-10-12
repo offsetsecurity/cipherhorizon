@@ -23,7 +23,7 @@ export async function render(root) {
   const body = h('div', { class: 'reports-docs' }, skeleton(4));
   root.appendChild(body);
   const [assets, hosts, systems] = await Promise.all([
-    api.assets('tls-endpoint').catch(() => []), api.hosts().catch(() => []), api.systems().catch(() => null)]);
+    api.assets().catch(() => []), api.hosts().catch(() => []), api.systems().catch(() => null)]);
   clear(body);
 
   // The whole inventory.

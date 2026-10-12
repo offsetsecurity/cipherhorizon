@@ -73,9 +73,11 @@ export const api = {
   setSignIn: (body) => request('PUT', '/api/v1/settings/sign-in', body),
   summary: (days = 14) => request('GET', `/api/v1/summary?days=${days}`),
 
-  assets: () => request('GET', '/api/v1/assets?kind=tls-endpoint'),
+  // Every network endpoint, TLS and SSH (PRD-008); hosts are api.hosts().
+  assets: () => request('GET', '/api/v1/assets?kind=endpoint'),
   asset: (id) => request('GET', `/api/v1/assets/${id}`),
-  addAsset: (target, name, tags, starttls) => request('POST', '/api/v1/assets', { target, name: name || '', tags: tags || [], starttls: starttls || 'auto' }),
+  addAsset: (target, name, tags, starttls, protocol) => request('POST', '/api/v1/assets',
+    { target, name: name || '', tags: tags || [], starttls: starttls || 'auto', protocol: protocol || 'auto' }),
   addBulk: (text, tags) => request('POST', '/api/v1/assets/bulk', { text, tags: tags || [] }),
   patchAsset: (id, patch) => request('PATCH', `/api/v1/assets/${id}`, patch),
   deleteAsset: (id) => request('DELETE', `/api/v1/assets/${id}`),

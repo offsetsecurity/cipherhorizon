@@ -13,7 +13,7 @@ export async function render(root, { query }) {
   const tab = TABS.find(([k]) => k === query.get('tab')) || TABS[0];
   root.appendChild(h('div', { class: 'page-head' },
     h('div', null, h('h1', null, 'Endpoints'),
-      h('div', { class: 'sub' }, 'Websites and TLS services you scan. Open one for its full report.')),
+      h('div', { class: 'sub' }, 'Websites, TLS endpoints and SSH servers you scan. Open one for its full report.')),
     // The page's one primary action (UX-REVIEW-008 N1): the rail holds places, not actions.
     h('div', { class: 'row' }, button('Scan a URL', () => openScanDialog(), 'primary', { id: 'endpoints-scan' }))));
   root.appendChild(h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([k, label]) =>

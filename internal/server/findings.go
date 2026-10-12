@@ -168,7 +168,7 @@ func (s *Server) fleetFindings(w http.ResponseWriter, r *http.Request) {
 
 	var out []FlatFinding
 	for _, a := range assets {
-		if kindFilter != "" && a.Kind != kindFilter {
+		if kindFilter != "" && a.Kind != kindFilter && (kindFilter != store.KindEndpoint || !store.IsEndpoint(a.Kind)) {
 			continue
 		}
 		ff, err := s.assetFindings(a)

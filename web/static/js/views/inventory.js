@@ -344,7 +344,7 @@ async function itemsList(root, kind, query) {
 }
 
 async function sourcesList(root) {
-  const [endpoints, hosts] = await Promise.all([api.assets('tls-endpoint').catch(() => []), api.hosts().catch(() => [])]);
+  const [endpoints, hosts] = await Promise.all([api.assets().catch(() => []), api.hosts().catch(() => [])]);
   const list = (items, href, when) => h('ul', { class: 'source-list' }, items.map((x) => h('li', null, h('a', { href: href(x) }, h('b', null, x.name)),
     x.address && x.address !== x.name ? h('span', { class: 'muted' }, ` ${x.address}`) : null,
     h('span', { class: 'muted source-when' }, when(x)))));

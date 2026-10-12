@@ -7,7 +7,7 @@ import { sevBadge, evidenceBadge, citations, badge, button, empty, toast, modal,
 
 const SEVERITIES = [['', 'Any severity'], ['critical', 'Critical'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low'], ['info', 'Info'], ['vulnerable', 'Quantum-vulnerable (machine)']];
 const STATUSES = [['', 'Any status'], ['new', 'New'], ['acknowledged', 'Acknowledged'], ['accepted-risk', 'Accepted risk']];
-const KINDS = [['', 'Endpoints & machines'], ['tls-endpoint', 'Endpoints only'], ['host', 'Machines only']];
+const KINDS = [['', 'Endpoints & machines'], ['endpoint', 'Endpoints only'], ['host', 'Machines only']];
 
 const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
 

@@ -327,3 +327,22 @@ func TestSSHDiff(t *testing.T) {
 		t.Errorf("summary %q", d.Summary)
 	}
 }
+
+// UX-DESIGN-006 §2.4: each advertised algorithm carries its verdict, and the one a current client uses is marked.
+func TestSSHAlgorithmVerdicts(t *testing.T) {
+	r := modernSSH()
+	r.Algorithms.CipherC2S = append(r.Algorithms.CipherC2S, "aes128-cbc")
+	got := map[string]eval.SSHAlgorithm{}
+	for _, a := range sshEval(r).SSHAlgorithms {
+		got[a.Kind+" "+a.Name] = a
+	}
+	for k, want := range map[string]string{"kex mlkem768x25519-sha256": "post-quantum", "kex curve25519-sha256": "fine",
+		"cipher aes128-cbc": "should-be-off", "host-key ssh-ed25519": "fine"} {
+		if got[k].Verdict != want {
+			t.Errorf("%s: %q, want %q", k, got[k].Verdict, want)
+		}
+	}
+	if !got["kex mlkem768x25519-sha256"].Used || got["kex curve25519-sha256"].Used {
+		t.Error("the negotiated key exchange is not the one marked used")
+	}
+}

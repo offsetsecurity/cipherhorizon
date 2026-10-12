@@ -124,6 +124,8 @@ type Evaluation struct {
 	// LegacyReport is set when the report predates tls-report/2: the sections
 	// that need its data are marked not-collected.
 	LegacyReport bool `json:"legacyReport,omitempty"`
+	// SSHAlgorithms is, for an SSH endpoint, every advertised algorithm with its verdict.
+	SSHAlgorithms []SSHAlgorithm `json:"sshAlgorithms,omitempty"`
 }
 
 // Check is one check the evaluation ran. Title names what was looked for (a problem, as a

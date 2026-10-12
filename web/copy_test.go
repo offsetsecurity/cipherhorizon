@@ -41,13 +41,30 @@ func TestTheProductTellsItsStory(t *testing.T) {
 		"static/js/views/overview.js": {"class: 'eyebrow'", "Post-quantum readiness · TLS scanner · CBOM", "Scan an endpoint for post‑quantum readiness"},
 		// UX-REVIEW-008 S4: About says what the product is; Help how to use it; Settings who may.
 		"static/js/views/about.js":    {"NIST IR 8547", "FIPS 203, 204, 205", "Developed by", "post-quantum-cryptography-readiness", "Open-source components", "Reference data"},
-		"static/js/views/help.js":     {"Scan an endpoint", "Inventory a machine", "Post-quantum readiness levels", "The TLS hygiene score", "What is and is not checked", "Command line and CI"},
+		"static/js/views/help.js":     {"Scan an endpoint", "Inventory a machine", "Post-quantum readiness levels", "The hygiene score (TLS and SSH)", "What is and is not checked", "Command line and CI"},
 		"static/js/views/settings.js": {"Turn on sign-in", "Turn off sign-in", "This server", "--open-network"},
 	} {
 		for _, w := range wants {
 			if !strings.Contains(f[file], w) {
 				t.Errorf("%s lacks %q", file, w)
 			}
+		}
+	}
+}
+
+// PRD-008 REQ-SHW-3: an SSH report speaks SSH, not TLS.
+func TestSSHReportCopyHasNoTLSWords(t *testing.T) {
+	body := embedded(t)["static/js/views/report-ssh.js"]
+	if body == "" {
+		t.Fatal("report-ssh.js is not embedded")
+	}
+	blockComment := regexp.MustCompile(`(?s)/\*.*?\*/`)
+	lineComment := regexp.MustCompile(`(?m)(^|\s)//.*$`)
+	tlsWords := regexp.MustCompile(`(?i)cipher suites?|certificate chain|TLS hygiene|handshake|\bTLS\b`)
+	code := lineComment.ReplaceAllString(blockComment.ReplaceAllString(body, ""), "$1")
+	for n, line := range strings.Split(code, "\n") {
+		if m := tlsWords.FindString(line); m != "" {
+			t.Errorf("report-ssh.js:%d says %q: %s", n+1, m, strings.TrimSpace(line))
 		}
 	}
 }

@@ -41,7 +41,7 @@ Design tokens, type and components are DESIGN.md v2; nothing new is introduced e
 ```
 Host or URL      [ bastion.example.com:22                        ]
                  A hostname or IP, optionally with a port. ssh://host scans SSH.
-Service          [ Automatic (by port)                         ▾ ]
+Protocol         [ Automatic (by port)                         ▾ ]
                    Automatic (by port)            ← default
                    TLS from the first byte
                    SSH
@@ -51,7 +51,7 @@ Service          [ Automatic (by port)                         ▾ ]
 Name / Tags      (unchanged)
 ```
 
-The label changes from *How it starts TLS* to **Service**, because it now chooses the protocol. *Paste a list*
+The label changes from *How it starts TLS* to **Protocol**, because it now chooses the protocol. (The product's vocabulary rule, `web/vocabulary_test.go`, keeps the word "service" off its screens.) *Paste a list*
 accepts `ssh://` lines.
 
 ### 2.3 Endpoints list (`#/endpoints`)
@@ -68,7 +68,7 @@ accepts `ssh://` lines.
 - The column header *TLS hygiene* becomes **Hygiene**; the band word plus score stays.
 - The certificate column is titled **Certificate / key**. For SSH it shows the default host key type, never a
   day count. SSH host keys don't expire.
-- A **Service** filter beside the search: *All services* · *TLS* · *SSH*.
+- A **Protocol** filter beside the search: *All protocols* · *TLS* · *SSH*.
 
 ### 2.4 SSH endpoint report (`#/endpoints/N`)
 

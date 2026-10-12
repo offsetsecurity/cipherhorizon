@@ -1,8 +1,9 @@
-// One endpoint: readiness, TLS hygiene, TLS detail, findings and history.
+// One endpoint (TLS or SSH): readiness, hygiene, the configuration, every check and history.
 import { h, clear, fmtDate, fmtDay, daysUntil, relTime, INTERVALS, intervalLabel, toCSV, startedByWord, viaStartTLS, STARTTLS_NAMES } from '../dom.js';
 import { api, ApiError } from '../api.js';
 import { historyChart, levelClass, levelName } from '../charts.js';
 import { summaryView, configurationView, weaknessesView, cbomView, SECTIONS } from './report.js';
+import './report-ssh.js'; // registers the SSH report profile (PRD-008)
 import { levelBadge, bandBadge, bandTone, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog, crumbs,
   scanProgress, badge, certExpiry, certChain, playEnter } from '../ui.js';
 
@@ -128,7 +129,7 @@ export async function render(root, { args, query }) {
   };
 
   const EXPORT_TYPES = [
-    ['full', 'Full Security Report', 'Readiness, TLS hygiene, findings and the certificate chain in one document.', ['pdf', 'json', 'csv']],
+    ['full', 'Full Security Report', 'Readiness, hygiene, every finding and, for TLS, the certificate chain in one document.', ['pdf', 'json', 'csv']],
     ['tls', 'TLS Report', 'Protocol, cipher suite and key-exchange detail as observed on the wire.', ['pdf', 'json']],
     ['cert', 'Certificate Report', 'The certificate chain and every field inspected, one row per certificate.', ['pdf', 'json', 'csv']],
     ['pqc', 'PQC Assessment', 'Post-quantum readiness level, dimensions and their evidence.', ['json']],
@@ -139,7 +140,7 @@ export async function render(root, { args, query }) {
     const stem = asset.name.replace(/[^a-z0-9._-]+/gi, '_');
     if (format === 'pdf') {
       // A formatted A4 document made by the server from the stored scan, not a print of the page.
-      const suffix = { full: 'security-report', tls: 'tls-report', cert: 'certificate-report' }[type];
+      const suffix = asset.protocol === 'ssh' ? 'ssh-report' : { full: 'security-report', tls: 'tls-report', cert: 'certificate-report' }[type];
       await api.download(`/api/v1/scans/${shown.id}/report.pdf?kind=${type}`, `${stem}-${suffix}.pdf`);
       return;
     }
@@ -190,7 +191,8 @@ export async function render(root, { args, query }) {
         const current = EXPORT_TYPES.find(([v]) => v === type);
         if (!current[3].includes(format)) format = current[3][0];
         box.append(...[
-          h('div', { class: 'exportgrid' }, EXPORT_TYPES.map(([v, label, desc]) => h('label', { class: 'exportopt' },
+          // An SSH endpoint has no TLS or certificate report (REQ-SHO-3).
+          h('div', { class: 'exportgrid' }, EXPORT_TYPES.filter(([v]) => asset.protocol !== 'ssh' || !['tls', 'cert'].includes(v)).map(([v, label, desc]) => h('label', { class: 'exportopt' },
             h('input', { type: 'radio', name: 'export-type', value: v, checked: type === v, onchange: () => { type = v; draw(); } }),
             h('div', null, h('div', { class: 'exportopt-label' }, label), h('div', { class: 'exportopt-desc' }, desc))))),
           h('label', { for: 'export-format' }, 'Format'),
@@ -220,7 +222,8 @@ export async function render(root, { args, query }) {
     head.appendChild(h('div', { class: 'page-head report-head' },
       h('div', null, h('h1', null, a.name),
         h('div', { class: 'sub' }, a.name !== a.address ? [h('code', null, a.address), ' · '] : null,
-          viaStartTLS(a) ? [h('span', { class: 'via' }, viaStartTLS(a)), ' · '] : null, h('span', { class: 'muted' }, capitalFirst(scanned)),
+          viaStartTLS(a) ? [h('span', { class: 'via' }, viaStartTLS(a)), ' · '] : null,
+          a.protocol === 'ssh' ? [h('span', { class: 'via' }, `SSH${a.lastDone && a.lastDone.service ? ` · ${a.lastDone.service}` : ''}`), ' · '] : null, h('span', { class: 'muted' }, capitalFirst(scanned)),
           a.tags.length ? h('span', null, ' ', a.tags.map((t) => h('span', { class: 'tag' }, t))) : null),
         linkedAssets.length ? h('div', { class: 'sub' }, 'Same machine as ', linkedAssets.map((x, i) => [i ? ', ' : '',
           h('a', { href: `#/${x.kind === 'host' ? 'machines' : 'endpoints'}/${x.id}` }, x.name)])) : null,
@@ -247,7 +250,7 @@ export async function render(root, { args, query }) {
     }
     if (!ev) {
       if (!active && !(a.latest && a.latest.status === 'failed')) {
-        body.appendChild(empty('Not scanned yet', 'Run a scan to see this endpoint’s PQC readiness, TLS hygiene and findings.',
+        body.appendChild(empty('Not scanned yet', 'Run a scan to see this endpoint’s post-quantum readiness, hygiene score and findings.',
           button('Scan now', startScan, 'primary')));
       }
       if (history.some((p) => p.status === 'done')) body.appendChild(historySection());
@@ -320,7 +323,7 @@ export async function render(root, { args, query }) {
           try { await navigator.clipboard.writeText(location.href); toast('Link copied', 'success'); } catch { toast(location.href); }
         }) : null,
         h('label', { class: 'menu-field' }, 'Rescan automatically', scheduleSelect(a)),
-        item('Edit name, tags, notes and STARTTLS', () => editDialog(a, refresh)),
+        item(a.protocol === 'ssh' ? 'Edit name, tags and notes' : 'Edit name, tags, notes and STARTTLS', () => editDialog(a, refresh)),
         item('Link to a machine', linkDialog),
         linkedAssets.map((x) => item(`Unlink ${x.name}`, async () => {
           try { await api.unlinkAsset(id, x.id); toast('Unlinked'); await refresh(); } catch (e) { toast(e.message, 'error'); }
@@ -538,7 +541,7 @@ export async function render(root, { args, query }) {
     const done = history.filter((p) => p.status === 'done');
     const wrap = h('div', { class: 'stack' });
     wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'Readiness over time'), historyChart(history),
-      h('p', { class: 'hint' }, 'Each point is a completed scan, labelled with its TLS hygiene score.')));
+      h('p', { class: 'hint' }, 'Each point is a completed scan, labelled with its hygiene score.')));
 
     const diffBox = h('div');
     const loadDiff = async (from, to) => {
@@ -559,7 +562,7 @@ export async function render(root, { args, query }) {
 
     wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'All scans'),
       h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-        h('thead', null, h('tr', null, ['When', 'Started by', 'Status', 'Readiness', 'TLS hygiene', 'Findings', ''].map((c) => h('th', { scope: 'col' }, c)))),
+        h('thead', null, h('tr', null, ['When', 'Started by', 'Status', 'Readiness', 'Hygiene', 'Findings', ''].map((c) => h('th', { scope: 'col' }, c)))),
         h('tbody', null, history.slice().reverse().map((p) => h('tr', null,
           h('td', null, fmtDate(p.at)), h('td', { class: 'muted' }, startedByWord(p)), h('td', null, statusPill(p.status), p.error ? h('div', { class: 'hint' }, p.error) : null),
           h('td', null, p.status === 'done' ? levelBadge(p.readinessLevel) : '·'), h('td', null, p.status === 'done' ? bandBadge(p.band, p.score) : '·'),
@@ -571,7 +574,8 @@ export async function render(root, { args, query }) {
   // A change doesn't carry a stable finding/detail id to deep-link to (only free
   // text), so this takes the user to the tab that shows it rather than
   // guessing at a specific row — honest partial credit, not a fabricated link.
-  const AREA_TAB = { finding: 'findings', protocol: 'tls', suite: 'tls', group: 'tls', certificate: 'tls', readiness: 'overview', hygiene: 'overview' };
+  const AREA_TAB = { finding: 'findings', protocol: 'tls', suite: 'tls', group: 'tls', certificate: 'tls', readiness: 'overview', hygiene: 'overview',
+    kex: 'configuration', 'host-key': 'configuration', cipher: 'configuration', mac: 'configuration' };
   const diffView = (d) => {
     const x = d.diff;
     return h('div', null, h('p', null, h('b', null, x.summary)),
@@ -633,11 +637,11 @@ function editDialog(a, done) {
     return h('form', { class: 'modal-body', onsubmit: async (e) => {
       e.preventDefault();
       try {
-        await api.patchAsset(a.id, { name: name.value, tags: tags.value.split(',').map((t) => t.trim()).filter(Boolean), notes: notes.value, starttls: proto.value });
+        await api.patchAsset(a.id, { name: name.value, tags: tags.value.split(',').map((t) => t.trim()).filter(Boolean), notes: notes.value, ...(a.protocol === 'ssh' ? {} : { starttls: proto.value }) });
         toast('Saved', 'success'); close(); done();
       } catch (ex) { err.textContent = ex.message; err.hidden = false; }
     } }, err, h('label', { for: 'e-name' }, 'Name'), name, h('label', { for: 'e-tags' }, 'Tags (comma separated)'), tags,
-    h('label', { for: 'e-starttls' }, 'How it starts TLS'), proto,
+    a.protocol === 'ssh' ? null : [h('label', { for: 'e-starttls' }, 'How it starts TLS'), proto],
     h('label', { for: 'e-notes' }, 'Notes'), notes,
     h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Save')));
   });
@@ -646,6 +650,7 @@ function editDialog(a, done) {
 // Why a scan failed, in words a person can act on, from the scanner's error text.
 function explainFailure(err, address) {
   const e = (err || '').toLowerCase();
+  if (/ssh identification/.test(e)) return ['It is not an SSH server.', 'Something answered on that port, but not with an SSH identification line. Check the port, or add the address as a TLS endpoint instead.'];
   if (/starttls/.test(e)) return ['The service did not switch to TLS.', 'It answered in plain text but did not agree to STARTTLS, or it is not the protocol chosen for this endpoint. Check how it starts TLS (Edit), or whether this port speaks TLS from the first byte.'];
   if (/refused/.test(e)) return ['Nothing accepted a connection.', `No program is listening on ${address}, or a firewall rejected the connection. Check the address and port, and that the server is running.`];
   if (/no such host|resolve|lookup/.test(e)) return ['The name does not resolve.', 'Check the spelling; the name may also exist only on another network.'];
