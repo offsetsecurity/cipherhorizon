@@ -1,6 +1,7 @@
 package eval_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -254,5 +255,52 @@ func TestHardenedServerMeetsTheBaseline(t *testing.T) {
 	c = baselineOf(t, sshScan(t, testserver.Start(t, cfg)))
 	if c.Meets || len(c.Changes) != 1 || c.Changes[0].Name != ssh.HMACSHA256 {
 		t.Errorf("with a non-ETM MAC: %+v", c)
+	}
+}
+
+// A section never reads good beside a baseline change: stock OpenSSH 10's MACs are only notes as
+// findings, but the integrity area needs attention because the baseline wants them off.
+func TestBaselineChangesMarkTheirSection(t *testing.T) {
+	st := map[string]string{}
+	for _, s := range sshEval(stockOpenSSH10()).Sections {
+		st[s.ID] = s.Status
+	}
+	if st[eval.SecIntegrity] != eval.StatusAttention || st[eval.SecEncryption] != eval.StatusGood {
+		t.Errorf("sections %v", st)
+	}
+	noPQ := modernSSH()
+	noPQ.Algorithms.Kex = []string{"curve25519-sha256"}
+	for _, s := range sshEval(noPQ).Sections {
+		if s.ID == eval.SecKeyExchange && s.Status == eval.StatusGood {
+			t.Error("key exchange reads good without the required hybrid")
+		}
+	}
+}
+
+// REQ-SHE-6: every SSH finding says how to fix it in sshd_config terms: the directive to change,
+// or, where configuration cannot fix it, the upgrade or the ssh-keygen command.
+func TestSSHRemediationNamesTheDirective(t *testing.T) {
+	r := legacySSH()
+	a := r.Algorithms
+	a.Kex = append(a.Kex, "rsa1024-sha1")
+	a.HostKey = append(a.HostKey, "ssh-dss")
+	a.CipherC2S = append(a.CipherC2S, "none", "arcfour", "des-cbc", "chacha20-poly1305@openssh.com")
+	a.MACC2S = append(a.MACC2S, "none", "umac-64@openssh.com")
+	a.StrictKex = false
+	r.HostKeys[0].Bits = 1024
+	r.Identification.SSH1 = true
+	directive := regexp.MustCompile(`KexAlgorithms|HostKeyAlgorithms|HostKey |Ciphers|MACs|Compression|[Uu]pgrade|ssh-keygen|-etm@openssh\.com`)
+	seen := map[string]bool{}
+	for _, f := range sshEval(r).Findings {
+		if !strings.HasPrefix(f.ID, "SSH.") || seen[f.ID] {
+			continue
+		}
+		seen[f.ID] = true
+		if !directive.MatchString(f.Remediation) {
+			t.Errorf("%s: remediation names no sshd_config directive or upgrade: %q", f.ID, f.Remediation)
+		}
+	}
+	if len(seen) < 14 {
+		t.Errorf("only %d SSH rules fired: %v", len(seen), seen)
 	}
 }

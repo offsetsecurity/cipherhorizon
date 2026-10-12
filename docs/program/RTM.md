@@ -259,7 +259,7 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 
 ## PRD-008 · Post-quantum signatures in TLS, and SSH endpoints ([PRD-008](../product/PRD-008-pq-signatures-and-ssh.md); WP-A results in [QA-REPORT-008](QA-REPORT-008.md))
 
-WP-B to WP-G (SSH) ship in a second pull request, amended 2026-10-13 per [STRATEGY-003](../strategy/STRATEGY-003-multi-protocol-product.md) (a page per protocol, baseline conformance), so they stay `todo` here.
+WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRATEGY-003](../strategy/STRATEGY-003-multi-protocol-product.md) (a page per protocol, baseline conformance). Results in QA-REPORT-008 §5 to §8.
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -268,52 +268,52 @@ WP-B to WP-G (SSH) ship in a second pull request, amended 2026-10-13 per [STRATE
 | REQ-PQS-3 | P0 | WP-A | PRD-008 | — | TestSignatureStageListsAcceptedSchemes | done | 15 connections; each hello carries real key shares so a Go server cannot answer with HelloRetryRequest before choosing |
 | REQ-PQS-4 | P0 | WP-A | PRD-008 | — | TestSignatureStageControlCatchesServersThatIgnoreTheList | done | control code point 0xFE01 (private use) |
 | REQ-PQS-5 | P0 | WP-A | PRD-008 | — | TestDualCertificateServerReachesL4 | done | control accepted keeps L3; ML-DSA without a hybrid group stays L1 |
-| REQ-PQS-6 | P0 | WP-A | PRD-008 | — | TestEndpointCBOMListsAcceptedSignatureAlgorithms, script:testing/e2e/pqs-phase.mjs#E2E-S.1 | done | report Configuration tab, PDF stage table and endpoint CBOM |
+| REQ-PQS-6 | P0 | WP-A | PRD-008 | — | TestEndpointCBOMListsAcceptedSignatureAlgorithms, script:testing/e2e/pqs-phase.mjs#E2E-PQS.1 | done | report Configuration tab, PDF stage table and endpoint CBOM |
 | REQ-PQS-7 | P0 | WP-A | PRD-008 | — | TestOldReportsEvaluateUnchanged | done | a report without the stage shows it as not collected |
-| REQ-PQS-8 | P1 | WP-A | PRD-008 | — | script:testing/e2e/pqs-phase.mjs#E2E-S.1 | done | demo-targets base+18 (ML-DSA only) and base+19 (ECDSA + ML-DSA), both L4 in the journey |
+| REQ-PQS-8 | P1 | WP-A | PRD-008 | — | script:testing/e2e/pqs-phase.mjs#E2E-PQS.1 | done | demo-targets base+18 (ML-DSA only) and base+19 (ECDSA + ML-DSA), both L4 in the journey |
 | REQ-PQS-9 | P0 | WP-A | PRD-008 | — | TestDocsNameTheGoVersion | done | go.mod go 1.27.0; README, CONTRIBUTING and badge agree |
-| REQ-SHP-1 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHP-2 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHP-3 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHP-4 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHP-5 | P1 | WP-B | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHP-6 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHP-7 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHP-8 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHE-1 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHE-2 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHE-3 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHE-4 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHE-5 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHE-6 | P1 | WP-C | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHE-7 | P1 | WP-C | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHW-1 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHW-2 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHW-3 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHW-4 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHW-5 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHW-6 | P1 | WP-D | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHW-7 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHW-8 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHB-1 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHB-2 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHB-3 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHB-4 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHB-5 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHB-6 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHB-7 | P1 | WP-G | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHB-8 | P0 | WP-G | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHO-1 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHO-2 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHO-3 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHO-4 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHO-5 | P1 | WP-E | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHO-6 | P1 | WP-E | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHN-1 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHN-2 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHN-3 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHN-4 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
-| REQ-SHN-5 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHP-1 | P0 | WP-B | PRD-008 | — | TestIdentificationIsParsed, FuzzIdentification | done | up to 20 preceding lines; SSH-1-only servers stop there |
+| REQ-SHP-2 | P0 | WP-B | PRD-008 | — | TestKEXINITListsMatchTheServer, FuzzKEXINIT, oracle:testing/ssh/oracle.sh | done | lists AGREE with sshd -T on OpenSSH 9.2 and 10.0, three configurations each |
+| REQ-SHP-3 | P0 | WP-B | PRD-008 | — | TestNegotiationCompletesTheHybridExchange, oracle:testing/ssh/oracle.sh | done | negotiated kex AGREEs with ssh -vv on 10.0; implemented: ML-KEM hybrid, curve25519, ECDH P-256/384/521, MODP group1/14/16 (not group18 or group exchange: such a server is judged on its lists, host keys inconclusive with the reason) |
+| REQ-SHP-4 | P0 | WP-B | PRD-008 | — | TestHostKeysAreReadPerAlgorithm, oracle:testing/ssh/oracle.sh | done | fingerprints AGREE with ssh-keygen; every signature verified |
+| REQ-SHP-5 | P1 | WP-B | PRD-008 | — | TestHostCertificatesAreParsed | done |  |
+| REQ-SHP-6 | P0 | WP-B | PRD-008 | — | TestStagesSayWhatTheyCouldNotDo | done |  |
+| REQ-SHP-7 | P0 | WP-B | PRD-008 | — | TestSSHScanRespectsTheGuardAndBudget, script:testing/e2e/security.sh | done | security.sh: ssh:// to the metadata address and to loopback refused |
+| REQ-SHP-8 | P0 | WP-B | PRD-008 | — | FuzzKEXINIT, FuzzHostKeyBlob, FuzzKEXReply, FuzzIdentification | done |  |
+| REQ-SHE-1 | P0 | WP-C | PRD-008 | — | TestSSHEvaluationHasTheSameShape, TestFleetSummaryByProtocol, TestFleetFindingsSpansAssetKinds | done |  |
+| REQ-SHE-2 | P0 | WP-C | PRD-008 | — | TestSSHReadinessLevels | done |  |
+| REQ-SHE-3 | P0 | WP-C | PRD-008 | — | TestSntrupCountsButIsNoted | done |  |
+| REQ-SHE-4 | P0 | WP-C | PRD-008 | — | TestSSHRules, TestEverySSHRuleIsCited, TestUMAC64AloneIsLow | done | 18 rules; a 64-bit UMAC alone is Low |
+| REQ-SHE-5 | P0 | WP-C | PRD-008 | — | TestSSHHasNoHygieneScore, TestFleetBandsCountTLSOnly, TestSSHServersAreNamedAndNotScored, script:testing/e2e/ssh-phase.mjs#E2E-H.2 | done | stored band empty, score -1; no screen, PDF or CLI shows a score |
+| REQ-SHE-6 | P1 | WP-C | PRD-008 | — | TestSSHRemediationNamesTheDirective | done |  |
+| REQ-SHE-7 | P1 | WP-C | PRD-008 | — | TestSSHDiff | done | the diff compares baseline verdicts, not scores |
+| REQ-SHW-1 | P0 | WP-D | PRD-008 | — | TestSSHTargetsAreRecognised, script:testing/e2e/ssh-phase.mjs#E2E-H.1, script:testing/e2e/ssh-phase.mjs#E2E-H.1e | done | scan-box chip: Scan as TLS / SSH, a click switches it |
+| REQ-SHW-2 | P0 | WP-D | PRD-008 | — | script:testing/e2e/ssh-phase.mjs#E2E-H.1c, script:testing/e2e/ssh-phase.mjs#E2E-H.1d | done | old #/endpoints/{id} links to SSH servers redirect |
+| REQ-SHW-3 | P0 | WP-D | PRD-008 | — | TestSSHReportCopyHasNoTLSWords, script:testing/e2e/ssh-phase.mjs#E2E-H.2, script:testing/e2e/ssh-phase.mjs#E2E-H.2c | done | baseline tile and action item; Configuration leads with the baseline block |
+| REQ-SHW-4 | P0 | WP-D | PRD-008 | — | TestFleetSummaryByProtocol, script:testing/e2e/ssh-phase.mjs#E2E-H.3, script:testing/e2e/ssh-phase.mjs#E2E-H.3c | done | Overview cards per protocol; the certificate-expiry figure folded into the TLS card |
+| REQ-SHW-5 | P0 | WP-D | PRD-008 | — | TestSSHEndpointWorkflow | done |  |
+| REQ-SHW-6 | P1 | WP-D | PRD-008 | — | script:testing/e2e/ssh-phase.mjs#E2E-H.4 | done |  |
+| REQ-SHW-7 | P0 | WP-D | PRD-008 | — | script:testing/e2e/ssh-phase.mjs#E2E-H.3b | done | one filter: everywhere, TLS endpoints, SSH servers, machines |
+| REQ-SHW-8 | P0 | WP-D | PRD-008 | — | TestTheProductTellsItsStory, TestHelpCarriesTheOneLiner, TestNoSurfaceSaysTLSScannerAlone | done |  |
+| REQ-SHB-1 | P0 | WP-G | PRD-008 | — | TestEveryBaselineEntryIsCited | done |  |
+| REQ-SHB-2 | P0 | WP-G | PRD-008 | — | TestCipherHorizonBaseline2026, oracle:testing/ssh/oracle.sh | done | stock OpenSSH 10 fails on its MACs only |
+| REQ-SHB-3 | P0 | WP-G | PRD-008 | — | TestBaselineConformance, TestHardenedServerMeetsTheBaseline, TestBaselineChangesMarkTheirSection | done |  |
+| REQ-SHB-4 | P0 | WP-G | PRD-008 | — | TestGeneratedSSHDConfig, oracle:testing/ssh/oracle.sh | done | comments on lines of their own; the header says lines go first |
+| REQ-SHB-5 | P0 | WP-G | PRD-008 | — | TestBaselineIsStoredWithTheScan | done | migration 14 |
+| REQ-SHB-6 | P0 | WP-G | PRD-008 | — | TestSSHFailOnBaseline, TestSSHBaselinesCommand | done |  |
+| REQ-SHB-7 | P1 | WP-G | PRD-008 | — | — | deferred | BSI publishes TR-02102-4 only as image PDFs; the transcription found is of an older edition. Needs a verified transcription of the 2026-01 tables (owner) |
+| REQ-SHB-8 | P0 | WP-G | PRD-008 | — | TestSSHPDF | done |  |
+| REQ-SHO-1 | P0 | WP-E | PRD-008 | — | TestSSHCBOMIsSchemaValid, TestSSHCBOMMarksTheNegotiatedChoices | done |  |
+| REQ-SHO-2 | P0 | WP-E | PRD-008 | — | TestSSHEndpointWorkflow | done | the inventory CBOM carries protocol/ssh/2.0 |
+| REQ-SHO-3 | P0 | WP-E | PRD-008 | — | TestSSHPDF | done |  |
+| REQ-SHO-4 | P0 | WP-E | PRD-008 | — | TestSSHScanPrintsTheVerdict, TestSSHFailOn | done |  |
+| REQ-SHO-5 | P1 | WP-E | PRD-008 | — | TestSSHScanProjectsIntoTheGraph | done |  |
+| REQ-SHO-6 | P1 | WP-E | PRD-008 | — | TestOpenAPIDescribesSSH, TestOpenAPIDescribesExactlyTheRegisteredRoutes | done |  |
+| REQ-SHN-1 | P0 | WP-F | PRD-008 | — | TestHardenedServerMeetsTheBaseline, script:testing/e2e/ssh-phase.mjs#E2E-H.1b | done | base+20..27; base+27 meets the baseline |
+| REQ-SHN-2 | P0 | WP-F | PRD-008 | — | oracle:testing/ssh/oracle.sh | done | 37 AGREE, 0 DISAGREE; the baseline lines pass sshd -t and the rescan meets the baseline on 9.2 and 10.0 |
+| REQ-SHN-3 | P0 | WP-F | PRD-008 | — | report:docs/ssh-scanning.md | done | and methodology.md (SSH), CI.md, README |
+| REQ-SHN-4 | P0 | WP-F | PRD-008 | — | report:docs/program/QA-REPORT-008.md | done |  |
+| REQ-SHN-5 | P0 | WP-F | PRD-008 | — | FuzzIdentification, FuzzKEXINIT, FuzzHostKeyBlob, FuzzKEXReply | done | 3.2M to 5.2M executions each, clean |
 
 ## Security requirements (SECARCH-001) coverage
 

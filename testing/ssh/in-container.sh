@@ -49,5 +49,30 @@ for cfg in /oracle/configs/*.conf; do
   fi
   echo "   level L$(jq -r '.[0].evaluation.readiness.level' /tmp/rep.json) $(jq -r '.[0].evaluation.readiness.label' /tmp/rep.json), findings: $(jq -r '[.[0].evaluation.findings[].id] | unique | join(" ")' /tmp/rep.json)"
   kill $pid; wait $pid 2>/dev/null
+  # REQ-SHB-4: the generated sshd_config lines, put first (sshd keeps the first value of a keyword),
+  # must pass sshd -t, and the rescan must leave only what configuration cannot fix (an upgrade, a key).
+  meets=$(jq -r '.[0].evaluation.baseline.meets' /tmp/rep.json)
+  if [ "$meets" = true ]; then
+    echo "   baseline: meets"
+  else
+    fixed=/tmp/sshd-$name-fixed.conf
+    { jq -r '.[0].evaluation.baseline.sshdConfig' /tmp/rep.json; cat "$conf"; } > "$fixed"
+    if ! /usr/sbin/sshd -t -f "$fixed" 2>/tmp/err; then
+      echo "   DISAGREE baseline lines rejected by sshd -t: $(head -1 /tmp/err)"; fail=1
+    else
+      /usr/sbin/sshd -f "$fixed" -D -E /tmp/sshd-$name-fixed.log &
+      pid=$!
+      sleep 1
+      "$CH" ssh scan --json 127.0.0.1:2222 >/tmp/rep2.json 2>/tmp/scan.err
+      left=$(jq -r '[.[0].evaluation.baseline.changes[] | select(.action == "remove" or .action == "add")] | length' /tmp/rep2.json)
+      rest=$(jq -r '[.[0].evaluation.baseline.changes[].action] | join(",")' /tmp/rep2.json)
+      if [ "$left" = 0 ]; then
+        echo "   AGREE    baseline lines accepted by sshd -t; rescan $(jq -r 'if .[0].evaluation.baseline.meets then "meets the baseline" else "leaves only: " + ([.[0].evaluation.baseline.changes[].action] | join(", ")) end' /tmp/rep2.json)"
+      else
+        echo "   DISAGREE after the baseline lines, still to change: $rest"; fail=1
+      fi
+      kill $pid; wait $pid 2>/dev/null
+    fi
+  fi
 done
 exit $fail

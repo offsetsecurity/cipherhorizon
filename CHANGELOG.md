@@ -19,15 +19,24 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
+- **SSH servers.** CipherHorizon now audits SSH servers as well as TLS endpoints, with its own SSH implementation
+  (standard library only). It reads what a server offers, negotiates as OpenSSH 10.6 would (the ML-KEM hybrid
+  included), fetches and verifies every host key (Ed25519, ECDSA, RSA, ML-DSA, the composite
+  `ssh-mldsa44-ed25519`), and never logs in. At most 24 connections a scan; the address guard applies.
+  - **A page of its own**, *SSH servers*, beside *TLS endpoints* in the menu, each with its own columns.
+  - **Readiness L0 to L4** by SSH's own rules: hybrid key exchange for L3, a post-quantum host key for L4.
+  - **Judged against the CipherHorizon SSH baseline 2026**, a cited list of what an SSH server may and must offer.
+    The report says whether the server meets it and gives the `sshd_config` lines that would make it. Checked
+    against real OpenSSH 9.2 and 10.0: `sshd -t` accepts the lines, and the rescan meets the baseline.
+  - **18 cited checks**, an SSH CBOM, an SSH PDF, history with diffs, and `cipherhorizon ssh scan` with
+    `--baseline` and `--fail-on baseline`. `cipherhorizon ssh baselines` lists the baseline with its sources;
+    `GET /api/v1/ssh/baselines` returns it.
+  - **`demo-targets`** serves seven SSH servers (base+20 to base+27), from an SSH-1 banner to an ML-DSA host key,
+    one of them hardened to meet the baseline.
 - **Signature schemes (TLS 1.3).** A new scan stage tests, one scheme per hello, which signature schemes the
   server holds keys for, with a control that catches servers answering regardless. An accepted ML-DSA scheme lifts
   L3 to L4 even when the default certificate is classical. Shown in the report, the PDF and the endpoint CBOM.
 - `demo-targets` serves an ML-DSA-only and an ECDSA + ML-DSA TLS server (both L4).
-
-### Changed
-
-- Go 1.27 or newer is required to build (`crypto/mldsa`).
-
 - **Linux packages.** `.deb` and `.rpm` (amd64, arm64) install the binary, the hardened systemd unit and
   `/etc/cipherhorizon/env` for its options (kept on upgrade). The service is installed but not started.
   Upgrades restart a running service; removal stops it and keeps the database. CI installs both packages on
@@ -42,6 +51,20 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Changed
 
+- **The product is multi-protocol.** It introduces itself as post-quantum readiness for the protocols your
+  organisation runs on: TLS, SSH and, next, VPN. This applies to the CLI, the container label, the packages, the
+  README, the site, the sign-in panel, About, Help, the sidebar and the PDFs.
+  - **The Overview** has a card per protocol, each with its own measure, and the readiness scale states its rules
+    for TLS and for SSH.
+  - **The scan box** says *Scan as TLS* or *Scan as SSH* before it scans.
+  - **Findings** filters by protocol.
+  - **Reports** groups documents by protocol.
+  - **No list, total or sort ever adds an SSH result to a TLS hygiene score.**
+- **The endpoints CSV** gains `ssh_baseline`, `ssh_baseline_meets` and `ssh_baseline_changes` columns.
+  `GET /api/v1/scans` takes `kind=`.
+- Evaluations are `eval/8`; each endpoint's latest result is re-evaluated on start. Migration 14 stores each SSH scan's baseline
+  verdict.
+- Go 1.27 or newer is required to build (`crypto/mldsa`).
 - **The database has a home.** Without `--db`, the database now goes in the per-user data folder
   (`%LOCALAPPDATA%\CipherHorizon`, `~/Library/Application Support/CipherHorizon`,
   `~/.local/share/cipherhorizon`) instead of whatever folder the server was started from. `CIPHERHORIZON_DB`
