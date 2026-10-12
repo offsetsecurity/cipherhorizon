@@ -112,7 +112,7 @@ func drawCover(p *pdf.Page, c cover) {
 	p.Rect(0, coverH-3, pdf.PageWidth, 3, blue)
 	drawMark(p, marginX, 26, 24)
 	p.Text(marginX+30, 38, pdf.Bold, 11.5, white, "CipherHorizon")
-	p.Text(marginX+30, 49, pdf.Mono, 6.8, onNavy, "TLS and post-quantum scanner")
+	p.Text(marginX+30, 49, pdf.Mono, 6.8, onNavy, "TLS · SSH · post-quantum readiness")
 	p.TextRight(right, 44, pdf.Bold, 8, onNavyAcc, c.kicker)
 	size := 24.0
 	for size > 15 && pdf.Width(pdf.Bold, size, c.title) > right-marginX {

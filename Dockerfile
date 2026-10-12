@@ -30,7 +30,7 @@ FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c
 ARG VERSION=0.0.0-dev
 ARG COMMIT=
 LABEL org.opencontainers.image.title="CipherHorizon" \
-      org.opencontainers.image.description="Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted." \
+      org.opencontainers.image.description="Post-quantum readiness for the protocols your organisation runs on: TLS, SSH and, next, VPN. A deep scan of each, a readiness level from L0 to L4, and one CycloneDX CBOM, self-hosted." \
       org.opencontainers.image.vendor="Offset Security" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}" \

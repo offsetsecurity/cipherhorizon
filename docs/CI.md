@@ -27,7 +27,8 @@ Quote the conditions: `<` and `>` mean redirection to a shell.
 | Condition | Fails when |
 |---|---|
 | `level<L3` | Post-quantum readiness is below level 3: a current client does not negotiate a hybrid post-quantum key exchange (L1 to L4; `level<3` works too). |
-| `score<70` | The TLS hygiene score is below 70 (1 to 100). An endpoint that could not be rated fails. |
+| `score<70` | `tls scan` only. The TLS hygiene score is below 70 (1 to 100). An endpoint that could not be rated fails. |
+| `baseline` | `ssh scan` only. The server does not meet the SSH baseline (`--baseline ID`, default `cipherhorizon-ssh-2026`). SSH servers have no score, so `score<N` is refused for `ssh scan`. |
 | `severity>=high` | Any finding of this severity or worse: `critical`, `high`, `medium`, `low` or `info`. |
 | `finding=PROTO.TLS10` | This finding is present. The IDs are listed in [methodology.md](methodology.md). |
 
@@ -42,7 +43,19 @@ Give several conditions with commas or by repeating `--fail-on`; a target fails 
 ```
 
 `report` is what the scanner saw; `evaluation` is the judgement (readiness, TLS hygiene score,
-findings with remediation, every check run). The schema is the same one the server stores.
+findings with remediation, every check run). The schema is the same one the server stores. For an SSH server,
+`evaluation.baseline` holds the verdict, the changes and the `sshd_config` lines (`sshdConfig`).
+
+## SSH servers
+
+```sh
+cipherhorizon ssh scan --fail-on 'level<L3,baseline' bastion.example.com git.example.com:2222
+```
+
+`ssh scan` takes the same flags, conditions (but `baseline` instead of `score<N`) and exit codes. A server that does
+not meet the baseline fails with the number of changes; the text output ends with the `sshd_config` lines that would
+make it pass. The baselines and their sources: `cipherhorizon ssh baselines`. How SSH servers are judged:
+[ssh-scanning.md](ssh-scanning.md).
 
 ## GitHub Actions
 

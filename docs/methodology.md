@@ -24,7 +24,11 @@ No rule fires without at least one citation; a test (`TestEveryRuleFiresAndIsCit
 IANA supported-groups registry and RFC 10024 (hybrid key agreement for TLS 1.3), FIPS 203/204 (ML-KEM, ML-DSA),
 NIST IR 8547 (draft), and the CISA/NSA/NIST quantum-readiness factsheet for harvest-now-decrypt-later (HNDL).
 
-| Level | Rule | HNDL-exposed |
+The levels mean the same thing for every protocol: L1 exposed, L3 protected by a hybrid key exchange, L4
+post-quantum authenticated. Each protocol states its own rules. The TLS rules are below; the SSH rules are in
+[SSH](#ssh).
+
+| Level | Rule (TLS) | HNDL-exposed |
 |---|---|---|
 | **?** Undetermined | The scan could not establish whether TLS 1.3 is supported (probes were inconclusive). | no |
 | **L0** Not ready | TLS 1.3 is not supported. Post-quantum key exchange in TLS exists only as TLS 1.3 groups. | yes |
@@ -132,12 +136,58 @@ takes every finding except info, orders it by severity, then by whether it stops
 untrusted, name mismatch, missing intermediate, no serverAuth, Must-Staple missing, revoked), then by section order,
 and shows the first three distinct rules.
 
+## SSH
+
+SSH servers share the readiness scale and the findings model. They are **not scored**: an SSH server is judged against
+an **SSH baseline** ([ssh-scanning.md](ssh-scanning.md#the-ssh-baseline)), and the report says whether it meets it
+and which `sshd_config` lines would make it. No list, total or sort ever adds an SSH result to a TLS hygiene score.
+
+### Readiness, SSH rules
+
+| Level | Rule (SSH) | HNDL-exposed |
+|---|---|---|
+| **?** Undetermined | The server's key exchange list was not read. | no |
+| **L0** Not ready | The server speaks only SSH-1. | yes |
+| **L1** Exposed | No post-quantum hybrid key exchange is offered. | yes |
+| **L2** Hybrid available | A hybrid is offered, but a current client (OpenSSH 10.6's defaults, RFC 4253 §7.1) does not end up using it. | yes |
+| **L3** Hybrid negotiated | A current client negotiates `mlkem768x25519-sha256` (RFC 10042) or `sntrup761x25519-sha512` (RFC 9941; noted Low as not FIPS 203). | no |
+| **L4** PQ-authenticated | L3, plus a post-quantum host key: `ssh-mldsa44-ed25519`, `ssh-mldsa87-p384` (draft-miller-sshm-composite-sigs) or `ssh-mldsa-44/65/87` (draft-sfluhrer-ssh-mldsa). | no |
+
+### SSH checks
+
+| ID | Finding | Severity | Source |
+|---|---|---|---|
+| `SSH.PROTOCOL-1` | SSH protocol version 1 is accepted | Critical | CVE-2001-0144; OpenSSH 7.4 |
+| `SSH.KEX-WEAK-GROUP` | A key exchange with a group or key under 2048 bits | High | RFC 9142; Logjam |
+| `SSH.KEX-SHA1` | A key exchange hashed with SHA-1 | Low | RFC 9142; SP 800-131A |
+| `SSH.HOSTKEY-DSA` | A DSA host key | High | FIPS 186-5; OpenSSH 10.0 |
+| `SSH.HOSTKEY-RSA-SHA1` | `ssh-rsa` (SHA-1) signatures | Medium | RFC 8332; OpenSSH 8.8; SP 800-131A |
+| `SSH.HOSTKEY-RSA-SMALL` | An RSA host key under 2048 bits (High); under 3072 (Low) | High | SP 800-131A; SP 800-57 |
+| `SSH.HOSTKEY-BAD-SIGNATURE` | A host key signature did not verify | Medium | RFC 4253 |
+| `SSH.CIPHER-NONE` | The `none` cipher | Critical | RFC 4253 |
+| `SSH.CIPHER-RC4` | RC4 (arcfour) | High | RFC 8758 |
+| `SSH.CIPHER-DES` | Single DES | High | SP 800-131A |
+| `SSH.CIPHER-64BIT-BLOCK` | 64-bit block ciphers (3DES, Blowfish, CAST) | Medium | Sweet32; SP 800-131A |
+| `SSH.CIPHER-CBC` | CBC modes | Low | CVE-2008-5161 |
+| `SSH.MAC-NONE` | The `none` MAC | Critical | RFC 4253 |
+| `SSH.MAC-WEAK` | MD5, truncated or 64-bit-tag MACs (a 64-bit UMAC alone is Low) | Medium | RFC 6151; RFC 6668 |
+| `SSH.MAC-SHA1` | HMAC-SHA-1 | Info | RFC 6668; SP 800-131A |
+| `SSH.MAC-NOT-ETM` | MACs over the plaintext (not encrypt-then-MAC) | Info | CVE-2008-5161; RFC 4253 |
+| `SSH.COMPRESSION-PREAUTH` | Compression before authentication | Info | OpenSSH 7.4 |
+| `SSH.TERRAPIN` | ChaCha20-Poly1305, or CBC with an ETM MAC, without strict key exchange | Medium (inferred) | CVE-2023-48795 |
+| `SSH.PQ-NOT-FIPS` | The only hybrid is sntrup761, not FIPS 203 | Low | RFC 9941; FIPS 203 |
+| `PQC.HNDL-EXPOSED`, `PQC.HYBRID-NOT-NEGOTIATED`, `PQC.CLASSICAL-AUTH` | Shared with TLS | as TLS | as TLS |
+
+The baseline and the checks agree on what is wrong; they answer different questions. The checks say how bad each
+problem is. The baseline says whether the server, as a whole, is configured as it should be.
+
 ## What a scan sends
 
 A few dozen to a few hundred short TLS handshakes per endpoint (a ClientHello, a read of the server's reply,
 close). No application data, no exploit traffic. Concurrency, connection budget and timeouts are bounded
 (`--concurrency`, `--timeout`; hard cap of 2000 connections per scan, after which the result is flagged
-incomplete). See [tls-scanning.md](tls-scanning.md) for the probe design and known limits.
+incomplete). See [tls-scanning.md](tls-scanning.md) for the probe design and known limits. An SSH scan makes at most 24
+connections and never logs in: [ssh-scanning.md](ssh-scanning.md#what-is-sent).
 
 ## Prioritisation: which systems to work on first
 

@@ -16,6 +16,7 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
 	"github.com/offsetsecurity/cipherhorizon/internal/sshcbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe/registry"
 	"github.com/offsetsecurity/cipherhorizon/internal/version"
 )
 
@@ -27,8 +28,11 @@ const sshNotice = `notice: "ssh scan" connects to each target a handful of times
 // sshCmd implements "cipherhorizon ssh scan [flags] HOST[:PORT]..." (PRD-008 REQ-SHO-4). It shares
 // --fail-on, the verdict and the exit codes with "tls scan".
 func sshCmd(ctx context.Context, args []string, env Env) int {
+	if len(args) > 0 && args[0] == "baselines" {
+		return sshBaselinesCmd(env)
+	}
 	if len(args) == 0 || args[0] != "scan" {
-		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon ssh scan [flags] HOST[:PORT]...")
+		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon ssh scan [flags] HOST[:PORT]...\n       cipherhorizon ssh baselines")
 		return ExitFatal
 	}
 	fl := flag.NewFlagSet("ssh scan", flag.ContinueOnError)
@@ -37,7 +41,8 @@ func sshCmd(ctx context.Context, args []string, env Env) int {
 	details := fl.Bool("details", false, "after the verdict, print the algorithm lists and host keys behind it")
 	var failOn stringList
 	fl.Var(&failOn, "fail-on", "exit 3 when a target meets this condition (repeatable, or comma separated): "+
-		"level<L3, score<70, severity>=high, finding=SSH.KEX-SHA1. A target that cannot be scanned also fails")
+		"level<L3, baseline, severity>=high, finding=SSH.KEX-SHA1. A target that cannot be scanned also fails")
+	baseline := fl.String("baseline", eval.BaselineDefault, "the SSH baseline to judge against (list them with: cipherhorizon ssh baselines)")
 	asCBOM := fl.Bool("cbom", false, "print a CycloneDX CBOM of what was observed instead of text (exactly one target)")
 	spec := fl.String("spec", cbom.DefaultSpec, "CycloneDX version of the CBOM: 1.7 or 1.6")
 	timeout := fl.Duration("timeout", 8*time.Second, "per-connection timeout")
@@ -63,8 +68,14 @@ func sshCmd(ctx context.Context, args []string, env Env) int {
 		return fatalf(env, "--cbom takes exactly one target; a CBOM has one subject. Run it once per endpoint")
 	}
 	policy, err := parsePolicy(failOn)
+	if err == nil {
+		err = policyFor(policy, eval.ProtocolSSH)
+	}
 	if err != nil {
 		return fatalf(env, "%v", err)
+	}
+	if _, ok := eval.SSHBaselineByID(*baseline); !ok {
+		return fatalf(env, "--baseline %q: no such baseline; list them with: cipherhorizon ssh baselines", *baseline)
 	}
 	if *asCBOM && len(policy) > 0 {
 		return fatalf(env, "--fail-on judges the evaluation, which a CBOM does not carry; use it with text or --json output")
@@ -119,7 +130,7 @@ func sshCmd(ctx context.Context, args []string, env Env) int {
 			}
 			continue
 		}
-		ev := eval.EvaluateSSH(rep, eval.Input{Now: now()})
+		ev := eval.EvaluateSSH(rep, eval.Input{Now: now(), SSHBaseline: *baseline})
 		if !unscanned {
 			for _, why := range breaches(policy, ev) {
 				failed = true
@@ -211,4 +222,39 @@ func writeSSHDetails(w io.Writer, rep *sshprobe.Report) {
 		fmt.Fprintf(&b, "  Host key         %s %s (%s), %s\n", k.Type, k.Fingerprint, strings.Join(k.ServedBy, ", "), v)
 	}
 	_, _ = io.WriteString(w, b.String())
+}
+
+// sshBaselinesCmd prints every SSH baseline with its entries and sources (PRD-008 REQ-SHB-6).
+func sshBaselinesCmd(env Env) int {
+	w := env.Stdout
+	kinds := []struct{ kind, title string }{{registry.KindKex, "Key exchange"}, {registry.KindHostKey, "Host keys"},
+		{registry.KindCipher, "Ciphers"}, {registry.KindMAC, "MACs"}, {registry.KindCompression, "Compression"}}
+	for i, b := range eval.SSHBaselines() {
+		if i > 0 {
+			_, _ = fmt.Fprintln(w)
+		}
+		def := ""
+		if b.ID == eval.BaselineDefault {
+			def = "  (default)"
+		}
+		_, _ = fmt.Fprintf(w, "%s%s\n  %s, version %s\n", b.ID, def, b.Title, b.Version)
+		for _, k := range kinds {
+			_, _ = fmt.Fprintf(w, "\n  %s allowed, in preference order\n", k.title)
+			for _, e := range b.Allowed[k.kind] {
+				since := "OpenSSH " + e.Since
+				if e.Since == "—" {
+					since = "not in OpenSSH"
+				}
+				_, _ = fmt.Fprintf(w, "    %-42s %-16s %s\n", e.Name, since, e.Cite.Title)
+			}
+		}
+		_, _ = fmt.Fprintln(w, "\n  Requirements")
+		for _, r := range b.Requires {
+			_, _ = fmt.Fprintf(w, "    %s. %s\n", r.Text, r.Cite.Title)
+		}
+		if b.MinRSABits > 0 {
+			_, _ = fmt.Fprintf(w, "    RSA host keys of at least %d bits.\n", b.MinRSABits)
+		}
+	}
+	return ExitOK
 }

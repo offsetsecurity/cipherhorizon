@@ -62,6 +62,8 @@ func parsePolicy(values []string) ([]policyCond, error) {
 					return nil, fmt.Errorf("--fail-on %q: the severity is critical, high, medium, low or info", c)
 				}
 				pc.kind, pc.n, pc.label = "severity", sev.Rank(), fmt.Sprintf("a %s finding or worse", sev)
+			case c == "baseline":
+				pc.kind, pc.label = "baseline", "does not meet the SSH baseline"
 			case strings.HasPrefix(c, "finding="):
 				id := strings.ToUpper(strings.TrimPrefix(c, "finding="))
 				if id == "" {
@@ -69,12 +71,26 @@ func parsePolicy(values []string) ([]policyCond, error) {
 				}
 				pc.kind, pc.id, pc.label = "finding", id, "finding "+id
 			default:
-				return nil, fmt.Errorf("--fail-on %q: use level<L3, score<70, severity>=high or finding=ID", c)
+				return nil, fmt.Errorf("--fail-on %q: use level<L3, score<70 (TLS), baseline (SSH), severity>=high or finding=ID", c)
 			}
 			out = append(out, pc)
 		}
 	}
 	return out, nil
+}
+
+// policyFor refuses the conditions that mean nothing for a protocol: an SSH server has no score
+// (PRD-008 REQ-SHE-5) and a TLS endpoint no SSH baseline.
+func policyFor(conds []policyCond, protocol string) error {
+	for _, c := range conds {
+		switch {
+		case c.kind == "score" && protocol == eval.ProtocolSSH:
+			return fmt.Errorf("--fail-on %q: SSH servers have no score; use --fail-on baseline", c.raw)
+		case c.kind == "baseline" && protocol != eval.ProtocolSSH:
+			return fmt.Errorf("--fail-on %q: the baseline condition is for ssh scan; TLS endpoints are rated by their hygiene score", c.raw)
+		}
+	}
+	return nil
 }
 
 // breaches lists the conditions an evaluation meets, each with what was seen.
@@ -108,6 +124,10 @@ func breaches(conds []policyCond, ev eval.Evaluation) []string {
 			if len(ids) > 0 {
 				out = append(out, fmt.Sprintf("%s (%s)", c.label, strings.Join(ids, ", ")))
 			}
+		case "baseline":
+			if b := ev.Baseline; b != nil && b.Judged && !b.Meets {
+				out = append(out, fmt.Sprintf("does not meet %s (%s)", b.Title, changesText(len(b.Changes))))
+			}
 		case "finding":
 			for _, f := range ev.Findings {
 				if f.ID == c.id {
@@ -134,10 +154,6 @@ func targetName(t tlsprobe.Target) string {
 func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 	var b strings.Builder
 	r, hy := ev.Readiness, ev.Hygiene
-	scoreLabel := "TLS hygiene score       "
-	if ev.Protocol == eval.ProtocolSSH {
-		scoreLabel = "SSH hygiene score       "
-	}
 	fmt.Fprintf(&b, "%s\n\n", target)
 	if r.Level < 0 {
 		b.WriteString("  Post-quantum readiness   not determined\n")
@@ -150,10 +166,21 @@ func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 	if r.HNDLExposed {
 		b.WriteString("                           Recorded traffic could be decrypted later (harvest now, decrypt later).\n")
 	}
-	if hy.Score >= 0 {
-		fmt.Fprintf(&b, "  %s %d / 100  %s\n", scoreLabel, hy.Score, hy.Band)
-	} else {
-		fmt.Fprintf(&b, "  %s not rated\n", scoreLabel)
+	switch base := ev.Baseline; {
+	case ev.Protocol == eval.ProtocolSSH && (base == nil || !base.Judged):
+		reason := "the server's lists were not read"
+		if base != nil && base.Reason != "" {
+			reason = strings.TrimSuffix(base.Reason, ".")
+		}
+		fmt.Fprintf(&b, "  Baseline                 not judged: %s\n", reason)
+	case ev.Protocol == eval.ProtocolSSH && base.Meets:
+		fmt.Fprintf(&b, "  Baseline                 meets %s\n", base.Title)
+	case ev.Protocol == eval.ProtocolSSH:
+		fmt.Fprintf(&b, "  Baseline                 does not meet %s (%s)\n", base.Title, changesText(len(base.Changes)))
+	case hy.Score >= 0:
+		fmt.Fprintf(&b, "  TLS hygiene score        %d / 100  %s\n", hy.Score, hy.Band)
+	default:
+		b.WriteString("  TLS hygiene score        not rated\n")
 	}
 	run, found, notChecked := 0, 0, 0
 	for _, c := range ev.Checks {
@@ -193,6 +220,12 @@ func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 			}
 		}
 	}
+	if base := ev.Baseline; base != nil && base.SSHDConfig != "" {
+		b.WriteString("\n  sshd_config lines that meet the baseline\n")
+		for _, line := range strings.Split(strings.TrimRight(base.SSHDConfig, "\n"), "\n") {
+			b.WriteString("    " + line + "\n")
+		}
+	}
 	if len(notes) > 0 {
 		b.WriteString("\n  Notes\n")
 		for _, f := range notes {
@@ -201,4 +234,12 @@ func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// changesText is "1 change" or "N changes".
+func changesText(n int) string {
+	if n == 1 {
+		return "1 change"
+	}
+	return strconv.Itoa(n) + " changes"
 }

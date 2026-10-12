@@ -104,8 +104,9 @@ The hero shows two tiles side by side, then the same narrative and next steps as
 
 1. **"Make this server meet the baseline"**, only when it doesn't. It holds:
    - a monospace block of the generated `sshd_config` lines, with a **Copy** button (copies the text exactly);
-   - a line underneath: *Add these lines to /etc/ssh/sshd_config (or a file in sshd_config.d), check them with
-     `sshd -t`, then reload sshd. Rescan to confirm.*
+   - a line underneath: *Put these lines at the top of /etc/ssh/sshd_config, or in a file under
+     /etc/ssh/sshd_config.d/ that is read first: sshd uses the first value of each keyword. Check with `sshd -t`, reload
+     sshd, and scan again.*
 
    Comments in the block (`# needs OpenSSH 9.9 or later`) are shown as part of the text, in the muted colour.
 2. **"What the baseline requires"**: three rows, each with ✓ or ✗ and its source:

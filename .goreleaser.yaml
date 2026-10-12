@@ -91,8 +91,8 @@ nfpms:
     homepage: https://offsetsecurity.net/post-quantum-cryptography-readiness.html
     maintainer: Offset Security <khalid.khan@offsetsecurity.net>
     description: |-
-      Post-quantum readiness for every TLS endpoint you run.
-      A deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted.
+      Post-quantum readiness for the protocols your organisation runs on: TLS, SSH and, next, VPN.
+      A deep scan of each, a readiness level from L0 to L4, and one CycloneDX CBOM, self-hosted.
     license: Apache-2.0
     section: net
     priority: optional

@@ -71,6 +71,9 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		return fatalf(env, "--cbom takes exactly one target; a CBOM has one subject. Run it once per endpoint")
 	}
 	policy, err := parsePolicy(failOn)
+	if err == nil {
+		err = policyFor(policy, "")
+	}
 	if err != nil {
 		return fatalf(env, "%v", err)
 	}
