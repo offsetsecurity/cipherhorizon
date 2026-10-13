@@ -125,7 +125,7 @@ Nothing has been pushed yet. Do this once, in order:
 5. `git remote add origin git@github.com:<owner>/cipherhorizon.git && git push -u origin main`.
 6. **Apply the settings and rulesets above.** The required checks only become selectable after CI has run once,
    so push, let CI run, then turn the rules on.
-7. Turn on GitHub Pages only if a docs site is wanted later (not needed for 0.1).
+7. No GitHub Pages site for now: the `pages` workflow was removed after v0.1.0; `site/` is kept for later.
 8. **Cut v0.1.0** by following [RELEASING.md](RELEASING.md).
 
 ## Moving to an organisation later

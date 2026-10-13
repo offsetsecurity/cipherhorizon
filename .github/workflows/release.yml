@@ -128,8 +128,10 @@ jobs:
             MODULE=${{ steps.mod.outputs.path }}
             VERSION=${{ needs.verify.outputs.version }}
             COMMIT=${{ github.sha }}
-          provenance: mode=max
-          sbom: true
+          # No BuildKit attestations in the registry: each added two untagged GHCR versions per release.
+          # Provenance is GitHub's attestation (gh attestation verify) and SBOMs are release assets.
+          provenance: false
+          sbom: false
       - name: Sign the image by digest (keyless)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -155,7 +157,8 @@ jobs:
         with:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+          # Kept in GitHub's attestation store, which gh attestation verify reads; not copied into GHCR.
+          push-to-registry: false
 
   publish:
     name: publish the release
