@@ -198,6 +198,8 @@ func (s *Server) bulkAssets(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Text string   `json:"text"`
 		Tags []string `json:"tags"`
+		// Protocol is what every line is added as: "auto" (the default), "tls" or "ssh".
+		Protocol string `json:"protocol"`
 	}
 	if !decode(w, r, &req) {
 		return
@@ -214,7 +216,7 @@ func (s *Server) bulkAssets(w http.ResponseWriter, r *http.Request) {
 		if in == "" || strings.HasPrefix(in, "#") {
 			continue
 		}
-		a, status, msg := s.newAsset(r.Context(), createReq{Target: in, Tags: req.Tags})
+		a, status, msg := s.newAsset(r.Context(), createReq{Target: in, Tags: req.Tags, Protocol: req.Protocol})
 		res := BulkResult{Line: i + 1, Input: in}
 		switch status {
 		case 0:

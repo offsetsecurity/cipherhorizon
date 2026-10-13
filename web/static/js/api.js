@@ -79,7 +79,7 @@ export const api = {
   asset: (id) => request('GET', `/api/v1/assets/${id}`),
   addAsset: (target, name, tags, starttls, protocol) => request('POST', '/api/v1/assets',
     { target, name: name || '', tags: tags || [], starttls: starttls || 'auto', protocol: protocol || 'auto' }),
-  addBulk: (text, tags) => request('POST', '/api/v1/assets/bulk', { text, tags: tags || [] }),
+  addBulk: (text, tags, protocol) => request('POST', '/api/v1/assets/bulk', { text, tags: tags || [], protocol: protocol || 'auto' }),
   patchAsset: (id, patch) => request('PATCH', `/api/v1/assets/${id}`, patch),
   deleteAsset: (id) => request('DELETE', `/api/v1/assets/${id}`),
 

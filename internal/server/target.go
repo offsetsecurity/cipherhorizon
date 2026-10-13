@@ -96,7 +96,10 @@ func assetKindFor(t targetSpec, requested string) (kind string, port int, msg st
 	port = t.port
 	req := strings.ToLower(strings.TrimSpace(requested))
 	if t.protocol != "" && req != "" && req != "auto" && req != t.protocol {
-		return "", 0, "the scheme says " + t.protocol + " but protocol " + req + " was chosen"
+		if t.protocol == "ssh" {
+			return "", 0, "an ssh:// address is an SSH server: add it under SSH servers"
+		}
+		return "", 0, "a TLS address (https://, smtp:// and the like) is a TLS endpoint: add it under TLS endpoints"
 	}
 	p := t.protocol
 	if p == "" {

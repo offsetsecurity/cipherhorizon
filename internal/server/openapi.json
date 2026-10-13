@@ -266,7 +266,7 @@
     },
     "/api/v1/assets/bulk": {
       "post": {
-        "summary": "Add many endpoints from lines of text; the reply says what happened to each line.",
+        "summary": "Add many endpoints from lines of text (text, tags, and protocol: auto, tls or ssh, which every line is added as); the reply says what happened to each line.",
         "tags": [
           "assets"
         ],

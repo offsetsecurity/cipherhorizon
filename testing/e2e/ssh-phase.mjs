@@ -22,7 +22,8 @@ export async function sshPhase({ check, js, go, sleep, shot, viewport, clickText
   await sleep(800);
   await js(`document.getElementById('ssh-add').click()`);
   await sleep(400);
-  const preset = await js(`return document.getElementById('add-protocol').value`);
+  // The SSH dialog asks no protocol: it adds SSH servers only (UX-DESIGN-007 §4.1).
+  const preset = await js(`return document.getElementById('add-protocol') ? 'has a protocol select' : 'ssh'`);
   await js(`document.getElementById('add-target').value = '127.0.0.1:9460'; document.getElementById('add-name').value = 'bastion-hybrid';
     document.querySelector('.modal form').requestSubmit();`);
   await sleep(1000);
@@ -30,7 +31,7 @@ export async function sshPhase({ check, js, go, sleep, shot, viewport, clickText
     body: JSON.stringify({ text: ['ssh://127.0.0.1:9461', 'ssh://127.0.0.1:9462', 'ssh://127.0.0.1:9463', 'ssh://127.0.0.1:9465', 'ssh://127.0.0.1:9467'].join(String.fromCharCode(10)) }) }).then((r) => r.json())`);
   const all = await js(`return (await fetch('/api/v1/assets?kind=endpoint')).json()`);
   const by = Object.fromEntries(all.filter((a) => PORTS.includes(a.port)).map((a) => [a.port, a]));
-  check('E2E-H.1', 'SSH servers has its own page; its add dialog is preset to SSH; ssh:// in a list adds SSH servers',
+  check('E2E-H.1', 'SSH servers has its own page; its add dialog asks no protocol and adds an SSH server; ssh:// in a list adds SSH servers',
     preset === 'ssh' && by[9460]?.protocol === 'ssh' && by[9460]?.name === 'bastion-hybrid' && PORTS.every((p) => by[p]?.protocol === 'ssh'),
     JSON.stringify({ preset, added: Object.values(by).map((a) => `${a.port}:${a.protocol}`) }));
   for (const p of PORTS) await scan(by[p].id);
@@ -59,6 +60,16 @@ export async function sshPhase({ check, js, go, sleep, shot, viewport, clickText
     !tls.rows.some((r) => /OpenSSH|:946[0-7]\b/.test(r)) && /TLS hygiene/.test(tls.head) && /Certificate expiry/.test(tls.head) &&
     tls.nav.includes('TLS endpoints') && tls.nav.includes('SSH servers'),
     JSON.stringify({ sshHead: ssh.head, n: ssh.rows.length, tlsHead: tls.head, nav: tls.nav }));
+
+  // E2E-H.1f: the TLS endpoints dialog chooses only how TLS starts: no SSH in it.
+  await clickText('Add TLS endpoints');
+  await sleep(400);
+  const tlsOpts = await js(`return [...document.querySelectorAll('#add-protocol option')].map((o) => o.textContent)`);
+  const tlsLabel = await js(`return document.querySelector('label[for=add-protocol]')?.textContent || ''`);
+  await js(`document.querySelector('.modal .icon-btn')?.click()`);
+  await sleep(200);
+  check('E2E-H.1f', 'the TLS endpoints dialog asks how TLS starts and offers no SSH',
+    tlsLabel === 'How it starts TLS' && tlsOpts.length >= 3 && !tlsOpts.some((o) => /SSH/.test(o)), JSON.stringify({ tlsLabel, tlsOpts }));
 
   // E2E-H.1d: an old #/endpoints/{id} link to an SSH server lands on its page under SSH servers.
   await go(`#/endpoints/${by[9460].id}`);
