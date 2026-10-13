@@ -52,7 +52,8 @@ const pending = new Map();
 const consoleErrors = [];
 
 async function connect() {
-  for (let i = 0; i < 100; i++) {
+  // Up to 60 s: a busy CI runner can take longer than 15 s to start a headless browser.
+  for (let i = 0; i < 400; i++) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
       const page = list.find((t) => t.type === 'page');
