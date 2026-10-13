@@ -145,9 +145,9 @@ signs:
     artifacts: checksum
     output: true
 
-# Release notes come from CHANGELOG.md (scripts/release-notes.sh), not from commit messages.
-changelog:
-  disable: true
+# Release notes come from CHANGELOG.md: release.yml passes scripts/release-notes.sh output with
+# --release-notes, which GoReleaser then uses instead of generating notes from commits. Do not set
+# changelog.disable: it also drops the --release-notes file, and v0.1.0 went out with the footer alone.
 
 release:
   # Created as a draft; the release workflow publishes it only after the container image and the
