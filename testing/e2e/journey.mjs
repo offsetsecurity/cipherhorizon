@@ -182,7 +182,7 @@ async function main() {
   const err = await js(`return document.querySelector('.modal .callout.bad')?.innerText || ''`);
   check('E2E-01.4', 'an invalid target is refused with a message', err.length > 0, err);
   await shot('add-endpoint-invalid', { full: false });
-  await js(`document.getElementById('add-target').value = '127.0.0.1:9440'; document.getElementById('add-name').value = 'modern-hybrid'; document.getElementById('add-tags').value = 'demo, web'; document.getElementById('add-tags').focus();`);
+  await js(`document.getElementById('add-scan').checked = false; document.getElementById('add-scan').dispatchEvent(new Event('change')); document.getElementById('add-target').value = '127.0.0.1:9440'; document.getElementById('add-name').value = 'modern-hybrid'; document.getElementById('add-tags').value = 'demo, web'; document.getElementById('add-tags').focus();`);
   // A real Enter key press (with its character), as a person would type it, must submit the form.
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: String.fromCharCode(13) });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
@@ -198,7 +198,7 @@ async function main() {
   await sleep(250);
   await clickText('Paste a list');
   await sleep(150);
-  await js(`document.getElementById('add-list').value = ${JSON.stringify(['# the demo targets', '127.0.0.1:9441', '127.0.0.1:9442', '127.0.0.1:9443', '127.0.0.1:9444', '127.0.0.1:9445', '127.0.0.1:9446', '127.0.0.1:9440', 'not a host!!', 'http://169.254.169.254/latest'].join('\n'))};
+  await js(`document.getElementById('add-scan').checked = false; document.getElementById('add-scan').dispatchEvent(new Event('change')); document.getElementById('add-list').value = ${JSON.stringify(['# the demo targets', '127.0.0.1:9441', '127.0.0.1:9442', '127.0.0.1:9443', '127.0.0.1:9444', '127.0.0.1:9445', '127.0.0.1:9446', '127.0.0.1:9440', 'not a host!!', 'http://169.254.169.254/latest'].join('\n'))};
     document.querySelector('.modal form').requestSubmit();`);
   await sleep(900);
   const bulk = await js(`return document.querySelector('.modal [role=status]')?.innerText || ''`);
@@ -367,7 +367,7 @@ async function main() {
   await go('#/assets');
   await clickText('Add TLS endpoints');
   await sleep(250);
-  await js(`document.getElementById('add-target').value = '127.0.0.2:9441';
+  await js(`document.getElementById('add-scan').checked = false; document.getElementById('add-scan').dispatchEvent(new Event('change')); document.getElementById('add-target').value = '127.0.0.2:9441';
     document.getElementById('add-name').value = '<img src=x onerror=window.__xss=1><script>window.__xss=2<\\/script>';
     document.getElementById('add-tags').value = '"><svg onload=window.__xss=3>';
     document.querySelector('.modal form').requestSubmit();`);
@@ -515,16 +515,19 @@ async function main() {
     window.fetch = async (...a) => { const r = await orig(...a); got = { url: String(a[0]), type: r.headers.get('content-type') }; return r; };
     b.click(); await new Promise((ok) => setTimeout(ok, 1500)); window.fetch = orig; return got;`);
   check('E2E-N.2', 'a document downloads in one click from Reports', !!pdf && /report\.pdf\?kind=full/.test(pdf.url) && /application\/pdf/.test(pdf.type), JSON.stringify(pdf));
-  // Scan a URL on the Endpoints page opens the scan box and lands on the new report.
+  // The TLS endpoints page has one way to add: its primary button opens the add dialog, whose Scan now
+  // (on by default) scans and lands on the report; an address already here is scanned again.
   await go('#/endpoints');
   await sleep(700);
-  await js(`document.getElementById('endpoints-scan').click()`);
+  const ways = await js(`return { head: [...document.querySelectorAll('.page-head button')].map((b) => b.textContent), toolbar: [...document.querySelectorAll('.toolbar-actions button')].map((b) => b.textContent) }`);
+  await js(`document.getElementById('endpoints-add').click()`);
   await sleep(300);
-  const scanDlg = await js(`return { open: !!document.querySelector('.modal[aria-label="Scan a URL"]'), focused: document.activeElement?.id }`);
-  await js(`const i = document.getElementById('scan-dialog-target'); i.value = '127.0.0.1:9440'; i.form.requestSubmit();`);
+  const scanDlg = await js(`return { open: !!document.querySelector('.modal[aria-label="Add TLS endpoints"]'), focused: document.activeElement?.id, scanNow: document.getElementById('add-scan')?.checked }`);
+  await js(`document.getElementById('add-target').value = '127.0.0.1:9440'; document.querySelector('.modal form').requestSubmit();`);
   const viaButton = await waitFor(async () => { const h = await js(`return location.hash`); return /^#\/endpoints\/\d+/.test(h) ? h : null; }, 8000, 200);
-  check('E2E-N.3', 'Scan a URL on Endpoints opens a scan box and lands on that endpoint\'s report', scanDlg.open && scanDlg.focused === 'scan-dialog-target' && viaButton === `#/endpoints/${by[9440].id}`,
-    JSON.stringify({ scanDlg, viaButton }));
+  check('E2E-N.3', 'TLS endpoints has one way to add (no second Add, no Scan a URL); its dialog scans by default and lands on the report, rescanning one already here',
+    ways.head.join() === 'Add TLS endpoints' && !ways.toolbar.some((t) => /^Add|Scan a URL/.test(t)) && scanDlg.open && scanDlg.focused === 'add-target' && scanDlg.scanNow === true &&
+    viaButton === `#/endpoints/${by[9440].id}`, JSON.stringify({ ways, scanDlg, viaButton }));
   await sleep(500);
   await go('#/findings');
   await sleep(1100);

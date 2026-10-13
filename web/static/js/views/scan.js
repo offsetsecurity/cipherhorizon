@@ -1,9 +1,8 @@
-// Scan a URL: the product's main action (UX-DESIGN-005 principle 3). The same box sits on top of
-// the Overview and opens from "Scan a URL" on the TLS endpoints page; either way a scan lands on
-// the report. The box says which protocol it will scan before it does (UX-DESIGN-007 §5).
+// The scan box: the product's main action (UX-DESIGN-005 principle 3), on top of the Overview. A
+// scan lands on the report. The box says which protocol it will scan before it does (UX-DESIGN-007
+// §5). On the TLS endpoints and SSH servers pages, the add dialog's Scan now does the same.
 import { h } from '../dom.js';
 import { api, ApiError } from '../api.js';
-import { modal } from '../ui.js';
 import { reportHref } from './assets.js';
 
 // isSSH: the address names an SSH server by its scheme.
@@ -102,16 +101,4 @@ export function scanForm(id, onStarted) {
   } }, input, chip, submit);
   const help = h('p', { class: 'hint', id: `${id}-help` }, 'Only scan systems you own or are authorised to test. A TLS scan makes a few hundred short handshakes; an SSH scan a handful of key exchanges, never a login.');
   return { input, nodes: [form, err, help] };
-}
-
-/** openScanDialog is the "Scan a URL" button of the Endpoints page. */
-export function openScanDialog() {
-  modal('Scan a URL', (close) => {
-    const { input, nodes } = scanForm('scan-dialog-target', close);
-    const body = h('div', { class: 'modal-body scan-dialog' },
-      h('p', { class: 'text-2' }, 'Enter a website, a TLS endpoint or an SSH server (ssh://bastion.example.com). You get its configuration, weaknesses, post-quantum readiness and its CBOM.'),
-      ...nodes);
-    setTimeout(() => input.focus(), 0);
-    return body;
-  });
 }

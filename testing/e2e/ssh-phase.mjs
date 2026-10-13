@@ -24,7 +24,7 @@ export async function sshPhase({ check, js, go, sleep, shot, viewport, clickText
   await sleep(400);
   // The SSH dialog asks no protocol: it adds SSH servers only (UX-DESIGN-007 §4.1).
   const preset = await js(`return document.getElementById('add-protocol') ? 'has a protocol select' : 'ssh'`);
-  await js(`document.getElementById('add-target').value = '127.0.0.1:9460'; document.getElementById('add-name').value = 'bastion-hybrid';
+  await js(`document.getElementById('add-scan').checked = false; document.getElementById('add-scan').dispatchEvent(new Event('change')); document.getElementById('add-target').value = '127.0.0.1:9460'; document.getElementById('add-name').value = 'bastion-hybrid';
     document.querySelector('.modal form').requestSubmit();`);
   await sleep(1000);
   await js(`return fetch('/api/v1/assets/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cipherhorizon' },
