@@ -37,8 +37,8 @@ export async function t1Phase(t) {
 
   // ---- data ------------------------------------------------------------------------------------------
   const rep = await repOf('corp');
-  check('T1-E2E.1', 'a new scan is a tls-report/2 with stage records and the HTTP stage on by default',
-    rep.schemaVersion === 'tls-report/2' && rep.stages.length === 7 && rep.stages.find((s) => s.name === 'http').outcome === 'done',
+  check('T1-E2E.1', 'a new scan is a tls-report/2 with stage records (including the TLS 1.3 signature stage) and the HTTP stage on by default',
+    rep.schemaVersion === 'tls-report/2' && rep.stages.length === 8 && rep.stages.some((s) => s.name === 'signatures') && rep.stages.find((s) => s.name === 'http').outcome === 'done',
     JSON.stringify(rep.stages?.map((s) => `${s.name}:${s.outcome}`)));
   const evBroken = await evOf('broken');
   check('T1-E2E.2', 'the broken chain is reported as a missing intermediate, first in Fix first',

@@ -108,6 +108,7 @@ func FromTLSReport(rep *tlsprobe.Report) []collector.CryptoAsset {
 		assets = append(assets, c)
 		index[c.Component.BOMRef] = len(assets) - 1
 	}
+	signatureAlgorithms(rep, emit, emitted)
 
 	markNegotiated(rep, emitted)
 
@@ -211,6 +212,58 @@ func markNegotiated(rep *tlsprobe.Report, emitted func(string) (*collector.Crypt
 		markNegotiatedOnce(emitted, ref)
 		return
 	}
+}
+
+// sigCatalogueID maps the key a TLS 1.3 signature scheme needs to its catalogue algorithm. A key
+// the catalogue does not carry (Ed448) gets no component: it stays named in the property below.
+func sigCatalogueID(algorithm string) (string, bool) {
+	switch algorithm {
+	case "ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "ECDSA", "Ed25519", "RSA":
+		return algorithm, true
+	case "RSASSA-PSS":
+		return "RSA", true
+	}
+	return "", false
+}
+
+// signatureAlgorithms records the TLS 1.3 signature schemes the signature stage proved the server
+// can sign with (PRD-008 REQ-PQS-6): the scheme names on the TLS 1.3 protocol component, and an
+// edge to each scheme's algorithm. Only a conclusive stage counts; nothing is marked negotiated,
+// because offering one scheme at a time shows what the server holds, not what a client uses.
+func signatureAlgorithms(rep *tlsprobe.Report, emit resolver, emitted func(string) (*collector.CryptoAsset, bool)) {
+	acc := rep.Signatures.Accepted()
+	if len(acc) == 0 {
+		return
+	}
+	if _, ok := emitted(protocolBOMRef("TLSv1.3")); !ok {
+		return
+	}
+	names := make([]string, 0, len(acc))
+	var refs []string
+	for _, s := range acc {
+		names = append(names, s.Name)
+		id, ok := sigCatalogueID(s.Algorithm)
+		if !ok {
+			continue
+		}
+		if ref, ok := emit(id); ok {
+			refs = append(refs, ref)
+		}
+	}
+	// Looked up only now: emit may have grown the slice the component lives in.
+	proto, _ := emitted(protocolBOMRef("TLSv1.3"))
+	addProperty(&proto.Component, "accepted-signature-schemes", strings.Join(names, ","))
+	have := map[string]bool{}
+	for _, d := range proto.DependsOn {
+		have[d] = true
+	}
+	for _, r := range refs {
+		if !have[r] {
+			have[r] = true
+			proto.DependsOn = append(proto.DependsOn, r)
+		}
+	}
+	sort.Strings(proto.DependsOn)
 }
 
 // markNegotiatedOnce flags the component with ref as used by the negotiated

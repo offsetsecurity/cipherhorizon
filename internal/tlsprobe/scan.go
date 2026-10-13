@@ -207,6 +207,30 @@ func Scan(ctx context.Context, t Target, opts Options) (rep *Report, err error) 
 			"no TLS version with a key exchange to test", ReasonNotApplicable, nil))
 	}
 
+	// Stage 3b: the TLS 1.3 signature schemes the server holds keys for (PRD-008 REQ-PQS-3).
+	sc.begin()
+	if tls13 != nil {
+		p.progress("testing signature schemes")
+		rep.Signatures = p.signatures(ctx, tls13small(protos), tls13.groups)
+		switch rep.Signatures.Control {
+		case SigAccepted:
+			rep.Stages = append(rep.Stages, sc.end(StageSignatures, OutcomeInconclusive, rep.Signatures.ControlWhy, "", probesSignatures))
+		case SigInconclusive:
+			rep.Stages = append(rep.Stages, sc.end(StageSignatures, OutcomeInconclusive,
+				"the control hello got no clear answer ("+rep.Signatures.ControlWhy+"), so the per-scheme answers prove nothing", "", probesSignatures))
+		default:
+			st := sc.end(StageSignatures, OutcomeDone, "", "", probesSignatures)
+			for _, s := range rep.Signatures.Schemes {
+				if s.Result == SigInconclusive {
+					st.Inconclusive = append(st.Inconclusive, s.Name+": "+s.Why)
+				}
+			}
+			rep.Stages = append(rep.Stages, st)
+		}
+	} else {
+		rep.Stages = append(rep.Stages, sc.skip(StageSignatures, "TLS 1.3 is not supported; signature schemes are tested in TLS 1.3 only", ReasonNotApplicable))
+	}
+
 	// Stage 4: server features read from hello extensions. SSLv3 has none, and we
 	// send none in an SSLv3 hello, so nothing can be concluded from it.
 	sc.begin()

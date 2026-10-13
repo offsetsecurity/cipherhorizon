@@ -31,7 +31,7 @@ NIST IR 8547 (draft), and the CISA/NSA/NIST quantum-readiness factsheet for harv
 | **L1** Exposed | TLS 1.3 works, and no post-quantum group is accepted. | yes |
 | **L2** Hybrid available | A standardised hybrid group is accepted, but a current client does not end up using it. | yes |
 | **L3** Hybrid negotiated | A current client (Go `crypto/tls`, which offers `X25519MLKEM768` first) negotiates a standardised hybrid group; or the server ranks a hybrid group first. | no |
-| **L4** PQ-authenticated | L3, plus a post-quantum certificate (ML-DSA / SLH-DSA). | no |
+| **L4** PQ-authenticated | L3, plus post-quantum authentication: a presented ML-DSA / SLH-DSA certificate, or an ML-DSA signature scheme the signature stage proved accepted (control refused). The authentication dimension says which. | no |
 
 Notes that matter when reading a result:
 
@@ -39,7 +39,8 @@ Notes that matter when reading a result:
   "obsolete" and never raise the level.
 - **Only key exchange protects recorded traffic.** Certificates are about future forgery, not about a recording
   made today, so a classical certificate does not stop an endpoint reaching L3; it is shown as a separate
-  dimension, and only a post-quantum certificate lifts L3 to L4.
+  dimension, and only post-quantum authentication (a presented ML-DSA certificate, or one the signature stage
+  proved the server holds) lifts L3 to L4.
 - The overview shows three dimensions (key establishment, authentication, symmetric strength) each with its own
   evidence tier and sources, and an ordered list of next steps.
 

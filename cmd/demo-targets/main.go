@@ -112,7 +112,7 @@ func slowProxy(addr, target string, delay time.Duration) (io.Closer, error) {
 }
 
 func main() {
-	base := flag.Int("base-port", 9440, "first port; the targets use base..base+17")
+	base := flag.Int("base-port", 9440, "first port; the targets use base..base+19 (SSH from base+20)")
 	flag.Parse()
 	// A demo should look like a real service, not one whose certificate expires tomorrow.
 	testserver.CertValidity = 90 * 24 * time.Hour
@@ -165,6 +165,17 @@ func main() {
 		}
 	}
 
+	// Post-quantum certificates (PRD-008 REQ-PQS-8): an ML-DSA-only server that picks its
+	// certificate before answering, as OpenSSL does, and an ECDSA + ML-DSA dual-certificate server.
+	if _, err := testserver.Listen(testserver.Config{MinVersion: tls.VersionTLS13, Curves: hybridCurves, Cert: testserver.CertMLDSA,
+		SelectCertFirst: true, Addr: addr(18)}); err != nil {
+		fail(err)
+	}
+	if _, err := testserver.Listen(testserver.Config{MinVersion: tls.VersionTLS12, Curves: hybridCurves, Cert: testserver.CertECDSAAndMLDSA,
+		Addr: addr(19)}); err != nil {
+		fail(err)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /corp-root.pem", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/x-pem-file")
@@ -213,11 +224,15 @@ func main() {
   %s   broken-chain       the same CA, intermediate not sent, no HSTS -> missing intermediate
   %s   hostile-pki        markup in the certificate and the HSTS header (must render as text)
 
+Post-quantum certificates:
+  %s   mldsa-only         TLS 1.3, an ML-DSA-65 certificate only, hybrid   -> expect L4
+  %s   mldsa-dual         an ECDSA and an ML-DSA-65 certificate, hybrid    -> expect L4
+
 STARTTLS services (choose the protocol when adding, or use the scheme, e.g. smtp://%s):
 %s
 Start the product with:  cipherhorizon serve --allow-loopback
 Ctrl+C stops everything.
-`, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6), addr(8), addr(7), addr(9), addr(10), addr(11), starttlsLines(addr))
+`, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6), addr(8), addr(7), addr(9), addr(10), addr(18), addr(19), addr(11), starttlsLines(addr))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

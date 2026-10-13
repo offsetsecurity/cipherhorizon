@@ -10,7 +10,23 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Fixed
+
+- **Post-quantum certificates are seen.** The scanner's own TLS 1.3 hellos offered no ML-DSA signature scheme, so a
+  server whose only certificate is ML-DSA, and which picks its certificate before answering (as OpenSSL does),
+  refused them: TLS 1.3 looked unsupported and the endpoint was rated L0. Every TLS 1.3 hello now offers
+  ML-DSA-44/65/87.
+
 ### Added
+
+- **Signature schemes (TLS 1.3).** A new scan stage tests, one scheme per hello, which signature schemes the
+  server holds keys for, with a control that catches servers answering regardless. An accepted ML-DSA scheme lifts
+  L3 to L4 even when the default certificate is classical. Shown in the report, the PDF and the endpoint CBOM.
+- `demo-targets` serves an ML-DSA-only and an ECDSA + ML-DSA TLS server (both L4).
+
+### Changed
+
+- Go 1.27 or newer is required to build (`crypto/mldsa`).
 
 - **Linux packages.** `.deb` and `.rpm` (amd64, arm64) install the binary, the hardened systemd unit and
   `/etc/cipherhorizon/env` for its options (kept on upgrade). The service is installed but not started.

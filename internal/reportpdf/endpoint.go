@@ -1109,6 +1109,9 @@ func (x *endpoint) keyExchange() sectionContent {
 			facts = append(facts, fmt.Sprintf("Diffie-Hellman uses a %d-bit prime that is not a published group.", dh.PrimeBits))
 		}
 	}
+	if f := signatureFact(x.rep.Signatures); f != "" {
+		facts = append(facts, f)
+	}
 	return sectionContent{facts: facts, detail: func() {
 		x.levelScale(r.Level)
 		x.h2("Readiness, dimension by dimension")
@@ -1151,6 +1154,7 @@ func (x *endpoint) keyExchange() sectionContent {
 			}
 			x.table([]pdf.Col{{Title: "Version", W: 0.9}, {Title: "#", W: 0.35}, {Title: "Group", W: 2.4}, {Title: "Post-quantum", W: 1.9}, {Title: "IANA", W: 1.2}}, gr)
 		}
+		x.signatureSchemes()
 		if len(r.Citations) > 0 {
 			sp := []pdf.Span{span("Sources for the readiness assessment: ", pdf.Bold, smallSize, muted)}
 			for i, c := range r.Citations {
@@ -1334,7 +1338,7 @@ func (x *endpoint) vulnerabilities() sectionContent {
 // ---- about -----------------------------------------------------------------------------------
 
 var stageTitles = []struct{ id, title string }{
-	{"protocols", "Protocols"}, {"suites", "Cipher suites"}, {"key-exchange", "Key exchange"}, {"features", "Features"},
+	{"protocols", "Protocols"}, {"suites", "Cipher suites"}, {"key-exchange", "Key exchange"}, {"signatures", "Signature schemes"}, {"features", "Features"},
 	{"certificates", "Certificates"}, {"revocation", "Revocation & transparency"}, {"http", "HTTP"},
 }
 
@@ -1433,4 +1437,64 @@ func firstNonEmpty(ss ...string) string {
 		}
 	}
 	return ""
+}
+
+// signatureFact says, in one sentence, which TLS 1.3 signature schemes the server holds keys for
+// (PRD-008 REQ-PQS-6); empty when the stage did not run.
+func signatureFact(s *tlsprobe.SignatureResult) string {
+	if s == nil {
+		return ""
+	}
+	if !s.Conclusive() {
+		return "Which signature schemes the server can use could not be told: it answers whatever is offered."
+	}
+	var pq, classical []string
+	for _, a := range s.Accepted() {
+		switch {
+		case a.PQ:
+			pq = append(pq, a.Algorithm)
+		case !contains(classical, a.Algorithm):
+			classical = append(classical, a.Algorithm)
+		}
+	}
+	switch {
+	case len(pq) > 0:
+		return "The server can authenticate with " + strings.Join(pq, ", ") + " (post-quantum) as well as " + strings.Join(classical, ", ") + "."
+	case len(classical) > 0:
+		return "The server authenticates with " + strings.Join(classical, ", ") + "; no post-quantum signature scheme is accepted."
+	}
+	return ""
+}
+
+// signatureSchemes is the per-scheme table of the signature stage.
+func (x *endpoint) signatureSchemes() {
+	s := x.rep.Signatures
+	if s == nil {
+		return
+	}
+	x.h2("Signature schemes the server can authenticate with (TLS 1.3)")
+	if !s.Conclusive() {
+		x.f.Add(pdf.Para{Spans: []pdf.Span{body(signatureFact(s))}, After: 4})
+		return
+	}
+	var rows [][]pdf.Cell
+	for _, sc := range s.Schemes {
+		key := sc.Algorithm
+		if sc.Detail != "" {
+			key += " (" + sc.Detail + ")"
+		}
+		st := txt("Not accepted", pdf.Regular, muted)
+		switch sc.Result {
+		case tlsprobe.SigAccepted:
+			st = chipCell("ACCEPTED", toneGood)
+			if sc.PQ {
+				st = chipCell("ACCEPTED · POST-QUANTUM", toneGood)
+			}
+		case tlsprobe.SigInconclusive:
+			st = chipCell("NOT DETERMINED", toneWarn)
+		}
+		rows = append(rows, []pdf.Cell{monoCell(sc.Name), txt(key, pdf.Regular, text2), st})
+	}
+	x.table([]pdf.Col{{Title: "Scheme", W: 2.4}, {Title: "Key", W: 2}, {Title: "Status", W: 2.2}}, rows)
+	x.f.Add(pdf.Para{Spans: []pdf.Span{small("Tested by offering one scheme per handshake; a server answers only for keys it holds. A control scheme no key can match was refused.")}, After: 4})
 }

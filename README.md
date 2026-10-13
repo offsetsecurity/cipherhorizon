@@ -1,7 +1,7 @@
 # CipherHorizon
 
 [![CI](https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml/badge.svg)](https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml)
-[![Go Reference](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
+[![Go Reference](https://img.shields.io/badge/go-1.27%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CycloneDX](https://img.shields.io/badge/CBOM-CycloneDX%201.7-2457d6)](docs/exporting.md)
 
@@ -129,7 +129,7 @@ service per protocol.
 
 ## Building and testing
 
-Go 1.25 or newer; no C compiler, no Node, no database server.
+Go 1.27 or newer; no C compiler, no Node, no database server.
 
 ```sh
 go build -o cipherhorizon ./cmd/cipherhorizon

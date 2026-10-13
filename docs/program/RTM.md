@@ -257,6 +257,54 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-AC-3 | P0 | WP-9 | PRD-007 | — | TestAuditExportIsAdminOnly, script:testing/e2e/launch-phase.mjs#E2E-A.11 | done | formula-safe CSV; filters by person and kind |
 | REQ-AC-4 | P1 | WP-9 | PRD-007 | — | TestScanRecordsWhoStartedIt, script:testing/e2e/launch-phase.mjs#E2E-A.13 | done | person, automation token or schedule; earlier scans show not recorded |
 
+## PRD-008 · Post-quantum signatures in TLS, and SSH endpoints ([PRD-008](../product/PRD-008-pq-signatures-and-ssh.md); WP-A results in [QA-REPORT-008](QA-REPORT-008.md))
+
+WP-B to WP-F (SSH) ship in a second pull request and are being amended per [STRATEGY-003](../strategy/STRATEGY-003-multi-protocol-product.md) (a page per protocol, baseline conformance), so they stay `todo` here.
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-PQS-1 | P0 | WP-A | PRD-008 | — | TestTLS13HellosOfferMLDSA | done | pinned against crypto/tls; TLS 1.2 hellos do not offer ML-DSA |
+| REQ-PQS-2 | P0 | WP-A | PRD-008 | — | TestAnMLDSAOnlyServerIsSeen, TestAnMLDSAOnlyServerIsL4 | done | hermetic server picks its certificate before answering, as OpenSSL does; before the fix it read as no TLS 1.3, L0 |
+| REQ-PQS-3 | P0 | WP-A | PRD-008 | — | TestSignatureStageListsAcceptedSchemes | done | 15 connections; each hello carries real key shares so a Go server cannot answer with HelloRetryRequest before choosing |
+| REQ-PQS-4 | P0 | WP-A | PRD-008 | — | TestSignatureStageControlCatchesServersThatIgnoreTheList | done | control code point 0xFE01 (private use) |
+| REQ-PQS-5 | P0 | WP-A | PRD-008 | — | TestDualCertificateServerReachesL4 | done | control accepted keeps L3; ML-DSA without a hybrid group stays L1 |
+| REQ-PQS-6 | P0 | WP-A | PRD-008 | — | TestEndpointCBOMListsAcceptedSignatureAlgorithms, script:testing/e2e/pqs-phase.mjs#E2E-S.1 | done | report Configuration tab, PDF stage table and endpoint CBOM |
+| REQ-PQS-7 | P0 | WP-A | PRD-008 | — | TestOldReportsEvaluateUnchanged | done | a report without the stage shows it as not collected |
+| REQ-PQS-8 | P1 | WP-A | PRD-008 | — | script:testing/e2e/pqs-phase.mjs#E2E-S.1 | done | demo-targets base+18 (ML-DSA only) and base+19 (ECDSA + ML-DSA), both L4 in the journey |
+| REQ-PQS-9 | P0 | WP-A | PRD-008 | — | TestDocsNameTheGoVersion | done | go.mod go 1.27.0; README, CONTRIBUTING and badge agree |
+| REQ-SHP-1 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHP-2 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHP-3 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHP-4 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHP-5 | P1 | WP-B | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHP-6 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHP-7 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHP-8 | P0 | WP-B | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHE-1 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHE-2 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHE-3 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHE-4 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHE-5 | P0 | WP-C | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHE-6 | P1 | WP-C | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHE-7 | P1 | WP-C | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHW-1 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHW-2 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHW-3 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHW-4 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHW-5 | P0 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHW-6 | P1 | WP-D | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHO-1 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHO-2 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHO-3 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHO-4 | P0 | WP-E | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHO-5 | P1 | WP-E | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHO-6 | P1 | WP-E | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHN-1 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHN-2 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHN-3 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHN-4 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
+| REQ-SHN-5 | P0 | WP-F | PRD-008 | — | — | todo | SSH pull request |
+
 ## Security requirements (SECARCH-001) coverage
 
 Each SR must be exercised by at least one requirement above; `TestRequirementsTraceability` checks that every `SR-nn` in SECARCH-001 appears in the SR column at least once, except those listed here as cross-cutting.

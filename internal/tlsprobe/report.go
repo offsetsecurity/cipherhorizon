@@ -62,6 +62,9 @@ type Report struct {
 	Groups []GroupResult `json:"groups,omitempty"`
 	// DH describes the finite-field Diffie-Hellman parameters of DHE suites.
 	DH *DHResult `json:"dh,omitempty"`
+	// Signatures lists the TLS 1.3 signature schemes the server can authenticate with (the
+	// signatures stage); nil when the stage did not run or the report predates it.
+	Signatures *SignatureResult `json:"signatures,omitempty"`
 
 	Features     Features     `json:"features"`
 	Certificates []CertResult `json:"certificates,omitempty"`
@@ -97,6 +100,7 @@ const (
 	StageProtocols   = "protocols"
 	StageSuites      = "suites"
 	StageKeyExchange = "key-exchange"
+	StageSignatures  = "signatures"
 	StageFeatures    = "features"
 	StageCerts       = "certificates"
 	StageRevocation  = "revocation"
