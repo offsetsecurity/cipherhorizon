@@ -52,7 +52,7 @@ export async function render(root, ctx = {}) {
     } catch (e) { toast(e.message, 'error'); }
     await reload();
   };
-  const addEndpoints = () => openAddDialog(scanAll);
+  const addEndpoints = () => openAddDialog(scanAll, { scan: false }); // scanAll scans and the order updates here
   const upload = () => uploadDialog(reload);
   const doImport = () => importDialog(reload);
 

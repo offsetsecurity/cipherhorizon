@@ -221,3 +221,34 @@ func TestOpenAPIDescribesSSH(t *testing.T) {
 		}
 	}
 }
+
+// UX-DESIGN-007 §3, §4.1: each page's dialog adds its own protocol. A pasted list on SSH servers
+// makes every line an SSH server (port 22 unless given); an address of the other protocol is
+// refused with where it belongs.
+func TestBulkAddTakesThePagesProtocol(t *testing.T) {
+	e := newEnv(t)
+	var res struct {
+		Added   int `json:"added"`
+		Invalid int `json:"invalid"`
+		Results []struct {
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+			Asset  *struct {
+				Protocol string `json:"protocol"`
+				Port     int    `json:"port"`
+			} `json:"asset"`
+		} `json:"results"`
+	}
+	if s := e.call("POST", "/api/v1/assets/bulk", map[string]any{"protocol": "ssh",
+		"text": "bastion.example.com\ngit.example.com:2222\nhttps://shop.example.com"}, &res); s != 200 {
+		t.Fatalf("bulk: %d", s)
+	}
+	if res.Added != 2 || res.Invalid != 1 || res.Results[0].Asset.Protocol != "ssh" || res.Results[0].Asset.Port != 22 ||
+		res.Results[1].Asset.Port != 2222 || !strings.Contains(res.Results[2].Reason, "add it under TLS endpoints") {
+		t.Errorf("ssh list: %+v", res)
+	}
+	s, body := e.do("POST", "/api/v1/assets", map[string]any{"target": "ssh://jump.example.com", "protocol": "tls"})
+	if s != 400 || !strings.Contains(string(body), "add it under SSH servers") {
+		t.Errorf("ssh:// on the TLS page: %d %s", s, body)
+	}
+}

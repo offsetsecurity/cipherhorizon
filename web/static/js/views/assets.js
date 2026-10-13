@@ -1,10 +1,15 @@
 // TLS endpoints and SSH servers: add, list, filter, select and scan. One list serves both pages
 // (UX-DESIGN-007 §3, §4.1); each protocol has its own columns and measure, never mixed.
 import { h, clear, relTime, fmtDate, daysUntil, STARTTLS_NAMES } from '../dom.js';
-import { api } from '../api.js';
+import { api, ApiError } from '../api.js';
+import { quickScan } from './scan.js';
 import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, modal, badge, skeleton } from '../ui.js';
 
-const NOTICE = 'Only add systems you own or are authorised to test. A TLS scan makes a few hundred short handshakes; an SSH scan a handful of key exchanges, never a login.';
+// What a scan sends, said where something is added: each page for its own protocol.
+const NOTICE = {
+  tls: 'Only add systems you own or are authorised to test. A scan makes a few hundred short TLS handshakes.',
+  ssh: 'Only add systems you own or are authorised to test. A scan runs a handful of SSH key exchanges and never logs in.',
+};
 
 // ---- the add dialog (AC-01.1 .. AC-01.4) -------------------------------------------------------
 
@@ -16,12 +21,28 @@ export const PLACES = {
 export const protocolOf = (a) => (a.protocol === 'ssh' ? 'ssh' : 'tls');
 export const reportHref = (a) => `${PLACES[protocolOf(a)].list}/${a.id}`;
 
-export function openAddDialog(onDone, { protocol = 'tls' } = {}) {
+// ENDPOINTS_CHANGED asks an open list to reload in place: the page's add button lives outside the
+// list, and re-routing to refresh it would close the dialog showing a pasted list's results.
+export const ENDPOINTS_CHANGED = 'cipherhorizon:endpoints-changed';
+
+/**
+ * openAddDialog is the one way to add endpoints on a page (UX-DESIGN-007): one address with its name,
+ * tags and (for TLS) how it starts, or a pasted list. *Scan now* (on by default) scans what was
+ * added; one address then opens its report, as the Overview's scan box does.
+ */
+export function openAddDialog(onDone, { protocol = 'tls', scan = true } = {}) {
   const here = PLACES[protocol];
-  // An endpoint added on the other protocol's page goes there; the toast says where.
-  const added = (a) => (protocolOf(a) === protocol ? `Added ${a.address}` : `Added ${a.address} to ${PLACES[protocolOf(a)].many}`);
+  const added = (a) => `Added ${a.address}`;
   modal(`Add ${here.many}`, (close) => {
     let mode = 'single';
+    // Kept across the two tabs, so the choice is not lost when switching.
+    // A caller that scans what was added itself (the Systems first-run door) passes scan: false.
+    let scanNow = scan;
+    // The button says what will happen: add, or add and scan.
+    const submitLabel = () => (scanNow ? 'Add and scan' : mode === 'single' ? `Add ${here.one}` : `Add ${here.many}`);
+    const scanBox = () => !scan ? null : h('label', { class: 'row checkrow', for: 'add-scan' },
+      h('input', { type: 'checkbox', id: 'add-scan', checked: scanNow, onchange: (e) => { scanNow = e.target.checked; const b = e.target.closest('form')?.querySelector('button[type=submit]'); if (b) b.textContent = submitLabel(); } }),
+      h('span', null, 'Scan now'), h('span', { class: 'hint' }, mode === 'single' ? ' and open the report' : ' everything added'));
     const body = h('div', { class: 'modal-body' });
     const results = h('div');
 
@@ -30,7 +51,7 @@ export function openAddDialog(onDone, { protocol = 'tls' } = {}) {
     const draw = () => {
       clear(body);
       const tabBar = h('div', { class: 'tabs', role: 'tablist' },
-        [['single', 'Single endpoint'], ['bulk', 'Paste a list']].map(([k, label]) =>
+        [['single', protocol === 'ssh' ? 'One server' : 'Single endpoint'], ['bulk', 'Paste a list']].map(([k, label]) =>
           h('button', { type: 'button', class: 'tab', role: 'tab', 'aria-selected': String(mode === k), onclick: () => { mode = k; clear(results); draw(); } }, label)));
       body.appendChild(tabBar);
 
@@ -40,46 +61,68 @@ export function openAddDialog(onDone, { protocol = 'tls' } = {}) {
 
       if (mode === 'single') {
         const target = h('input', { type: 'text', id: 'add-target', autocomplete: 'off', spellcheck: 'false',
-          placeholder: protocol === 'ssh' ? 'bastion.example.com or bastion.example.com:2222' : 'example.com, example.com:8443 or ssh://bastion.example.com' });
+          placeholder: protocol === 'ssh' ? 'bastion.example.com or bastion.example.com:2222' : 'example.com, example.com:8443 or smtp://mail.example.com' });
         const name = h('input', { type: 'text', id: 'add-name', placeholder: 'Optional friendly name' });
-        // Protocol (UX-DESIGN-006 §2.2, named Protocol: the product says no "service"): TLS or SSH, and for TLS how it starts.
-        const proto = h('select', { id: 'add-protocol' },
+        // Each page adds its own protocol (UX-DESIGN-007 §3, §4.1): SSH servers asks nothing more; TLS
+        // endpoints asks only how TLS starts. An address of the other protocol is refused with where it goes.
+        const proto = protocol === 'ssh' ? null : h('select', { id: 'add-protocol' },
           h('option', { value: 'auto' }, 'Automatic (by port)'),
           h('option', { value: 'none' }, 'TLS from the first byte (HTTPS, IMAPS, LDAPS...)'),
-          h('option', { value: 'ssh', selected: protocol === 'ssh' }, 'SSH'),
           Object.entries(STARTTLS_NAMES).map(([v, l]) => h('option', { value: v }, `STARTTLS: ${l}`)));
         body.appendChild(h('form', { onsubmit: async (e) => {
           e.preventDefault();
           err.hidden = true;
           try {
-            const ssh = proto.value === 'ssh';
-            const a = await api.addAsset(target.value, name.value, parseTags(tags.value), ssh ? 'auto' : proto.value,
-              ssh ? 'ssh' : proto.value === 'auto' ? 'auto' : 'tls');
+            let a;
+            try {
+              a = await api.addAsset(target.value, name.value, parseTags(tags.value), proto ? proto.value : 'auto', protocol);
+            } catch (ex) {
+              // Already here: with Scan now, scan it again rather than refuse it.
+              if (!(scanNow && ex instanceof ApiError && ex.status === 409)) throw ex;
+              a = await quickScan(target.value, protocol);
+              toast(`${a.address} was already here: scanning it again`, 'success');
+              close();
+              location.hash = reportHref(a);
+              return;
+            }
+            if (scanNow) {
+              await api.scanAsset(a.id);
+              toast(`${added(a)}; scanning`, 'success');
+              close();
+              location.hash = reportHref(a);
+              return;
+            }
             toast(added(a), 'success');
             close();
             onDone && onDone(a);
           } catch (ex) { showErr(ex.message); }
         } },
           err,
-          h('label', { for: 'add-target' }, 'Host or URL'), target,
-          h('div', { class: 'hint' }, 'A hostname or IP, optionally with a port. A pasted URL is reduced to its host and port; ssh://host scans SSH, and smtp://, imap:// and the like choose STARTTLS.'),
-          h('label', { for: 'add-protocol' }, 'Protocol'), proto,
-          h('div', { class: 'hint' }, 'Automatic: port 22 is SSH; ports 25, 587, 143, 110, 21, 5222, 389 and 5432 use STARTTLS; everything else is TLS from the first byte.'),
+          ...(protocol === 'ssh' ? [
+            h('label', { for: 'add-target' }, 'Server'), target,
+            h('div', { class: 'hint' }, 'A hostname or IP, optionally with a port: 22 unless you give one. ssh://host works too.'),
+          ] : [
+            h('label', { for: 'add-target' }, 'Host or URL'), target,
+            h('div', { class: 'hint' }, 'A hostname or IP, optionally with a port (443 by default). A pasted URL is reduced to its host and port; smtp://, imap:// and the like choose STARTTLS.'),
+            h('label', { for: 'add-protocol' }, 'How it starts TLS'), proto,
+            h('div', { class: 'hint' }, 'Automatic: ports 25, 587, 143, 110, 21, 5222, 389 and 5432 use STARTTLS; everything else is TLS from the first byte.'),
+          ]),
           h('label', { for: 'add-name' }, 'Name'), name,
           h('label', { for: 'add-tags' }, 'Tags'), tags,
-          h('p', { class: 'hint' }, NOTICE),
-          h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, `Add ${here.one}`))));
+          scanBox(),
+          h('p', { class: 'hint' }, NOTICE[protocol]),
+          h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, submitLabel()))));
         target.focus();
       } else {
         const text = h('textarea', { id: 'add-list', spellcheck: 'false', placeholder: protocol === 'ssh'
-          ? 'ssh://bastion.example.com\nssh://git.example.com:2222\nbuild.example.com:22'
-          : 'api.example.com\nmail.example.com:993\nsmtp://mail.example.com\nssh://bastion.example.com\nhttps://shop.example.com/' });
+          ? 'bastion.example.com\ngit.example.com:2222\n10.0.0.12'
+          : 'api.example.com\nmail.example.com:993\nsmtp://mail.example.com\nhttps://shop.example.com/' });
         body.appendChild(h('form', { onsubmit: async (e) => {
           e.preventDefault();
           err.hidden = true;
           clear(results);
           try {
-            const r = await api.addBulk(text.value, parseTags(tags.value));
+            const r = await api.addBulk(text.value, parseTags(tags.value), protocol);
             results.appendChild(h('div', { class: r.invalid ? 'callout' : 'callout info', role: 'status' },
               `${r.added} added, ${r.duplicate} already present, ${r.invalid} invalid.`));
             if (r.results.length) {
@@ -87,17 +130,23 @@ export function openAddDialog(onDone, { protocol = 'tls' } = {}) {
                 badge(x.status, x.status === 'added' ? 'good' : x.status === 'duplicate' ? 'neutral' : 'bad'), ' ',
                 h('code', null, x.input), x.reason ? h('span', { class: 'muted' }, ` · ${x.reason}`) : null))));
             }
-            if (r.added) { toast(`${r.added} added`, 'success'); onDone && onDone(); }
+            if (r.added) {
+              const ids = r.results.filter((x) => x.status === 'added' && x.asset).map((x) => x.asset.id);
+              if (scanNow && ids.length) await api.scanMany({ assetIds: ids });
+              toast(scanNow ? `${r.added} added; scanning` : `${r.added} added`, 'success');
+              onDone && onDone();
+            }
           } catch (ex) { showErr(ex.message); }
         } },
           err,
-          h('label', { for: 'add-list' }, 'One endpoint per line'), text,
+          h('label', { for: 'add-list' }, protocol === 'ssh' ? 'One server per line' : 'One endpoint per line'), text,
           h('div', { class: 'hint' }, protocol === 'ssh'
-            ? 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Use ssh:// or port 22; a line without either is added as a TLS endpoint.'
-            : 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Port 22 or ssh:// is SSH; STARTTLS is chosen by port, or by a scheme such as smtp:// or ldap://.'),
+            ? 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Each line is an SSH server, on port 22 unless it gives one.'
+            : 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. STARTTLS is chosen by port, or by a scheme such as smtp:// or ldap://.'),
           h('label', { for: 'add-tags' }, 'Tags for all of them'), tags,
-          h('p', { class: 'hint' }, NOTICE),
-          h('div', { class: 'row end' }, button('Close', close), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Add endpoints'))));
+          scanBox(),
+          h('p', { class: 'hint' }, NOTICE[protocol]),
+          h('div', { class: 'row end' }, button('Close', close), h('button', { type: 'submit', class: 'btn btn-primary' }, submitLabel()))));
         text.focus();
       }
       body.appendChild(results);
@@ -165,8 +214,8 @@ export async function render(root, ctx = {}) {
   let stopped = false, timer = null;
   const state = { q: '', sort: 'level', exposed: false, selected: new Set(), frozen: null };
 
+  // The page's one way to add is its primary button (endpoints.js); the toolbar acts on the list.
   const actions = h('div', { class: 'row toolbar-actions' },
-      button(`Add ${place.many}`, () => openAddDialog(load, { protocol })),
       button('Scan all', async () => {
         try {
           // This page's protocol only: Scan all on SSH servers scans the SSH servers.
@@ -281,6 +330,8 @@ export async function render(root, ctx = {}) {
       timer = setTimeout(load, active ? 1200 : 7000);
     } catch (e) { toast(e.message, 'error'); timer = setTimeout(load, 8000); }
   };
+  const reload = () => load();
+  window.addEventListener(ENDPOINTS_CHANGED, reload);
   await load();
-  return () => { stopped = true; clearTimeout(timer); };
+  return () => { stopped = true; clearTimeout(timer); window.removeEventListener(ENDPOINTS_CHANGED, reload); };
 }

@@ -54,9 +54,12 @@ The current list, minus SSH:
 - **Columns:** Endpoint, PQC readiness, TLS hygiene, Findings, Certificate expiry, Last scan.
 - **Header:** title *TLS endpoints*. Sub-line *Websites and the TLS services behind mail, directories and databases.
   Open one for its full report.*
-- **Primary action:** *Scan a URL*.
-- **The add dialog's Protocol select** offers Automatic, TLS and the STARTTLS protocols, plus SSH. Choosing SSH
-  sends the new server to SSH servers, and the toast says so: *Added to SSH servers*.
+- **One way to add** (amended 2026-10-13): the primary button *Add TLS endpoints*; the toolbar holds only *Scan all*
+  and *Export CSV*. The dialog asks the address, *How it starts TLS* (Automatic, TLS from the first byte, a STARTTLS
+  protocol; never SSH), name and tags, and *Scan now* (on by default: the button reads *Add and scan*, one address
+  opens its report, an address already present is scanned again). A pasted list takes the same choices. An
+  `ssh://` address is refused with where it belongs. The separate *Scan a URL* dialog is gone: the Overview's scan
+  box is the quick path.
 - **The Protocol filter on this page is removed.** The page itself is the filter.
 
 ## 4. SSH servers
@@ -74,8 +77,9 @@ The current list, minus SSH:
 
 - **Header:** title *SSH servers*. Sub-line *Servers you reach over SSH, judged against the CipherHorizon SSH
   baseline 2026. Nothing logs in.*
-- **Primary action:** *Add SSH servers*. The dialog is the shared add dialog with Protocol preset to SSH, and the
-  placeholder `bastion.example.com or bastion.example.com:2222`.
+- **Primary action, the only add:** *Add SSH servers*. The dialog asks no protocol (every address is an SSH server, port
+  22 unless given), then name, tags and *Scan now*, as on TLS endpoints. Placeholder
+  `bastion.example.com or bastion.example.com:2222`. A TLS address (`https://`, `smtp://`) is refused with where it belongs.
 - **Empty state:** *No SSH servers yet* · *Add the SSH servers you want to assess. A scan reads what the server offers
   and runs a few key exchanges; it never logs in.* · button *Add SSH servers*.
 - **Bulk add and scan all** work here as on TLS endpoints, limited to SSH servers.

@@ -1338,6 +1338,9 @@ a.sumtile:hover, a.sumtile:focus-visible { background: var(--surface-2); text-de
 .level-rules summary { cursor: pointer; color: var(--link); }
 .level-rules table { margin-top: .4rem; }
 .recent-name .tag { margin-left: .4rem; }
+/* The add dialog's Scan now choice. */
+.checkrow { gap: .45rem; align-items: center; margin: .6rem 0 .2rem; font-weight: 500; }
+.checkrow .hint { font-weight: 400; margin: 0; }
 /* The one-liner on the sign-in panel (STRATEGY-003 §4), under the headline. */
 .gate-value-lede { margin: -16px 0 24px; color: var(--on-navy-muted); font-size: var(--fs-ui); line-height: 1.5; }
 .about-pillars { margin: .2rem 0 1rem; padding-left: 1.1rem; }

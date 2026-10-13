@@ -14,7 +14,7 @@ quantum-vulnerable algorithms after 2030 and disallows them after 2035, and anyt
 decrypted later. CipherHorizon tells you which of your TLS endpoints and SSH servers are exposed, which machines carry
 quantum-vulnerable cryptography, and what to fix first. It runs on your network and sends nothing anywhere.
 
-![The Overview: a scan box, the L0 to L4 readiness scale, and the state of every endpoint scanned](docs/img/overview.png)
+![The Overview: a scan box, the L0 to L4 readiness scale across TLS endpoints and SSH servers, and a card per protocol](docs/img/overview.png)
 
 ## Quick start
 
@@ -63,9 +63,26 @@ included), verifies every host key, and never logs in. It judges the server agai
 installing anything; CBOMs from other tools can be imported. TLS endpoints, SSH servers and machines merge into one
 CycloneDX 1.7 CBOM, with PDF reports for each endpoint and for the whole inventory, and the OMB M-23-02 items per system.
 
-| A report: verdict first, then every check | STARTTLS services, the same depth |
+| A TLS endpoint: verdict first, then every check | STARTTLS services, the same depth |
 |---|---|
-| ![An endpoint report: readiness L3, TLS hygiene score, the one thing to fix](docs/img/report-hybrid.png) | ![An SMTP endpoint scanned through STARTTLS](docs/img/report-starttls.png) |
+| ![A TLS endpoint report: readiness L3, the TLS hygiene score, what to fix](docs/img/report-hybrid.png) | ![An SMTP endpoint scanned through STARTTLS](docs/img/report-starttls.png) |
+| **SSH servers: readiness and the baseline, never a score** | **The `sshd_config` lines that meet the baseline** |
+| ![The SSH servers page: readiness, baseline verdict, findings and host key per server](docs/img/ssh-servers.png) | ![An SSH server's Configuration tab: the baseline verdict, the sshd_config lines to copy, and what the baseline requires](docs/img/report-ssh-baseline.png) |
+
+## What is in it
+
+| | |
+|---|---|
+| **TLS endpoints** | Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group (hybrids such as `X25519MLKEM768` included), the TLS 1.3 signature schemes (ML-DSA included), the certificate chain against the Mozilla and Chrome root stores or your own CA, OCSP stapling, Certificate Transparency and HSTS. STARTTLS for SMTP, IMAP, POP3, FTP, XMPP, LDAP and PostgreSQL. 55 cited checks and the TLS hygiene score. |
+| **SSH servers** | Identification and algorithm lists, negotiation as OpenSSH 10.6 would (the ML-KEM hybrid included), every host key fetched and verified (Ed25519, ECDSA, RSA, ML-DSA and the composite `ssh-mldsa44-ed25519`), 18 cited checks, and the CipherHorizon SSH baseline 2026 with the `sshd_config` lines to meet it. It never logs in. |
+| **Post-quantum readiness** | L0 to L4 for every TLS endpoint and SSH server, each protocol by its own stated rules, with harvest-now-decrypt-later exposure. |
+| **Machines** | Two readable inventory scripts (PowerShell, shell) list a machine's cryptographic software and certificates; nothing is installed and no key material is read. |
+| **Inventory** | TLS endpoints, SSH servers, machines and imported CBOMs merged into one CycloneDX 1.7 (or 1.6) CBOM. |
+| **Findings and systems** | Findings across everything, grouped by problem, with triage; systems ranked for migration by exposure and how long their data must stay secret; OMB M-23-02 export per system. |
+| **Reports** | PDF reports per TLS endpoint, per SSH server and for the whole inventory; CycloneDX, CSV and JSON downloads. |
+| **Over time** | Schedules, history, and what changed between two scans. |
+| **For teams** | Sign-in when you want it: administrator, analyst and viewer roles, an exportable activity log. |
+| **For pipelines** | `tls scan` and `ssh scan` from the command line with `--fail-on` gates (exit 3), JSON and CBOM output, and the REST API (`/api/v1/openapi.json`). |
 
 ## How it compares
 
