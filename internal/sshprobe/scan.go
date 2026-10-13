@@ -143,12 +143,23 @@ func (p *prober) note(format string, args ...any) {
 // open dials, exchanges identifications and reads the server's KEXINIT. The caller closes conn
 // and calls release.
 func (p *prober) open(ctx context.Context) (*session, func(), error) {
-	if int(p.conns.Load()) >= p.opts.MaxConnections {
-		return nil, nil, errBudget
+	// Reserve a connection from the budget atomically: a load-then-add lets concurrent host key
+	// attempts all see room and overshoot the budget. A reservation that never dials is given back.
+	var n int64
+	for {
+		c := p.conns.Load()
+		if int(c) >= p.opts.MaxConnections {
+			return nil, nil, errBudget
+		}
+		if p.conns.CompareAndSwap(c, c+1) {
+			n = c + 1
+			break
+		}
 	}
 	select {
 	case p.sem <- struct{}{}:
 	case <-ctx.Done():
+		p.conns.Add(-1)
 		return nil, nil, ctx.Err()
 	}
 	release := func() { <-p.sem }
@@ -162,11 +173,11 @@ func (p *prober) open(ctx context.Context) (*session, func(), error) {
 			case <-time.After(wait):
 			case <-ctx.Done():
 				release()
+				p.conns.Add(-1)
 				return nil, nil, ctx.Err()
 			}
 		}
 	}
-	n := p.conns.Add(1)
 	if p.opts.Tick != nil {
 		p.opts.Tick(int(n))
 	}
