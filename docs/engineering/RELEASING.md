@@ -118,6 +118,16 @@ The release is a *draft* until the last job, so a failure leaves nothing public.
   If a release was public, publish `v0.1.1` instead.
 - The image job is idempotent per tag; re-running it re-pushes the same tags.
 
+### The container package on GHCR: do not delete untagged versions
+
+One release puts about nine versions in the `cipherhorizon` package, and only the multi-arch index carries the
+version tag (`0.1.0`, `latest`). The untagged ones are that image: the linux/amd64 and linux/arm64 images, the
+SBOM and provenance attestation for each, the cosign signature and the GitHub provenance attestation (Sigstore
+bundles), and the index of what is attached (tagged `sha256-<digest>`). Deleting untagged versions leaves a tag that
+points at nothing (`manifest unknown` on pull) and an image that no longer verifies. That happened to v0.1.0
+on 2026-10-13; re-running the release's image job re-pushed it. To remove an old image, delete its tagged index
+only, and only for a version nobody should pull.
+
 ### Patching an older release
 
 Only when `main` has moved on and the fix cannot ship with the next minor.
