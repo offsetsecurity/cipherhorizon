@@ -133,9 +133,23 @@ jobs:
       - name: Sign the image by digest (keyless)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
+        # cosign v3 signs in the new bundle format by default and stores it with the OCI referrers API,
+        # which GHCR does not serve: v0.1.0's image was "signed" but nothing reached the registry. The
+        # classic format is stored as a sha256-<digest>.sig tag, which GHCR keeps and cosign verify reads.
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          cosign sign --yes "${image}@${DIGEST}"
+          cosign sign --yes --new-bundle-format=false --use-signing-config=false "${image}@${DIGEST}"
+      - name: Verify the image signature as a user would
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        # The command docs/engineering/DISTRIBUTION.md gives users: the release fails here, before
+        # publishing, if the image cannot be verified.
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          cosign verify "${image}@${DIGEST}" \
+            --certificate-identity-regexp '^https://github.com/offsetsecurity/cipherhorizon/\.github/workflows/release\.yml@refs/tags/v' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          echo "image signature verifies"
       - name: Attest the image's build provenance
         if: github.event.repository.private == false
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
