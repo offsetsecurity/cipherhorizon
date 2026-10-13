@@ -83,10 +83,18 @@ type TrendPoint struct {
 	Levels map[int]int `json:"levels"`
 }
 
+// MaxTrendDays is the longest readiness trend FleetSummary returns: a year and a day.
+const MaxTrendDays = 366
+
 // FleetSummary computes the dashboard data. trendDays is how many days of trend to return.
 func (s *Store) FleetSummary(trendDays int) (Fleet, error) {
+	// The days come from the API's ?days=: bounded, so a request cannot make the trend allocate
+	// without limit (code scanning go/uncontrolled-allocation-size).
 	if trendDays <= 0 {
 		trendDays = 14
+	}
+	if trendDays > MaxTrendDays {
+		trendDays = MaxTrendDays
 	}
 	f := Fleet{Readiness: map[int]int{}, Bands: map[string]int{}, Protocols: map[string]*ProtocolSummary{
 		ProtocolTLS: {Readiness: map[int]int{}, Bands: map[string]int{}},

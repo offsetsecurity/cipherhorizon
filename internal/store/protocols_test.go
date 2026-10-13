@@ -117,3 +117,15 @@ func TestBaselineIsStoredWithTheScan(t *testing.T) {
 		t.Errorf("tls scan %+v", tls)
 	}
 }
+
+// The trend length comes from a request: it is bounded, however large the request.
+func TestFleetTrendIsBounded(t *testing.T) {
+	s, _ := open(t)
+	f, err := s.FleetSummary(1 << 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Trend) != store.MaxTrendDays {
+		t.Errorf("trend of %d days, want %d", len(f.Trend), store.MaxTrendDays)
+	}
+}
