@@ -6,9 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 follow [Semantic Versioning](https://semver.org/). Until 1.0 (`0.x`) the interfaces (CLI flags, the JSON API,
 the CBOM/report/eval schema versions, the database) can change in a minor release; see
 [docs/engineering/RELEASING.md](docs/engineering/RELEASING.md#versioning-policy). The first tagged release is
-`0.1.0`, a pre-release. Everything before it is under `Unreleased` until `scripts/prepare-release.sh` cuts it.
+`0.1.0`, a pre-release.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-10-13
 
 ### Fixed
 
@@ -73,7 +75,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - `docker-compose.yml` and the Quadlet unit declare the health check themselves (exec form, no shell). An image
   built by Podman (OCI format) drops the Dockerfile `HEALTHCHECK`, so the container showed no health status.
 
-## [0.1.0-rc.2] - 2026-10-10
 
 ### Changed (breaking, for scripts that read the CLI)
 
@@ -609,22 +610,19 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   derived only from a result's own cited findings, with its own bands (Strong/Sound/Fair/Weak/Broken) and no
   shared terminology or scoring tables with any other scanner's rating.
 
-### Known limitations (as of 2026-09-26)
+### Known limitations
 
-- **Not yet validated:** the host collector has run on one Windows machine as a standard user only; it has not run
-  on a live Linux host or with Administrator/root rights (fixture and shim tests only). macOS is not supported.
-  The release workflows, container image and signing have never executed (nothing is pushed); the first tag is a
-  pre-release for that reason. The module owner and the security contact are placeholders until a repository exists.
-- Worst-case disk use per host is 50 snapshots of up to 32 MiB; there is no per-instance storage budget yet.
-- The native Windows inventory (`windows-cng`) has run on one Windows 11 machine as a standard user. Windows Server, ARM64,
-  builds before 24H2 (no post-quantum, so probes answer "no"), an elevated run and machines with third-party providers
-  (HSM or smart-card middleware) are untested. It states what Windows offers, not what is enabled or used.
+- **Machines:** the host collector has run on Windows (standard user) and in fixture and shim tests for Linux; it has
+  not run on a live Linux host or with Administrator/root rights. macOS machines are not inventoried. The native
+  Windows inventory (`windows-cng`) has run on one Windows 11 machine only, and states what Windows offers, not what is
+  enabled or used.
+- **TLS:** validated against hermetic test servers and, for trust, against OpenSSL; a matrix of real TLS stacks
+  (nginx, Apache, Postfix) is not yet recorded. No active vulnerability probes (Heartbleed, ROBOT), by design.
+- **SSH:** checked against real OpenSSH 9.2 and 10.0. Servers that offer only `diffie-hellman-group18-sha512`,
+  group exchange or sntrup761 are judged on their algorithm lists; their host keys are not fetched. One SSH
+  baseline ships; BSI TR-02102-4 is planned. SSH clients are not audited.
+- **Storage:** SQLite only. Up to 50 snapshots of up to 32 MiB are kept per machine; there is no overall storage
+  budget yet.
 
-See [docs/product/RELEASE-REPORT-001.md](docs/product/RELEASE-REPORT-001.md) for the full list, including
-deviations from the original plan and what has and hasn't been tested. In short: single shared bearer token
-(no multi-user auth), SQLite only, no OpenAPI spec yet, `tls scan`'s text/JSON output doesn't yet carry the
-evaluation (only `--cbom` and the web UI/API do), and testing so far has used hermetic test servers rather than
-real-world TLS implementations.
-
-[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.0-rc.2...HEAD
-[0.1.0-rc.2]: https://github.com/offsetsecurity/cipherhorizon/releases/tag/v0.1.0-rc.2
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/offsetsecurity/cipherhorizon/releases/tag/v0.1.0
