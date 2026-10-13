@@ -526,7 +526,7 @@ async function main() {
   await js(`document.getElementById('add-target').value = '127.0.0.1:9440'; document.querySelector('.modal form').requestSubmit();`);
   const viaButton = await waitFor(async () => { const h = await js(`return location.hash`); return /^#\/endpoints\/\d+/.test(h) ? h : null; }, 8000, 200);
   check('E2E-N.3', 'TLS endpoints has one way to add (no second Add, no Scan a URL); its dialog scans by default and lands on the report, rescanning one already here',
-    ways.head.join() === 'Add TLS endpoints' && !ways.toolbar.some((t) => /^Add|Scan a URL/.test(t)) && scanDlg.open && scanDlg.focused === 'add-target' && scanDlg.scanNow === true &&
+    ways.head.join() === 'Add TLS endpoints' && !ways.toolbar.some((t) => /^(?:Add|Scan a URL)/.test(t)) && scanDlg.open && scanDlg.focused === 'add-target' && scanDlg.scanNow === true &&
     viaButton === `#/endpoints/${by[9440].id}`, JSON.stringify({ ways, scanDlg, viaButton }));
   await sleep(500);
   await go('#/findings');
