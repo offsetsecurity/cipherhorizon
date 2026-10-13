@@ -46,7 +46,7 @@ func (s *Store) PriorityInputs() ([]eval.PriorityInput, error) {
 	}
 	for _, a := range assets {
 		in := byID[a.SystemID]
-		if in == nil || a.Kind != KindTLS || a.LastDone == nil {
+		if in == nil || !IsEndpoint(a.Kind) || a.LastDone == nil {
 			continue
 		}
 		d := a.LastDone

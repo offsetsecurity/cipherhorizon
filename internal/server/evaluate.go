@@ -138,8 +138,8 @@ func (r *Runner) Reevaluate(scanID int64, why string) (ev eval.Evaluation, err e
 	if err != nil {
 		return eval.Evaluation{}, err
 	}
-	var rep tlsprobe.Report
-	if err := json.Unmarshal(raw, &rep); err != nil {
+	dec, err := decodeReport(raw)
+	if err != nil {
 		return eval.Evaluation{}, fmt.Errorf("stored report unreadable: %w", err)
 	}
 	old := "unknown"
@@ -151,12 +151,22 @@ func (r *Runner) Reevaluate(scanID int64, why string) (ev eval.Evaluation, err e
 			old = v.Version
 		}
 	}
-	ev = r.Evaluate(&rep, sc.AssetID)
-	res, err := resultOf(&rep, ev)
+	var res store.Result
+	label := "TLS"
+	if dec.ssh != nil {
+		ev, label = r.EvaluateSSH(dec.ssh), "SSH"
+		res, err = resultOfSSH(dec.ssh, ev)
+	} else {
+		ev = r.Evaluate(dec.tls, sc.AssetID)
+		res, err = resultOf(dec.tls, ev)
+	}
 	if err != nil {
 		return ev, err
 	}
-	event := fmt.Sprintf("re-evaluated (%s): %s → %s; TLS hygiene %s (%d)", why, old, ev.Version, ev.Hygiene.Band, ev.Hygiene.Score)
+	event := fmt.Sprintf("re-evaluated (%s): %s → %s; %s hygiene %s (%d)", why, old, ev.Version, label, ev.Hygiene.Band, ev.Hygiene.Score)
+	if dec.ssh != nil {
+		event = fmt.Sprintf("re-evaluated (%s): %s → %s; baseline %s", why, old, ev.Version, baselineWords(ev.Baseline))
+	}
 	return ev, r.st.ReplaceEvaluation(scanID, res, event)
 }
 

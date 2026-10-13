@@ -112,7 +112,7 @@ func slowProxy(addr, target string, delay time.Duration) (io.Closer, error) {
 }
 
 func main() {
-	base := flag.Int("base-port", 9440, "first port; the targets use base..base+19 (SSH from base+20)")
+	base := flag.Int("base-port", 9440, "first port; the targets use base..base+27 (SSH from base+20)")
 	flag.Parse()
 	// A demo should look like a real service, not one whose certificate expires tomorrow.
 	testserver.CertValidity = 90 * 24 * time.Hour
@@ -176,6 +176,10 @@ func main() {
 		fail(err)
 	}
 
+	if err := startSSHDemo(addr); err != nil {
+		fail(err)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /corp-root.pem", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/x-pem-file")
@@ -228,11 +232,13 @@ Post-quantum certificates:
   %s   mldsa-only         TLS 1.3, an ML-DSA-65 certificate only, hybrid   -> expect L4
   %s   mldsa-dual         an ECDSA and an ML-DSA-65 certificate, hybrid    -> expect L4
 
+SSH servers (add with ssh://, e.g. ssh://%s):
+%s
 STARTTLS services (choose the protocol when adding, or use the scheme, e.g. smtp://%s):
 %s
 Start the product with:  cipherhorizon serve --allow-loopback
 Ctrl+C stops everything.
-`, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6), addr(8), addr(7), addr(9), addr(10), addr(18), addr(19), addr(11), starttlsLines(addr))
+`, addr(0), addr(1), addr(2), addr(3), addr(4), addr(5), addr(7), addr(6), addr(8), addr(7), addr(9), addr(10), addr(18), addr(19), addr(20), sshLines(addr), addr(11), starttlsLines(addr))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

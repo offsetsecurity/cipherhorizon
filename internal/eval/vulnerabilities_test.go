@@ -105,6 +105,9 @@ func TestEveryCheckSaysWhatPassing(t *testing.T) {
 	for _, r := range allRules() {
 		ids[r.id] = true
 	}
+	for _, r := range sshRules {
+		ids[r.id] = true
+	}
 	for id := range ids {
 		if PassText(id) == "" {
 			t.Errorf("%s has no pass text", id)

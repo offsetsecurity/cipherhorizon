@@ -3,6 +3,7 @@
 import { h, clear, relTime, fmtDate } from '../dom.js';
 import { api } from '../api.js';
 import { button, toast, skeleton, levelBadge, bandBadge } from '../ui.js';
+import { protocolOf, reportHref, baselineWords } from './assets.js';
 
 const stemOf = (name) => name.replace(/[^a-z0-9._-]+/gi, '_');
 
@@ -23,7 +24,7 @@ export async function render(root) {
   const body = h('div', { class: 'reports-docs' }, skeleton(4));
   root.appendChild(body);
   const [assets, hosts, systems] = await Promise.all([
-    api.assets('tls-endpoint').catch(() => []), api.hosts().catch(() => []), api.systems().catch(() => null)]);
+    api.assets().catch(() => []), api.hosts().catch(() => []), api.systems().catch(() => null)]);
   clear(body);
 
   // The whole inventory.
@@ -35,23 +36,40 @@ export async function render(root) {
       dl('CycloneDX 1.7', '/api/v1/inventory/cbom?spec=1.7&imported=0&download=1', 'cipherhorizon-inventory-cbom.json'),
       dl('CycloneDX 1.6', '/api/v1/inventory/cbom?spec=1.6&imported=0&download=1', 'cipherhorizon-inventory-cbom-1.6.json'))));
 
-  // One row per scanned endpoint.
-  const scanned = assets.filter((a) => a.lastDone).sort((a, b) => a.name.localeCompare(b.name));
+  // One row per scanned endpoint, grouped by protocol (UX-DESIGN-007 §7).
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  const scanned = assets.filter((a) => a.lastDone && protocolOf(a) === 'tls').sort(byName);
+  const servers = assets.filter((a) => a.lastDone && protocolOf(a) === 'ssh').sort(byName);
   body.appendChild(h('section', { class: 'card', 'aria-labelledby': 'doc-ep' },
-    h('h2', { id: 'doc-ep' }, 'Endpoint reports'),
-    h('p', { class: 'muted' }, 'The latest scan of each endpoint. The security report has everything; the TLS and certificate reports are shorter extracts.'),
+    h('h2', { id: 'doc-ep' }, 'TLS endpoint reports'),
+    h('p', { class: 'muted' }, 'The latest scan of each TLS endpoint. The security report has everything; the TLS and certificate reports are shorter extracts.'),
     scanned.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'compact docs-table' },
       h('thead', null, h('tr', null, ['Endpoint', 'Result', 'Scanned', 'PDF reports', 'CBOM'].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, scanned.map((a) => {
         const d = a.lastDone, stem = stemOf(a.name), pdf = (kind) => `/api/v1/scans/${d.id}/report.pdf?kind=${kind}`;
         return h('tr', null,
-          h('td', { class: 'namecell' }, h('a', { href: `#/endpoints/${a.id}` }, a.name)),
+          h('td', { class: 'namecell' }, h('a', { href: reportHref(a) }, a.name)),
           h('td', null, levelBadge(d.readinessLevel, false), ' ', bandBadge(d.band, d.score)),
           h('td', { class: 'muted nowrap', title: fmtDate(d.finishedAt) }, relTime(d.finishedAt)),
           h('td', { class: 'nowrap' }, dl('Security', pdf('full'), `${stem}-security-report.pdf`), ' ', dl('TLS', pdf('tls'), `${stem}-tls-report.pdf`), ' ',
             dl('Certificate', pdf('cert'), `${stem}-certificate-report.pdf`)),
           h('td', null, dl('CycloneDX', `/api/v1/scans/${d.id}/cbom?download=1`, `${stem}-cbom.json`)));
-      })))) : h('p', { class: 'muted' }, 'No endpoint has been scanned yet. ', h('a', { href: '#/' }, 'Scan one'), '.')));
+      })))) : h('p', { class: 'muted' }, 'No TLS endpoint has been scanned yet. ', h('a', { href: '#/' }, 'Scan one'), '.')));
+
+  body.appendChild(h('section', { class: 'card', 'aria-labelledby': 'doc-ssh' },
+    h('h2', { id: 'doc-ssh' }, 'SSH server reports'),
+    h('p', { class: 'muted' }, 'The latest scan of each SSH server: readiness, the baseline verdict with the sshd_config lines to meet it, and every check.'),
+    servers.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'compact docs-table' },
+      h('thead', null, h('tr', null, ['Server', 'Result', 'Scanned', 'PDF report', 'CBOM'].map((c) => h('th', { scope: 'col' }, c)))),
+      h('tbody', null, servers.map((a) => {
+        const d = a.lastDone, stem = stemOf(a.name);
+        return h('tr', null,
+          h('td', { class: 'namecell' }, h('a', { href: reportHref(a) }, a.name)),
+          h('td', null, levelBadge(d.readinessLevel, false), ' ', baselineWords(d)),
+          h('td', { class: 'muted nowrap', title: fmtDate(d.finishedAt) }, relTime(d.finishedAt)),
+          h('td', { class: 'nowrap' }, dl('SSH security report', `/api/v1/scans/${d.id}/report.pdf`, `${stem}-ssh-report.pdf`)),
+          h('td', null, dl('CycloneDX', `/api/v1/scans/${d.id}/cbom?download=1`, `${stem}-cbom.json`)));
+      })))) : h('p', { class: 'muted' }, 'No SSH server has been scanned yet. ', h('a', { href: '#/ssh' }, 'Add one'), '.')));
 
   // One row per machine.
   const withSnap = hosts.filter((x) => x.snapshotId);
@@ -71,7 +89,7 @@ export async function render(root) {
   const sys = systems && systems.systems ? systems.systems : [];
   body.appendChild(h('section', { class: 'card', 'aria-labelledby': 'doc-x' },
     h('h2', { id: 'doc-x' }, 'Spreadsheets and standards exports'),
-    docRow('Endpoints (CSV)', 'One row per endpoint: hygiene, post-quantum level, exposure and finding counts.',
+    docRow('Endpoints (CSV)', 'One row per TLS endpoint and SSH server: post-quantum level, exposure and finding counts, the TLS hygiene score or the SSH baseline verdict.',
       dl('Download CSV', '/api/v1/export/assets.csv', 'cipherhorizon-endpoints.csv')),
     docRow('Systems (CSV)', 'One row per system with its migration rank and owner details.',
       dl('Download CSV', '/api/v1/systems/export.csv', 'cipherhorizon-systems.csv')),

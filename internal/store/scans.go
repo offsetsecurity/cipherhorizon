@@ -64,7 +64,9 @@ func (s *Store) GetScan(id int64) (ScanSummary, error) {
 type ScanFilter struct {
 	AssetID int64
 	Status  string
-	Limit   int
+	// Kind limits the list to one asset kind (KindTLS, KindSSH); empty means any.
+	Kind  string
+	Limit int
 }
 
 // ScanWithAsset is a scan row plus the asset it belongs to, for lists.
@@ -72,11 +74,12 @@ type ScanWithAsset struct {
 	ScanSummary
 	AssetName    string `json:"assetName"`
 	AssetAddress string `json:"assetAddress"`
+	AssetKind    string `json:"assetKind"`
 }
 
 // ListScans returns scans, newest first.
 func (s *Store) ListScans(f ScanFilter) ([]ScanWithAsset, error) {
-	q := `SELECT ` + prefixed("s", scanCols) + `, a.name, a.host, a.port FROM scans s JOIN assets a ON a.id = s.asset_id WHERE 1=1` //nolint:gosec // scanCols is a constant column list, not input
+	q := `SELECT ` + prefixed("s", scanCols) + `, a.name, a.host, a.port, a.kind FROM scans s JOIN assets a ON a.id = s.asset_id WHERE 1=1` //nolint:gosec // scanCols is a constant column list, not input
 	var args []any
 	if f.AssetID != 0 {
 		q += ` AND s.asset_id = ?`
@@ -85,6 +88,10 @@ func (s *Store) ListScans(f ScanFilter) ([]ScanWithAsset, error) {
 	if f.Status != "" {
 		q += ` AND s.status = ?`
 		args = append(args, f.Status)
+	}
+	if f.Kind != "" {
+		q += ` AND a.kind = ?`
+		args = append(args, f.Kind)
 	}
 	q += ` ORDER BY s.id DESC LIMIT ?`
 	if f.Limit <= 0 || f.Limit > 500 {
@@ -100,32 +107,27 @@ func (s *Store) ListScans(f ScanFilter) ([]ScanWithAsset, error) {
 	out := []ScanWithAsset{}
 	for rows.Next() {
 		var w ScanWithAsset
-		var name, host string
+		var host string
 		var port int
-		var queued string
-		var started, finished, certEnd sql.NullString
-		var level sql.NullInt64
-		var hndl, incomplete int
-		v := &w.ScanSummary
-		if err := rows.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.StartedBy, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
-			&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete, &name, &host, &port); err != nil {
+		v, err := scanSummary(withExtra{rows, []any{&w.AssetName, &host, &port, &w.AssetKind}})
+		if err != nil {
 			return nil, err
 		}
-		if t := parseTS(sql.NullString{String: queued, Valid: true}); t != nil {
-			v.QueuedAt = *t
-		}
-		v.StartedAt, v.FinishedAt, v.CertNotAfter = parseTS(started), parseTS(finished), parseTS(certEnd)
-		if level.Valid {
-			l := int(level.Int64)
-			v.ReadinessLevel = &l
-		}
-		v.HNDLExposed, v.Incomplete = hndl != 0, incomplete != 0
-		w.AssetName = name
+		w.ScanSummary = v
 		w.AssetAddress = Asset{Host: host, Port: port}.Address()
 		out = append(out, w)
 	}
 	return out, rows.Err()
 }
+
+// withExtra reads the scan columns and then extra ones from the same row.
+type withExtra struct {
+	r     scanner
+	extra []any
+}
+
+// Scan reads the row into dest, then into the extra destinations.
+func (w withExtra) Scan(dest ...any) error { return w.r.Scan(append(dest, w.extra...)...) }
 
 // prefixed puts a table alias in front of every column in a comma list.
 func prefixed(alias, cols string) string {
@@ -212,9 +214,10 @@ func (s *Store) FinishScan(id int64, r Result) error {
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`UPDATE scans SET status = 'done', finished_at = ?, stage = 'done', progress_pct = 100, error = '',
 		report_json = ?, eval_json = ?, band = ?, score = ?, readiness_level = ?, hndl_exposed = ?, crit = ?, high = ?, medium = ?,
-		low = ?, info = ?, cert_not_after = ?, incomplete = ? WHERE id = ? AND status = 'running'`,
+		low = ?, info = ?, cert_not_after = ?, incomplete = ?, service = ?, host_key = ?,
+		baseline = ?, baseline_meets = ?, baseline_changes = ? WHERE id = ? AND status = 'running'`,
 		ts(s.now()), r.Report, r.Evaluation, r.Band, r.Score, r.ReadinessLevel, b2i(r.HNDLExposed), r.Critical, r.High, r.Medium, r.Low, r.Info,
-		nullTS(r.CertNotAfter), b2i(r.Incomplete), id)
+		nullTS(r.CertNotAfter), b2i(r.Incomplete), r.Service, r.HostKey, r.Baseline, nullBool(r.BaselineMeets), r.BaselineChanges, id)
 	if err != nil {
 		return err
 	}
@@ -333,7 +336,7 @@ func (s *Store) FailInterrupted() (int, error) {
 
 // DueAssets returns assets whose scheduled scan is due and that have no active scan.
 func (s *Store) DueAssets(now time.Time) ([]Asset, error) {
-	rows, err := s.db.Query(`SELECT `+assetCols+` FROM assets a WHERE kind = 'tls-endpoint' AND interval_seconds > 0 AND next_scan_at IS NOT NULL AND next_scan_at <= ?
+	rows, err := s.db.Query(`SELECT `+assetCols+` FROM assets a WHERE kind IN ('tls-endpoint', 'ssh-endpoint') AND interval_seconds > 0 AND next_scan_at IS NOT NULL AND next_scan_at <= ?
 		AND NOT EXISTS (SELECT 1 FROM scans s WHERE s.asset_id = a.id AND s.status IN ('queued','running')) ORDER BY next_scan_at`, ts(now))
 	if err != nil {
 		return nil, err
@@ -387,6 +390,9 @@ type HistoryPoint struct {
 	Incomplete     bool      `json:"incomplete"`
 	Trigger        string    `json:"trigger"`
 	StartedBy      string    `json:"startedBy"`
+	// The SSH baseline verdict (ScanSummary has the meanings); nil for TLS and when not judged.
+	BaselineMeets   *bool `json:"baselineMeets,omitempty"`
+	BaselineChanges int   `json:"baselineChanges,omitempty"`
 }
 
 // History returns an asset's finished scans, oldest first (for charts).
@@ -394,7 +400,8 @@ func (s *Store) History(assetID int64, limit int) ([]HistoryPoint, error) {
 	if limit <= 0 {
 		limit = 200
 	}
-	rows, err := s.db.Query(`SELECT id, COALESCE(finished_at, queued_at), status, band, score, readiness_level, hndl_exposed, crit, high, medium, error, incomplete, trigger, started_by
+	rows, err := s.db.Query(`SELECT id, COALESCE(finished_at, queued_at), status, band, score, readiness_level, hndl_exposed, crit, high, medium, error, incomplete, trigger, started_by,
+		baseline_meets, baseline_changes
 		FROM scans WHERE asset_id = ? AND status IN ('done','failed','canceled') ORDER BY id DESC LIMIT ?`, assetID, limit)
 	if err != nil {
 		return nil, err
@@ -404,9 +411,10 @@ func (s *Store) History(assetID int64, limit int) ([]HistoryPoint, error) {
 	for rows.Next() {
 		var p HistoryPoint
 		var at string
-		var level sql.NullInt64
+		var level, meets sql.NullInt64
 		var hndl, inc int
-		if err := rows.Scan(&p.ScanID, &at, &p.Status, &p.Band, &p.Score, &level, &hndl, &p.Critical, &p.High, &p.Medium, &p.Error, &inc, &p.Trigger, &p.StartedBy); err != nil {
+		if err := rows.Scan(&p.ScanID, &at, &p.Status, &p.Band, &p.Score, &level, &hndl, &p.Critical, &p.High, &p.Medium, &p.Error, &inc, &p.Trigger, &p.StartedBy,
+			&meets, &p.BaselineChanges); err != nil {
 			return nil, err
 		}
 		if t := parseTS(sql.NullString{String: at, Valid: true}); t != nil {
@@ -417,6 +425,10 @@ func (s *Store) History(assetID int64, limit int) ([]HistoryPoint, error) {
 			p.ReadinessLevel = &l
 		}
 		p.HNDLExposed, p.Incomplete = hndl != 0, inc != 0
+		if meets.Valid {
+			m := meets.Int64 != 0
+			p.BaselineMeets = &m
+		}
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -427,6 +439,14 @@ func (s *Store) History(assetID int64, limit int) ([]HistoryPoint, error) {
 		out[i], out[j] = out[j], out[i]
 	}
 	return out, nil
+}
+
+// nullBool stores a *bool as NULL, 0 or 1.
+func nullBool(b *bool) any {
+	if b == nil {
+		return nil
+	}
+	return b2i(*b)
 }
 
 func b2i(b bool) int {

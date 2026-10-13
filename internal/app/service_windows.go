@@ -23,7 +23,7 @@ import (
 const (
 	serviceName    = "CipherHorizon"
 	serviceDisplay = "CipherHorizon"
-	serviceDesc    = "Post-quantum readiness and TLS scanner: the CipherHorizon web interface and API."
+	serviceDesc    = "Post-quantum readiness for TLS and SSH: the CipherHorizon web interface and API."
 	serviceAccount = `NT AUTHORITY\LocalService`
 	// Protected DACL, inherited by everything below: SYSTEM and Administrators full control,
 	// LocalService modify (read, write, create, delete its own files), nobody else.

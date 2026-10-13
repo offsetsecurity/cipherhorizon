@@ -19,7 +19,7 @@ export async function pqsPhase({ check, js, go, sleep, shot }) {
   await go(`#/endpoints/${ids[1]}?tab=configuration`);
   await sleep(1500);
   const text = await js(`return document.querySelector('main').innerText`);
-  check('E2E-S.1', 'the ML-DSA-only and the dual-certificate servers are L4, and Configuration lists mldsa65 as accepted (post-quantum)',
+  check('E2E-PQS.1', 'the ML-DSA-only and the dual-certificate servers are L4, and Configuration lists mldsa65 as accepted (post-quantum)',
     done.length === 2 && done.every((a) => a?.lastDone?.readinessLevel === 4) &&
     /Signature schemes the server can authenticate with/.test(text) && /mldsa65/.test(text) && /post-quantum \(ML-DSA-65\)/.test(text),
     JSON.stringify(done.map((a) => [a?.port, a?.lastDone?.readinessLevel, a?.latest?.error])));

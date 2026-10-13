@@ -177,11 +177,14 @@ func (r *Runner) enqueueDue() {
 	}
 }
 
-// The stages a scan moves through, in the order tlsprobe reports them.
-var stages = []struct {
+// stageDef is one step of a scan's progress: the prober's message, and where the bar starts.
+type stageDef struct {
 	key, message string
 	floor        int
-}{
+}
+
+// The stages a TLS scan moves through, in the order tlsprobe reports them.
+var stages = []stageDef{
 	{"protocols", "testing protocol versions", 5},
 	{"suites", "enumerating cipher suites", 15},
 	{"keyexchange", "probing key exchange", 70},
@@ -199,6 +202,8 @@ type progress struct {
 	r   *Runner
 	ctx context.Context // once it is done (canceled, timed out) the scan says no more
 	id  int64
+	// table is the scan type's stages (TLS or SSH).
+	table []stageDef
 
 	mu       sync.Mutex
 	stage    string
@@ -213,12 +218,12 @@ func (p *progress) message(msg string) {
 		return
 	}
 	p.mu.Lock()
-	for i, s := range stages {
+	for i, s := range p.table {
 		if s.message == msg {
 			p.stage, p.floor = s.key, s.floor
 			p.next = floorEvaluating
-			if i+1 < len(stages) {
-				p.next = stages[i+1].floor
+			if i+1 < len(p.table) {
+				p.next = p.table[i+1].floor
 			}
 		}
 	}
@@ -296,6 +301,10 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 		r.fail(sc.ID, reason, nil)
 		return
 	}
+	if asset.Kind == store.KindSSH {
+		r.executeSSH(parent, sc, asset)
+		return
+	}
 	target, err := tlsprobe.ParseTargetStartTLS(asset.Address(), asset.StartTLS)
 	if err != nil {
 		r.fail(sc.ID, "invalid target: "+err.Error(), nil)
@@ -313,7 +322,7 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 		r.mu.Unlock()
 	}()
 
-	prog := &progress{r: r, ctx: ctx, id: sc.ID, floor: 0, next: stages[0].floor}
+	prog := &progress{r: r, ctx: ctx, id: sc.ID, table: stages, floor: 0, next: stages[0].floor}
 	o := r.opts.Scan
 	g := r.guard.ForTarget(target.Host) // the scan scope applies to every connection (REQ-AC-1)
 	o.Dial = g.Dial

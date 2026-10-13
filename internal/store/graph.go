@@ -14,6 +14,7 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
@@ -272,9 +273,26 @@ func (s *Store) projectScanTx(tx *sql.Tx, scanID int64) error {
 	if status != StatusDone || len(report) == 0 {
 		return nil
 	}
-	var rep tlsprobe.Report
-	if err := json.Unmarshal(report, &rep); err != nil {
-		return nil // an unreadable report is not a projection error; the raw document is still there
+	var head struct {
+		SchemaVersion string `json:"schemaVersion"`
+	}
+	_ = json.Unmarshal(report, &head)
+	var (
+		obs           []estate.Observation
+		tool, toolVer = "cipherhorizon-tls", head.SchemaVersion
+	)
+	if strings.HasPrefix(head.SchemaVersion, "ssh-report/") {
+		var rep sshprobe.Report
+		if err := json.Unmarshal(report, &rep); err != nil {
+			return nil
+		}
+		obs, tool = estate.FromSSHReport(&rep), "cipherhorizon-ssh"
+	} else {
+		var rep tlsprobe.Report
+		if err := json.Unmarshal(report, &rep); err != nil {
+			return nil // an unreadable report is not a projection error; the raw document is still there
+		}
+		obs = estate.FromScanReport(&rep)
 	}
 	at := s.now()
 	if t := parseTS(finished); t != nil {
@@ -283,8 +301,8 @@ func (s *Store) projectScanTx(tx *sql.Tx, scanID int64) error {
 	sum := sha256.Sum256(report)
 	err = s.writeSourceTx(tx, sourceInput{
 		Class: estate.ClassScanner, Stream: estate.StreamNetwork, RefKind: "scan", RefID: scanID, AssetID: assetID,
-		ToolName: "cipherhorizon-tls", ToolVersion: rep.SchemaVersion, SHA256: hex.EncodeToString(sum[:]), Size: len(report), ObservedAt: at,
-	}, estate.FromScanReport(&rep))
+		ToolName: tool, ToolVersion: toolVer, SHA256: hex.EncodeToString(sum[:]), Size: len(report), ObservedAt: at,
+	}, obs)
 	return err
 }
 

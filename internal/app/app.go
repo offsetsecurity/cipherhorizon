@@ -68,6 +68,8 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return hostcmd.Plugins(hostEnv(env))
 	case "tls":
 		return tlsCmd(ctx, args[1:], env)
+	case "ssh":
+		return sshCmd(ctx, args[1:], env)
 	case "serve":
 		return serveCmd(ctx, args[1:], env)
 	case "import":
@@ -106,7 +108,7 @@ func hostEnv(e Env) hostcmd.Env {
 
 // OneLiner says what the product is, the same words everywhere it introduces itself: --help,
 // version, the container image's description, the README (PRD-007 REQ-ST-4).
-const OneLiner = "Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted."
+const OneLiner = "Post-quantum readiness for the protocols your organisation runs on: TLS, SSH and, next, VPN. A deep scan of each, a readiness level from L0 to L4, and one CycloneDX CBOM, self-hosted."
 
 func usage(w io.Writer) {
 	_, _ = fmt.Fprint(w, "CipherHorizon by Offset Security. "+OneLiner+`
@@ -114,6 +116,8 @@ func usage(w io.Writer) {
 Usage:
   cipherhorizon run [--config FILE] [-o FILE] [--root DIR] [--redact-host]
   cipherhorizon tls scan [flags] HOST[:PORT]...
+  cipherhorizon ssh scan [flags] HOST[:PORT]...
+  cipherhorizon ssh baselines
   cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--tls-cert F --tls-key F] [--token TOKEN] [--no-login]
   cipherhorizon import [--server URL] (--system ID | --new-system NAME) FILE|-
   cipherhorizon db rebuild-graph|stats|backup [--db FILE] [BACKUP-FILE]
@@ -134,6 +138,13 @@ run inventories the cryptographic software on this machine and reports what is p
 and what it can do, never what it is used for. Running without elevated privileges is
 allowed and may leave results incomplete; run as Administrator (Windows) or root (Linux)
 for a fuller result. It never reads keys or secrets.
+
+ssh scan reads each SSH server's identification and algorithm lists, negotiates as OpenSSH
+10.6 would, and fetches every host key, never logging in. It prints the verdict first:
+readiness level, whether the server meets the SSH baseline (and the sshd_config lines that
+would make it), what to do. It takes --details, --json, --cbom and --fail-on as tls scan
+does, plus --baseline ID and the condition --fail-on baseline. SSH servers have no score.
+The port is 22 unless given. ssh baselines lists the baselines with their sources.
 
 tls scan probes each target's TLS/SSL support (protocol versions, every cipher suite,
 key-exchange groups including post-quantum hybrids, certificates) and prints the verdict

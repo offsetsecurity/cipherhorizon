@@ -39,8 +39,14 @@ const (
 // Asset kinds.
 const (
 	KindTLS  = "tls-endpoint"
+	KindSSH  = "ssh-endpoint" // PRD-008: an SSH server, scanned by internal/sshprobe
 	KindHost = "host"
+	// KindEndpoint is not stored: ListAssets reads it as every network endpoint (TLS and SSH).
+	KindEndpoint = "endpoint"
 )
+
+// IsEndpoint reports whether an asset kind is a network endpoint (scanned, as opposed to a host).
+func IsEndpoint(kind string) bool { return kind == KindTLS || kind == KindSSH }
 
 // Store is the database handle. It is safe for concurrent use.
 type Store struct {
@@ -433,6 +439,16 @@ var migrations = []string{
 	// default; a database that already has accounts keeps it on, so an upgrade never opens a server.
 	`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 	INSERT INTO settings (key, value) SELECT 'sign_in', 'on' WHERE EXISTS (SELECT 1 FROM users);`,
+	// 13: SSH endpoints (PRD-008, ADR-0019). Assets gain no column: an SSH endpoint is kind
+	// 'ssh-endpoint'. A scan keeps, for lists, the SSH server's software and default host key type;
+	// both stay empty for TLS.
+	`ALTER TABLE scans ADD COLUMN service TEXT NOT NULL DEFAULT '';
+	ALTER TABLE scans ADD COLUMN host_key TEXT NOT NULL DEFAULT '';`,
+	// 14: an SSH server's baseline verdict, for lists (PRD-008 REQ-SHB-5): the baseline id, whether
+	// the server meets it (NULL when not judged, and for TLS) and how many changes it needs.
+	`ALTER TABLE scans ADD COLUMN baseline TEXT NOT NULL DEFAULT '';
+	ALTER TABLE scans ADD COLUMN baseline_meets INTEGER;
+	ALTER TABLE scans ADD COLUMN baseline_changes INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same
@@ -671,6 +687,14 @@ type ScanSummary struct {
 	Info           int        `json:"info"`
 	CertNotAfter   *time.Time `json:"certNotAfter"`
 	Incomplete     bool       `json:"incomplete"`
+	// Service and HostKey describe an SSH endpoint for lists ("OpenSSH_10.0", "Ed25519"); empty for TLS.
+	Service string `json:"service"`
+	HostKey string `json:"hostKey"`
+	// Baseline, BaselineMeets and BaselineChanges are an SSH server's baseline verdict (PRD-008
+	// WP-G); BaselineMeets is nil when the server was not judged, and for TLS.
+	Baseline        string `json:"baseline,omitempty"`
+	BaselineMeets   *bool  `json:"baselineMeets,omitempty"`
+	BaselineChanges int    `json:"baselineChanges,omitempty"`
 }
 
 // Result is what a finished scan stores.
@@ -688,6 +712,12 @@ type Result struct {
 	Info           int
 	CertNotAfter   *time.Time
 	Incomplete     bool
+	Service        string
+	HostKey        string
+	// The SSH baseline verdict (ScanSummary has the meanings).
+	Baseline        string
+	BaselineMeets   *bool
+	BaselineChanges int
 	// FinalEvent, if set, is logged with the result in one transaction.
 	FinalEvent string
 }
@@ -798,7 +828,12 @@ func (s *Store) FindAsset(kind, host string, port int) (Asset, error) {
 func (s *Store) ListAssets(kind string) ([]Asset, error) {
 	q := `SELECT ` + assetCols + ` FROM assets`
 	var args []any
-	if kind != "" {
+	switch kind {
+	case "":
+	case KindEndpoint:
+		q += ` WHERE kind IN (?, ?)`
+		args = append(args, KindTLS, KindSSH)
+	default:
 		q += ` WHERE kind = ?`
 		args = append(args, kind)
 	}
@@ -920,16 +955,18 @@ func (s *Store) DeleteAsset(id int64) error {
 }
 
 const scanCols = `id, asset_id, status, trigger, started_by, stage, progress_pct, connections, queued_at, started_at, finished_at, error,
-	band, score, readiness_level, hndl_exposed, crit, high, medium, low, info, cert_not_after, incomplete`
+	band, score, readiness_level, hndl_exposed, crit, high, medium, low, info, cert_not_after, incomplete, service, host_key,
+	baseline, baseline_meets, baseline_changes`
 
 func scanSummary(r scanner) (ScanSummary, error) {
 	var v ScanSummary
 	var queued string
 	var started, finished, certEnd sql.NullString
-	var level sql.NullInt64
+	var level, meets sql.NullInt64
 	var hndl, incomplete int
 	if err := r.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.StartedBy, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
-		&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete); err != nil {
+		&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete, &v.Service, &v.HostKey,
+		&v.Baseline, &meets, &v.BaselineChanges); err != nil {
 		return ScanSummary{}, err
 	}
 	if t := parseTS(sql.NullString{String: queued, Valid: true}); t != nil {
@@ -941,6 +978,10 @@ func scanSummary(r scanner) (ScanSummary, error) {
 		v.ReadinessLevel = &l
 	}
 	v.HNDLExposed, v.Incomplete = hndl != 0, incomplete != 0
+	if meets.Valid {
+		m := meets.Int64 != 0
+		v.BaselineMeets = &m
+	}
 	return v, nil
 }
 

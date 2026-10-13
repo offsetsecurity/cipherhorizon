@@ -48,7 +48,6 @@ const chainLabel = (v) => {
 const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 const BUILDERS = () => ({ certificates: certificatesBody, revocation: revocationBody, protocols: protocolsBody, suites: suitesBody,
   'key-exchange': keyExchangeBody, features: featuresBody, http: httpBody, vulnerabilities: vulnerabilitiesBody });
-const sectionTitle = (id) => (SECTIONS.find(([s]) => s === id) || [id, id])[1];
 const capital = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 // Plain words for a reader who is not a TLS specialist (PRD-006 D6): why a kind of finding matters,
@@ -67,13 +66,31 @@ const WHY = {
 const GROUP_WORD = { protocol: 'Protocol versions', cipher: 'Cipher suites', 'key-exchange': 'Key exchange', pqc: 'Post-quantum',
   certificate: 'Certificate', revocation: 'Revocation', feature: 'Protocol features', http: 'HTTP security', vulnerability: 'Published attacks' };
 const URGENCY = { critical: 'Fix now', high: 'Fix soon', medium: 'Plan a fix', low: 'When convenient', info: 'For information' };
-const whyOf = (f) => (f.section === 'http' || f.section === 'revocation' ? WHY[f.section] : null) || WHY[f.category] || WHY.vulnerability;
+const whyOf = (f, prof = TLS) => (prof.why === WHY && (f.section === 'http' || f.section === 'revocation') ? WHY[f.section] : null) || prof.why[f.category] || WHY.vulnerability;
+
+// ---- protocol profiles (PRD-008 D-18) ---------------------------------------------------------
+// The report's shared parts (verdict, coverage line, action items, every check, CBOM) work for any
+// protocol; what differs is in a profile: the areas and their fact builders, the summary tiles,
+// the words for why a finding matters, and the scan stages. report-ssh.js registers SSH's.
+const PROFILES = {};
+export function registerProfile(name, prof) { PROFILES[name] = prof; }
+const TLS = {
+  sections: SECTIONS, builders: () => BUILDERS(), strip: (ctx, sections) => summaryStrip(ctx, sections), why: WHY, groupWord: GROUP_WORD,
+  hygiene: 'TLS hygiene', matrix: (ctx) => protocolMatrix(ctx), skipCards: ['protocols', 'suites', 'vulnerabilities'],
+  stageTitles: { protocols: 'Protocols', suites: 'Cipher suites', 'key-exchange': 'Key exchange', signatures: 'Signature schemes', features: 'Features',
+    certificates: 'Certificates', revocation: 'Revocation & transparency', http: 'HTTP' },
+  schema: 'tls-report/1',
+};
+/** The profile of an evaluation (or a ctx holding one). */
+export const profileOf = (x) => { const ev = x && x.ev ? x.ev : x; return (ev && PROFILES[ev.protocol]) || TLS; };
+const sectionTitleIn = (prof, id) => (prof.sections.find(([s]) => s === id) || [id, id])[1];
 
 /** What each area says in one sentence, and its facts, computed once per render. */
 function sectionData(ctx) {
+  const prof = profileOf(ctx);
   const sections = Object.fromEntries((ctx.ev.sections || []).map((x) => [x.id, x]));
-  const builders = BUILDERS();
-  return SECTIONS.map(([id, title, purpose]) => {
+  const builders = prof.builders();
+  return prof.sections.map(([id, title, purpose]) => {
     const sec = sections[id] || { id, status: 'not-collected', findings: [] };
     const body = builders[id](ctx, sec);
     const facts = (body.facts || []).filter(Boolean);
@@ -83,8 +100,8 @@ function sectionData(ctx) {
 }
 
 /** One finding per rule, worst first, then by section order. */
-function uniqueFindings(ev) {
-  const order = Object.fromEntries(SECTIONS.map(([id], i) => [id, i]));
+export function uniqueFindings(ev) {
+  const order = Object.fromEntries(profileOf(ev).sections.map(([id], i) => [id, i]));
   const seen = new Set();
   return ev.findings.filter((f) => (seen.has(f.id) ? false : seen.add(f.id)))
     .sort((a, b) => (SEV_RANK[a.severity] - SEV_RANK[b.severity]) || ((order[a.section] ?? 9) - (order[b.section] ?? 9)));
@@ -129,24 +146,28 @@ export function summaryView(ctx) {
       h('b', null, 'Scanned by an earlier version. '), 'Some areas were not collected. Scan again to see them.'));
   }
   const worst = act[0] ? act[0].severity : null;
-  wrap.appendChild(h('section', { class: `card verdict${worst ? ` v-${worst}` : ' v-none'}`, 'aria-label': 'Verdict' },
+  // A profile can add an action of its own (SSH: meeting the baseline), counted with the findings.
+  const extra = profileOf(ctx).extraAction ? profileOf(ctx).extraAction(ctx) : null;
+  const todo = act.length + (extra ? 1 : 0);
+  wrap.appendChild(h('section', { class: `card verdict${worst ? ` v-${worst}` : extra ? ' v-medium' : ' v-none'}`, 'aria-label': 'Verdict' },
     h('div', { class: 'verdict-head' },
-      h('h2', null, act.length ? `${plural(act.length, 'thing')} to fix` : 'Nothing to fix'),
+      h('h2', null, todo ? `${plural(todo, 'thing')} to fix` : 'Nothing to fix'),
       ev.readiness.summary ? h('p', { class: 'verdict-line' }, h('b', null, 'Post-quantum: '), ev.readiness.summary) : null,
       coverageLine(ev, () => ctx.goTab('weaknesses'))),
-    summaryStrip(ctx, sections)));
+    profileOf(ctx).strip(ctx, sections)));
 
   const items = h('section', { class: 'card fixcard', id: 'fix', 'aria-labelledby': 'fix-h' }, h('h2', { id: 'fix-h' }, 'Action items'));
+  if (extra) items.appendChild(extra);
   if (!act.length) {
-    items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
+    if (!extra) items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
   } else {
     // Findings that matter for the same reason share it: the reason is said once per group, each
     // finding then says only what to do (DESIGN.md: no repeated copy).
     const groups = [];
     for (const f of act) {
-      const why = whyOf(f);
+      const why = whyOf(f, profileOf(ctx));
       let g = groups.find((x) => x.why === why);
-      if (!g) groups.push(g = { why, label: GROUP_WORD[f.section === 'http' || f.section === 'revocation' ? f.section : f.category] || 'Other', items: [] });
+      if (!g) groups.push(g = { why, label: profileOf(ctx).groupWord[f.section === 'http' || f.section === 'revocation' ? f.section : f.category] || 'Other', items: [] });
       g.items.push(f);
     }
     items.appendChild(h('div', { class: 'action-groups' }, groups.map((g) => h('div', { class: 'action-group' },
@@ -218,7 +239,7 @@ function versionVerdict(v, on, unknown, modernOn) {
 
 function versionState([tone, sym, state, judgement]) {
   return h('span', { class: `vstate vs-${tone}` }, h('span', { class: 'vs-sym', 'aria-hidden': 'true' }, sym),
-    h('b', null, state), h('span', { class: 'vs-judge' }, ` · ${judgement}`));
+    h('b', null, state), judgement ? h('span', { class: 'vs-judge' }, ` · ${judgement}`) : null);
 }
 
 /** The protocol matrix: every version, accepted or not, and for each accepted one what it ran. */
@@ -316,10 +337,11 @@ export function configurationView(ctx) {
   const byId = {};
   for (const f of uniqueFindings(ev)) byId[f.id] = f;
   const stages = Object.fromEntries((rep.stages || []).map((x) => [x.name, x]));
+  const prof = profileOf(ctx);
   const wrap = h('div', { class: 'report configuration' });
-  wrap.appendChild(protocolMatrix(ctx));
+  if (prof.matrix) wrap.appendChild(prof.matrix(ctx));
   for (const d of data) {
-    if (d.id === 'protocols' || d.id === 'suites' || d.id === 'vulnerabilities') continue;
+    if (prof.skipCards.includes(d.id)) continue;
     wrap.appendChild(factCard(ctx, d, byId));
   }
   const about = aboutReport(ctx, stages);
@@ -365,7 +387,7 @@ export function weaknessesView(ctx) {
       n('not-applicable') ? [', ', h('span', { class: 'muted' }, `${n('not-applicable')} do not apply to this service`)] : null, '.'),
     filterBar));
 
-  for (const [sid, title] of SECTIONS) {
+  for (const [sid, title] of profileOf(ctx).sections) {
     const cs = checks.filter((c) => c.section === sid);
     if (!cs.length) continue;
     const found = cs.filter((c) => c.result === 'found').sort((a, b) => SEV_RANK[sevOf(a)] - SEV_RANK[sevOf(b)]);
@@ -406,7 +428,7 @@ export function weaknessesView(ctx) {
   }
   const vb = vulnerabilitiesBody(ctx);
   if (vb.detail) wrap.appendChild(h('section', { class: 'card', 'aria-labelledby': 'att-h' }, h('h2', { id: 'att-h' }, 'Published attacks'), vb.detail));
-  if (ctx.hygieneBody) wrap.appendChild(h('section', { class: 'card', id: 'score', 'aria-labelledby': 'score-h' }, h('h2', { id: 'score-h' }, 'How the TLS hygiene score was worked out'), ctx.hygieneBody(ev.hygiene)));
+  if (ctx.hygieneBody && profileOf(ctx).hygiene) wrap.appendChild(h('section', { class: 'card', id: 'score', 'aria-labelledby': 'score-h' }, h('h2', { id: 'score-h' }, `How the ${profileOf(ctx).hygiene} score was worked out`), ctx.hygieneBody(ev.hygiene)));
   return wrap;
 }
 
@@ -421,11 +443,11 @@ function checkFound(c, fs, ctx) {
       h('div', { class: 'issue-body' },
         h('p', null, h('b', null, 'What we saw: '), fs.length > 1 ? null : [f.detail, ' ', evidenceBadge(f.evidence)]),
         fs.length > 1 ? h('ul', { class: 'facts' }, fs.map((x) => h('li', null, x.detail, ' ', evidenceBadge(x.evidence)))) : null,
-        h('p', null, h('b', null, 'Why it matters: '), whyOf(f)),
+        h('p', null, h('b', null, 'Why it matters: '), whyOf(f, profileOf(ctx))),
         h('p', { class: 'fix' }, h('b', null, 'Fix: '), f.remediation),
         citations(f.citations),
         c.section !== 'vulnerabilities' ? h('a', { href: `#sec-${c.section}`, class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goDetails(c.section); } },
-          `See ${sectionTitle(c.section)} in Configuration →`) : null,
+          `See ${sectionTitleIn(profileOf(ctx), c.section)} in Configuration →`) : null,
         ctx.triageControls ? ctx.triageControls(c.id) : null)));
 }
 
@@ -914,9 +936,8 @@ function vulnerabilitiesBody(ctx) {
 function aboutReport(ctx, stages) {
   const { rep, ev } = ctx;
   const addrs = rep.addresses || [];
-  const STAGE_TITLE = { protocols: 'Protocols', suites: 'Cipher suites', 'key-exchange': 'Key exchange', features: 'Features',
-    certificates: 'Certificates', revocation: 'Revocation & transparency', http: 'HTTP' };
-  const how = Object.entries(STAGE_TITLE).map(([k, title]) => {
+  const prof = profileOf(ctx);
+  const how = Object.entries(prof.stageTitles).map(([k, title]) => {
     const st = stages[k];
     if (!st) return null;
     return h('li', null, h('b', null, `${title}: `), st.outcome === 'skipped' ? `not run: ${st.reason || st.reasonCode}` : (st.probes || []).join('; '),
@@ -930,13 +951,14 @@ function aboutReport(ctx, stages) {
       h('dt', null, 'Scanned'), h('dd', null, fmtDate(rep.started)),
       h('dt', null, 'Duration'), h('dd', null, `${rep.durationMs < 1000 ? `${rep.durationMs} ms` : `${(rep.durationMs / 1000).toFixed(1)} s`}, ${rep.connections} connections`),
       h('dt', null, 'Address'), h('dd', null, rep.address, addrs.length > 1 ? h('span', { class: 'hint' }, ` (1 of ${addrs.length}: ${addrs.join(', ')})`) : null),
-      h('dt', null, 'Report format'), h('dd', null, rep.schemaVersion || 'tls-report/1'),
+      h('dt', null, 'Report format'), h('dd', null, rep.schemaVersion || prof.schema),
       h('dt', null, 'Evaluation'), h('dd', null, `${ev.version}${ev.evaluatedAt ? `, ${fmtDate(ev.evaluatedAt)}` : ''} `,
         ctx.viewScanId ? null : button('Re-evaluate', ctx.onReevaluate, 'secondary', { class: 'btn btn-sm', title: 'Judge the stored report again with the current trust anchors and reference data (no new scan)' }))),
     h('h3', null, 'How we tested'),
     h('ul', { class: 'howlist' }, how),
-    h('h3', null, 'Reference data'),
-    h('ul', null, (ev.referenceData || []).map((r) => h('li', null, `${r.name}: ${r.count} entries, retrieved ${r.retrieved}`,
-      r.stale ? [' ', badge(`${r.ageDays} days old`, 'warn')] : null))),
+    (ev.referenceData || []).length ? [h('h3', null, 'Reference data'),
+      h('ul', null, ev.referenceData.map((r) => h('li', null, `${r.name}: ${r.count} entries, retrieved ${r.retrieved}`,
+        r.stale ? [' ', badge(`${r.ageDays} days old`, 'warn')] : null)))] : null,
     (rep.notes || []).length ? [h('h3', null, 'Notes on the scan'), h('ul', null, rep.notes.map((n) => h('li', null, n)))] : null);
 }
+export { aboutReport, factCard, sectionData, notChecked, versionState, plural, capital };

@@ -6,11 +6,12 @@ Architecture: [ENG-HANDOFF-005](ENG-HANDOFF-005-pq-signatures-and-ssh.md) and
 [ADR-0019](../decisions/ADR-0019-ssh-endpoints.md). Screens: [UX-DESIGN-006](UX-DESIGN-006-ssh-endpoints.md).
 Tests: [QA-PLAN-006](QA-PLAN-006-pq-signatures-and-ssh.md). Status per requirement: [RTM](../program/RTM.md).
 
-**Delivery is split in two pull requests** (owner, 2026-10-12). WP-A (post-quantum signatures in TLS) ships first,
-results in [QA-REPORT-008](../program/QA-REPORT-008.md). WP-B to WP-F (SSH) follow, re-scoped by
-[STRATEGY-003](../strategy/STRATEGY-003-multi-protocol-product.md): a page per protocol, and SSH judged by baseline
-conformance rather than a 0 to 100 score. Where this document and STRATEGY-003 disagree on SSH, STRATEGY-003 wins until
-the SSH requirements are amended.
+**Delivery is split in two pull requests** (owner, 2026-10-12). WP-A (post-quantum signatures in TLS) shipped first,
+results in [QA-REPORT-008](../program/QA-REPORT-008.md). WP-B to WP-G (SSH) follow, **amended 2026-10-13** per
+[STRATEGY-003](../strategy/STRATEGY-003-multi-protocol-product.md) and the owner's decisions there: a page per
+protocol in the menu, SSH judged by **baseline conformance** (WP-G) and never by a 0 to 100 score, and the
+multi-protocol positioning. Screens: [UX-DESIGN-007](UX-DESIGN-007-protocol-pages-and-ssh-baseline.md), which
+supersedes UX-DESIGN-006 where they differ. Architecture: [ENG-HANDOFF-005](ENG-HANDOFF-005-pq-signatures-and-ssh.md) §9.
 
 ## 1. Problem
 
@@ -90,7 +91,7 @@ Priorities: P0 must ship in this PR; P1 should ship; P2 is recorded and deferred
 
 | ID | Requirement | Acceptance | Verified by | Pri |
 |---|---|---|---|---|
-| **REQ-SHE-1** | An SSH report is judged into the **same `Evaluation` shape** as TLS (findings, readiness, hygiene, counts, sections, checks, fix-first, vulnerabilities). Every list, count and ranking that works for TLS works for SSH unchanged. | Fleet findings, counts, systems ranking include SSH endpoints | `TestSSHEvaluationHasTheSameShape`, `TestFleetIncludesSSHEndpoints` | P0 |
+| **REQ-SHE-1** | An SSH report is judged into the **same `Evaluation` shape** as TLS (findings, readiness, hygiene, counts, sections, checks, fix-first, vulnerabilities). Every list, count and ranking that works for TLS works for SSH unchanged. | Fleet findings, counts, systems ranking include SSH endpoints | `TestSSHEvaluationHasTheSameShape`, `TestFleetSummaryByProtocol`, `TestFleetFindingsSpansAssetKinds` | P0 |
 | **REQ-SHE-2** | **Readiness, SSH rules** (methodology): **Undetermined**, no KEXINIT read. **L0**, SSH-1 only. **L1**, no post-quantum hybrid key exchange advertised. **L2**, one is advertised but negotiation as a current client did not end on it. **L3**, a current client negotiates a post-quantum hybrid. **L4**, L3 plus a post-quantum host key presented: the composite `ssh-mldsa44-ed25519` (OpenSSH 10.6 default) or `ssh-mldsa87-p384` (draft-miller-sshm-composite-sigs), or `ssh-mldsa-44/65/87` (draft-sfluhrer-ssh-mldsa). HNDL-exposed for L0 to L2. | Table tests per level | `TestSSHReadinessLevels` | P0 |
 | **REQ-SHE-3** | Hybrids built on ML-KEM (FIPS 203) count fully. `sntrup761x25519-sha512` (and its `@openssh.com` name) counts as post-quantum for HNDL, but raises a Low finding recommending `mlkem768x25519-sha256` for FIPS 203 alignment. | sntrup-only server: L3 and `SSH.PQ-NOT-FIPS` | `TestSntrupCountsButIsNoted` | P0 |
 | **REQ-SHE-4** | Cited checks, each with a pass text. Every rule has a citation (test). | Each rule tested found / not found | `TestSSHRules`, `TestEverySSHRuleIsCited` | P0 |
@@ -110,7 +111,7 @@ Priorities: P0 must ship in this PR; P1 should ship; P2 is recorded and deferred
 | | `PQC.HNDL-EXPOSED`, `PQC.HYBRID-NOT-NEGOTIATED`: the shared ids. | | | |
 | | `SSH.PQ-NOT-FIPS`: Low. | | | |
 | | `PQC.CLASSICAL-AUTH`: Info, shared id. | | | |
-| **REQ-SHE-5** | The hygiene score uses the same arithmetic and bands, and is labelled **SSH hygiene** wherever an SSH endpoint is shown | Score from findings; label in UI, CLI and PDF | `TestSSHHygieneUsesTheSameArithmetic`, journey E2E-H.2 | P0 |
+| **REQ-SHE-5** | **No 0 to 100 score for SSH** (amended). Nothing shows, stores for ranking, sorts or counts a hygiene score for an SSH server: not the report, the lists, Overview, Systems, the CSV or the PDF. An SSH server's quality measure is baseline conformance (WP-G). Fleet hygiene counts and the hygiene sort cover TLS endpoints only. | An SSH scan stores no band and score -1; fleet bands count TLS only; no "hygiene" on an SSH screen | `TestSSHHasNoHygieneScore`, `TestFleetBandsCountTLSOnly`, journey E2E-H.2 | P0 |
 | **REQ-SHE-6** | Remediation text names the `sshd_config` directive to change (`KexAlgorithms`, `HostKeyAlgorithms`, `Ciphers`, `MACs`, `Compression`) and the OpenSSH version that brings the fix where it matters (9.9 adds ML-KEM, 10.0 makes it the default) | Text present per rule | `TestSSHRemediationNamesTheDirective` | P1 |
 | **REQ-SHE-7** | Changes between two SSH scans (algorithms added or removed, level, host key changed) are shown in History, like TLS diffs | Diff lists an added PQ kex and a changed host key | `TestSSHDiff` | P1 |
 
@@ -118,19 +119,43 @@ Priorities: P0 must ship in this PR; P1 should ship; P2 is recorded and deferred
 
 | ID | Requirement | Acceptance | Verified by | Pri |
 |---|---|---|---|---|
-| **REQ-SHW-1** | An SSH endpoint is a new asset kind `ssh-endpoint`. It's added by `ssh://host[:port]`, or by port 22 with *Automatic*, or by choosing **SSH** in the add dialog's *Service* select. The scan box on Overview and the scan dialog accept the same. | `ssh://h` → SSH asset port 22; `h:22` → SSH; `h:2222` with SSH chosen → SSH | `TestSSHTargetsAreRecognised`, journey E2E-H.1 | P0 |
-| **REQ-SHW-2** | Endpoints lists TLS and SSH endpoints together, with the service named under the address (`SSH · OpenSSH_10.0`, as STARTTLS does today), a *Service* filter, and the hygiene column labelled *Hygiene*. For SSH, the certificate column shows the host key type. | Mixed list renders; filter works | journey E2E-H.1 | P0 |
-| **REQ-SHW-3** | The SSH endpoint report has the same tabs (Summary, Configuration, Weaknesses, CBOM, History) and header actions (Scan again, Download, More) as TLS, per UX-DESIGN-006 | All tabs render with demo data; no TLS-only words on an SSH report | journey E2E-H.2; `TestSSHReportCopyHasNoTLSWords` | P0 |
-| **REQ-SHW-4** | Overview, Findings, Systems, Reports and Inventory count and list SSH endpoints. The readiness scale descriptions cover both protocols. | Counts include SSH; scale text names SSH | journey E2E-H.3 | P0 |
+| **REQ-SHW-1** | An SSH server is a new asset kind `ssh-endpoint`. It's added by `ssh://host[:port]`, by port 22 with *Automatic*, or by choosing **SSH** in the add dialog's *Protocol* select. **The Overview scan box says what it will scan before it does**: as the user types, a chip reads *Scan as TLS* or *Scan as SSH* (Automatic, from the scheme or port), and a click switches it. | `ssh://h` → SSH port 22; `h:22` → SSH; `h:2222` with SSH chosen → SSH; the chip shows SSH for `h:22` and switching it to TLS scans TLS | `TestSSHTargetsAreRecognised`, journey E2E-H.1 | P0 |
+| **REQ-SHW-2** | **A page per protocol** (amended). The menu's Results group reads *TLS endpoints · SSH servers · Machines · Findings · Inventory*. **TLS endpoints** lists TLS and STARTTLS endpoints only: readiness, TLS hygiene, findings, certificate expiry, last scan. **SSH servers** lists SSH servers only: readiness, baseline (*Meets* or *N changes*), findings, software, host key, last scan, sortable by each. Each page has its own add, scan-all and activity. An SSH report lives at `#/ssh/{id}`; an old `#/endpoints/{id}` link to an SSH server is redirected there. | Each list holds only its protocol; columns as stated; old links redirect | journey E2E-H.1 | P0 |
+| **REQ-SHW-3** | The SSH server report has the tabs Summary, Configuration, Weaknesses, CBOM, History and the header actions Scan again, Download, More. The Summary leads with the readiness level and the **baseline verdict**. Configuration lists every algorithm with its baseline verdict and, when the server does not meet the baseline, the generated `sshd_config` lines (UX-DESIGN-007 §4) | All tabs render with demo data; no TLS-only words and no score on an SSH report | journey E2E-H.2; `TestSSHReportCopyHasNoTLSWords` | P0 |
+| **REQ-SHW-4** | **Cross-protocol pages** (amended). Overview shows readiness across all protocols (one scale) and **one card per protocol** (TLS endpoints: count, exposed, hygiene bands, certificates expiring; SSH servers: count, exposed, meeting the baseline, SSH-1). The readiness scale states its rules **per protocol** (For TLS / For SSH). Systems rank by readiness and exposure, never by a score. Reports group documents by protocol. Inventory counts SSH servers, with protocol as a facet. | Cards and counts per protocol; the scale names both rubrics | `TestFleetSummaryByProtocol`, journey E2E-H.3 | P0 |
 | **REQ-SHW-5** | Schedules, bulk add (one per line, `ssh://` accepted), scan all, cancel, re-evaluate, delete, tags, notes and systems work for SSH endpoints | Workflow test | `TestSSHEndpointWorkflow` | P0 |
 | **REQ-SHW-6** | Help and About explain SSH scanning: what is sent (identification, KEXINIT, key exchanges, never authentication), the readiness rules, the checks | Text present | journey E2E-H.4 | P1 |
+| **REQ-SHW-7** | **Findings by protocol.** Fleet Findings keeps grouping by problem across protocols, adds a *Protocol* filter (All, TLS, SSH), and tags every affected endpoint with its protocol | Filter narrows the groups; tags shown | journey E2E-H.3 | P0 |
+| **REQ-SHW-8** | **Positioning** (STRATEGY-003 §4). The one-liner *Post-quantum readiness for the protocols your organisation runs on: TLS, SSH and, next, VPN* and the three pillars replace the TLS-only wording in the README, CLI help, container label, sign-in panel, About, Help, the sidebar tagline and the Overview eyebrow. PDF titles name their protocol ("TLS security report", "SSH security report"). | Text present; no surface calls the product a TLS scanner | `TestTheProductTellsItsStory`, `TestHelpCarriesTheOneLiner`, `TestNoSurfaceSaysTLSScannerAlone` | P0 |
+
+### WP-G · SSH baseline conformance (REQ-SHB), added 2026-10-13
+
+SSH practice judges a server against a policy, not a score (ssh-audit's policies, BSI TR-02102-4). A **baseline** is
+a named, versioned, cited list of what an SSH server may offer and must offer. The answer an SSH administrator wants
+is *does it meet the baseline, and which `sshd_config` lines would make it*.
+
+| ID | Requirement | Acceptance | Verified by | Pri |
+|---|---|---|---|---|
+| **REQ-SHB-1** | **The baseline model.** A baseline has an id, a title, a version date and, per kind (key exchange, host key, cipher, MAC, compression), an **ordered allow-list**. It also has **requirements**: at least one of a set (for example a post-quantum hybrid key exchange), strict key exchange, and a minimum RSA host key size. Every entry and requirement cites its source and names the OpenSSH version that first offers it. | A baseline with an uncited entry fails the test | `TestEveryBaselineEntryIsCited` | P0 |
+| **REQ-SHB-2** | **CipherHorizon SSH baseline 2026** (`cipherhorizon-ssh-2026`, the default). Key exchange: `mlkem768x25519-sha256`, `sntrup761x25519-sha512` (both names), `curve25519-sha256` (both names), ECDH P-256/384/521, `diffie-hellman-group16-sha512`, `group18-sha512`, `group14-sha256`, `group-exchange-sha256`; **at least one post-quantum hybrid required**. Host keys: Ed25519, ECDSA, `rsa-sha2-512/256` (RSA at least 3072 bits), the ML-DSA and composite types, and their certificate forms. Ciphers: ChaCha20-Poly1305, AES-GCM, AES-CTR. MACs: the encrypt-then-MAC forms of HMAC-SHA-256/512 and UMAC-128. Compression: `none`, `zlib@openssh.com`. **Strict key exchange required** (CVE-2023-48795). Sources: RFC 9142, RFC 8332, RFC 8758, RFC 10042, RFC 9941, RFC 8731, RFC 5656, RFC 5647, NIST SP 800-57 Part 1 Rev. 5. | A stock OpenSSH 10 server does not meet it (umac-64, hmac-sha1, non-ETM MACs); a hardened one does | `TestCipherHorizonBaseline2026`, `oracle:testing/ssh/oracle.sh` | P0 |
+| **REQ-SHB-3** | **Conformance.** Each advertised algorithm gets a baseline verdict: *allowed* or *should be off* (not on the allow-list, including names this program doesn't know). Each requirement is met or not. A server **meets** the baseline when nothing offered should be off and every requirement holds. The pseudo-algorithms (`ext-info-s`, `kex-strict-s-v00@openssh.com`) are signals, not judged as algorithms. A server whose lists weren't read is **not judged**, never "meets". SSH-1 only: does not meet. | Table tests: meets, each kind of gap, not judged | `TestBaselineConformance` | P0 |
+| **REQ-SHB-4** | **The `sshd_config` block.** When a server does not meet the baseline, the evaluation generates `KexAlgorithms`, `HostKeyAlgorithms`, `Ciphers` and `MACs` lines (and `Compression no` when needed). Each line holds the allowed algorithms the server already offers, in the baseline's order, plus any required one it lacks, with a comment naming the OpenSSH version needed. A line is never empty: it falls back to the baseline's first entry. A small RSA key or missing strict key exchange gets a comment with the fix (`ssh-keygen -t rsa -b 3072`, OpenSSH 9.6). | Golden blocks; on real OpenSSH 10, `sshd -t` accepts the block and a rescan meets the baseline | `TestGeneratedSSHDConfig`, `oracle:testing/ssh/oracle.sh` | P0 |
+| **REQ-SHB-5** | The baseline result is stored with each scan (baseline id, meets, number of changes), so the SSH servers list shows and sorts it. Re-evaluation recomputes it. Older SSH scans are judged on re-evaluation. | Column populated; re-evaluate fills an old scan | `TestBaselineIsStoredWithTheScan` | P0 |
+| **REQ-SHB-6** | CLI: `ssh scan --baseline ID` (default `cipherhorizon-ssh-2026`), `--fail-on baseline` exits 3 when a server does not meet it, and `ssh baselines` lists the baselines with their sources. Text output prints the verdict and the `sshd_config` block; `--json` carries them. | Exit 3 on a stock server; 0 on a hardened one | `TestSSHFailOnBaseline`, `TestSSHBaselinesCommand` | P0 |
+| **REQ-SHB-7** | **BSI TR-02102-4** (version 2026-01) as a second baseline | Entries match the published tables | — | P1 |
+| **REQ-SHB-8** | The SSH PDF shows the baseline verdict, the changes and the `sshd_config` block | PDF text contains them | `TestSSHPDF` | P0 |
+
+REQ-SHB-7 is deferred. The BSI publishes TR-02102-4 only as image PDFs. The only transcription found is of an
+older edition: it has no hybrid methods, and its validity years end in 2022 to 2029. A government baseline built from
+tables nobody verified would be worse than none. The model makes it a data table plus the citation test, once the
+owner supplies or approves a verified transcription of the 2026-01 tables.
 
 ### WP-E · SSH outputs: CBOM, PDF, CLI, graph (REQ-SHO)
 
 | ID | Requirement | Acceptance | Verified by | Pri |
 |---|---|---|---|---|
 | **REQ-SHO-1** | The endpoint CBOM of an SSH scan has: a protocol component of type `ssh` with the version and the cipher and MAC lists; algorithm components for every advertised key exchange, cipher and MAC that the catalogue knows; host keys as related-crypto-material (`public-key`) with size and fingerprint; and the negotiated choices marked. CycloneDX 1.6 and 1.7 schema-valid. | Schema validation, zero warnings | `TestSSHCBOMIsSchemaValid`, `TestSSHCBOMMarksTheNegotiatedChoices` | P0 |
-| **REQ-SHO-2** | The inventory and its merged CBOM include SSH endpoints | Inventory rows from an SSH scan | `TestInventoryIncludesSSH` | P0 |
+| **REQ-SHO-2** | The inventory and its merged CBOM include SSH endpoints | Inventory rows from an SSH scan | `TestSSHEndpointWorkflow` | P0 |
 | **REQ-SHO-3** | `GET /api/v1/scans/{id}/report.pdf` renders an SSH report: verdict, checks, algorithms by category, host keys | PDF text contains the sections | `TestSSHPDF` | P0 |
 | **REQ-SHO-4** | `cipherhorizon ssh scan [flags] HOST[:PORT]...` prints the verdict first like `tls scan`; it takes `--json`, `--cbom`, `--spec`, `--fail-on` (same conditions and exit codes), `--details`, `--timeout`, `--max-connections` | Golden text output; `--fail-on 'level<L3'` exits 3 on a classical server | `TestSSHScanPrintsTheVerdict`, `TestSSHFailOn` | P0 |
 | **REQ-SHO-5** | SSH scans project into the estate graph: protocol `SSH-2.0`, key exchanges, host key algorithms, ciphers and MACs as *offered*, the negotiated ones as *negotiates*, host keys as key entities | Graph rebuild equals incremental; entities present | `TestSSHScanProjectsIntoTheGraph` | P1 |
@@ -140,8 +165,8 @@ Priorities: P0 must ship in this PR; P1 should ship; P2 is recorded and deferred
 
 | ID | Requirement | Acceptance | Verified by | Pri |
 |---|---|---|---|---|
-| **REQ-SHN-1** | `demo-targets` serves SSH servers: post-quantum hybrid (L3), classical (L1), legacy (`ssh-rsa`, CBC, SHA-1 key exchange; Terrapin), ML-DSA host key (L4) and an SSH-1 banner | Ports printed; scans give the stated levels | journey E2E-H.* | P0 |
-| **REQ-SHN-2** | The SSH prober is checked against real OpenSSH, not only x/crypto: 9.2 (Debian 12: sntrup, no ML-KEM) and 10.x (ML-KEM default). Results recorded in the QA report. | Oracle script AGREE on both | `oracle:testing/ssh/oracle.sh` | P0 |
+| **REQ-SHN-1** | `demo-targets` serves SSH servers: post-quantum hybrid (L3), classical (L1), legacy (`ssh-rsa`, CBC, SHA-1 key exchange; Terrapin), ML-DSA host key (L4), an SSH-1 banner, and a hardened server that **meets the baseline** | Ports printed; scans give the stated levels and baseline verdicts | journey E2E-H.* | P0 |
+| **REQ-SHN-2** | The SSH prober is checked against real OpenSSH, not only x/crypto: 9.2 (Debian 12: sntrup, no ML-KEM) and 10.x (ML-KEM default). The generated `sshd_config` block is applied to the real 10.x server, accepted by `sshd -t`, and the rescan meets the baseline. Results recorded in the QA report. | Oracle script AGREE on both; baseline round trip passes | `oracle:testing/ssh/oracle.sh` | P0 |
 | **REQ-SHN-3** | `docs/ssh-scanning.md` (what is sent, limits), `docs/methodology.md` (SSH readiness rules, checks, hygiene label), `README.md` (SSH in the summary and comparison), CHANGELOG | Docs present and linked | docs review | P0 |
 | **REQ-SHN-4** | No regression: every existing Go test, the journey, `security.sh`, lint (Windows and Linux) and `govulncheck` pass | All green | QA-REPORT-008 | P0 |
 | **REQ-SHN-5** | The new parsers are fuzzed: identification, KEXINIT, host key blob, certificate, KEX reply. At least 1M executions each without failure. | Fuzz run recorded | `FuzzIdentification`, `FuzzKEXINIT`, `FuzzHostKeyBlob`, `FuzzKEXReply` | P0 |
@@ -160,6 +185,11 @@ Priorities: P0 must ship in this PR; P1 should ship; P2 is recorded and deferred
 
 ## 6. Out of scope, recorded
 
+- A CNSA 2.0 SSH baseline (ML-KEM-1024 only, and so on). P1, after BSI.
+- Choosing the baseline in the web app. One baseline ships; the API and CLI take an id, and the web app gets a
+  selector when there is a second.
+- Baselines for TLS (NIST SP 800-52r2, BSI TR-02102-2). TLS keeps its hygiene score; a later decision.
+- A VPN gateways page. It comes with IKE.
 - SSH group-exchange modulus size (`diffie-hellman-group-exchange-*`). Advertised and judged by name only; the
   measured size is P2.
 - TLS 1.2 signature algorithms (visible in ServerKeyExchange). P2.
@@ -172,3 +202,4 @@ Priorities: P0 must ship in this PR; P1 should ship; P2 is recorded and deferred
 |---|---|
 | 2026-10-12 | Baselined |
 | 2026-10-12 | Delivery split: WP-A first; WP-B to WP-F to be amended per STRATEGY-003 (owner decisions) |
+| 2026-10-13 | SSH amended per STRATEGY-003: REQ-SHE-5 (no SSH score), REQ-SHW-1..4 rewritten, REQ-SHW-7..8 and WP-G (REQ-SHB) added, REQ-SHN-1..2 extended |

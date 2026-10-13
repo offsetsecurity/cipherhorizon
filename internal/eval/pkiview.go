@@ -26,6 +26,9 @@ type Input struct {
 	// SSLv2Keys maps a public-key SHA-256 (SPKI) to the other endpoints in the
 	// estate whose latest scan accepted SSLv2 while serving that key.
 	SSLv2Keys map[string][]string
+	// SSHBaseline is the id of the baseline an SSH server is judged against; empty means
+	// BaselineDefault.
+	SSHBaseline string
 }
 
 // ChainView is the evaluation's reading of one served chain: how it was

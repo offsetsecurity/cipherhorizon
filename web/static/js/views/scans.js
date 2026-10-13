@@ -1,12 +1,16 @@
-// All scans across every endpoint, with live progress and cancel.
+// Scans, with live progress and cancel: on a protocol's page (UX-DESIGN-007 §2), that protocol's scans.
 import { h, clear, relTime, fmtDate, duration, startedByWord } from '../dom.js';
 import { api } from '../api.js';
 import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, skeleton } from '../ui.js';
+import { PLACES, baselineWords } from './assets.js';
 
 const FILTERS = [['', 'All'], ['running', 'Running'], ['queued', 'Queued'], ['done', 'Done'], ['failed', 'Failed'], ['canceled', 'Canceled']];
 
 export async function render(root, ctx = {}) {
   let stopped = false, timer = null, status = '';
+  const protocol = ctx.protocol === 'ssh' ? 'ssh' : 'tls';
+  const place = PLACES[protocol];
+  const kind = protocol === 'ssh' ? 'ssh-endpoint' : 'tls-endpoint';
   const head = h('div', { class: 'page-head' }, ctx.embedded ? h('div') : h('div', null, h('h1', null, 'Scans'), h('div', { class: 'sub' }, 'Every scan, newest first')));
   const bar = h('div', { class: 'toolbar' });
   const list = h('div');
@@ -22,21 +26,21 @@ export async function render(root, ctx = {}) {
   const paint = (scans) => {
     clear(list);
     if (!scans.length) {
-      list.appendChild(empty(status ? 'No scans with this status' : 'No scans yet', status ? null : 'Scans appear here once you scan an endpoint.',
-        status ? null : button('Go to endpoints', () => { location.hash = '#/endpoints'; }, 'primary')));
+      list.appendChild(empty(status ? 'No scans with this status' : 'No scans yet', status ? null : `Scans appear here once you scan one of your ${place.many}.`,
+        status ? null : button(`Go to ${place.many}`, () => { location.hash = place.list; }, 'primary')));
       return;
     }
     list.appendChild(h('div', { class: 'tablewrap' }, h('table', null,
-      h('thead', null, h('tr', null, ['Endpoint', 'Status', 'Readiness', 'TLS hygiene', 'Started by', 'Started', 'Took', ''].map((c) => h('th', { scope: 'col' }, c)))),
+      h('thead', null, h('tr', null, [protocol === 'ssh' ? 'Server' : 'Endpoint', 'Status', 'Readiness', protocol === 'ssh' ? 'Baseline' : 'TLS hygiene', 'Started by', 'Started', 'Took', ''].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, scans.map((s) => {
         const active = s.status === 'queued' || s.status === 'running';
         return h('tr', null,
-          h('td', { class: 'namecell' }, h('a', { href: `#/endpoints/${s.assetId}${s.status === 'done' ? `?scan=${s.id}` : ''}` }, s.assetName),
+          h('td', { class: 'namecell' }, h('a', { href: `${place.list}/${s.assetId}${s.status === 'done' ? `?scan=${s.id}` : ''}` }, s.assetName),
             h('div', { class: 'sub' }, s.assetAddress)),
           h('td', null, statusPill(s.status), active ? progressBar(s.progressPct) : null,
             s.error ? h('div', { class: 'hint' }, s.error) : null),
           h('td', null, s.status === 'done' ? levelBadge(s.readinessLevel) : '·'),
-          h('td', null, s.status === 'done' ? bandBadge(s.band, s.score) : '·'),
+          h('td', null, s.status !== 'done' ? '·' : protocol === 'ssh' ? baselineWords(s) : bandBadge(s.band, s.score)),
           h('td', { class: 'muted' }, startedByWord(s)),
           h('td', { class: 'muted', title: fmtDate(s.startedAt || s.queuedAt) }, relTime(s.startedAt || s.queuedAt)),
           h('td', { class: 'muted' }, s.startedAt ? duration(s.startedAt, s.finishedAt) : '·'),
@@ -50,7 +54,7 @@ export async function render(root, ctx = {}) {
     if (stopped) return;
     clearTimeout(timer);
     try {
-      const scans = await api.scans(`?limit=100${status ? `&status=${status}` : ''}`);
+      const scans = await api.scans(`?limit=100&kind=${kind}${status ? `&status=${status}` : ''}`);
       if (stopped) return;
       paint(scans);
       timer = setTimeout(load, scans.some((s) => s.status === 'queued' || s.status === 'running') ? 1200 : 6000);

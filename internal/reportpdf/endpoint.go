@@ -9,6 +9,7 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/pdf"
 	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
@@ -59,6 +60,7 @@ type endpoint struct {
 	*doc
 	in    EndpointInput
 	rep   *tlsprobe.Report
+	ssh   *sshprobe.Report // set for an SSH endpoint (then rep is nil)
 	ev    *eval.Evaluation
 	byID  map[string][]eval.Finding
 	secOf map[string]eval.Section
@@ -348,13 +350,32 @@ func (x *endpoint) fixFirst() {
 func (x *endpoint) glance() {
 	x.h2("Sections at a glance")
 	var rows [][]pdf.Cell
-	for _, id := range kindSections[x.in.Kind] {
-		s := sectionByID(id)
+	for _, id := range x.sectionIDs() {
+		s := x.sectionByID(id)
 		sec := x.sectionData(id)
 		word, t := statusOf(x.statusOf(id))
 		rows = append(rows, []pdf.Cell{txt(s.title, pdf.Bold, ink), dotCell(word, t), txt(sec.verdict, pdf.Regular, text2)})
 	}
 	x.table([]pdf.Col{{Title: "Section", W: 1.6}, {Title: "Status", W: 1.05}, {Title: "In one line", W: 3.2}}, rows)
+}
+
+// sectionIDs are the sections this report shows, in order.
+func (x *endpoint) sectionIDs() []string {
+	if x.ssh != nil {
+		return sshSectionIDs
+	}
+	return kindSections[x.in.Kind]
+}
+
+func (x *endpoint) sectionByID(id string) section {
+	if x.ssh != nil {
+		for _, s := range sshSections {
+			if s.id == id {
+				return s
+			}
+		}
+	}
+	return sectionByID(id)
 }
 
 func sectionByID(id string) section {
@@ -385,6 +406,10 @@ type sectionContent struct {
 
 func (x *endpoint) sectionData(id string) sectionContent {
 	var c sectionContent
+	if x.ssh != nil {
+		c = x.sshSectionData(id)
+		id = ""
+	}
 	switch id {
 	case "certificates":
 		c = x.certificates()
@@ -421,7 +446,7 @@ func (x *endpoint) sectionData(id string) sectionContent {
 }
 
 func (x *endpoint) section(id string) {
-	s := sectionByID(id)
+	s := x.sectionByID(id)
 	c := x.sectionData(id)
 	sec := x.secOf[id]
 	word, t := statusOf(x.statusOf(id))
@@ -1342,29 +1367,62 @@ var stageTitles = []struct{ id, title string }{
 	{"certificates", "Certificates"}, {"revocation", "Revocation & transparency"}, {"http", "HTTP"},
 }
 
-func (x *endpoint) about() {
-	rep, ev := x.rep, x.ev
-	x.h1("About this report")
-	addr := rep.Address
-	if len(rep.Addresses) > 1 {
-		addr += fmt.Sprintf(" (1 of %d: %s)", len(rep.Addresses), strings.Join(rep.Addresses, ", "))
+// scanMeta is what the about page says of either protocol's scan.
+type scanMeta struct {
+	address    string
+	addresses  []string
+	started    time.Time
+	durationMS int64
+	conns      int
+	schema     string
+	stages     []tlsprobe.Stage
+	notes      []string
+	titles     []struct{ id, title string }
+	hygiene    string
+}
+
+func (x *endpoint) meta() scanMeta {
+	if r := x.ssh; r != nil {
+		return scanMeta{r.Address, r.Addresses, r.Started, r.DurationMS, r.Connections, r.SchemaVersion, r.Stages, r.Notes, sshStageTitles, ""}
 	}
-	schema := rep.SchemaVersion
+	r := x.rep
+	schema := r.SchemaVersion
 	if schema == "" {
 		schema = "tls-report/1"
 	}
+	return scanMeta{r.Address, r.Addresses, r.Started, r.DurationMS, r.Connections, schema, r.Stages, r.Notes, stageTitles, "TLS hygiene"}
+}
+
+func (x *endpoint) about() {
+	m, ev := x.meta(), x.ev
+	x.h1("About this report")
+	addr := m.address
+	if len(m.addresses) > 1 {
+		addr += fmt.Sprintf(" (1 of %d: %s)", len(m.addresses), strings.Join(m.addresses, ", "))
+	}
+	schema := m.schema
 	x.kv([][2]string{
 		{"Endpoint", x.in.Name + " (" + x.in.Address + ")"},
-		{"Scanned", stamp(rep.Started)},
-		{"Duration", fmt.Sprintf("%s, %s", duration(rep.DurationMS), plural(rep.Connections, "connection"))},
+		{"Scanned", stamp(m.started)},
+		{"Duration", fmt.Sprintf("%s, %s", duration(m.durationMS), plural(m.conns, "connection"))},
 		{"Address probed", addr},
 		{"Report format", schema},
 		{"Evaluation", strings.TrimSpace(ev.Version + ", " + stamp(ev.EvaluatedAt))},
 		{"Generated", stamp(x.in.Generated) + " by CipherHorizon " + x.in.Version},
 	})
 
-	g := ev.Hygiene
-	x.h2("How the TLS hygiene score was worked out")
+	if m.hygiene == "" {
+		x.sshVerdictMethod()
+	} else {
+		x.hygieneMethod(m)
+	}
+	x.howTested(m)
+}
+
+// hygieneMethod explains the TLS hygiene score. SSH servers have none (PRD-008 REQ-SHE-5).
+func (x *endpoint) hygieneMethod(m scanMeta) {
+	g := x.ev.Hygiene
+	x.h2("How the " + m.hygiene + " score was worked out")
 	if g.Score >= 0 {
 		x.p(body(fmt.Sprintf("Score %d of 100, band %s. ", g.Score, g.Band)), soft("Each finding takes points off 100; the weights are this product's own choice, not a standard."))
 	} else {
@@ -1387,15 +1445,27 @@ func (x *endpoint) about() {
 	if g.Methodology != "" {
 		x.f.Add(para(6, small(g.Methodology)))
 	}
+}
 
+// sshVerdictMethod explains how an SSH server was judged: against a named baseline, not a score.
+func (x *endpoint) sshVerdictMethod() {
+	x.h2("How the baseline verdict was worked out")
+	x.p(body("Each algorithm the server offers is checked against the baseline's allow-list, and each requirement is checked. "),
+		soft("The server meets the baseline when nothing offered should be off and every requirement holds. SSH servers get no score: "+
+			"the baseline's entries are cited and can be listed with cipherhorizon ssh baselines."))
+}
+
+// howTested is the stage table and reference data of the About section.
+func (x *endpoint) howTested(m scanMeta) {
+	ev := x.ev
 	stages := map[string]tlsprobe.Stage{}
-	for _, s := range rep.Stages {
+	for _, s := range m.stages {
 		stages[s.Name] = s
 	}
 	if len(stages) > 0 {
 		x.h2("How we tested")
 		var rows [][]pdf.Cell
-		for _, st := range stageTitles {
+		for _, st := range m.titles {
 			s, ok := stages[st.id]
 			if !ok {
 				continue
@@ -1423,11 +1493,11 @@ func (x *endpoint) about() {
 		}
 		x.bullets(items)
 	}
-	if len(rep.Notes) > 0 {
+	if len(m.notes) > 0 {
 		x.h2("Notes on the scan")
-		x.bullets(rep.Notes)
+		x.bullets(m.notes)
 	}
-	x.f.Add(para(0, small("Findings are inferred from what the server accepted; no attack was attempted. Readiness levels and TLS hygiene are this product's own scales; every finding cites the standard it rests on.")))
+	x.f.Add(para(0, small("Findings are inferred from what the server accepted; no attack was attempted. Readiness levels and "+m.hygiene+" are this product's own scales; every finding cites the standard it rests on.")))
 }
 
 func firstNonEmpty(ss ...string) string {

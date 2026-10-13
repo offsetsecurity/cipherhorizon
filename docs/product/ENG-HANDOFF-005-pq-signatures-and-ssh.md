@@ -130,3 +130,159 @@ report without a signature stage.
 | A misreading of the hybrid KEX encoding | x/crypto implements the same draft independently; the signature verifies only if both sides computed the same H |
 | SSH scans of a whole estate add load | ≤ 24 connections per scan, the same rate limit and budget |
 | Bigger hellos break TLS servers that dislike unknown schemes | Go clients already send them. The full test suite and the demo matrix run against them. A server that breaks shows as an inconclusive protocol probe, not a silent change. |
+
+## 9. Addendum 2026-10-13: protocol pages and the SSH baseline (STRATEGY-003)
+
+This section scopes the amended requirements in PRD-008: REQ-SHE-5, REQ-SHW-1..4 and 7..8, and WP-G (REQ-SHB).
+Screens are in [UX-DESIGN-007](UX-DESIGN-007-protocol-pages-and-ssh-baseline.md). The engines do not change.
+
+### 9.1 Baseline data (`internal/eval/sshbaseline.go`)
+
+```go
+type SSHBaseline struct {
+	ID, Title, Version string            // "cipherhorizon-ssh-2026", "CipherHorizon SSH baseline 2026", "2026-10-13"
+	Allowed    map[string][]BaselineEntry // per registry kind, in preference order (sshd_config order)
+	Requires   []BaselineRequirement
+	MinRSABits int
+}
+type BaselineEntry struct{ Name, Cite, Since string } // Since: the OpenSSH version that first offers it
+type BaselineRequirement struct {
+	ID, Text, Cite string
+	Kind  string   // registry kind the requirement is about, or "" (strict kex, key size)
+	AnyOf []string // at least one of these offered (the PQ hybrids); empty for the special checks
+}
+```
+
+- **The baselines** are Go values in this file, not downloads. `SSHBaselines()` lists them. `SSHBaselineByID(id)`
+  returns one, or false.
+- **The citation test** (`TestEveryBaselineEntryIsCited`):
+  - every entry has `Cite` and `Since`;
+  - every entry is known to `internal/sshprobe/registry` with the same kind;
+  - no name appears twice.
+
+### 9.2 Conformance (in the evaluation)
+
+```go
+type Conformance struct {
+	Baseline   string        `json:"baseline"`         // id
+	Title      string        `json:"title"`
+	Judged     bool          `json:"judged"`           // false: lists not read; Meets is then false and means nothing
+	Reason     string        `json:"reason,omitempty"` // why not judged
+	Meets      bool          `json:"meets"`
+	Changes    []Change      `json:"changes"`          // ordered by kind, then server order
+	Requires   []RequireView `json:"requires"`         // each requirement with met and its citation
+	SSHDConfig string        `json:"sshdConfig"`       // empty when it meets
+}
+type Change struct {
+	Kind, Name string
+	Action     string // remove | add | replace-key | upgrade
+	Text, Cite string
+}
+```
+
+- **`EvaluateSSH(rep, in)`** fills `Evaluation.Baseline *Conformance` (`json:"baseline,omitempty"`; TLS leaves it
+  nil) for `in.SSHBaseline`, which defaults to `cipherhorizon-ssh-2026`.
+- **`SSHAlgorithm` gains `Baseline string`** (`allowed` or `off`). The existing `Verdict` stays, for the post-quantum
+  mark.
+- **The number of changes** counts each algorithm to remove, each unmet requirement and each undersized RSA key.
+
+**`sshd_config` generation**, per directive (`KexAlgorithms`, `HostKeyAlgorithms`, `Ciphers`, `MACs`):
+1. Start from the baseline's allow-list in order, and keep the names the server already offers.
+2. If a requirement with AnyOf on this kind is unmet, append its first entry, with the comment `# needs OpenSSH
+   <Since> or later`.
+3. If the list is still empty, use the baseline's first entry, with its comment.
+4. Write a line only when it would differ from what the server offers.
+
+Then add:
+- `Compression no` when plain `zlib` is offered;
+- `# strict key exchange needs OpenSSH 9.6 or later: upgrade` when it is missing;
+- `# replace the RSA host key: ssh-keygen -t rsa -b 3072 -f /etc/ssh/ssh_host_rsa_key` when an RSA key is under the
+  minimum.
+
+**Host keys.** `HostKeyAlgorithms` is limited to the algorithms of the keys the server holds. Advertised minus off.
+A server holding only a DSA key gets `ssh-ed25519` and the comment `# generate it: ssh-keygen -t ed25519 -f
+/etc/ssh/ssh_host_ed25519_key`.
+
+**No SSH score.**
+- `sshHygiene` is removed. `EvaluateSSH` returns `Hygiene{Score: -1, Band: "", Methodology: <one line saying SSH is
+  judged by a baseline>}`.
+- `server/ssh.go` stores band "" and score -1, and its event line reads `done: baseline meets|N changes, PQC
+  readiness L…`.
+- `store.FleetSummary` counts Bands only from rows with a band, so SSH drops out with no special case
+  (`TestFleetBandsCountTLSOnly`).
+
+### 9.3 Store (migration 14)
+
+```sql
+ALTER TABLE scans ADD COLUMN baseline TEXT NOT NULL DEFAULT '';        -- baseline id; '' for TLS and not judged
+ALTER TABLE scans ADD COLUMN baseline_meets INTEGER;                   -- NULL not judged, 0, 1
+ALTER TABLE scans ADD COLUMN baseline_changes INTEGER NOT NULL DEFAULT 0;
+```
+
+- **Fields.** `Result` and `ScanSummary` gain `Baseline string`, `BaselineMeets *bool` and `BaselineChanges int`.
+  The JSON names are `baseline`, `baselineMeets` and `baselineChanges`.
+- **Re-evaluation.** Re-evaluating writes them, so older SSH scans get a verdict on the next re-evaluation.
+- **`FleetSummary` gains `Protocols map[string]ProtocolSummary`**, keyed `tls` and `ssh`:
+
+  ```go
+  type ProtocolSummary struct {
+  	Assets, Scanned, HNDLExposed, Critical, High int
+  	Readiness                                    map[int]int
+  	Bands                                        map[string]int // tls
+  	CertsExpiring                                int            // tls
+  	BaselineMeets, BaselineFails, SSH1           int            // ssh
+  }
+  ```
+
+  The top-level fields stay as they are, so existing callers don't change.
+
+### 9.4 API
+
+- **Findings.** `GET /api/v1/findings` carries the protocol of each affected asset.
+- **Fleet.** `GET /api/v1/fleet` carries `protocols`.
+- **Baselines.** `GET /api/v1/ssh/baselines` lists the baselines (id, title, version, entries with citations), for
+  Help.
+- **OpenAPI.** The document describes `baseline` and the new scan fields.
+
+### 9.5 CLI
+
+`internal/app/ssh.go`:
+- `--baseline ID` (exit 2 on an unknown id);
+- `--fail-on` gains the condition `baseline` (exit 3 when any scanned server is judged and does not meet it).
+
+The text output prints, after the verdict:
+- `Baseline: meets CipherHorizon SSH baseline 2026`, or `Baseline: does not meet … (N changes)` followed by the
+  `sshd_config` block, indented;
+- `--json` carries the conformance object.
+
+`cipherhorizon ssh baselines` prints each baseline: id, title, version, then the entries by kind with their sources.
+
+### 9.6 Web
+
+| File | Change |
+|---|---|
+| `index.html`, `app.js` | Nav items *TLS endpoints* (`#/endpoints`) and *SSH servers* (`#/ssh`); routes `#/ssh` and `#/ssh/{id}`; `asset.js` redirects a protocol mismatch with `location.replace` |
+| `endpoints.js` | Takes a protocol (`tls` or `ssh`) and its labels; the Scan activity tab passes it |
+| `assets.js` | Filters by protocol, drops the Protocol filter, chooses columns per protocol, presets the add dialog |
+| `scans.js` | Accepts a protocol filter |
+| `report-ssh.js` | The baseline tile, the Configuration block with Copy, the requirement rows, the Baseline column; no hygiene anywhere |
+| `overview.js` | The scan-box chip; protocol cards from `fleet.protocols`; the per-protocol scale lines |
+| `findings.js` | The protocol filter and tags |
+| `system.js`, `reports.js` | Protocol tags and groups; no score for SSH |
+| `about.js`, `help.js`, sign-in panel | The one-liner and pillars, the Protocols section in Help |
+
+Guard tests:
+- `TestUICopyRules` forbids "SSH endpoint" and "SSH hygiene" in UI copy.
+- `TestNoSurfaceSaysTLSScannerAlone` checks that the old TLS-only tagline and one-liner are gone everywhere.
+
+### 9.7 Order
+
+1. Baseline model + conformance + generator, with tests.
+2. Store migration + server.
+3. CLI.
+4. Demo: a hardened server that meets the baseline.
+5. Web: nav and pages, report, Overview, Findings, the rest.
+6. Copy: positioning.
+7. Oracle: baseline round trip on OpenSSH 10.
+8. Journey: re-point `ssh-phase.mjs` at the new pages.
+9. QA report section and RTM rows.

@@ -35,7 +35,7 @@ logo). The values below were read from offsetsecurity.net's own stylesheet
 - **Files** (`web/static/img/`): `mark.svg` (blue, also the favicon), `mark-on-navy.svg` (the same; blue reads on
   navy), `mark-mono.svg` (a navy tile, for one-colour print). `brandMark()` in `dom.js` and the PDF cover draw the same
   shapes.
-- **Lockup:** the icon, *CipherHorizon* in Geist 600, and under it the tagline *TLS and post-quantum scanner*.
+- **Lockup:** the icon, *CipherHorizon* in Geist 600, and under it the tagline *TLS · SSH · post-quantum readiness* (STRATEGY-003 §4).
 - **Why a padlock:** it says "TLS" and "cryptography" at 16 pixels, where anything subtler turns into a smudge.
 
 ---

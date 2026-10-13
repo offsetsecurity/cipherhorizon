@@ -10,7 +10,6 @@ import (
 
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/reportpdf"
-	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 var unsafeFileChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
@@ -68,14 +67,25 @@ func (s *Server) scanPDF(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
-	var rep tlsprobe.Report
 	var ev eval.Evaluation
-	if json.Unmarshal(rb, &rep) != nil || json.Unmarshal(eb, &ev) != nil {
+	dec, err := decodeReport(rb)
+	if err != nil || json.Unmarshal(eb, &ev) != nil {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
+	if dec.ssh != nil {
+		// An SSH endpoint has one report (REQ-SHO-3); the TLS kinds do not apply.
+		b, err := reportpdf.SSH(reportpdf.SSHInput{Name: a.Name, Address: a.Address(), ScanID: id, Report: dec.ssh, Eval: &ev,
+			Version: s.cfg.Version, Generated: s.cfg.Now()})
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal error")
+			return
+		}
+		writePDF(w, b, fmt.Sprintf("%s-ssh-report.pdf", fileStem(a.Name)))
+		return
+	}
 	b, err := reportpdf.Endpoint(reportpdf.EndpointInput{
-		Name: a.Name, Address: a.Address(), ScanID: id, Report: &rep, Eval: &ev, Kind: kind,
+		Name: a.Name, Address: a.Address(), ScanID: id, Report: dec.tls, Eval: &ev, Kind: kind,
 		Version: s.cfg.Version, Generated: s.cfg.Now(),
 	})
 	if err != nil {

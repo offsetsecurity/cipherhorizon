@@ -2,11 +2,13 @@
 // licences and data it ships with. How to use it is in Help; how this server is set up, in Settings.
 import { h, brandMark } from '../dom.js';
 import { api } from '../api.js';
+import { ONE_LINER, PILLARS } from '../auth.js';
 
 const STANDARDS = [
   ['NIST IR 8547', 'Transition to post-quantum cryptography: quantum-vulnerable algorithms deprecated after 2030, disallowed after 2035'],
   ['FIPS 203, 204, 205', 'ML-KEM, ML-DSA and SLH-DSA, the post-quantum algorithms'],
   ['RFC 8446, RFC 9325', 'TLS 1.3, and recommendations for using TLS securely'],
+  ['RFC 4253, RFC 9142, RFC 10042', 'SSH, its key exchange recommendations, and its ML-KEM hybrid key exchange'],
   ['CycloneDX 1.6, 1.7', 'The CBOM format of the inventory'],
 ];
 
@@ -24,12 +26,13 @@ export async function render(root) {
     h('span', { class: 'about-id-mark', 'aria-hidden': 'true' }, brandMark('color')),
     h('div', null,
       h('h1', null, a.name || 'CipherHorizon'),
-      h('p', { class: 'about-id-line' }, 'TLS and post-quantum scanner, and cryptographic inventory'),
+      h('p', { class: 'about-id-line' }, ONE_LINER),
       h('p', { class: 'muted mono small' }, `Version ${a.version} · evaluation rules ${a.evalVersion}`))));
 
   root.appendChild(h('section', { class: 'card about-body' },
-    h('p', null, 'CipherHorizon scans TLS endpoints and tells you how ready each one is for post-quantum cryptography, what is weak and what to fix first. ',
+    h('p', null, 'CipherHorizon scans the protocols your organisation runs on, TLS and SSH today, and tells you how ready each endpoint is for post-quantum cryptography, what is weak and what to fix first. ',
       'It can also inventory the cryptography on your machines and export everything as one CycloneDX CBOM. It runs on your own machine or network and makes no connection except the scans you start.'),
+    h('ul', { class: 'about-pillars' }, PILLARS.map(([t, d]) => h('li', null, h('b', null, t), ' ', h('span', { class: 'text-2' }, d)))),
     h('div', { class: 'row' },
       h('a', { class: 'btn btn-secondary', href: '#/help' }, 'Help'),
       h('a', { class: 'btn btn-secondary', href: '#/settings' }, 'Settings'),
@@ -37,7 +40,7 @@ export async function render(root) {
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Standards'),
     h('dl', { class: 'kv' }, STANDARDS.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
-    h('p', { class: 'hint' }, 'The readiness level and the TLS hygiene score are this product’s own measures; how each is worked out is in Help.')));
+    h('p', { class: 'hint' }, 'The readiness level, the TLS hygiene score and the SSH baseline are this product’s own measures; how each is worked out is in Help.')));
 
   root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Developed by'),
     h('p', null, h('a', { href: 'https://offsetsecurity.net/', target: '_blank', rel: 'noopener' }, 'Offset Security'),
