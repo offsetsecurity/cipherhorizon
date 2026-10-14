@@ -44,7 +44,7 @@ func TestReadmeLinksResolve(t *testing.T) {
 			}
 			body, err := os.ReadFile(path)
 			if err != nil && strings.HasPrefix(doc, "site/") {
-				// The Pages workflow copies the fonts and images in from where they live.
+				// A site build copies the fonts and images in from where they live (no site is published yet).
 				for _, alt := range siteAssets(file) {
 					if b, aerr := os.ReadFile(alt); aerr == nil {
 						body, err = b, nil
@@ -85,7 +85,8 @@ func hasHeading(md, anchor string) bool {
 	return false
 }
 
-// siteAssets maps a site path to the repository files .github/workflows/pages.yml copies there.
+// siteAssets maps a site path to the repository files a site build copies there (the pages workflow did, until
+// it was removed after v0.1.0).
 func siteAssets(file string) []string {
 	switch {
 	case strings.HasPrefix(file, "fonts/"):
