@@ -10,6 +10,27 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-14
+
+### Fixed
+
+- **Release notes.** A GitHub release now carries its CHANGELOG section. The release configuration disabled
+  GoReleaser's changelog, which also dropped the notes file, so v0.1.0 was published with only the verification
+  footer (its notes were then set by hand).
+- **The container smoke test passes against a published image on Podman.** It declares the health check in exec
+  form (the image has no shell), says to pass `CERT=` and `KEY=` when `openssl` is missing, and no longer stops
+  at random under `pipefail`.
+
+### Changed
+
+- **Fewer entries per image in the container registry** (5 instead of 9): no BuildKit SBOM and provenance
+  attestations, and GitHub's provenance attestation is no longer copied into GHCR. Provenance is still verified
+  with `gh attestation verify`; SBOMs are release assets, as before.
+- **The release verifies the image signature before it publishes** anything, with the command users are given.
+- No website for now: the GitHub Pages workflow is removed; `site/` is kept.
+- Dependencies: `modernc.org/sqlite` 1.60.1; GitHub Actions `setup-node` 7.1.0, `upload-artifact` 7.0.2,
+  CodeQL 4.38.3, `sbom-action` 0.24.3.
+
 ## [0.1.0] - 2026-10-13
 
 ### Fixed
@@ -624,5 +645,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Storage:** SQLite only. Up to 50 snapshots of up to 32 MiB are kept per machine; there is no overall storage
   budget yet.
 
-[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/offsetsecurity/cipherhorizon/releases/tag/v0.1.0
