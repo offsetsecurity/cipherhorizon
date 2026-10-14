@@ -126,7 +126,8 @@ func (x *endpoint) checks() {
 	x.p(body(fmt.Sprintf("%d checks: %d found something, %d passed", len(cs), found, clean)),
 		body(map[bool]string{true: fmt.Sprintf(", %d could not run", skipped), false: ""}[skipped > 0]+". "),
 		soft("A passed check says what was confirmed; a found one names the problem."))
-	for _, s := range sections {
+	for _, id := range x.sectionIDs() {
+		s := x.sectionByID(id)
 		var rows [][]pdf.Cell
 		for _, c := range cs {
 			if c.Section != s.id {

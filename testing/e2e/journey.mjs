@@ -17,6 +17,8 @@ import { authFetch as fetch } from './authfetch.mjs';
 import { firstRun, authPhase } from './auth-phase.mjs';
 import { t1Phase } from './t1-phase.mjs';
 import { launchPhase } from './launch-phase.mjs';
+import { pqsPhase } from './pqs-phase.mjs';
+import { sshPhase } from './ssh-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -50,7 +52,8 @@ const pending = new Map();
 const consoleErrors = [];
 
 async function connect() {
-  for (let i = 0; i < 100; i++) {
+  // Up to 60 s: a busy CI runner can take longer than 15 s to start a headless browser.
+  for (let i = 0; i < 400; i++) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
       const page = list.find((t) => t.type === 'page');
@@ -122,8 +125,8 @@ async function main() {
   await go('#/');
   const menu = await js(`return [...document.querySelectorAll('#nav a')].map((a) => a.innerText.trim().replace(/\\s+\\d+$/, ''))`);
   const navMeta = await js(`return { groups: [...document.querySelectorAll('#nav .navgroup')].map((g) => g.textContent.trim()), scanInRail: [...document.querySelectorAll('.sidebar button, .sidebar a')].some((e) => /^\\s*scan/i.test(e.textContent)), railScrolls: (() => { const n = document.getElementById('nav'); return getComputedStyle(n).overflowY === 'auto' || n.scrollHeight > n.clientHeight + 1; })() }`);
-  check('F-M2', 'the menu is Overview, then Results (Endpoints, Machines, Findings, Inventory) and Plan & share (Systems, Reports); the rail holds places only and has no scroll pane of its own (UX-REVIEW-008 N1)',
-    menu.join() === 'Overview,Endpoints,Machines,Findings,Inventory,Systems,Reports' && navMeta.groups.join('|') === 'Results|Plan & share' && !navMeta.scanInRail && !navMeta.railScrolls,
+  check('F-M2', 'the menu is Overview, then Results (TLS endpoints, SSH servers, Machines, Findings, Inventory) and Plan & share (Systems, Reports); the rail holds places only and has no scroll pane of its own (UX-REVIEW-008 N1, UX-DESIGN-007 §2)',
+    menu.join() === 'Overview,TLS endpoints,SSH servers,Machines,Findings,Inventory,Systems,Reports' && navMeta.groups.join('|') === 'Results|Plan & share' && !navMeta.scanInRail && !navMeta.railScrolls,
     JSON.stringify({ menu, navMeta }));
   const hero = await js(`return { h1: document.querySelector('main h1')?.innerText || '', input: !!document.getElementById('scan-target'), focused: document.activeElement?.id || '' }`);
   check('E2E-F.0', 'the first screen is a scan box, focused', /Scan an endpoint for post.quantum readiness/.test(hero.h1) && hero.input && hero.focused === 'scan-target', JSON.stringify(hero));
@@ -163,16 +166,16 @@ async function main() {
   await clickText('Close', "document.querySelector('.modal')");
   await sleep(300);
 
-  // "Scan many endpoints" opens the bulk dialog, which J2/J3 exercise.
-  await clickText('Scan many endpoints');
+  // "Add many TLS endpoints" opens the bulk dialog, which J2/J3 exercise.
+  await clickText('Add many TLS endpoints');
   await sleep(250);
   const dlg = await js(`return document.querySelector('.modal')?.getAttribute('aria-label') || document.querySelector('.modal h2')?.innerText || ''`);
-  check('E2E-01.0', '"Scan many endpoints" opens the add-endpoints dialog', /Add endpoints/i.test(dlg), dlg);
+  check('E2E-01.0', '"Add many TLS endpoints" opens the add dialog', /Add TLS endpoints/i.test(dlg), dlg);
   await js(`document.querySelector('.modal .icon-btn')?.click()`);
   await sleep(200);
 
   // J2: add a single endpoint (AC-01.1) with a name and tags; a bad one shows a clear error (AC-01.3).
-  await clickText('Scan many endpoints');
+  await clickText('Add many TLS endpoints');
   await sleep(250);
   await shot('add-endpoint-dialog', { full: false });
   await js(`document.getElementById('add-target').value = 'not a valid host!!'; document.querySelector('.modal form').requestSubmit();`);
@@ -180,7 +183,7 @@ async function main() {
   const err = await js(`return document.querySelector('.modal .callout.bad')?.innerText || ''`);
   check('E2E-01.4', 'an invalid target is refused with a message', err.length > 0, err);
   await shot('add-endpoint-invalid', { full: false });
-  await js(`document.getElementById('add-target').value = '127.0.0.1:9440'; document.getElementById('add-name').value = 'modern-hybrid'; document.getElementById('add-tags').value = 'demo, web'; document.getElementById('add-tags').focus();`);
+  await js(`document.getElementById('add-scan').checked = false; document.getElementById('add-scan').dispatchEvent(new Event('change')); document.getElementById('add-target').value = '127.0.0.1:9440'; document.getElementById('add-name').value = 'modern-hybrid'; document.getElementById('add-tags').value = 'demo, web'; document.getElementById('add-tags').focus();`);
   // A real Enter key press (with its character), as a person would type it, must submit the form.
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: String.fromCharCode(13) });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
@@ -192,11 +195,11 @@ async function main() {
   await go('#/endpoints');
 
   // J3: bulk add (AC-01.2, AC-01.4): comments ignored, duplicates and bad lines reported, good lines added.
-  await clickText('Add endpoints');
+  await clickText('Add TLS endpoints');
   await sleep(250);
   await clickText('Paste a list');
   await sleep(150);
-  await js(`document.getElementById('add-list').value = ${JSON.stringify(['# the demo targets', '127.0.0.1:9441', '127.0.0.1:9442', '127.0.0.1:9443', '127.0.0.1:9444', '127.0.0.1:9445', '127.0.0.1:9446', '127.0.0.1:9440', 'not a host!!', 'http://169.254.169.254/latest'].join('\n'))};
+  await js(`document.getElementById('add-scan').checked = false; document.getElementById('add-scan').dispatchEvent(new Event('change')); document.getElementById('add-list').value = ${JSON.stringify(['# the demo targets', '127.0.0.1:9441', '127.0.0.1:9442', '127.0.0.1:9443', '127.0.0.1:9444', '127.0.0.1:9445', '127.0.0.1:9446', '127.0.0.1:9440', 'not a host!!', 'http://169.254.169.254/latest'].join('\n'))};
     document.querySelector('.modal form').requestSubmit();`);
   await sleep(900);
   const bulk = await js(`return document.querySelector('.modal [role=status]')?.innerText || ''`);
@@ -363,9 +366,9 @@ async function main() {
 
   // J8: hostile names never execute (AC-11.6).
   await go('#/assets');
-  await clickText('Add endpoints');
+  await clickText('Add TLS endpoints');
   await sleep(250);
-  await js(`document.getElementById('add-target').value = '127.0.0.2:9441';
+  await js(`document.getElementById('add-scan').checked = false; document.getElementById('add-scan').dispatchEvent(new Event('change')); document.getElementById('add-target').value = '127.0.0.2:9441';
     document.getElementById('add-name').value = '<img src=x onerror=window.__xss=1><script>window.__xss=2<\\/script>';
     document.getElementById('add-tags').value = '"><svg onload=window.__xss=3>';
     document.querySelector('.modal form').requestSubmit();`);
@@ -480,24 +483,24 @@ async function main() {
       tiles: tiles.map((t) => t.querySelector('.stat-label')?.textContent + '>' + t.getAttribute('href')), fix: document.querySelectorAll('.firstfix li').length,
       scale: [...document.querySelectorAll('.hero-scale .level-code')].map((x) => x.textContent).join('') }`);
   check('E2E-F.3', 'Overview lists the latest results, each with its verdict and a link to its report, and what to fix first', home.rows >= 1 && home.rows <= 6 && home.verdicts === home.rows && home.links && home.fix > 0, JSON.stringify(home).slice(0, 300));
-  check('E2E-F.4', 'Overview has one status band with a figure per question, each opening its place, and the readiness scale L4 to L0 as the legend (DESIGN.md §8)',
+  check('E2E-F.4', 'Overview has one status band with a card per protocol and a figure per question, each opening its place, and the readiness scale L4 to L0 as the legend (DESIGN.md §8, UX-DESIGN-007 §5)',
     home.scale === 'L4L3L2L1L0' &&
-    home.tiles.join('|') === 'Endpoints>#/endpoints|Machines>#/machines|Findings>#/findings|Post-quantum>#/endpoints|Inventory>#/inventory|Next certificate expiry>#/inventory/certificates', home.tiles.join('|'));
+    home.tiles.join('|') === 'TLS endpoints>#/endpoints|SSH servers>#/ssh|Machines>#/machines|Findings>#/findings|Post-quantum>#/findings|Inventory>#/inventory', home.tiles.join('|'));
   await go('#/endpoints');
   await sleep(900);
   const reps = await js(`const rows = [...document.querySelectorAll('main tbody tr')];
     return { head: document.querySelector('main h1')?.textContent, tabs: [...document.querySelectorAll('.tabs .tab')].map((t) => t.textContent).join('|'), rows: rows.length,
       open: rows.filter((r) => /Open report/.test(r.innerText)).length, scanned: rows.filter((r) => /Hybrid|Not ready|Classical|ready/i.test(r.innerText)).length,
       findings: rows.map((r) => r.children[4]?.innerText || ''), actions: !!document.querySelector('.toolbar .toolbar-actions') }`);
-  check('E2E-F.5', 'Endpoints lists every endpoint with Add, Scan all and Export beside the filter, and a Scan activity tab',
-    reps.head === 'Endpoints' && reps.tabs === 'Endpoints|Scan activity' && reps.rows >= 5 && reps.actions, JSON.stringify(reps).slice(0, 300));
+  check('E2E-F.5', 'TLS endpoints lists every TLS endpoint with Add, Scan all and Export beside the filter, and a Scan activity tab',
+    reps.head === 'TLS endpoints' && reps.tabs === 'TLS endpoints|Scan activity' && reps.rows >= 5 && reps.actions, JSON.stringify(reps).slice(0, 300));
   check('E2E-R.4', 'a row has one way in (the row opens the report: no second Open report button), and its findings column names the worst severity or says No problems (UX-REVIEW-008 E1, E2)',
     reps.open === 0 && reps.findings.every((t) => t !== 'none') && reps.findings.some((t) => /\d+ (critical|high|medium|low)|No problems/.test(t)), JSON.stringify(reps.findings));
   const rowClick = await js(`const r = [...document.querySelectorAll('main tbody tr.rowlink')].find((x) => /L\\d/.test(x.innerText));
     r.querySelector('td:nth-child(5)').click(); await new Promise((ok) => setTimeout(ok, 600));
     return { hash: location.hash, crumbs: [...document.querySelectorAll('.crumbs li')].map((l) => l.textContent), lit: document.querySelector('#nav a[aria-current=page]')?.textContent.trim() }`);
-  check('E2E-R.5', 'clicking anywhere on a row opens its report, which names its home (Endpoints) in a breadcrumb and in the menu',
-    /^#\/endpoints\/\d+/.test(rowClick.hash) && rowClick.crumbs[0] === 'Endpoints' && rowClick.lit === 'Endpoints', JSON.stringify(rowClick));
+  check('E2E-R.5', 'clicking anywhere on a row opens its report, which names its home (TLS endpoints) in a breadcrumb and in the menu',
+    /^#\/endpoints\/\d+/.test(rowClick.hash) && rowClick.crumbs[0] === 'TLS endpoints' && rowClick.lit === 'TLS endpoints', JSON.stringify(rowClick));
   // Reports holds documents, not data (UX-DESIGN-005 principle 6).
   await go('#/reports');
   await sleep(1200);
@@ -506,23 +509,26 @@ async function main() {
       epRows: document.querySelectorAll('.docs-table tbody tr').length, pdfButtons: [...document.querySelectorAll('.docs-table button')].filter((b) => b.textContent === 'Security').length,
       invPdf: [...document.querySelectorAll('.docrow button')].some((b) => b.textContent === 'Download PDF'), tiles: document.querySelectorAll('.fleet-tile').length }`);
   check('E2E-N.1', 'Reports lists documents: the inventory report and CBOM, a row of PDF reports and a CBOM per endpoint, machine CBOMs, CSV and standards exports; no data table of its own',
-    docs.head === 'Reports' && docs.sections.join('|') === 'Your cryptographic inventory|Endpoint reports|Machine CBOMs|Spreadsheets and standards exports' && docs.pdfButtons >= 5 && docs.invPdf && docs.tiles === 0,
+    docs.head === 'Reports' && docs.sections.join('|') === 'Your cryptographic inventory|TLS endpoint reports|SSH server reports|Machine CBOMs|Spreadsheets and standards exports' && docs.pdfButtons >= 5 && docs.invPdf && docs.tiles === 0,
     JSON.stringify(docs));
   const pdf = await js(`const b = [...document.querySelectorAll('.docs-table button')].find((x) => x.textContent === 'Security');
     const orig = window.fetch; let got = null;
     window.fetch = async (...a) => { const r = await orig(...a); got = { url: String(a[0]), type: r.headers.get('content-type') }; return r; };
     b.click(); await new Promise((ok) => setTimeout(ok, 1500)); window.fetch = orig; return got;`);
   check('E2E-N.2', 'a document downloads in one click from Reports', !!pdf && /report\.pdf\?kind=full/.test(pdf.url) && /application\/pdf/.test(pdf.type), JSON.stringify(pdf));
-  // Scan a URL on the Endpoints page opens the scan box and lands on the new report.
+  // The TLS endpoints page has one way to add: its primary button opens the add dialog, whose Scan now
+  // (on by default) scans and lands on the report; an address already here is scanned again.
   await go('#/endpoints');
   await sleep(700);
-  await js(`document.getElementById('endpoints-scan').click()`);
+  const ways = await js(`return { head: [...document.querySelectorAll('.page-head button')].map((b) => b.textContent), toolbar: [...document.querySelectorAll('.toolbar-actions button')].map((b) => b.textContent) }`);
+  await js(`document.getElementById('endpoints-add').click()`);
   await sleep(300);
-  const scanDlg = await js(`return { open: !!document.querySelector('.modal[aria-label="Scan a URL"]'), focused: document.activeElement?.id }`);
-  await js(`const i = document.getElementById('scan-dialog-target'); i.value = '127.0.0.1:9440'; i.form.requestSubmit();`);
+  const scanDlg = await js(`return { open: !!document.querySelector('.modal[aria-label="Add TLS endpoints"]'), focused: document.activeElement?.id, scanNow: document.getElementById('add-scan')?.checked }`);
+  await js(`document.getElementById('add-target').value = '127.0.0.1:9440'; document.querySelector('.modal form').requestSubmit();`);
   const viaButton = await waitFor(async () => { const h = await js(`return location.hash`); return /^#\/endpoints\/\d+/.test(h) ? h : null; }, 8000, 200);
-  check('E2E-N.3', 'Scan a URL on Endpoints opens a scan box and lands on that endpoint\'s report', scanDlg.open && scanDlg.focused === 'scan-dialog-target' && viaButton === `#/endpoints/${by[9440].id}`,
-    JSON.stringify({ scanDlg, viaButton }));
+  check('E2E-N.3', 'TLS endpoints has one way to add (no second Add, no Scan a URL); its dialog scans by default and lands on the report, rescanning one already here',
+    ways.head.join() === 'Add TLS endpoints' && !ways.toolbar.some((t) => /^(?:Add|Scan a URL)/.test(t)) && scanDlg.open && scanDlg.focused === 'add-target' && scanDlg.scanNow === true &&
+    viaButton === `#/endpoints/${by[9440].id}`, JSON.stringify({ ways, scanDlg, viaButton }));
   await sleep(500);
   await go('#/findings');
   await sleep(1100);
@@ -738,10 +744,12 @@ async function main() {
   await estatePhase({ check, js, go, sleep, shot, api, BASE, send, viewport, clickText });
   await authPhase({ check, js, go, sleep, shot, api, viewport });
   await launchPhase({ check, js, go, sleep, shot, viewport, clickText });
+  await pqsPhase({ check, js, go, sleep, shot });
+  await sshPhase({ check, js, go, sleep, shot, viewport, clickText });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');
-  await clickText('Add endpoints');
+  await clickText('Add TLS endpoints');
   await sleep(250);
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });

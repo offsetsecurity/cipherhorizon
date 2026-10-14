@@ -24,6 +24,42 @@ type Fleet struct {
 	NeedsAttention []AttentionRow  `json:"needsAttention"`
 	Recent         []ScanWithAsset `json:"recent"`
 	Trend          []TrendPoint    `json:"trend"`
+
+	// Protocols breaks the fleet down by protocol ("tls", "ssh") for the Overview's protocol
+	// cards (PRD-008 REQ-SHW-4). Each protocol keeps its own measure: hygiene bands for TLS,
+	// the baseline verdict for SSH. Nothing adds the two together.
+	Protocols map[string]*ProtocolSummary `json:"protocols"`
+}
+
+// ProtocolSummary is one protocol's share of the fleet.
+type ProtocolSummary struct {
+	Assets      int         `json:"assets"`
+	Scanned     int         `json:"scanned"`
+	HNDLExposed int         `json:"hndlExposed"`
+	Critical    int         `json:"critical"`
+	High        int         `json:"high"`
+	Readiness   map[int]int `json:"readiness"`
+	// TLS only.
+	Bands         map[string]int `json:"bands,omitempty"`
+	CertsExpiring int            `json:"certsExpiring"`
+	// SSH only: servers judged against their baseline, and those that speak only SSH-1 (L0).
+	BaselineMeets int `json:"baselineMeets"`
+	BaselineFails int `json:"baselineFails"`
+	SSH1          int `json:"ssh1"`
+}
+
+// Protocol names of the fleet breakdown.
+const (
+	ProtocolTLS = "tls"
+	ProtocolSSH = "ssh"
+)
+
+// ProtocolOf is an endpoint kind's protocol.
+func ProtocolOf(kind string) string {
+	if kind == KindSSH {
+		return ProtocolSSH
+	}
+	return ProtocolTLS
 }
 
 // AttentionRow is an asset that needs looking at, worst first.
@@ -31,7 +67,8 @@ type AttentionRow struct {
 	AssetID        int64  `json:"assetId"`
 	Name           string `json:"name"`
 	Address        string `json:"address"`
-	Band           string `json:"band"`
+	Protocol       string `json:"protocol"`
+	Band           string `json:"band"` // TLS only; empty for SSH, which has no score
 	Score          int    `json:"score"`
 	ReadinessLevel *int   `json:"readinessLevel"`
 	HNDLExposed    bool   `json:"hndlExposed"`
@@ -46,14 +83,25 @@ type TrendPoint struct {
 	Levels map[int]int `json:"levels"`
 }
 
+// MaxTrendDays is the longest readiness trend FleetSummary returns: a year and a day.
+const MaxTrendDays = 366
+
 // FleetSummary computes the dashboard data. trendDays is how many days of trend to return.
 func (s *Store) FleetSummary(trendDays int) (Fleet, error) {
+	// The days come from the API's ?days=: bounded, so a request cannot make the trend allocate
+	// without limit (code scanning go/uncontrolled-allocation-size).
 	if trendDays <= 0 {
 		trendDays = 14
 	}
-	f := Fleet{Readiness: map[int]int{}, Bands: map[string]int{}}
+	if trendDays > MaxTrendDays {
+		trendDays = MaxTrendDays
+	}
+	f := Fleet{Readiness: map[int]int{}, Bands: map[string]int{}, Protocols: map[string]*ProtocolSummary{
+		ProtocolTLS: {Readiness: map[int]int{}, Bands: map[string]int{}},
+		ProtocolSSH: {Readiness: map[int]int{}},
+	}}
 
-	assets, err := s.ListAssets(KindTLS)
+	assets, err := s.ListAssets(KindEndpoint)
 	if err != nil {
 		return f, err
 	}
@@ -62,11 +110,41 @@ func (s *Store) FleetSummary(trendDays int) (Fleet, error) {
 
 	var attention []AttentionRow
 	for _, a := range assets {
+		proto := ProtocolOf(a.Kind)
+		ps := f.Protocols[proto]
+		ps.Assets++
 		d := a.LastDone
 		if d == nil {
 			continue
 		}
 		f.Scanned++
+		ps.Scanned++
+		ps.Critical += d.Critical
+		ps.High += d.High
+		if d.HNDLExposed {
+			ps.HNDLExposed++
+		}
+		if d.ReadinessLevel != nil {
+			ps.Readiness[*d.ReadinessLevel]++
+		}
+		switch proto {
+		case ProtocolTLS:
+			if d.Band != "" {
+				ps.Bands[d.Band]++
+			}
+			if d.CertNotAfter != nil && d.CertNotAfter.Before(now.AddDate(0, 0, 30)) {
+				ps.CertsExpiring++
+			}
+		case ProtocolSSH:
+			if d.BaselineMeets != nil && *d.BaselineMeets {
+				ps.BaselineMeets++
+			} else if d.BaselineMeets != nil {
+				ps.BaselineFails++
+			}
+			if d.ReadinessLevel != nil && *d.ReadinessLevel == 0 {
+				ps.SSH1++
+			}
+		}
 		f.Critical += d.Critical
 		f.High += d.High
 		if d.HNDLExposed {
@@ -82,7 +160,7 @@ func (s *Store) FleetSummary(trendDays int) (Fleet, error) {
 			f.CertsExpiring++
 		}
 		if why := attentionReason(d, now); why != "" {
-			attention = append(attention, AttentionRow{AssetID: a.ID, Name: a.Name, Address: a.Address(), Band: d.Band, Score: d.Score,
+			attention = append(attention, AttentionRow{AssetID: a.ID, Name: a.Name, Address: a.Address(), Protocol: proto, Band: d.Band, Score: d.Score,
 				ReadinessLevel: d.ReadinessLevel, HNDLExposed: d.HNDLExposed, Critical: d.Critical, High: d.High, Why: why})
 		}
 	}

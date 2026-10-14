@@ -37,6 +37,12 @@ cleanup_quiet
 
 # The hardening docker-compose.yml applies (audit L-13).
 HARDEN=(--read-only --tmpfs /tmp:size=16m,mode=1777 --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 1g)
+# The health check docker-compose.yml and the Quadlet unit declare. Podman ignores a Dockerfile HEALTHCHECK in
+# an OCI-format image, which is what the release publishes, so a deployment declares it, and so does this test.
+# Exec form (a JSON list), as the Quadlet unit has it: the image has no shell. Docker honours the image's own
+# HEALTHCHECK, so only Podman is given one.
+HEALTH=()
+[ "$ENGINE" = podman ] && HEALTH=(--health-cmd '["/cipherhorizon","healthcheck","--addr","127.0.0.1:8080"]' --health-interval 5s --health-timeout 3s --health-start-period 10s --health-retries 5)
 
 echo "== build"
 if [ -z "${SKIP_BUILD:-}" ]; then
@@ -44,20 +50,22 @@ if [ -z "${SKIP_BUILD:-}" ]; then
   $ENGINE build "${fmt[@]}" -t "$IMAGE" --build-arg VERSION=0.0.0-smoke --build-arg MODULE="$(go list -m 2>/dev/null || echo github.com/offsetsecurity/cipherhorizon)" . >"$WORK/build.log" 2>&1 \
     && ok "the image builds" || { bad "the image does not build (see below)"; tail -30 "$WORK/build.log"; exit 1; }
 fi
-v=$($ENGINE run --rm "$IMAGE" version | head -1)
+v=$($ENGINE run --rm "$IMAGE" version | sed -n 1p) # not head: under pipefail, SIGPIPE would end the script
 [[ "$v" == "cipherhorizon ${WANT_VERSION:-0.0.0-smoke}"* ]] && ok "version: $v" || bad "version printed '$v'"
 
 echo "== first run (hardened, as docker-compose.yml)"
 $ENGINE volume create "$NAME-data" >/dev/null
-$ENGINE run -d --name "$NAME" "${HARDEN[@]}" -p "127.0.0.1:$HTTP_PORT:8080" -v "$NAME-data:/data" "$IMAGE" >/dev/null
+$ENGINE run -d --name "$NAME" "${HARDEN[@]}" "${HEALTH[@]}" -p "127.0.0.1:$HTTP_PORT:8080" -v "$NAME-data:/data" "$IMAGE" >/dev/null
 base="http://127.0.0.1:$HTTP_PORT"
 for i in $(seq 1 60); do curl -fsS "$base/api/v1/health" >/dev/null 2>&1 && break; sleep 0.5; done
 curl -fsS "$base/api/v1/health" | grep -q '"ok"' && ok "health answers" || bad "health does not answer"
 for i in $(seq 1 30); do
+  # Podman runs health checks from systemd timers, absent in some rootless setups (WSL): run it here.
+  [ "$ENGINE" = podman ] && { $ENGINE healthcheck run "$NAME" >/dev/null 2>&1 || true; }
   st=$($ENGINE inspect -f '{{.State.Health.Status}}' "$NAME" 2>/dev/null || echo none)
   [ "$st" = healthy ] && break; sleep 1
 done
-[ "$st" = healthy ] && ok "the image's HEALTHCHECK reports healthy" || bad "health status is '$st'"
+[ "$st" = healthy ] && ok "the container's health check reports healthy" || bad "health status is '$st'"
 
 s=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/assets")
 [ "$s" = 200 ] && ok "sign-in is off by default: the API answers without an account" || bad "a default container asked for credentials: $s"
@@ -81,6 +89,7 @@ else bad "db backup failed: $(cat "$WORK/backup.log")"; fi
 
 echo "== HTTPS with a mounted certificate, scanned by the image's own CLI"
 if [ -n "${CERT:-}" ]; then cp "$CERT" "$WORK/cert.pem"; cp "$KEY" "$WORK/key.pem"; else
+command -v openssl >/dev/null || { bad "openssl is not installed here: set CERT= and KEY= to a test certificate for 127.0.0.1"; echo "== result: $pass passed, $fail failed"; exit 1; }
 MSYS_NO_PATHCONV=1 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 2 -subj /CN=localhost \
   -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" -keyout "$WORK/key.pem" -out "$WORK/cert.pem" >/dev/null 2>&1; fi
 chmod 0644 "$WORK/key.pem" "$WORK/cert.pem" # the container's non-root user must read them

@@ -66,6 +66,26 @@ var passText = map[string]string{
 	"VULN.POODLE":           "POODLE is not possible: no SSLv3 with CBC suites",
 	"VULN.BEAST":            "BEAST is not possible: no TLS 1.0 with CBC suites",
 	"VULN.DROWN-SHARED-KEY": "DROWN is not possible: this key is not seen on SSLv2",
+
+	// SSH (PRD-008).
+	"SSH.PROTOCOL-1":            "Only SSH-2 is accepted",
+	"SSH.KEX-WEAK-GROUP":        "Every key exchange uses at least 2048 bits",
+	"SSH.KEX-SHA1":              "No key exchange is hashed with SHA-1",
+	"SSH.HOSTKEY-DSA":           "No DSA host key is offered",
+	"SSH.HOSTKEY-RSA-SHA1":      "RSA host keys sign with SHA-2 only",
+	"SSH.HOSTKEY-RSA-SMALL":     "Every RSA host key has at least 2048 bits",
+	"SSH.HOSTKEY-BAD-SIGNATURE": "Every host key signature that was checked verified",
+	"SSH.CIPHER-NONE":           "Every offered cipher encrypts",
+	"SSH.CIPHER-RC4":            "No RC4 cipher is offered",
+	"SSH.CIPHER-DES":            "No single-DES cipher is offered",
+	"SSH.CIPHER-64BIT-BLOCK":    "No 64-bit block cipher (3DES, Blowfish, CAST, IDEA) is offered",
+	"SSH.CIPHER-CBC":            "No CBC-mode cipher is offered",
+	"SSH.MAC-NONE":              "Every offered MAC protects integrity",
+	"SSH.MAC-WEAK":              "No MD5, truncated or 64-bit MAC is offered",
+	"SSH.MAC-SHA1":              "No HMAC-SHA-1 is offered",
+	"SSH.MAC-NOT-ETM":           "Every MAC that can be used is encrypt-then-MAC",
+	"SSH.COMPRESSION-PREAUTH":   "No compression starts before authentication",
+	"SSH.TERRAPIN":              "Terrapin is not possible: strict key exchange is on, or no affected cipher is offered",
 }
 
 // PassText is what a check that found nothing confirmed, or "" when none is written.

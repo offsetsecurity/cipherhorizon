@@ -18,8 +18,8 @@ export async function launchPhase({ check, js, go, sleep, shot, viewport, clickT
       h1font: getComputedStyle(h1).fontFamily, body: getComputedStyle(document.body).fontFamily,
       loaded: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family.replace(/"/g, '')),
       external: performance.getEntriesByType('resource').filter((r) => !r.name.startsWith(location.origin)).map((r) => r.name) }`);
-  check('E2E-B.2', 'the Overview has one mono eyebrow (post-quantum readiness, TLS scanner, CBOM) and a Newsreader headline',
-    ov.eyebrows === 1 && /Post-quantum readiness/i.test(ov.eyebrow) && /TLS scanner/i.test(ov.eyebrow) && /Newsreader/.test(ov.h1font), JSON.stringify(ov));
+  check('E2E-B.2', 'the Overview has one mono eyebrow (post-quantum readiness, TLS, SSH, CBOM) and a Newsreader headline',
+    ov.eyebrows === 1 && /Post-quantum readiness/i.test(ov.eyebrow) && /TLS · SSH/.test(ov.eyebrow) && /Newsreader/.test(ov.h1font), JSON.stringify(ov));
   check('E2E-B.4', 'Geist, Geist Mono and Newsreader load from this server, and nothing loads from anywhere else',
     ['Geist', 'Geist Mono', 'Newsreader'].every((f) => ov.loaded.includes(f)) && /Geist/.test(ov.body) && ov.external.length === 0, JSON.stringify(ov));
 
@@ -58,7 +58,7 @@ export async function launchPhase({ check, js, go, sleep, shot, viewport, clickT
   const hp = await js(`return { toc: [...document.querySelectorAll('.help-toc a')].map((a) => a.textContent), scripts: document.querySelectorAll('.help-body .dlbox .scriptrow').length,
     levels: document.querySelectorAll('.help-body .readylist-row').length }`);
   check('E2E-S.1', 'Help has a contents list, the inventory scripts and the readiness levels',
-    hp.toc.length >= 7 && hp.toc[0] === 'Scan an endpoint' && hp.scripts === 2 && hp.levels >= 5, JSON.stringify(hp));
+    hp.toc.length >= 7 && hp.toc[0] === 'Protocols, and how each is judged' && hp.scripts === 2 && hp.levels >= 5, JSON.stringify(hp));
   await shot('help-page');
   await go('#/settings');
   await sleep(900);
@@ -93,9 +93,9 @@ export async function launchPhase({ check, js, go, sleep, shot, viewport, clickT
   // REQ-SX-3: an SMTP endpoint added with its STARTTLS choice, scanned, and labelled.
   await go('#/endpoints');
   await sleep(700);
-  await clickText('Add endpoints');
+  await clickText('Add TLS endpoints');
   await sleep(300);
-  await js(`document.getElementById('add-target').value = '127.0.0.1:9451'; document.getElementById('add-starttls').value = 'smtp';
+  await js(`document.getElementById('add-scan').checked = false; document.getElementById('add-scan').dispatchEvent(new Event('change')); document.getElementById('add-target').value = '127.0.0.1:9451'; document.getElementById('add-protocol').value = 'smtp';
     document.getElementById('add-name').value = 'mail-starttls'; document.querySelector('.modal form').requestSubmit();`);
   await sleep(1200);
   const assets = await js(`return (await fetch('/api/v1/assets')).json()`);

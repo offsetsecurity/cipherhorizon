@@ -56,11 +56,15 @@ check "POST with text/plain body -> 415"      415 "$(code -X POST "${AUTH[@]}" -
 check "POST from same origin -> 201"          201 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H "Origin: $B" -H 'Content-Type: application/json' -d '{"target":"example.com"}' $B/api/v1/assets)"
 check "PUT is not routed -> 405"              405 "$(code -X PUT "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' $B/api/v1/assets)"
 
+# Reads JSON on stdin and prints a JavaScript expression over it (d), e.g. json '.id'. node, not python:
+# node is already required by the browser suites, and python is not installed everywhere.
+json() { node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const d=JSON.parse(s);console.log(eval("d"+process.argv[1]))})' "$1"; }
+
 echo "== TLS T1 routes: trust anchors, reference data, re-evaluation (SR-12, SR-20) =="
-for r in /api/v1/trust-anchors /api/v1/reference-data /api/v1/systems/1/trust-anchors; do
+for r in /api/v1/trust-anchors /api/v1/reference-data /api/v1/systems/1/trust-anchors /api/v1/ssh/baselines; do
   check "GET $r without a token -> 401"  401 "$(code $B$r)"
 done
-SYS=$(curl -s "${AUTH[@]}" $B/api/v1/systems | python -c 'import sys,json; print(json.load(sys.stdin)["systems"][0]["id"])')
+SYS=$(curl -s "${AUTH[@]}" $B/api/v1/systems | json '.systems[0].id')
 check "GET reference data with the token -> 200" 200 "$(code "${AUTH[@]}" $B/api/v1/reference-data)"
 check "POST trust anchors without X-Requested-With -> 403" 403 "$(code -X POST "${AUTH[@]}" -H 'Content-Type: application/json' -d '{"pem":"x"}' $B/api/v1/systems/$SYS/trust-anchors)"
 check "POST trust anchors from a foreign origin -> 403" 403 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Origin: http://evil.example' -H 'Content-Type: application/json' -d '{"pem":"x"}' $B/api/v1/systems/$SYS/trust-anchors)"
@@ -68,7 +72,7 @@ KEYBODY='{"pem":"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n-
 check "an upload with a private key block is refused -> 400 (SR-20)" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d "$KEYBODY" $B/api/v1/systems/$SYS/trust-anchors)"
 KEYMSG=$(curl -s -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d "$KEYBODY" $B/api/v1/systems/$SYS/trust-anchors)
 echo "$KEYMSG" | grep -q "private key block" && { echo "PASS  the refusal says why"; pass=$((pass+1)); } || { echo "FAIL  refusal message: $KEYMSG"; fail=$((fail+1)); }
-python -c 'import json; print(json.dumps({"pem": "<script>alert(1)</script>" + "A"*70000}))' > "$WORK/big.json"
+node -e 'process.stdout.write(JSON.stringify({pem: "<script>alert(1)</script>" + "A".repeat(70000)}))' > "$WORK/big.json"
 check "an upload over 64 KiB -> 413" 413 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' --data-binary @"$WORK/big.json" $B/api/v1/systems/$SYS/trust-anchors)"
 check "a hostile fingerprint in the path -> 400" 400 "$(code -X DELETE "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' "$B/api/v1/systems/$SYS/trust-anchors/%3Cscript%3E")"
 check "POST reevaluate without X-Requested-With -> 403" 403 "$(code -X POST "${AUTH[@]}" $B/api/v1/scans/1/reevaluate)"
@@ -83,13 +87,15 @@ check "0.0.0.0 refused -> 400"                400 "$(code -X POST "${AUTH[@]}" -
 check "0.0.0.0/8 refused -> 400 (SEC-04)"     400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"0.1.2.3:443"}' $B/api/v1/assets)"
 check "NAT64 form of the metadata address refused -> 400 (SEC-04)" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"[64:ff9b::a9fe:a9fe]:443"}' $B/api/v1/assets)"
 check "host name with a control character refused on upload -> 400 (SEC-05)" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"bomFormat":"CycloneDX","specVersion":"1.6","version":1}' "$B/api/v1/hosts/ingest?name=a%01b")"
+check "SSH: cloud metadata address refused -> 400 (PRD-008 REQ-SHP-7)" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"ssh://169.254.169.254"}' $B/api/v1/assets)"
+check "SSH: loopback literal refused at add time -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"ssh://127.0.0.1:22"}' $B/api/v1/assets)"
 check "loopback literal refused at add time -> 400" 400 "$(code -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"127.0.0.1:9440"}' $B/api/v1/assets)"
 # A host NAME that resolves to loopback passes add-time checks; the dialer's Control hook must still refuse it.
 LB=$(curl -s -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' -H 'Content-Type: application/json' -d '{"target":"localhost:9440","name":"loopback-by-name"}' $B/api/v1/assets)
-LBID=$(echo "$LB" | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+LBID=$(echo "$LB" | json '.id')
 curl -s -o /dev/null -X POST "${AUTH[@]}" -H 'X-Requested-With: cipherhorizon' $B/api/v1/assets/$LBID/scan
 sleep 3
-ST=$(curl -s "${AUTH[@]}" $B/api/v1/assets/$LBID | python -c 'import sys,json; d=json.load(sys.stdin); print(d["latest"]["status"], "|", d["latest"]["error"])')
+ST=$(curl -s "${AUTH[@]}" $B/api/v1/assets/$LBID | json '.latest.status + " | " + d.latest.error')
 echo "      scan of a name resolving to loopback, without --allow-loopback: $ST"
 case "$ST" in failed*"not allowed"*) echo "PASS  loopback refused at connect time"; pass=$((pass+1));; *) echo "FAIL  loopback target was scanned"; fail=$((fail+1));; esac
 

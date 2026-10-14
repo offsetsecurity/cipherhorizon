@@ -107,6 +107,13 @@ func computeHygiene(c *ctx, findings []Finding) Hygiene {
 		return h
 	}
 
+	scoreFindings(&h, findings)
+	return h
+}
+
+// scoreFindings applies the arithmetic shared by every protocol's hygiene score: one deduction
+// per distinct problem at its worst severity, the ceilings, and the band.
+func scoreFindings(h *Hygiene, findings []Finding) {
 	// Each distinct problem counts once, at its worst severity: the findings arrive worst first,
 	// so the first instance of a rule is the one that counts (two certificates with the same
 	// fault are one problem, not two).
@@ -140,5 +147,4 @@ func computeHygiene(c *ctx, findings []Finding) Hygiene {
 		score = 0
 	}
 	h.Score, h.Band = score, BandFor(score)
-	return h
 }

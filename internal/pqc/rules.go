@@ -73,6 +73,7 @@ var (
 	refRFC5480  = Reference{"RFC 5480 (id-ecPublicKey under ansi-X9-62 1.2.840.10045; id-ecDH 1.3.132.1.12)", "https://www.rfc-editor.org/rfc/rfc5480"}
 	refRFC8410  = Reference{"RFC 8410 (X25519 1.3.101.110, X448 .111, Ed25519 .112, Ed448 .113)", "https://www.rfc-editor.org/rfc/rfc8410"}
 	refRFC8439  = Reference{"RFC 8439, ChaCha20 and Poly1305 for IETF Protocols", "https://www.rfc-editor.org/rfc/rfc8439"}
+	refRFC10042 = Reference{"RFC 10042: Hybrid Post-Quantum Key Exchange with ML-KEM in the Secure Shell (SSH) Protocol", "https://www.rfc-editor.org/rfc/rfc10042"}
 	refRFC10024 = Reference{"RFC 10024: Post-Quantum Traditional (PQ/T) Hybrid Key Agreement Mechanisms for TLS 1.3", "https://www.rfc-editor.org/rfc/rfc10024"}
 )
 
@@ -113,7 +114,8 @@ var rules = []rule{
 		class:     Safe,
 		rationale: "Symmetric block cipher. The best known quantum attack on key search, Grover's algorithm, gives only a quadratic speed-up, so an n-bit key keeps about n/2 bits of quantum security. NIST defines post-quantum security categories 1, 3 and 5 as the cost of key search against AES-128, AES-192 and AES-256, so AES at any key size the standard defines meets at least category 1. This is a statement about the algorithm, not about the key size or mode in use on a given host.",
 		basis:     []Reference{refNISTCategories, refFIPS197, refCSOR},
-		algos:     []string{"AES", "AES-128-CBC", "AES-256-CBC", "AES-128-GCM", "AES-256-GCM", "AES-128-CCM", "AES-256-CCM"}, arcs: []string{"2.16.840.1.101.3.4.1"},
+		algos: []string{"AES", "AES-128-CBC", "AES-192-CBC", "AES-256-CBC", "AES-128-GCM", "AES-256-GCM", "AES-128-CCM", "AES-256-CCM",
+			"AES-128-CTR", "AES-192-CTR", "AES-256-CTR"}, arcs: []string{"2.16.840.1.101.3.4.1"},
 	},
 	{
 		class:     Safe,
@@ -143,6 +145,12 @@ var rules = []rule{
 		// IANA-obsolete: none of those get a rule, so they are reported unclassified
 		// rather than given a verdict this citation bar does not support.
 		algos: []string{"X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024"},
+	},
+	{
+		class:     Safe,
+		rationale: "A hybrid SSH key exchange combining a classical ECDH exchange with ML-KEM: RFC 10042 derives the shared secret from both, so it stays secret if EITHER component resists attack, and a quantum computer that breaks only the classical half does not break the combination.",
+		basis:     []Reference{refFIPS203, refRFC10042},
+		algos:     []string{"mlkem768x25519-sha256", "mlkem768nistp256-sha256", "mlkem1024nistp384-sha384"},
 	},
 	{
 		class: Safe, rationale: whyPQCStd,

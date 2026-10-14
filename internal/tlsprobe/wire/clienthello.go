@@ -153,6 +153,26 @@ func SupportedVersions(versions ...Version) Extension {
 // reveals its choice without the client generating any key material.
 func KeyShareEmpty() Extension { return Extension{Type: ExtKeyShare, Data: []byte{0, 0}} }
 
+// KeyShareEntry is one client key share: a group and the client's public value for it.
+type KeyShareEntry struct {
+	Group uint16
+	Key   []byte
+}
+
+// KeyShare is a key_share carrying real shares (RFC 8446 section 4.2.8). A server
+// that supports one of the shared groups answers with a ServerHello rather than a
+// HelloRetryRequest, so it must first choose a certificate it can sign with.
+func KeyShare(entries ...KeyShareEntry) Extension {
+	var list builder
+	for _, e := range entries {
+		list.u16(e.Group)
+		list.vec16(e.Key)
+	}
+	var b builder
+	b.vec16(list.b)
+	return Extension{Type: ExtKeyShare, Data: b.b, err: firstErr(&list, &b)}
+}
+
 // PSKKeyExchangeModes offers psk_dhe_ke, as a TLS 1.3 client normally does.
 func PSKKeyExchangeModes() Extension {
 	return Extension{Type: ExtPSKKeyExchangeModes, Data: []byte{1, 1}}

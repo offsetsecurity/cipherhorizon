@@ -15,7 +15,6 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
-	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
@@ -26,7 +25,9 @@ type assetView struct {
 	Address string `json:"address"`
 	// StartTLSUsed is the protocol a scan negotiates (the choice applied to the port): "" for
 	// direct TLS.
-	StartTLSUsed   string  `json:"starttlsUsed"`
+	StartTLSUsed string `json:"starttlsUsed"`
+	// Protocol is "tls" or "ssh" for an endpoint, empty for a host (PRD-008).
+	Protocol       string  `json:"protocol"`
 	LinkedAssetIDs []int64 `json:"linkedAssetIds,omitempty"`
 }
 
@@ -34,8 +35,15 @@ type assetView struct {
 // has nothing to show yet); pass a pre-fetched map from store.AllLinks for a
 // list so linked IDs don't cost one query per row.
 func view(a store.Asset, links map[int64][]int64) assetView {
-	used, _ := tlsprobe.ResolveStartTLS(a.StartTLS, a.Port)
-	return assetView{Asset: a, Address: a.Address(), StartTLSUsed: used, LinkedAssetIDs: links[a.ID]}
+	v := assetView{Asset: a, Address: a.Address(), LinkedAssetIDs: links[a.ID]}
+	switch a.Kind {
+	case store.KindTLS:
+		v.Protocol = "tls"
+		v.StartTLSUsed, _ = tlsprobe.ResolveStartTLS(a.StartTLS, a.Port)
+	case store.KindSSH:
+		v.Protocol = "ssh"
+	}
+	return v
 }
 
 func idParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -114,19 +122,31 @@ type createReq struct {
 	Name   string `json:"name"`
 	// StartTLS is "auto" (the default: by well-known port), "none" or a protocol. A scheme in
 	// Target (smtp://) decides instead.
-	StartTLS string   `json:"starttls"`
+	StartTLS string `json:"starttls"`
+	// Protocol is "auto" (the default: port 22 is SSH, anything else TLS), "tls" or "ssh".
+	// A scheme in Target (ssh://, https://, smtp://) decides instead.
+	Protocol string   `json:"protocol"`
 	Tags     []string `json:"tags"`
 	Notes    string   `json:"notes"`
 }
 
 func (s *Server) newAsset(ctx context.Context, req createReq) (store.Asset, int, string) {
-	host, port, fromScheme, err := normalizeTarget(req.Target)
+	t, err := normalizeTarget(req.Target)
 	if err != nil {
 		return store.Asset{}, http.StatusBadRequest, "invalid target: " + err.Error()
 	}
-	choice, msg := startTLSChoice(req.StartTLS, fromScheme)
+	kind, port, msg := assetKindFor(t, req.Protocol)
 	if msg != "" {
 		return store.Asset{}, http.StatusBadRequest, msg
+	}
+	host := t.host
+	choice := "none"
+	if kind == store.KindTLS {
+		if choice, msg = startTLSChoice(req.StartTLS, t.starttls); msg != "" {
+			return store.Asset{}, http.StatusBadRequest, msg
+		}
+	} else if s := strings.ToLower(strings.TrimSpace(req.StartTLS)); s != "" && s != "auto" && s != "none" {
+		return store.Asset{}, http.StatusBadRequest, "STARTTLS applies to TLS endpoints, not SSH"
 	}
 	if err := s.cfg.Guard.CheckTarget(ctx, host); err != nil {
 		return store.Asset{}, http.StatusBadRequest, err.Error()
@@ -142,7 +162,7 @@ func (s *Server) newAsset(ctx context.Context, req createReq) (store.Asset, int,
 	if len(name) > 100 || len(req.Notes) > 2000 {
 		return store.Asset{}, http.StatusBadRequest, "name (100) or notes (2000) too long"
 	}
-	a, err := s.cfg.Store.CreateAsset(store.Asset{Kind: store.KindTLS, Name: name, Host: host, Port: port, StartTLS: choice, Tags: tags, Notes: req.Notes})
+	a, err := s.cfg.Store.CreateAsset(store.Asset{Kind: kind, Name: name, Host: host, Port: port, StartTLS: choice, Tags: tags, Notes: req.Notes})
 	if errors.Is(err, store.ErrDuplicate) {
 		return store.Asset{}, http.StatusConflict, fmt.Sprintf("%s is already added", store.Asset{Host: host, Port: port}.Address())
 	}
@@ -178,6 +198,8 @@ func (s *Server) bulkAssets(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Text string   `json:"text"`
 		Tags []string `json:"tags"`
+		// Protocol is what every line is added as: "auto" (the default), "tls" or "ssh".
+		Protocol string `json:"protocol"`
 	}
 	if !decode(w, r, &req) {
 		return
@@ -194,7 +216,7 @@ func (s *Server) bulkAssets(w http.ResponseWriter, r *http.Request) {
 		if in == "" || strings.HasPrefix(in, "#") {
 			continue
 		}
-		a, status, msg := s.newAsset(r.Context(), createReq{Target: in, Tags: req.Tags})
+		a, status, msg := s.newAsset(r.Context(), createReq{Target: in, Tags: req.Tags, Protocol: req.Protocol})
 		res := BulkResult{Line: i + 1, Input: in}
 		switch status {
 		case 0:
@@ -247,6 +269,10 @@ func (s *Server) patchAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	p := store.AssetPatch{Notes: req.Notes, IntervalSeconds: req.IntervalSeconds}
 	if req.StartTLS != nil {
+		if cur, err := s.cfg.Store.GetAsset(id); err == nil && cur.Kind == store.KindSSH {
+			writeErr(w, http.StatusBadRequest, "STARTTLS applies to TLS endpoints, not SSH")
+			return
+		}
 		c, msg := startTLSChoice(*req.StartTLS, "")
 		if msg != "" {
 			writeErr(w, http.StatusBadRequest, msg)
@@ -321,8 +347,8 @@ func (s *Server) scanAsset(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
-	if a.Kind != store.KindTLS {
-		writeErr(w, http.StatusBadRequest, "only TLS endpoints can be scanned; hosts report by pushing a CBOM")
+	if !store.IsEndpoint(a.Kind) {
+		writeErr(w, http.StatusBadRequest, "only TLS and SSH endpoints can be scanned; hosts report by pushing a CBOM")
 		return
 	}
 	sc, existing, err := s.queue(id, "manual", s.actor(r))
@@ -348,7 +374,7 @@ func (s *Server) scanMany(w http.ResponseWriter, r *http.Request) {
 	}
 	ids := req.AssetIDs
 	if req.All || req.Tag != "" {
-		as, err := s.cfg.Store.ListAssets(store.KindTLS)
+		as, err := s.cfg.Store.ListAssets(store.KindEndpoint)
 		if err != nil {
 			storeErr(w, err)
 			return
@@ -401,7 +427,7 @@ func hasTag(tags []string, want string) bool {
 
 func (s *Server) listScans(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	f := store.ScanFilter{Status: q.Get("status")}
+	f := store.ScanFilter{Status: q.Get("status"), Kind: q.Get("kind")}
 	f.AssetID, _ = strconv.ParseInt(q.Get("assetId"), 10, 64)
 	f.Limit, _ = strconv.Atoi(q.Get("limit"))
 	scans, err := s.cfg.Store.ListScans(f)
@@ -500,8 +526,8 @@ func (s *Server) scanCBOM(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
-	var rep tlsprobe.Report
-	if err := json.Unmarshal(rb, &rep); err != nil {
+	dec, err := decodeReport(rb)
+	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
@@ -514,9 +540,10 @@ func (s *Server) scanCBOM(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "spec must be 1.6 or 1.7")
 		return
 	}
-	bom, _ := cbom.Build(tlscbom.FromTLSReport(&rep), cbom.Options{
+	assets, endpoint := endpointAssets(dec)
+	bom, _ := cbom.Build(assets, cbom.Options{
 		Tool:     cbom.Tool{Name: "cipherhorizon", Version: s.cfg.Version},
-		Endpoint: fmt.Sprintf("%s:%d", rep.Target.Host, rep.Target.Port),
+		Endpoint: endpoint,
 	})
 	pqcRep := pqc.Analyze(bom)
 	pqc.Annotate(bom, pqcRep)
@@ -554,31 +581,31 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 }
 
 // loadScan reads a done scan's report and evaluation.
-func (s *Server) loadScan(assetID, scanID int64) (*tlsprobe.Report, eval.Evaluation, *store.ScanSummary, error) {
+func (s *Server) loadScan(assetID, scanID int64) (decodedReport, eval.Evaluation, *store.ScanSummary, error) {
 	sc, err := s.cfg.Store.GetScan(scanID)
 	if err != nil {
-		return nil, eval.Evaluation{}, nil, err
+		return decodedReport{}, eval.Evaluation{}, nil, err
 	}
 	if sc.AssetID != assetID || sc.Status != store.StatusDone {
-		return nil, eval.Evaluation{}, nil, store.ErrNotFound
+		return decodedReport{}, eval.Evaluation{}, nil, store.ErrNotFound
 	}
 	rb, err := s.cfg.Store.Report(scanID)
 	if err != nil {
-		return nil, eval.Evaluation{}, nil, err
+		return decodedReport{}, eval.Evaluation{}, nil, err
 	}
 	eb, err := s.cfg.Store.Evaluation(scanID)
 	if err != nil {
-		return nil, eval.Evaluation{}, nil, err
+		return decodedReport{}, eval.Evaluation{}, nil, err
 	}
-	var rep tlsprobe.Report
+	dec, err := decodeReport(rb)
+	if err != nil {
+		return decodedReport{}, eval.Evaluation{}, nil, err
+	}
 	var ev eval.Evaluation
-	if err := json.Unmarshal(rb, &rep); err != nil {
-		return nil, eval.Evaluation{}, nil, err
-	}
 	if err := json.Unmarshal(eb, &ev); err != nil {
-		return nil, eval.Evaluation{}, nil, err
+		return decodedReport{}, eval.Evaluation{}, nil, err
 	}
-	return &rep, ev, &sc, nil
+	return dec, ev, &sc, nil
 }
 
 // diff compares two completed scans of an asset (AC-07.3). Without from/to it
@@ -613,7 +640,17 @@ func (s *Server) diff(w http.ResponseWriter, r *http.Request) {
 		storeErr(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"from": fs, "to": ts, "diff": eval.Compare(fr, tr, fe, te)})
+	var d eval.Diff
+	switch {
+	case fr.ssh != nil && tr.ssh != nil:
+		d = eval.CompareSSH(fr.ssh, tr.ssh, fe, te)
+	case fr.tls != nil && tr.tls != nil:
+		d = eval.Compare(fr.tls, tr.tls, fe, te)
+	default:
+		writeErr(w, http.StatusConflict, "the two scans are of different protocols")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"from": fs, "to": ts, "diff": d})
 }
 
 // ---- export -------------------------------------------------------------------------------------------
@@ -628,7 +665,7 @@ func csvSafe(s string) string {
 }
 
 func (s *Server) exportCSV(w http.ResponseWriter, r *http.Request) {
-	as, err := s.cfg.Store.ListAssets(store.KindTLS)
+	as, err := s.cfg.Store.ListAssets(store.KindEndpoint)
 	if err != nil {
 		storeErr(w, err)
 		return
@@ -637,9 +674,10 @@ func (s *Server) exportCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="assets.csv"`)
 	cw := csv.NewWriter(w)
 	_ = cw.Write([]string{"name", "address", "tags", "hygiene_band", "pqc_level", "pqc_label", "hndl_exposed", "critical", "high",
-		"cert_expires", "last_scan", "status", "rescan_interval_seconds", "hygiene_score"})
+		"cert_expires", "last_scan", "status", "rescan_interval_seconds", "hygiene_score", "protocol", "service",
+		"ssh_baseline", "ssh_baseline_meets", "ssh_baseline_changes"})
 	for _, a := range as {
-		row := []string{csvSafe(a.Name), csvSafe(a.Address()), csvSafe(strings.Join(a.Tags, ";")), "", "", "", "", "", "", "", "", "", strconv.Itoa(a.IntervalSeconds), ""}
+		row := []string{csvSafe(a.Name), csvSafe(a.Address()), csvSafe(strings.Join(a.Tags, ";")), "", "", "", "", "", "", "", "", "", strconv.Itoa(a.IntervalSeconds), "", view(a, nil).Protocol, "", "", "", ""}
 		if a.Latest != nil {
 			row[11] = a.Latest.Status
 		}
@@ -659,6 +697,11 @@ func (s *Server) exportCSV(w http.ResponseWriter, r *http.Request) {
 			}
 			if d.FinishedAt != nil {
 				row[10] = d.FinishedAt.UTC().Format("2006-01-02T15:04:05Z")
+			}
+			row[15] = csvSafe(d.Service)
+			// An SSH server has no hygiene score: its measure is the baseline (PRD-008 REQ-SHE-5).
+			if d.BaselineMeets != nil {
+				row[16], row[17], row[18] = d.Baseline, strconv.FormatBool(*d.BaselineMeets), strconv.Itoa(d.BaselineChanges)
 			}
 		}
 		_ = cw.Write(row)

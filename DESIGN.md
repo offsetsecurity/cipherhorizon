@@ -35,7 +35,7 @@ logo). The values below were read from offsetsecurity.net's own stylesheet
 - **Files** (`web/static/img/`): `mark.svg` (blue, also the favicon), `mark-on-navy.svg` (the same; blue reads on
   navy), `mark-mono.svg` (a navy tile, for one-colour print). `brandMark()` in `dom.js` and the PDF cover draw the same
   shapes.
-- **Lockup:** the icon, *CipherHorizon* in Geist 600, and under it the tagline *TLS and post-quantum scanner*.
+- **Lockup:** the icon, *CipherHorizon* in Geist 600, and under it the tagline *TLS · SSH · post-quantum readiness* (STRATEGY-003 §4).
 - **Why a padlock:** it says "TLS" and "cryptography" at 16 pixels, where anything subtler turns into a smudge.
 
 ---
@@ -162,8 +162,8 @@ Flat. **No gradients, no glows, no coloured shadows.**
 ## 7. Components
 
 **Navigation rail.**
-- Brand at the top, then the places. The rail holds places only; actions live on pages (*Scan a URL* is the scan
-  box on the Overview and the primary button of Endpoints).
+- Brand at the top, then the places. The rail holds places only; actions live on pages: the scan box on the
+  Overview, and one *Add* button per list page (*Add TLS endpoints*, *Add SSH servers*) whose dialog scans by default.
 - The rail fits a laptop screen without a scroll pane of its own; on a very short window the whole rail scrolls.
 - Group labels (*Results*, *Plan & share*) are 12px, sentence case and muted.
 - Items are 36px high with an 18px icon, colour `--rail-text` and white on hover.

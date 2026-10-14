@@ -6,37 +6,54 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/offsetsecurity/cipherhorizon/internal/store"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 var labelRE = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?$`)
 
+// targetSpec is what a person typed, parsed: the host and port, and what the scheme said.
+type targetSpec struct {
+	host string
+	port int
+	// portGiven is false when the port is the default for the scheme (443, or 22 for ssh://).
+	portGiven bool
+	// starttls is set by a STARTTLS scheme (smtp://) or "none" by https://; empty otherwise.
+	starttls string
+	// protocol is "ssh" for ssh://, "tls" for any TLS scheme, and empty without a scheme.
+	protocol string
+}
+
 // normalizeTarget turns what a person types into a host and port (AC-01.4).
 // A URL is accepted and reduced to its host and port; credentials, spaces and
-// malformed names or ports are refused with a reason.
-func normalizeTarget(input string) (host string, port int, starttls string, err error) {
+// malformed names or ports are refused with a reason. ssh:// names an SSH server (PRD-008).
+func normalizeTarget(input string) (targetSpec, error) {
+	var t targetSpec
 	s := strings.TrimSpace(input)
 	if s == "" {
-		return "", 0, "", fmt.Errorf("empty")
+		return t, fmt.Errorf("empty")
 	}
 	if strings.ContainsAny(s, " \t\r\n") {
-		return "", 0, "", fmt.Errorf("contains whitespace")
+		return t, fmt.Errorf("contains whitespace")
 	}
 	schemePort := 0
 	if i := strings.Index(s, "://"); i >= 0 {
 		switch sc := strings.ToLower(s[:i]); sc {
+		case "ssh":
+			t.protocol, schemePort = "ssh", 22
+			s = s[i+3:]
 		case "https", "http", "tls", "ssl":
-			starttls = "none"
+			t.starttls, t.protocol = "none", "tls"
 			s = s[i+3:]
 		default:
 			// A STARTTLS service named by its scheme: smtp://, imap://, ldaps:// ... (REQ-SX-2).
 			rest, proto, defPort, _, serr := tlsprobe.SplitScheme(s)
 			if serr != nil {
-				return "", 0, "", fmt.Errorf("unsupported scheme %q", s[:i])
+				return t, fmt.Errorf("unsupported scheme %q", s[:i])
 			}
-			starttls, schemePort, s = proto, defPort, rest
-			if starttls == "" {
-				starttls = "none"
+			t.starttls, t.protocol, schemePort, s = proto, "tls", defPort, rest
+			if t.starttls == "" {
+				t.starttls = "none"
 			}
 		}
 	}
@@ -44,30 +61,70 @@ func normalizeTarget(input string) (host string, port int, starttls string, err 
 		s = s[:i]
 	}
 	if strings.ContainsAny(s, "@\\") {
-		return "", 0, "", fmt.Errorf("credentials and backslashes are not allowed")
+		return t, fmt.Errorf("credentials and backslashes are not allowed")
 	}
-	t, err := tlsprobe.ParseTarget(s)
+	pt, err := tlsprobe.ParseTarget(s)
 	if err != nil {
-		return "", 0, "", err
+		return t, err
 	}
-	if _, _, perr := net.SplitHostPort(s); perr != nil && schemePort != 0 {
-		t.Port = schemePort
+	_, _, perr := net.SplitHostPort(s)
+	t.portGiven = perr == nil
+	if !t.portGiven && schemePort != 0 {
+		pt.Port = schemePort
 	}
-	host = strings.TrimSuffix(strings.ToLower(t.Host), ".")
-	if host == "" {
-		return "", 0, "", fmt.Errorf("empty host")
+	t.host, t.port = strings.TrimSuffix(strings.ToLower(pt.Host), "."), pt.Port
+	if t.host == "" {
+		return t, fmt.Errorf("empty host")
 	}
-	if net.ParseIP(host) == nil {
-		if len(host) > 253 {
-			return "", 0, "", fmt.Errorf("host name is too long")
+	if net.ParseIP(t.host) == nil {
+		if len(t.host) > 253 {
+			return t, fmt.Errorf("host name is too long")
 		}
-		for _, label := range strings.Split(host, ".") {
+		for _, label := range strings.Split(t.host, ".") {
 			if !labelRE.MatchString(label) {
-				return "", 0, "", fmt.Errorf("%q is not a valid host name", host)
+				return t, fmt.Errorf("%q is not a valid host name", t.host)
 			}
 		}
 	}
-	return host, t.Port, starttls, nil
+	return t, nil
+}
+
+// assetKindFor decides TLS or SSH (PRD-008 REQ-SHW-1): a scheme decides; otherwise the requested
+// protocol ("tls", "ssh", or "auto"/"" meaning port 22 is SSH and anything else TLS). It returns
+// the kind and, for SSH chosen without a port, the port to use.
+func assetKindFor(t targetSpec, requested string) (kind string, port int, msg string) {
+	port = t.port
+	req := strings.ToLower(strings.TrimSpace(requested))
+	if t.protocol != "" && req != "" && req != "auto" && req != t.protocol {
+		if t.protocol == "ssh" {
+			return "", 0, "an ssh:// address is an SSH server: add it under SSH servers"
+		}
+		return "", 0, "a TLS address (https://, smtp:// and the like) is a TLS endpoint: add it under TLS endpoints"
+	}
+	p := t.protocol
+	if p == "" {
+		switch req {
+		case "", "auto":
+			p = "tls"
+			if t.portGiven && t.port == 22 {
+				p = "ssh"
+			}
+		case "tls", "ssh":
+			p = req
+		default:
+			return "", 0, "protocol must be auto, tls or ssh"
+		}
+	}
+	if p == "ssh" {
+		if !t.portGiven {
+			port = 22
+		}
+		if t.starttls != "" && t.starttls != "none" {
+			return "", 0, "STARTTLS applies to TLS endpoints, not SSH"
+		}
+		return store.KindSSH, port, ""
+	}
+	return store.KindTLS, port, ""
 }
 
 // normalizeTags trims, de-duplicates and bounds tags.

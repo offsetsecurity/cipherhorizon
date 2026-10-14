@@ -186,3 +186,30 @@ func keysOf(m map[string]bool) []string {
 	sort.Strings(out)
 	return out
 }
+
+// ADR-0019: golang.org/x/crypto is the SSH tests' independent oracle and the demo targets' SSH
+// server, never part of the release binary; neither are the test servers. This checks the linked
+// dependency set of cmd/cipherhorizon on every release platform.
+func TestReleaseBinaryDoesNotImportXCryptoSSH(t *testing.T) {
+	banned := []string{"golang.org/x/crypto", module + "/internal/sshprobe/testserver", module + "/internal/tlsprobe/testserver"}
+	for _, goos := range []string{"linux", "windows", "darwin"} {
+		cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", "./cmd/cipherhorizon")
+		cmd.Dir = "../.."
+		cmd.Env = append(os.Environ(), "GOOS="+goos, "CGO_ENABLED=0")
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("go list (%s): %v", goos, err)
+		}
+		pkgs := strings.Fields(string(out))
+		for _, p := range pkgs {
+			for _, b := range banned {
+				if p == b || strings.HasPrefix(p, b+"/") {
+					t.Errorf("cipherhorizon (%s) links %s; it must not (ADR-0019)", goos, p)
+				}
+			}
+		}
+		if len(pkgs) < 100 {
+			t.Errorf("go list (%s) returned only %d packages: the check is not seeing the dependency graph", goos, len(pkgs))
+		}
+	}
+}

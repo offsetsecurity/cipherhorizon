@@ -27,7 +27,7 @@ export async function firstRun({ check, js, go, sleep, shot }) {
     pillars: v ? v.querySelectorAll('.gate-pillars li').length : 0, link: v?.querySelector('a')?.href || '',
     bg: v ? getComputedStyle(v).backgroundColor : '', mark: !!v?.querySelector('.gate-mark svg') }`);
   check('E2E-B.1', 'the setup and sign-in screens carry a navy panel: Quantum-safe before it\'s urgent, three pillars, by Offset Security, the PQC readiness link',
-    /Quantum-safe before it.s urgent/.test(panel.text) && panel.pillars === 3 && /TLS and post-quantum scanner/.test(panel.text)
+    /Quantum-safe before it.s urgent/.test(panel.text) && panel.pillars === 3 && /TLS · SSH · post-quantum readiness/.test(panel.text)
     && /post-quantum-cryptography-readiness/.test(panel.link) && panel.bg === 'rgb(11, 20, 40)' && panel.mark, JSON.stringify(panel));
   await shot('auth-setup', { full: false });
   await js(`${fill('setup-code', 'WRONG-CODE-0000')} ${fill('setup-user', ADMIN.username)} ${fill('setup-pass', ADMIN.password)}

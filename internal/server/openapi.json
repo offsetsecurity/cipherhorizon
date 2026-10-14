@@ -157,10 +157,13 @@
             "schema": {
               "type": "string",
               "enum": [
-                "tls",
+                "tls-endpoint",
+                "ssh-endpoint",
+                "endpoint",
                 "host"
               ]
-            }
+            },
+            "description": "tls-endpoint, ssh-endpoint, host, or endpoint for every TLS and SSH endpoint (PRD-008)."
           }
         ],
         "responses": {
@@ -180,7 +183,7 @@
         }
       },
       "post": {
-        "summary": "Add a TLS endpoint asset.",
+        "summary": "Add a TLS or SSH endpoint.",
         "tags": [
           "assets"
         ],
@@ -190,7 +193,41 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "type": "object",
+                "required": [
+                  "target"
+                ],
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "description": "host, host:port or a URL. ssh:// names an SSH server; https://, smtp:// and the other STARTTLS schemes a TLS one."
+                  },
+                  "protocol": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "tls",
+                      "ssh"
+                    ],
+                    "description": "auto (default): port 22 is SSH, anything else TLS. A scheme in target decides instead."
+                  },
+                  "starttls": {
+                    "type": "string",
+                    "description": "TLS only: auto, none or a STARTTLS protocol."
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
@@ -229,7 +266,7 @@
     },
     "/api/v1/assets/bulk": {
       "post": {
-        "summary": "Add many endpoints from lines of text; the reply says what happened to each line.",
+        "summary": "Add many endpoints from lines of text (text, tags, and protocol: auto, tls or ssh, which every line is added as); the reply says what happened to each line.",
         "tags": [
           "assets"
         ],
@@ -1727,6 +1764,15 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "Only scans of this asset kind: tls-endpoint or ssh-endpoint.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1865,12 +1911,13 @@
           "404": {
             "description": "No such object"
           }
-        }
+        },
+        "description": "The stored scan report as JSON: schemaVersion tls-report/2 for a TLS endpoint, ssh-report/1 for an SSH endpoint (identification, algorithms, negotiated, hostKeys, hostKeyAttempts, stages)."
       }
     },
     "/api/v1/scans/{id}/evaluation": {
       "get": {
-        "summary": "The cited evaluation of a scan.",
+        "summary": "The cited evaluation of a scan. For an SSH server it has no hygiene score (score -1); it carries baseline, the conformance to an SSH baseline: baseline id, title, judged, meets, changes (each with kind, name, action remove|add|upgrade|replace-key, text, cite), requires (each with id, text, met, detail, cite) and sshdConfig, the sshd_config lines that would make the server meet it.",
         "tags": [
           "scans"
         ],
@@ -1900,7 +1947,8 @@
           "404": {
             "description": "No such object"
           }
-        }
+        },
+        "description": "The evaluation of a scan; protocol is \"ssh\" for an SSH endpoint and absent for TLS. The shape is otherwise the same."
       }
     },
     "/api/v1/scans/{id}/cbom": {
@@ -2591,6 +2639,30 @@
         }
       }
     },
+    "/api/v1/ssh/baselines": {
+      "get": {
+        "summary": "The SSH baselines this server judges SSH servers against: id, title, version, the allowed algorithms per kind (each with the OpenSSH version that first offers it and its citation), the requirements and the minimum RSA host key size.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_ssh_baselines",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
     "/api/v1/scans/{id}/reevaluate": {
       "post": {
         "summary": "Recompute a completed scan's evaluation from its stored report with the current anchors, reference data and time. The report is never rewritten; a scan event records the old and new evaluation versions.",
@@ -2881,6 +2953,9 @@
           "201": {
             "description": "Created and signed in"
           },
+          "400": {
+            "description": "Invalid request"
+          },
           "403": {
             "description": "Wrong setup code"
           },
@@ -2889,9 +2964,6 @@
           },
           "429": {
             "description": "Too many failed attempts"
-          },
-          "400": {
-            "description": "Invalid request"
           }
         },
         "requestBody": {
@@ -2917,17 +2989,17 @@
           "200": {
             "description": "Signed in"
           },
+          "400": {
+            "description": "Invalid request"
+          },
           "401": {
             "description": "Wrong username or password, disabled or locked"
-          },
-          "429": {
-            "description": "Too many failed attempts"
           },
           "403": {
             "description": "Refused by the anti-forgery guard or by the account's role"
           },
-          "400": {
-            "description": "Invalid request"
+          "429": {
+            "description": "Too many failed attempts"
           }
         },
         "requestBody": {
@@ -2987,14 +3059,14 @@
           "204": {
             "description": "Changed"
           },
-          "403": {
-            "description": "Current password wrong"
+          "400": {
+            "description": "Invalid request"
           },
           "401": {
             "description": "Not signed in (or missing or wrong token)"
           },
-          "400": {
-            "description": "Invalid request"
+          "403": {
+            "description": "Current password wrong"
           }
         },
         "requestBody": {
@@ -3103,8 +3175,8 @@
           "201": {
             "description": "Created"
           },
-          "409": {
-            "description": "Username taken"
+          "400": {
+            "description": "Invalid request"
           },
           "401": {
             "description": "Not signed in (or missing or wrong token)"
@@ -3112,8 +3184,8 @@
           "403": {
             "description": "Refused by the anti-forgery guard or by the account's role"
           },
-          "400": {
-            "description": "Invalid request"
+          "409": {
+            "description": "Username taken"
           }
         },
         "requestBody": {
@@ -3139,14 +3211,14 @@
           "200": {
             "description": "OK"
           },
+          "400": {
+            "description": "Invalid request"
+          },
           "401": {
             "description": "Not signed in (or missing or wrong token)"
           },
           "403": {
             "description": "Refused by the anti-forgery guard or by the account's role"
-          },
-          "400": {
-            "description": "Invalid request"
           },
           "404": {
             "description": "No such object"
@@ -3206,14 +3278,14 @@
           "204": {
             "description": "Done"
           },
+          "400": {
+            "description": "Invalid request"
+          },
           "401": {
             "description": "Not signed in (or missing or wrong token)"
           },
           "403": {
             "description": "Refused by the anti-forgery guard or by the account's role"
-          },
-          "400": {
-            "description": "Invalid request"
           },
           "404": {
             "description": "No such object"
@@ -3306,14 +3378,14 @@
           "200": {
             "description": "OK: {entries: [{at, source, actor, action, objectKind, objectId, username, client, detail, reason}]}"
           },
+          "400": {
+            "description": "A filter is not valid"
+          },
           "401": {
             "description": "Not signed in (or missing or wrong token)"
           },
           "403": {
             "description": "Only an administrator can do this"
-          },
-          "400": {
-            "description": "A filter is not valid"
           }
         },
         "operationId": "get_audit"
@@ -3360,14 +3432,14 @@
           "200": {
             "description": "text/csv"
           },
+          "400": {
+            "description": "A filter is not valid"
+          },
           "401": {
             "description": "Not signed in (or missing or wrong token)"
           },
           "403": {
             "description": "Only an administrator can do this"
-          },
-          "400": {
-            "description": "A filter is not valid"
           }
         },
         "operationId": "get_audit_csv"
@@ -3383,11 +3455,11 @@
           "200": {
             "description": "OK: {signIn: {required, lockedBy, accounts, canTurnOff}, server: {...}}"
           },
-          "403": {
-            "description": "Only an administrator can do this"
-          },
           "401": {
             "description": "Not signed in (or missing or wrong token)"
+          },
+          "403": {
+            "description": "Only an administrator can do this"
           }
         },
         "operationId": "get_settings"
@@ -3432,14 +3504,14 @@
           "400": {
             "description": "A username or password that is not allowed"
           },
-          "409": {
-            "description": "Locked by the command line, or turning it off would open a server reachable from the network"
+          "401": {
+            "description": "Not signed in (or missing or wrong token)"
           },
           "403": {
             "description": "Only an administrator can do this"
           },
-          "401": {
-            "description": "Not signed in (or missing or wrong token)"
+          "409": {
+            "description": "Locked by the command line, or turning it off would open a server reachable from the network"
           }
         },
         "operationId": "put_settings_sign_in"

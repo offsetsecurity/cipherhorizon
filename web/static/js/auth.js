@@ -7,20 +7,22 @@ import { api, ApiError } from './api.js';
 const gate = () => document.getElementById('gate');
 
 // What the product is, said once where everyone sees it first (PRD-007 REQ-ST-1): the Offset
-// headline, the three pillars, and who makes it.
+// headline, the three pillars (STRATEGY-003 §4), and who makes it.
+export const ONE_LINER = 'Post-quantum readiness for the protocols your organisation runs on: TLS, SSH and, next, VPN. A deep scan of each, a readiness level from L0 to L4, and one CycloneDX CBOM, self-hosted.';
 export const PILLARS = [
-  ['Post-quantum readiness', 'A level from L0 to L4 for every endpoint, and which ones would leak recorded traffic to a future quantum computer.'],
-  ['A TLS scanner that shows its work', 'Every protocol, cipher suite and group, every check passed or failed, each with its source.'],
-  ['An inventory you can hand over', 'One CycloneDX CBOM for endpoints and machines, and reports an auditor accepts.'],
+  ['Post-quantum readiness, protocol by protocol', 'A level from L0 to L4 for every TLS endpoint and SSH server, and which ones would leak recorded traffic to a future quantum computer.'],
+  ['Scanners that show their work', 'A TLS scanner and an SSH auditor with their own wire implementations: every check passed or failed, each with its source, verified against real servers.'],
+  ['An inventory you can hand over', 'One CycloneDX CBOM for TLS endpoints, SSH servers and machines, and reports an auditor accepts.'],
 ];
 export const PQC_SERVICE = 'https://offsetsecurity.net/post-quantum-cryptography-readiness.html';
 
 const VALUE = () => h('aside', { class: 'gate-value', 'aria-label': 'About CipherHorizon' },
   h('div', { class: 'gate-lockup' }, h('span', { class: 'gate-mark', 'aria-hidden': 'true' }, brandMark('color')),
-    h('span', null, h('span', { class: 'gate-name' }, 'CipherHorizon'), h('span', { class: 'gate-by' }, 'TLS and post-quantum scanner'))),
+    h('span', null, h('span', { class: 'gate-name' }, 'CipherHorizon'), h('span', { class: 'gate-by' }, 'TLS · SSH · post-quantum readiness'))),
   h('div', { class: 'gate-value-body' },
-    h('p', { class: 'eyebrow eyebrow-navy' }, 'Post-quantum readiness · TLS scanner · CBOM'),
+    h('p', { class: 'eyebrow eyebrow-navy' }, 'Post-quantum readiness · TLS · SSH · CBOM'),
     h('p', { class: 'gate-headline' }, 'Quantum-safe before it\'s urgent.'),
+    h('p', { class: 'gate-value-lede' }, ONE_LINER),
     h('ul', { class: 'gate-pillars' }, PILLARS.map(([t, d]) => h('li', null, h('b', null, t), h('span', null, d))))),
   h('p', { class: 'gate-credit' }, 'Self-hosted and open source, from ',
     h('a', { href: PQC_SERVICE, target: '_blank', rel: 'noopener' }, 'Offset Security\'s post-quantum readiness practice'), '.'));

@@ -18,7 +18,7 @@ go build ./...
 go test ./...
 ```
 
-You need **Go 1.25+** and nothing else to build and run the unit/integration tests. Optional, for the full
+You need **Go 1.27+** and nothing else to build and run the unit/integration tests. Optional, for the full
 suite:
 
 - **golangci-lint** ([install](https://golangci-lint.run/welcome/install/)) — `golangci-lint run ./...`

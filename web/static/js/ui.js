@@ -30,7 +30,7 @@ export function levelBadge(level, withName = true) {
     h('b', null, code), withName ? ` ${levelName(level)}` : '');
 }
 
-// TLS hygiene: this product's own 0-100 score of how well an endpoint is configured, shown as a
+// Hygiene (TLS or SSH): this product's own 0-100 score of how well an endpoint is configured, shown as a
 // band word (never colour alone) and the number.
 export const BAND_ORDER = ['Strong', 'Sound', 'Fair', 'Weak', 'Broken', 'Not rated'];
 const BAND_TONE = { Strong: 'good', Sound: 'ok', Fair: 'warn', Weak: 'bad', Broken: 'bad', 'Not rated': 'neutral' };
@@ -39,7 +39,7 @@ export const bandTone = (band) => BAND_TONE[band] || 'neutral';
 export function bandBadge(band, score) {
   if (!band) return badge('·', 'none');
   const rated = typeof score === 'number' && score >= 0;
-  return h('span', { class: `badge band tone-${bandTone(band)}`, title: `TLS hygiene: ${band}${rated ? `, ${score} out of 100` : ''}` },
+  return h('span', { class: `badge band tone-${bandTone(band)}`, title: `Hygiene: ${band}${rated ? `, ${score} out of 100` : ''}` },
     band, rated ? h('span', { class: 'band-n' }, ` ${score}`) : null);
 }
 

@@ -27,8 +27,10 @@ const api = async (method, path, body) => {
   return r.status === 204 ? null : r.json();
 };
 
-// 1. Demo data: the targets with a known posture, scanned once.
-const targets = [...[0, 1, 2, 3].map((o) => `127.0.0.1:${DEMO + o}`), `smtp://127.0.0.1:${DEMO + 11}`];
+// 1. Demo data: the targets with a known posture, scanned once. TLS endpoints, and SSH servers from
+// base+20 (hybrid, classical, legacy, ML-DSA host key, hardened to meet the baseline).
+const targets = [...[0, 1, 2, 3].map((o) => `127.0.0.1:${DEMO + o}`), `smtp://127.0.0.1:${DEMO + 11}`,
+  ...[20, 21, 22, 23, 27].map((o) => `ssh://127.0.0.1:${DEMO + o}`)];
 await api('POST', '/api/v1/assets/bulk', { text: targets.join('\n'), tags: ['demo'] });
 await api('POST', '/api/v1/scans', { all: true });
 for (let i = 0; i < 240; i++) {
@@ -37,7 +39,7 @@ for (let i = 0; i < 240; i++) {
   if (!running.length && !queued.length) break;
   await sleep(1000);
 }
-const assets = await api('GET', '/api/v1/assets');
+const assets = await api('GET', '/api/v1/assets?kind=endpoint');
 const byPort = Object.fromEntries(assets.map((a) => [a.port, a]));
 
 // 2. The browser.
@@ -64,6 +66,9 @@ const shots = [
   ['report-legacy', `#/endpoints/${byPort[DEMO + 3].id}`],
   ['report-starttls', `#/endpoints/${byPort[DEMO + 11].id}`],
   ['endpoints', '#/endpoints'],
+  ['ssh-servers', '#/ssh'],
+  ['report-ssh', `#/ssh/${byPort[DEMO + 20].id}`],
+  ['report-ssh-baseline', `#/ssh/${byPort[DEMO + 20].id}?tab=configuration`],
   ['inventory', '#/inventory'],
 ];
 for (const dark of [false, true]) {

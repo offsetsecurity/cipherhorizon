@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="Post-quantum readiness for every TLS endpoint you run: a deep TLS scan, a readiness level from L0 to L4, and a CycloneDX CBOM, self-hosted.">
+  <meta name="description" content="Post-quantum readiness for the protocols your organisation runs on: TLS, SSH and, next, VPN. A deep scan of each, a readiness level from L0 to L4, and one CycloneDX CBOM, self-hosted.">
   <title>Methodology · CipherHorizon</title>
   <link rel="icon" href="img/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
@@ -12,7 +12,7 @@
 <body>
   <header class="top">
     <div class="top-in">
-      <a class="brand" href="index.html"><img src="img/mark-on-navy.svg" alt=""><span>CipherHorizon<small>TLS and post-quantum scanner</small></span></a>
+      <a class="brand" href="index.html"><img src="img/mark-on-navy.svg" alt=""><span>CipherHorizon<small>TLS · SSH · post-quantum readiness</small></span></a>
       <nav aria-label="Documentation">
       <a href="index.html">Home</a>
       <a href="start.html">Getting started</a>
@@ -34,7 +34,7 @@
       <tr><td>L1 Exposed</td><td>TLS 1.3, but no post-quantum key exchange offered: recorded traffic is exposed</td></tr>
       <tr><td>L2 Hybrid available</td><td>A hybrid group is accepted, but a current client does not end up using it</td></tr>
       <tr><td>L3 Hybrid negotiated</td><td>A current client negotiates a hybrid post-quantum key exchange</td></tr>
-      <tr><td>L4 PQ-authenticated</td><td>L3 plus a post-quantum certificate signature (ML-DSA)</td></tr>
+      <tr><td>L4 PQ-authenticated</td><td>L3 plus post-quantum authentication (an ML-DSA certificate, presented or held)</td></tr>
     </table>
     <p>Only standardised groups count (FIPS 203 ML-KEM in the IANA TLS registry); pre-standard draft groups are reported but do not
       raise the level.</p>

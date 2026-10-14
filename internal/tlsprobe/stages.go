@@ -19,6 +19,10 @@ var (
 	probesKeyExchange13 = []string{
 		"TLS 1.3 groups: an empty key_share for each candidate group, answered by HelloRetryRequest",
 	}
+	probesSignatures = []string{
+		"TLS 1.3: one hello per signature scheme, each offering only that scheme and carrying real key shares; a ServerHello means the server holds a key it can sign with for that scheme",
+		"one control hello offering only a private-use scheme no certificate can match: a server that answers it does not choose by scheme, and the stage says so",
+	}
 	probesFeatures = []string{
 		"hello extensions echoed by the server (renegotiation_info, extended_master_secret, session tickets, encrypt_then_mac, status_request)",
 		"one hello offering DEFLATE compression",
@@ -69,7 +73,7 @@ func (c *stageClock) skip(name, reason, code string) Stage {
 }
 
 // StageNames lists the stages in page order.
-var StageNames = []string{StageProtocols, StageSuites, StageKeyExchange, StageFeatures, StageCerts, StageRevocation, StageHTTP}
+var StageNames = []string{StageProtocols, StageSuites, StageKeyExchange, StageSignatures, StageFeatures, StageCerts, StageRevocation, StageHTTP}
 
 // notReached adds a skipped record for every stage not yet recorded.
 func notReached(have []Stage, why string) []Stage {

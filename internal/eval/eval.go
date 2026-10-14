@@ -18,7 +18,10 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/6"
+const Version = "eval/8"
+
+// eval/7 (PRD-008): a post-quantum signature scheme proved accepted by the signature stage counts
+// toward L4, and SSH endpoints are judged into the same shape (Protocol "ssh").
 
 // eval/6: a check that found nothing says what it confirmed (Check.Pass).
 // eval/5 (PRD-006): the evaluation lists every check it ran, found or not, so a report can
@@ -98,7 +101,9 @@ type Finding struct {
 
 // Evaluation is the full judgement of one scan.
 type Evaluation struct {
-	Version   string           `json:"version"`
+	Version string `json:"version"`
+	// Protocol is "ssh" for an SSH endpoint and empty for TLS, so stored TLS evaluations are unchanged.
+	Protocol  string           `json:"protocol,omitempty"`
 	Findings  []Finding        `json:"findings"`
 	Readiness Readiness        `json:"readiness"`
 	Hygiene   Hygiene          `json:"hygiene"`
@@ -119,6 +124,11 @@ type Evaluation struct {
 	// LegacyReport is set when the report predates tls-report/2: the sections
 	// that need its data are marked not-collected.
 	LegacyReport bool `json:"legacyReport,omitempty"`
+	// SSHAlgorithms is, for an SSH endpoint, every advertised algorithm with its verdict.
+	SSHAlgorithms []SSHAlgorithm `json:"sshAlgorithms,omitempty"`
+	// Baseline is, for an SSH endpoint, how it measures against an SSH baseline (PRD-008 WP-G).
+	// SSH servers are judged this way and get no hygiene score (REQ-SHE-5).
+	Baseline *Conformance `json:"baseline,omitempty"`
 }
 
 // Check is one check the evaluation ran. Title names what was looked for (a problem, as a
