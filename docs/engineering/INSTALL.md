@@ -120,7 +120,7 @@ header lists the commands). The log goes to `~/Library/Logs/CipherHorizon/cipher
 ```sh
 docker run -d --name cipherhorizon --restart unless-stopped \
   -p 127.0.0.1:8080:8080 -v cipherhorizon-data:/data \
-  ghcr.io/offsetsecurity/cipherhorizon:0.1.0
+  ghcr.io/offsetsecurity/cipherhorizon:0.2.0
 ```
 
 Or, from a checkout, `docker compose up -d` ([docker-compose.yml](../../docker-compose.yml): read-only

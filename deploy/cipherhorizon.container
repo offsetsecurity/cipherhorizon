@@ -23,7 +23,7 @@ After=network-online.target
 
 [Container]
 ContainerName=cipherhorizon
-Image=ghcr.io/offsetsecurity/cipherhorizon:0.1.0
+Image=ghcr.io/offsetsecurity/cipherhorizon:0.2.0
 PublishPort=127.0.0.1:8080:8080
 Volume=cipherhorizon-data:/data
 # Another port: set it here and in PublishPort (the health check follows it), e.g.
