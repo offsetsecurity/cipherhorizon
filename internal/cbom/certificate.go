@@ -78,11 +78,7 @@ func CertificateAsset(f CertFacts, emit func(id string) (string, bool), emitAsse
 	var deps []string
 	// A post-quantum signature (Go's x509 does not recognise it) is already an
 	// exact catalogue name by the time it reaches here: see certinfo.
-	sigID, sigNamed := sigAlgFamily[f.SigName]
-	if !sigNamed {
-		sigID = f.SigName
-	}
-	if ref, ok := emit(sigID); ok {
+	if ref, ok := signatureAlgorithm(f.SigName, emit, emitAsset); ok {
 		props.SignatureAlgorithmRef = cdx.BOMReference(ref)
 		deps = append(deps, ref)
 	}
@@ -129,6 +125,46 @@ var sigAlgFamily = map[string]string{
 	"DSA-SHA1": "DSA", "DSA-SHA256": "DSA",
 	"ECDSA-SHA1": "ECDSA", "ECDSA-SHA256": "ECDSA", "ECDSA-SHA384": "ECDSA", "ECDSA-SHA512": "ECDSA",
 	"Ed25519": "Ed25519",
+}
+
+// sigVariants names the exact signature algorithm of a certificate, with its OID, for each
+// value of Go's x509.SignatureAlgorithm.String() that has one (CBOM-REVIEW-002 C-3). The names
+// and OIDs are the ASN.1 ones of their RFCs: RFC 8017 appendix A.2.4 (PKCS #1 v1.5 and
+// id-RSASSA-PSS, whose hash is a parameter, so the three PSS variants share it), RFC 5758
+// section 3.2 (ecdsa-with-SHA2) and RFC 3279 section 2.2 (ecdsa-with-SHA1, id-dsa-with-sha1).
+// DSA with SHA-256 (2.16.840.1.101.3.4.3.2) is left at its family: no rule cites that arc.
+var sigVariants = map[string]struct{ name, oid string }{
+	"MD5-RSA":       {"md5WithRSAEncryption", "1.2.840.113549.1.1.4"},
+	"SHA1-RSA":      {"sha1WithRSAEncryption", "1.2.840.113549.1.1.5"},
+	"SHA256-RSA":    {"sha256WithRSAEncryption", "1.2.840.113549.1.1.11"},
+	"SHA384-RSA":    {"sha384WithRSAEncryption", "1.2.840.113549.1.1.12"},
+	"SHA512-RSA":    {"sha512WithRSAEncryption", "1.2.840.113549.1.1.13"},
+	"SHA256-RSAPSS": {"RSASSA-PSS", "1.2.840.113549.1.1.10"},
+	"SHA384-RSAPSS": {"RSASSA-PSS", "1.2.840.113549.1.1.10"},
+	"SHA512-RSAPSS": {"RSASSA-PSS", "1.2.840.113549.1.1.10"},
+	"DSA-SHA1":      {"dsa-with-SHA1", "1.2.840.10040.4.3"},
+	"ECDSA-SHA1":    {"ecdsa-with-SHA1", "1.2.840.10045.4.1"},
+	"ECDSA-SHA256":  {"ecdsa-with-SHA256", "1.2.840.10045.4.3.2"},
+	"ECDSA-SHA384":  {"ecdsa-with-SHA384", "1.2.840.10045.4.3.3"},
+	"ECDSA-SHA512":  {"ecdsa-with-SHA512", "1.2.840.10045.4.3.4"},
+}
+
+// signatureAlgorithm resolves a certificate's signature algorithm to the most precise asset
+// there is: its exact variant with OID, else its catalogue family, else the catalogue entry of
+// that name (a post-quantum signature is already an exact catalogue name, see certinfo).
+func signatureAlgorithm(goName string, emit func(id string) (string, bool), emitAsset func(collector.CryptoAsset) string) (string, bool) {
+	if v, ok := sigVariants[goName]; ok {
+		return emitAsset(collector.CryptoAsset{Component: cdx.Component{
+			BOMRef: "crypto/algorithm/" + strings.ToLower(v.name) + "@" + v.oid, Type: cdx.ComponentTypeCryptographicAsset, Name: v.name,
+			CryptoProperties: &cdx.CryptoProperties{AssetType: cdx.CryptoAssetTypeAlgorithm,
+				AlgorithmProperties: &cdx.CryptoAlgorithmProperties{Primitive: cdx.CryptoPrimitiveSignature}, OID: v.oid},
+		}}), true
+	}
+	id, named := sigAlgFamily[goName]
+	if !named {
+		id = goName
+	}
+	return emit(id)
 }
 
 // eccCurves maps Go's elliptic curve names to the SECG names RFC 5480 section

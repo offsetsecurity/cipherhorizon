@@ -103,12 +103,12 @@ var rules = []rule{
 	{
 		class: Vulnerable, rationale: whyECDLP,
 		basis: []Reference{refShor, refProosZalka, refIR8547, refRFC5480},
-		algos: []string{"ECDSA", "ECDH"}, arcs: []string{"1.2.840.10045"},
+		algos: []string{"ECDSA", "ECDH", "ECDH-P256", "ECDH-P384", "ECDH-P521"}, arcs: []string{"1.2.840.10045"},
 	},
 	{
 		class: Vulnerable, rationale: whyECDLP + " Applies to the Edwards and Montgomery curves used by EdDSA and X25519/X448 as it does to the NIST curves.",
 		basis: []Reference{refShor, refProosZalka, refIR8547, refRFC8410},
-		algos: []string{"Ed25519", "X25519"}, oids: []string{"1.3.101.111", "1.3.101.113"}, // X448, Ed448
+		algos: []string{"Ed25519", "X25519", "Ed448", "X448"},
 	},
 	{
 		class:     Safe,

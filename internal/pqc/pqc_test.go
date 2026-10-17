@@ -70,7 +70,8 @@ func TestRulesDoNotOverlapOrContradict(t *testing.T) {
 			}
 			names[strings.ToLower(a.ID)] = i
 			if a.OID != "" {
-				if j, dup := oids[a.OID]; dup {
+				// A curve variant shares its family's OID within the same rule (ECDH-P256).
+				if j, dup := oids[a.OID]; dup && j != i {
 					t.Errorf("OID %s claimed by rules %d and %d", a.OID, j, i)
 				}
 				oids[a.OID] = i

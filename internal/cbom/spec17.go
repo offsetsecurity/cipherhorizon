@@ -40,7 +40,8 @@ var registryFamily = map[string]struct{ Family, Why string }{
 	"AES-256-CBC": {"AES", ""}, "AES-256-CCM": {"AES", ""}, "AES-256-GCM": {"AES", ""},
 	"ChaCha20-Poly1305": {"", "an AEAD construction of two registry families (ChaCha20 and Poly1305)"},
 	"DH":                {"FFDH", ""}, "DSA": {"DSA", ""}, "ECDH": {"ECDH", ""}, "ECDSA": {"ECDSA", ""},
-	"Ed25519": {"EdDSA", ""}, "X25519": {"ECDH", ""},
+	"Ed25519": {"EdDSA", ""}, "X25519": {"ECDH", ""}, "Ed448": {"EdDSA", ""}, "X448": {"ECDH", ""},
+	"ECDH-P256": {"ECDH", ""}, "ECDH-P384": {"ECDH", ""}, "ECDH-P521": {"ECDH", ""},
 	"MD2": {"MD2", ""}, "MD4": {"MD4", ""}, "MD5": {"MD5", ""},
 	"SHA-1": {"SHA-1", ""}, "SHA-256": {"SHA-2", ""}, "SHA-384": {"SHA-2", ""}, "SHA-512": {"SHA-2", ""},
 	"SHA3-256": {"SHA-3", ""}, "SHA3-384": {"SHA-3", ""}, "SHA3-512": {"SHA-3", ""},
@@ -70,7 +71,7 @@ var registryCurve = map[string]string{
 }
 
 // impliedCurve is the registry curve an algorithm implies by its definition.
-var impliedCurve = map[string]string{"X25519": "other/Curve25519", "Ed25519": "other/Ed25519"}
+var impliedCurve = map[string]string{"X25519": "other/Curve25519", "Ed25519": "other/Ed25519", "X448": "other/Curve448", "Ed448": "other/Ed448"}
 
 // FamilyFor returns the registry family for a component name: a catalogue ID, or one of the
 // size- or curve-qualified names this program derives (RSA-2048, ECDSA-P256, DSA-2048).
@@ -81,6 +82,10 @@ func FamilyFor(name string) (family string, ok bool) {
 	if strings.HasPrefix(name, slhDSAPrefix) {
 		return "SLH-DSA", true
 	}
+	// A certificate's signature algorithm, by its ASN.1 name (RFC 5758, RFC 8017).
+	if f, found := signatureFamily[name]; found {
+		return f, true
+	}
 	switch {
 	case strings.HasPrefix(name, "ECDSA-"):
 		return "ECDSA", true
@@ -88,6 +93,15 @@ func FamilyFor(name string) (family string, ok bool) {
 		return "DSA", true
 	}
 	return "", false
+}
+
+// signatureFamily is the registry family of each certificate signature algorithm the
+// certificate builder names (cbom.sigVariants).
+var signatureFamily = map[string]string{
+	"md5WithRSAEncryption": "RSASSA-PKCS1", "sha1WithRSAEncryption": "RSASSA-PKCS1", "sha256WithRSAEncryption": "RSASSA-PKCS1",
+	"sha384WithRSAEncryption": "RSASSA-PKCS1", "sha512WithRSAEncryption": "RSASSA-PKCS1", "RSASSA-PSS": "RSASSA-PSS",
+	"ecdsa-with-SHA1": "ECDSA", "ecdsa-with-SHA256": "ECDSA", "ecdsa-with-SHA384": "ECDSA", "ecdsa-with-SHA512": "ECDSA",
+	"dsa-with-SHA1": "DSA",
 }
 
 // Registry17Gaps lists catalogue entries the registry has no family for, with the reason. It is
@@ -159,6 +173,13 @@ func convert17(c cdx.Component) cdx.Component {
 			if len(rel) > 0 {
 				p.RelatedCryptographicAssets = &rel
 			}
+			// 1.7 has fields for the serial number and the fingerprint (CBOM-REVIEW-002 C-5); 1.6
+			// has neither, so the 1.6 model carries the serial as a property and the fingerprint in
+			// the bom-ref. Both move into their fields here.
+			c.Properties = takeSerial(c.Properties, &p)
+			if fp := strings.TrimPrefix(c.BOMRef, certificateRefPrefix); fp != c.BOMRef && isSHA256Hex(fp) {
+				p.Fingerprint = &cdx.Hash{Algorithm: cdx.HashAlgoSHA256, Value: fp}
+			}
 		}
 	case cdx.CryptoAssetTypeRelatedCryptoMaterial:
 		if cp.RelatedCryptoMaterialProperties != nil {
@@ -171,6 +192,41 @@ func convert17(c cdx.Component) cdx.Component {
 		}
 	}
 	return c
+}
+
+// certificateRefPrefix starts every certificate's bom-ref; the SHA-256 of its DER follows.
+const certificateRefPrefix = "crypto/certificate/"
+
+func isSHA256Hex(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// takeSerial moves the cert-serial property into the 1.7 serialNumber field and returns the
+// remaining properties (nil when none is left). The input slice is not changed.
+func takeSerial(props *[]cdx.Property, p *cdx.CertificateProperties) *[]cdx.Property {
+	if props == nil {
+		return nil
+	}
+	var rest []cdx.Property
+	for _, x := range *props {
+		if x.Name == PropertyNamespace+":cert-serial" && p.SerialNumber == "" {
+			p.SerialNumber = x.Value
+			continue
+		}
+		rest = append(rest, x)
+	}
+	if len(rest) == 0 {
+		return nil
+	}
+	return &rest
 }
 
 // schemaURL17 is the JSON Schema id CycloneDX 1.7 documents declare.

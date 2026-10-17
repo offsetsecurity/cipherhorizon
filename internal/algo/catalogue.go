@@ -13,7 +13,12 @@ import cdx "github.com/CycloneDX/cyclonedx-go"
 //   - rsaEncryption 1.2.840.113549.1.1.1: RFC 8017 appendix A.1.
 //   - id-dsa 1.2.840.10040.4.1, dhpublicnumber 1.2.840.10046.2.1: RFC 3279.
 //   - id-ecDH 1.3.132.1.12: RFC 5480 section 2.1.2.
-//   - X25519 1.3.101.110 and Ed25519 1.3.101.112: RFC 8410.
+//   - X25519 1.3.101.110, X448 1.3.101.111, Ed25519 1.3.101.112 and Ed448
+//     1.3.101.113: RFC 8410 section 3.
+//   - ECDH on a named curve (ECDH-P256, -P384, -P521): id-ecDH 1.3.132.1.12 with the
+//     curve secp256r1, secp384r1 or secp521r1 as its parameter, RFC 5480 sections
+//     2.1.1.1 and 2.1.2. The curve is a parameter of the algorithm, not its own OID.
+//   - id-alg-AEADChaCha20Poly1305 1.2.840.113549.1.9.16.3.18: RFC 8103 section 3.
 //   - QuantumLevel: FIPS 203 (ML-KEM 1/3/5), FIPS 204 (ML-DSA 2/3/5),
 //     FIPS 205 (SLH-DSA 1/3/5), each from the standard's own parameter-set table.
 //
@@ -38,6 +43,13 @@ var catalogue = []Algorithm{
 	{ID: "ECDH", Primitive: cdx.CryptoPrimitiveKeyAgree, OID: "1.3.132.1.12"},
 	{ID: "Ed25519", Primitive: cdx.CryptoPrimitiveSignature, OID: "1.3.101.112"},
 	{ID: "X25519", Primitive: cdx.CryptoPrimitiveKeyAgree, OID: "1.3.101.110"},
+	{ID: "X448", Primitive: cdx.CryptoPrimitiveKeyAgree, OID: "1.3.101.111"},
+	{ID: "Ed448", Primitive: cdx.CryptoPrimitiveSignature, OID: "1.3.101.113"},
+	// The TLS supported groups secp256r1, secp384r1 and secp521r1 (RFC 8446 section 4.2.7):
+	// ECDH on one named curve each (CBOM-REVIEW-002 C-2).
+	{ID: "ECDH-P256", Primitive: cdx.CryptoPrimitiveKeyAgree, OID: "1.3.132.1.12", Curve: "secp256r1"},
+	{ID: "ECDH-P384", Primitive: cdx.CryptoPrimitiveKeyAgree, OID: "1.3.132.1.12", Curve: "secp384r1"},
+	{ID: "ECDH-P521", Primitive: cdx.CryptoPrimitiveKeyAgree, OID: "1.3.132.1.12", Curve: "secp521r1"},
 
 	// Symmetric primitives and hashes.
 	{ID: "AES", Primitive: cdx.CryptoPrimitiveBlockCipher},
@@ -53,9 +65,9 @@ var catalogue = []Algorithm{
 	{ID: "AES-192-CTR", Primitive: cdx.CryptoPrimitiveBlockCipher, ParameterSet: "192", Mode: "ctr"},
 	{ID: "AES-256-CTR", Primitive: cdx.CryptoPrimitiveBlockCipher, ParameterSet: "256", Mode: "ctr"},
 	{ID: "AES-256-CCM", Primitive: cdx.CryptoPrimitiveAE, OID: "2.16.840.1.101.3.4.1.47", ParameterSet: "256", Mode: "ccm"},
-	// ChaCha20-Poly1305 (RFC 8439) has no single authoritative OID: unlike AES, no
-	// PKIX or CMS registration assigns it one, so, as with ECDSA, OID is left empty.
-	{ID: "ChaCha20-Poly1305", Primitive: cdx.CryptoPrimitiveAE},
+	// ChaCha20-Poly1305 (RFC 8439): the AEAD construction has one OID, which RFC 8103
+	// assigns for CMS (id-alg-AEADChaCha20Poly1305).
+	{ID: "ChaCha20-Poly1305", Primitive: cdx.CryptoPrimitiveAE, OID: "1.2.840.113549.1.9.16.3.18"},
 	{ID: "SHA-256", Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.1"},
 	{ID: "SHA-384", Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.2"},
 	{ID: "SHA-512", Primitive: cdx.CryptoPrimitiveHash, OID: "2.16.840.1.101.3.4.2.3"},

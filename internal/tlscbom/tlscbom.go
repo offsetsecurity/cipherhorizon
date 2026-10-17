@@ -29,8 +29,8 @@ import (
 // hygiene score, no finding. Those live in the evaluation, which is not a CBOM's
 // business (principle 4: closed vocabularies, nothing guessed). An algorithm
 // with no catalogue entry — a legacy cipher such as RC4, a named curve this
-// program does not carry an OID for — is still named in the suite or
-// certificate text; it simply gets no algorithm reference.
+// program does not carry (SEED, Camellia, a binary curve) — is still named in
+// the suite or certificate text; it simply gets no algorithm reference.
 //
 // The caller decides whether to run pqc.Analyze/Annotate over the result, the
 // same as it would for a host inventory; this package cannot do so itself
@@ -215,10 +215,10 @@ func markNegotiated(rep *tlsprobe.Report, emitted func(string) (*collector.Crypt
 }
 
 // sigCatalogueID maps the key a TLS 1.3 signature scheme needs to its catalogue algorithm. A key
-// the catalogue does not carry (Ed448) gets no component: it stays named in the property below.
+// the catalogue does not carry gets no component: it stays named in the property below.
 func sigCatalogueID(algorithm string) (string, bool) {
 	switch algorithm {
-	case "ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "ECDSA", "Ed25519", "RSA":
+	case "ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "ECDSA", "Ed25519", "Ed448", "RSA":
 		return algorithm, true
 	case "RSASSA-PSS":
 		return "RSA", true
@@ -339,10 +339,19 @@ func protocolAsset(rep *tlsprobe.Report, version string, emit resolver, emitHybr
 			if !ok {
 				return
 			}
-			if ref, found := emit(id); found {
-				algos = append(algos, cdx.BOMReference(ref))
-				dep(ref, true)
+			ref, found := emit(id)
+			if !found {
+				return
 			}
+			// RSA is both the key exchange and the authentication of a static-RSA suite:
+			// list it once (CBOM-REVIEW-002 C-6).
+			for _, have := range algos {
+				if have == cdx.BOMReference(ref) {
+					return
+				}
+			}
+			algos = append(algos, cdx.BOMReference(ref))
+			dep(ref, true)
 		}
 		add(cipherCatalogueID(s))
 		add(kxCatalogueID(s.Kx))
@@ -391,8 +400,10 @@ func hexID(id uint16) string {
 }
 
 // cipherCatalogueID identifies a suite's bulk cipher, when the catalogue has an
-// entry for it. Legacy ciphers (RC4, 3DES, DES, SEED, IDEA, NULL, ...) have none
-// and are named in the suite text without a reference.
+// entry for it. The legacy ciphers the catalogue carries (3DES, RC4, DES, RC2) are
+// referenced with their cited classical status (CBOM-REVIEW-002 C-1); the others
+// (SEED, IDEA, Camellia, ARIA, ...) and NULL, which is no cipher, are named in the
+// suite text without a reference.
 func cipherCatalogueID(s tlsprobe.SuiteResult) (string, bool) {
 	switch {
 	case s.Cipher == "AES":
@@ -405,6 +416,10 @@ func cipherCatalogueID(s tlsprobe.SuiteResult) (string, bool) {
 		return "AES", true
 	case s.Cipher == "CHACHA20" && s.Mode == "POLY1305":
 		return "ChaCha20-Poly1305", true
+	case s.Cipher == "3DES", s.Cipher == "RC4", s.Cipher == "DES", s.Cipher == "RC2":
+		// A whole-family entry: the catalogue has no key-size variants for these, and
+		// an export (40-bit) RC4 or DES is still RC4 or DES.
+		return s.Cipher, true
 	}
 	return "", false
 }
@@ -447,9 +462,10 @@ func authCatalogueID(auth string) (string, bool) {
 // catalogue: the three RFC 10024 hybrids and pure ML-KEM groups (the registry
 // names the latter "MLKEM768" etc.) map to the same catalogue entries a host
 // inventory would use; x25519 and the RFC 7919 ffdheNNNN groups map to the
-// existing X25519/DH entries. Other hybrid names (draft-only, or IANA-obsolete
+// existing X25519/DH entries; x448 and the NIST curves secp256r1/384r1/521r1 map to
+// X448 and ECDH-P256/P384/P521 (CBOM-REVIEW-002 C-2). Other hybrid names (draft-only, or IANA-obsolete
 // pre-standard Kyber) are not in the static catalogue (see hybridComponent);
-// other classical curves (the NIST P-curves) have no catalogue entry yet either.
+// other classical curves (brainpool, binary, GOST) have no catalogue entry yet either.
 func groupCatalogueID(g tlsprobe.GroupResult) (string, bool) {
 	switch {
 	case g.Hybrid:
@@ -462,6 +478,14 @@ func groupCatalogueID(g tlsprobe.GroupResult) (string, bool) {
 		}
 	case strings.EqualFold(g.Name, "x25519"):
 		return "X25519", true
+	case strings.EqualFold(g.Name, "x448"):
+		return "X448", true
+	case g.Name == "secp256r1":
+		return "ECDH-P256", true
+	case g.Name == "secp384r1":
+		return "ECDH-P384", true
+	case g.Name == "secp521r1":
+		return "ECDH-P521", true
 	case strings.HasPrefix(strings.ToLower(g.Name), "ffdhe"):
 		return "DH", true
 	}
