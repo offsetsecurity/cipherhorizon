@@ -92,7 +92,7 @@ tar -xzf cipherhorizon_0.1.0_linux_amd64.tar.gz
 docker run -d --name cipherhorizon -p 8080:8080 \
   -e CIPHERHORIZON_TOKEN="$(openssl rand -hex 24)" \
   -v cipherhorizon-data:/data \
-  ghcr.io/offsetsecurity/cipherhorizon:0.2.0
+  ghcr.io/offsetsecurity/cipherhorizon:0.3.0
 
 # container, built locally (docker-compose.yml at the repository root)
 echo "CIPHERHORIZON_TOKEN=$(openssl rand -hex 24)" > .env
@@ -136,10 +136,10 @@ gh attestation verify cipherhorizon_0.1.0_linux_amd64.tar.gz --repo offsetsecuri
 
 **Container image:**
 ```sh
-cosign verify ghcr.io/offsetsecurity/cipherhorizon:0.2.0 \
+cosign verify ghcr.io/offsetsecurity/cipherhorizon:0.3.0 \
   --certificate-identity-regexp '^https://github.com/offsetsecurity/cipherhorizon/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/offsetsecurity/cipherhorizon:0.2.0 --repo offsetsecurity/cipherhorizon
+gh attestation verify oci://ghcr.io/offsetsecurity/cipherhorizon:0.3.0 --repo offsetsecurity/cipherhorizon
 ```
 
 Air-gapped users: the archives are self-contained, so download on a connected machine, verify there, and move

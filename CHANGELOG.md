@@ -10,6 +10,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-17
+
 ### Changed
 
 - **The remote TLS CBOM says how it knows each fact, and keeps every identifier it read**
@@ -749,7 +751,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Storage:** SQLite only. Up to 50 snapshots of up to 32 MiB are kept per machine; there is no overall storage
   budget yet.
 
-[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/offsetsecurity/cipherhorizon/releases/tag/v0.1.0
