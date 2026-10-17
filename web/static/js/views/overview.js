@@ -5,7 +5,8 @@
 // results and what to fix first.
 import { h, clear, relTime, daysUntil } from '../dom.js';
 import { api } from '../api.js';
-import { levelBadge, bandBadge, statusPill, sevBadge } from '../ui.js';
+import { levelBadge, bandBadge, statusPill, sevBadge, countUp } from '../ui.js';
+import { mark } from '../charts.js';
 import { scanForm } from './scan.js';
 import { openAddDialog, protocolOf, reportHref, baselineWords } from './assets.js';
 import { addDataDialog } from './inventory.js';
@@ -31,31 +32,41 @@ const SCALE = [
     'No TLS 1.3.', 'SSH-1 only.'],
 ];
 
-function stat(href, tone, label, figure, ...rest) {
-  return h('a', { class: `stat ${tone}`, href }, h('span', { class: 'stat-label' }, label), h('span', { class: 'stat-figure' }, figure), ...rest);
+// A figure of the status band: the whole cell opens its place (a stretched link), and `links` are
+// doors of their own beside it, such as "2 critical" (PRD-009 REQ-CHT-4). They sit outside the
+// cell's link, never inside it: a link inside a link is neither valid nor reachable by keyboard.
+function stat(href, tone, label, figure, rest, links) {
+  const fig = h('span', { class: 'stat-figure' }, figure);
+  countUp(fig, `overview:${label}`, figure);
+  const shown = (links || []).filter(Boolean);
+  return h('div', { class: `stat-cell ${tone}` },
+    h('a', { class: `stat ${tone}`, href }, h('span', { class: 'stat-label' }, label), fig, ...(rest || [])),
+    shown.length ? h('div', { class: 'stat-links' }, shown) : null);
 }
 
-/** A protocol's card (UX-DESIGN-007 §5): how many, how many exposed, and its own measure. */
+/** A protocol's card (UX-DESIGN-007 §5): how many, how many exposed, and its own measure. The
+ *  exposed count opens that protocol's list filtered to the exposed ones (PRD-009 REQ-CHT-4). */
 function protocolCard(protocol, list) {
   const done = list.filter((a) => a.lastDone);
   const failed = list.filter((a) => !a.lastDone && a.latest?.status === 'failed').length;
   const exposed = done.filter((a) => a.lastDone.hndlExposed).length;
-  const exposedNote = exposed ? h('span', { class: 'stat-note fleet-warn' }, `${exposed} exposed to harvest-now-decrypt-later`) : null;
+  const exposedLink = exposed ? h('a', { class: 'stat-sublink fleet-warn', href: `${protocol === 'ssh' ? '#/ssh' : '#/endpoints'}?exposed=1` },
+    `${exposed} exposed to harvest-now-decrypt-later`) : null;
   if (protocol === 'ssh') {
     const judged = done.filter((a) => a.lastDone.baselineMeets === true || a.lastDone.baselineMeets === false);
     const meets = judged.filter((a) => a.lastDone.baselineMeets).length;
     const ssh1 = done.filter((a) => a.lastDone.readinessLevel === 0).length;
-    return stat('#/ssh', judged.length && meets < judged.length ? 'warn' : '', 'SSH servers', String(list.length),
+    return stat('#/ssh', judged.length && meets < judged.length ? 'warn' : '', 'SSH servers', String(list.length), [
       h('span', { class: 'stat-note' }, !list.length ? 'none added yet: add one'
         : done.length ? `${meets} of ${judged.length} meet the baseline${failed ? `; ${failed} failed` : ''}` : 'none scanned yet'),
-      exposedNote, ssh1 ? h('span', { class: 'stat-note fleet-warn' }, `${ssh1} offer${ssh1 === 1 ? 's' : ''} SSH-1 only`) : null);
+      ssh1 ? h('span', { class: 'stat-note fleet-warn' }, `${ssh1} offer${ssh1 === 1 ? 's' : ''} SSH-1 only`) : null], [exposedLink]);
   }
   const sound = done.filter((a) => a.lastDone.band === 'Strong' || a.lastDone.band === 'Sound').length;
   const expiring = done.filter((a) => { const d = daysUntil(a.lastDone.certNotAfter); return d !== null && d <= 30; }).length;
-  return stat('#/endpoints', expiring ? 'warn' : '', 'TLS endpoints', String(list.length),
+  return stat('#/endpoints', expiring ? 'warn' : '', 'TLS endpoints', String(list.length), [
     h('span', { class: 'stat-note' }, !list.length ? 'none added yet: scan one above'
       : done.length ? `${done.length} scanned${failed ? `, ${failed} failed` : ''}; ${sound} rated Strong or Sound` : 'none scanned yet'),
-    exposedNote, expiring ? h('span', { class: 'stat-note fleet-warn' }, `${plural(expiring, 'certificate')} expire${expiring === 1 ? 's' : ''} within 30 days`) : null);
+    expiring ? h('span', { class: 'stat-note fleet-warn' }, `${plural(expiring, 'certificate')} expire${expiring === 1 ? 's' : ''} within 30 days`) : null], [exposedLink]);
 }
 
 /** Where you stand, as one band of figures; each opens its place. */
@@ -73,21 +84,21 @@ function statusBand(assets, hosts, inv) {
   }
   const exposed = done.filter((a) => a.lastDone.hndlExposed).length;
   const hostVuln = hosts.reduce((n, x) => n + (x.summary?.vulnerable || 0), 0);
+  // Each severity chip opens the findings of that severity (PRD-009 REQ-CHT-4).
   const sevChips = [['critical', 'bad'], ['high', 'bad'], ['medium', 'warn'], ['low', 'neutral']].filter(([k]) => sev[k]).map(([k, t]) =>
-    h('span', { class: `badge b-${t}` }, `${sev[k]} ${k}`));
+    h('a', { class: `badge b-${t} stat-chip`, href: `#/findings?severity=${k}`, 'aria-label': `${sev[k]} ${k}: open the ${k} findings` }, `${sev[k]} ${k}`));
   return h('section', { class: 'statusband', 'aria-label': 'Where you stand' },
     protocolCard('tls', assets.filter((a) => protocolOf(a) === 'tls')),
     protocolCard('ssh', assets.filter((a) => protocolOf(a) === 'ssh')),
-    stat('#/machines', '', 'Machines', String(hosts.length),
-      h('span', { class: 'stat-note' }, hosts.length ? plural(hostVuln, 'quantum-vulnerable component') : 'run the inventory script to add one')),
-    stat('#/findings', problems ? 'bad' : 'good', 'Findings', String(problems),
-      h('span', { class: 'stat-note' }, problems ? `problems on ${withProblems} of ${done.length} scanned` : 'no problems found'),
-      sevChips.length ? h('span', { class: 'stat-chips' }, sevChips) : null),
-    stat('#/findings', done.length && hybrid === done.length ? 'good' : 'warn', 'Post-quantum', done.length ? `${hybrid} of ${done.length}` : 'none',
+    stat('#/machines', '', 'Machines', String(hosts.length), [
+      h('span', { class: 'stat-note' }, hosts.length ? plural(hostVuln, 'quantum-vulnerable component') : 'run the inventory script to add one')]),
+    stat('#/findings', problems ? 'bad' : 'good', 'Findings', String(problems), [
+      h('span', { class: 'stat-note' }, problems ? `problems on ${withProblems} of ${done.length} scanned` : 'no problems found')], sevChips),
+    stat('#/findings', done.length && hybrid === done.length ? 'good' : 'warn', 'Post-quantum', done.length ? `${hybrid} of ${done.length}` : 'none', [
       h('span', { class: 'stat-note' }, 'use post-quantum key exchange, across every protocol'),
-      exposed ? h('span', { class: 'stat-note fleet-warn' }, `${exposed} exposed to harvest-now-decrypt-later`) : null),
-    stat('#/inventory', inv && inv.quantumVulnerable ? 'warn' : '', 'Inventory', inv ? String(inv.algorithm || 0) : 'none',
-      h('span', { class: 'stat-note' }, inv ? `algorithms; ${inv.quantumVulnerable || 0} quantum-vulnerable, ${plural(inv.certificates || 0, 'certificate')}` : 'nothing yet')));
+      exposed ? h('span', { class: 'stat-note fleet-warn' }, `${exposed} exposed to harvest-now-decrypt-later`) : null]),
+    stat('#/inventory', inv && inv.quantumVulnerable ? 'warn' : '', 'Inventory', inv ? String(inv.algorithm || 0) : 'none', [
+      h('span', { class: 'stat-note' }, inv ? `algorithms; ${inv.quantumVulnerable || 0} quantum-vulnerable, ${plural(inv.certificates || 0, 'certificate')}` : 'nothing yet')]));
 }
 
 function recentRow(a) {
@@ -152,12 +163,36 @@ function countLevels(assets) {
   if (!scanned.length) return;
   const h2 = document.getElementById('scale-h');
   if (h2) h2.textContent = 'Your endpoints by post-quantum readiness';
+  const ol = document.querySelector('.hero-scale .levels');
+  if (ol) ol.setAttribute('data-chart', 'levels');
+  // Each level with something at it opens the list of what is there (PRD-009 REQ-CHT-1): the row
+  // itself when one protocol is at that level, two links when both are.
   for (const li of document.querySelectorAll('.hero-scale .level')) {
-    const at = scanned.filter((a) => a.lastDone.readinessLevel === Number(li.dataset.level));
+    const lv = Number(li.dataset.level);
+    const at = scanned.filter((a) => a.lastDone.readinessLevel === lv);
     const n = at.length;
     const ssh = at.filter((a) => protocolOf(a) === 'ssh').length;
+    const tls = n - ssh;
+    const name = li.querySelector('.level-name')?.textContent || '';
     const slot = li.querySelector('.level-count');
-    clear(slot).append(n ? h('span', { title: `${plural(n - ssh, 'TLS endpoint')}, ${plural(ssh, 'SSH server')} at this level` }, String(n)) : h('span', { class: 'muted' }, '0'));
+    let count;
+    if (!n) count = h('span', { class: 'muted' }, '0');
+    else if (tls && ssh) {
+      count = h('span', { class: 'level-split' },
+        h('a', { href: `#/endpoints?level=${lv}`, 'aria-label': `${plural(tls, 'TLS endpoint')} at L${lv}: open them` }, `${tls} TLS`),
+        h('a', { href: `#/ssh?level=${lv}`, 'aria-label': `${plural(ssh, 'SSH server')} at L${lv}: open them` }, `${ssh} SSH`));
+    } else {
+      const fig = h('span', null, String(n));
+      countUp(fig, `levels:${lv}`, n);
+      count = fig;
+      const href = `${ssh ? '#/ssh' : '#/endpoints'}?level=${lv}`;
+      const what = ssh ? plural(ssh, 'SSH server') : plural(tls, 'TLS endpoint');
+      for (const [k, v] of Object.entries(mark({}, href, `${what} at L${lv} ${name}: open them`, { tip: `L${lv} ${name}`, sub: what }))) {
+        if (k === 'class') li.classList.add(...v.split(' '));
+        else if (v !== null) li.setAttribute(k, v);
+      }
+    }
+    clear(slot).append(count);
     li.classList.toggle('level-empty', !n);
   }
 }

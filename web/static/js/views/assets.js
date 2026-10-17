@@ -3,7 +3,8 @@
 import { h, clear, relTime, fmtDate, daysUntil, STARTTLS_NAMES } from '../dom.js';
 import { api, ApiError } from '../api.js';
 import { quickScan } from './scan.js';
-import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, modal, badge, skeleton } from '../ui.js';
+import { levelBadge, bandBadge, statusPill, progressBar, button, empty, toast, modal, badge, skeleton, crossFade } from '../ui.js';
+import { setQuery, filterChip, levelName } from '../charts.js';
 
 // What a scan sends, said where something is added: each page for its own protocol.
 const NOTICE = {
@@ -212,7 +213,12 @@ export async function render(root, ctx = {}) {
   const place = PLACES[protocol];
   let assets = [];
   let stopped = false, timer = null;
-  const state = { q: '', sort: 'level', exposed: false, selected: new Set(), frozen: null };
+  // A chart opens this list filtered (?level=1, ?exposed=1); a change is written back to the address.
+  const query = ctx.query || new URLSearchParams();
+  const lv = query.get('level');
+  const state = { q: query.get('q') || '', sort: 'level', exposed: query.get('exposed') === '1',
+    level: /^[0-4]$/.test(lv || '') ? Number(lv) : null, selected: new Set(), frozen: null };
+  const remember = () => setQuery({ level: state.level === null ? '' : state.level, exposed: state.exposed ? '1' : '', q: state.q });
 
   // The page's one way to add is its primary button (endpoints.js); the toolbar acts on the list.
   const actions = h('div', { class: 'row toolbar-actions' },
@@ -238,6 +244,7 @@ export async function render(root, ctx = {}) {
     const list = assets
       .filter((a) => !state.q || `${a.name} ${a.address} ${a.tags.join(' ')}`.toLowerCase().includes(state.q.toLowerCase()))
       .filter((a) => !state.exposed || a.lastDone?.hndlExposed)
+      .filter((a) => state.level === null || a.lastDone?.readinessLevel === state.level)
       .sort(SORTS[state.sort]);
     const busy = assets.some((a) => a.latest && (a.latest.status === 'queued' || a.latest.status === 'running'));
     if (!busy) { state.frozen = null; return list; }
@@ -260,12 +267,13 @@ export async function render(root, ctx = {}) {
     bar.appendChild(h('div', { class: 'toolbar' },
       h('input', { type: 'search', placeholder: 'Filter by name, address or tag', 'aria-label': `Filter ${place.many}`, value: state.q,
         oninput: (e) => {
-          state.q = e.target.value; paint();
+          state.q = e.target.value; remember(); paint();
           const el = document.querySelector('#main input[type=search]');
           if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
         } }),
-      h('label', { class: 'row' }, h('input', { type: 'checkbox', checked: state.exposed, onchange: (e) => { state.exposed = e.target.checked; paint(); } }),
+      h('label', { class: 'row' }, h('input', { type: 'checkbox', checked: state.exposed, onchange: (e) => { state.exposed = e.target.checked; remember(); crossFade(table, paint); } }),
         ' Only exposed to harvest-now-decrypt-later'),
+      state.level === null ? null : filterChip(`PQC readiness L${state.level} ${levelName(state.level)}`, () => { state.level = null; remember(); crossFade(table, paint); }),
       h('span', { class: 'muted' }, `${list.length} of ${assets.length}`),
       h('span', { class: 'grow' }),
       actions));

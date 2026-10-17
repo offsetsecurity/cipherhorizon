@@ -315,6 +315,33 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-SHN-4 | P0 | WP-F | PRD-008 | — | report:docs/program/QA-REPORT-008.md | done |  |
 | REQ-SHN-5 | P0 | WP-F | PRD-008 | — | FuzzIdentification, FuzzKEXINIT, FuzzHostKeyBlob, FuzzKEXReply | done | 3.2M to 5.2M executions each, clean |
 
+## PRD-009 · Charts you can act on, quiet motion, a chosen port, a complete CBOM ([PRD-009](../product/PRD-009-interactive-charts-motion-port-cbom.md); results in [QA-REPORT-009](QA-REPORT-009.md))
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-CHT-1 | P0 | WP-1 | PRD-009 | — | script:testing/e2e/charts-phase.mjs#E2E-CHT-1 | done | one protocol at a level: the row is the link; both: two links |
+| REQ-CHT-2 | P0 | WP-1 | PRD-009 | — | TestInventoryFiltersByQuantumAndPurpose, script:testing/e2e/charts-phase.mjs#E2E-CHT-2 | done | `name` (exact) added so a Replace-first row opens one item; the algorithms list says how many keys share the status |
+| REQ-CHT-3 | P0 | WP-1 | PRD-009 | — | script:testing/e2e/charts-phase.mjs#E2E-CHT-3 | done | the ring counts algorithms and keys; the two lists add up to it |
+| REQ-CHT-4 | P1 | WP-1 | PRD-009 | — | script:testing/e2e/charts-phase.mjs#E2E-CHT-4 | done | stretched-link cell; no link inside a link |
+| REQ-CHT-5 | P1 | WP-1 | PRD-009 | — | script:testing/e2e/charts-phase.mjs#E2E-CHT-5 | done |  |
+| REQ-CHT-6 | P0 | WP-1 | PRD-009 | — | TestChartsAreKeyboardReachable, script:testing/e2e/charts-phase.mjs#E2E-CHT-6 | done |  |
+| REQ-MOT-1 | P1 | WP-2 | PRD-009 | — | script:testing/e2e/charts-phase.mjs#E2E-MOT-1 | done |  |
+| REQ-MOT-2 | P2 | WP-2 | PRD-009 | — | TestCountUpIsUsedOnlyForFigures, script:testing/e2e/charts-phase.mjs#E2E-MOT-2 | done | ends on its value even when the tab is hidden |
+| REQ-MOT-3 | P2 | WP-2 | PRD-009 | — | report:docs/product/UX-REVIEW-009-charts-and-motion.md | done |  |
+| REQ-MOT-4 | P1 | WP-2 | PRD-009 | — | TestMotionRulesAreRespected, report:docs/product/UX-REVIEW-009-charts-and-motion.md | done |  |
+| REQ-MOT-5 | P0 | WP-2 | PRD-009 | — | TestMotionRulesAreRespected, script:testing/e2e/charts-phase.mjs#E2E-MOT-R | done | `.progress-fill` width is the one stated exception |
+| REQ-PORT-1 | P0 | WP-3 | PRD-009 | — | TestServePortFlag, TestServeAddrAndPortConflict, TestServeListensOnTheGivenPort | done |  |
+| REQ-PORT-2 | P0 | WP-3 | PRD-009 | — | TestServePortFromEnvironment, TestHealthcheckFollowsPortEnvironment, TestServeAndHealthcheckFollowThePortEnvironment | done |  |
+| REQ-PORT-3 | P0 | WP-3 | PRD-009 | — | TestServeBusyPortSaysWhatToDo, TestBusyPortMessageSuggestsTheNextPort | done | WSAEADDRINUSE on Windows, EADDRINUSE elsewhere |
+| REQ-PORT-4 | P1 | WP-3 | PRD-009 | — | TestServiceURLFollowsPort, script:testing/deploy/smoke.sh#PORT | done |  |
+| REQ-CBM-1 | P0 | WP-4 | PRD-009 | — | TestLegacySuiteCiphersAreAssets | done | CBOM-REVIEW-002 C-1 |
+| REQ-CBM-2 | P0 | WP-4 | PRD-009 | — | TestNISTCurveGroupsAreAssets | done | C-2 |
+| REQ-CBM-3 | P0 | WP-4 | PRD-009 | — | TestCertificateSignatureVariantHasOID | done | C-3 |
+| REQ-CBM-4 | P1 | WP-4 | PRD-009 | — | TestCatalogueOIDsAreCited | done | C-4 |
+| REQ-CBM-5 | P1 | WP-4 | PRD-009 | — | TestCertificateSerialAndFingerprintIn17 | done | C-5 |
+| REQ-CBM-6 | P2 | WP-4 | PRD-009 | — | TestSuiteAlgorithmsAreUnique | done | C-6 |
+| REQ-CBM-7 | P1 | WP-4 | PRD-009 | — | report:docs/product/CBOM-REVIEW-002-oids-and-completeness.md | done | docs/cbom-model.md, tls-scanning.md, exporting.md |
+
 ## Security requirements (SECARCH-001) coverage
 
 Each SR must be exercised by at least one requirement above; `TestRequirementsTraceability` checks that every `SR-nn` in SECARCH-001 appears in the SR column at least once, except those listed here as cross-cutting.

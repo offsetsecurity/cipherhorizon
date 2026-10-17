@@ -5,7 +5,8 @@
 // every place says its protocol, and the list narrows to one (UX-DESIGN-007 §6).
 import { h, clear } from '../dom.js';
 import { api } from '../api.js';
-import { sevBadge, evidenceBadge, citations, badge, button, empty, toast, modal, skeleton, playEnter } from '../ui.js';
+import { sevBadge, evidenceBadge, citations, badge, button, empty, toast, modal, skeleton, crossFade } from '../ui.js';
+import { setQuery } from '../charts.js';
 
 const SEVERITIES = [['', 'Any severity'], ['critical', 'Critical'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low'], ['info', 'Info'], ['vulnerable', 'Quantum-vulnerable (machine)']];
 const STATUSES = [['', 'Any status'], ['new', 'New'], ['acknowledged', 'Acknowledged'], ['accepted-risk', 'Accepted risk']];
@@ -29,7 +30,11 @@ export function groupFindings(findings) {
 }
 
 export async function render(root, ctx = {}) {
-  let severity = '', status = '', kind = '';
+  // The filters start from the address (the Overview's severity chips link here) and are written
+  // back to it (PRD-009 REQ-CHT-2).
+  const query = ctx.query || new URLSearchParams();
+  const pick = (v, list) => (list.some(([k]) => k === v) ? v : '');
+  let severity = pick(query.get('severity'), SEVERITIES), status = pick(query.get('status'), STATUSES), kind = pick(query.get('kind'), KINDS);
   const head = h('div');
   const body = h('div');
   root.append(head, body);
@@ -71,9 +76,10 @@ export async function render(root, ctx = {}) {
     head.appendChild(h('div', { class: 'page-head' },
       ctx.embedded ? h('div') : h('div', null, h('h1', null, 'Findings'), h('div', { class: 'sub' }, 'Every open finding across your fleet, worst first.'))));
     head.appendChild(h('div', { class: 'toolbar' },
-      h('select', { 'aria-label': 'Filter by severity', onchange: (e) => { severity = e.target.value; draw().then(() => playEnter(body, 700)); } }, SEVERITIES.map(([v, l]) => h('option', { value: v, selected: v === severity }, l))),
-      h('select', { 'aria-label': 'Filter by triage status', onchange: (e) => { status = e.target.value; draw().then(() => playEnter(body, 700)); } }, STATUSES.map(([v, l]) => h('option', { value: v, selected: v === status }, l))),
-      h('select', { 'aria-label': 'Filter by protocol or machine', onchange: (e) => { kind = e.target.value; draw().then(() => playEnter(body, 700)); } }, KINDS.map(([v, l]) => h('option', { value: v, selected: v === kind }, l)))));
+      h('select', { 'aria-label': 'Filter by severity', onchange: (e) => { severity = e.target.value; crossFade(body, draw); } }, SEVERITIES.map(([v, l]) => h('option', { value: v, selected: v === severity }, l))),
+      h('select', { 'aria-label': 'Filter by triage status', onchange: (e) => { status = e.target.value; crossFade(body, draw); } }, STATUSES.map(([v, l]) => h('option', { value: v, selected: v === status }, l))),
+      h('select', { 'aria-label': 'Filter by protocol or machine', onchange: (e) => { kind = e.target.value; crossFade(body, draw); } }, KINDS.map(([v, l]) => h('option', { value: v, selected: v === kind }, l)))));
+    if (!ctx.embedded) setQuery({ severity, status, kind });
 
     clear(body);
     let findings;

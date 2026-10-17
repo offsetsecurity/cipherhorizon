@@ -131,6 +131,7 @@ export async function estatePhase(t) {
   const c1 = await js(`return document.querySelector('[role=status]')?.innerText || ''`);
   check('E2E-24.2', 'a filter narrows the list and says how many remain', /\d+ of \d+ certificate/.test(c1) && c1 !== c0.summary, `${c0.summary} -> ${c1}`);
   await js(`const s = document.getElementById('cert-key'); s.value = ''; s.dispatchEvent(new Event('change'))`);
+  await sleep(300); // a filter change cross-fades the list before redrawing it (PRD-009 REQ-MOT-3)
   await js(`document.querySelector('main tbody a')?.click()`);
   await sleep(900);
   const cp = await text();

@@ -3,9 +3,12 @@ import { h, clear } from './dom.js';
 import { api, ApiError, setAuthHandler } from './api.js';
 import { session, showLogin, showSetup, showChangePassword, hideGate, accountChip } from './auth.js';
 import { modal, button, empty, notice, playEnter } from './ui.js';
+import { wireMarks } from './charts.js';
 
 const main = document.getElementById('main');
 const modalRoot = document.getElementById('modal-root');
+// Every chart mark on every page opens what it counts, with one tooltip and one set of keys (UX-DESIGN-008 §2).
+wireMarks(main);
 
 // The places of the menu and the detail pages under them (UX-DESIGN-005): one place per kind of
 // thing; a detail page lights up its home. Each protocol is a place of its own (UX-DESIGN-007): the
