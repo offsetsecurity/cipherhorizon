@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,11 +85,91 @@ func parseProxies(vals []string) ([]*net.IPNet, error) {
 	return out, nil
 }
 
+// Where the server listens, when no flag says (PRD-009 REQ-PORT-2): a container, a service
+// or a shell can move it without editing the command line.
+const (
+	addrEnv     = "CIPHERHORIZON_ADDR"
+	portEnv     = "CIPHERHORIZON_PORT"
+	defaultHost = "127.0.0.1"
+	defaultPort = 8080
+)
+
+// listenAddr works out the address to listen on from --addr and --port (flagged says which were
+// given) and, for what was not given, the environment, then the default 127.0.0.1:8080.
+// --addr may be a host alone; --port then supplies the port. Both saying a port is an error,
+// since one of them would be silently ignored.
+func listenAddr(addr string, port int, addrFlagged, portFlagged bool, getenv func(string) string) (string, error) {
+	addrFrom, portFrom := "--addr", "--port"
+	if !addrFlagged {
+		addr, addrFrom = strings.TrimSpace(getenv(addrEnv)), addrEnv
+	}
+	if !portFlagged {
+		port, portFrom = -1, portEnv
+		if v := strings.TrimSpace(getenv(portEnv)); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return "", fmt.Errorf("%s=%q is not a port number (1 to 65535, or 0 for any free port)", portEnv, v)
+			}
+			port = n
+		}
+	}
+	if port != -1 && (port < 0 || port > 65535) {
+		return "", fmt.Errorf("%s %d is not a port number (1 to 65535, or 0 for any free port)", portFrom, port)
+	}
+	host, addrPort := addr, ""
+	if addr != "" {
+		if h, p, err := net.SplitHostPort(addr); err == nil {
+			host, addrPort = h, p
+		} else if strings.Count(addr, ":") == 1 || (strings.HasPrefix(addr, "[") && strings.Contains(addr, "]:")) {
+			return "", fmt.Errorf("%s %q: %w", addrFrom, addr, err)
+		}
+		host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	}
+	switch {
+	case addrPort != "" && port != -1 && portFlagged == addrFlagged:
+		// Both from flags, or both from the environment: neither outranks the other.
+		return "", fmt.Errorf("%s %q already names a port; give the port once: with %s, or in %s", addrFrom, addr, portFrom, addrFrom)
+	case addrPort != "" && port != -1 && !portFlagged:
+		port = -1 // a flag outranks the environment: --addr host:port wins over CIPHERHORIZON_PORT
+	case addrPort != "" && port != -1:
+		addrPort = "" // --port outranks CIPHERHORIZON_ADDR's port
+	}
+	if addr == "" {
+		host = defaultHost
+	}
+	switch {
+	case port != -1:
+		addrPort = strconv.Itoa(port)
+	case addrPort == "":
+		addrPort = strconv.Itoa(defaultPort)
+	}
+	return net.JoinHostPort(host, addrPort), nil
+}
+
+// busyPortMessage says what to do when the port is taken (PRD-009 REQ-PORT-3).
+func busyPortMessage(addr string) string {
+	host, p, err := net.SplitHostPort(addr)
+	n, convErr := strconv.Atoi(p)
+	if err != nil || convErr != nil || n <= 0 {
+		return fmt.Sprintf("%s is already in use (another CipherHorizon, or another program). Choose another port with --port", addr)
+	}
+	next := n + 1
+	if next > 65535 {
+		next = n - 1
+	}
+	if host == "" {
+		host = "every interface"
+	}
+	return fmt.Sprintf("port %d is already in use on %s (another CipherHorizon, or another program). Start on another port with --port %d, "+
+		"or stop what is using it", n, host, next)
+}
+
 // serveCmd implements "cipherhorizon serve": the web UI, the API and the scan runner.
 func serveCmd(ctx context.Context, args []string, env Env) int {
 	fl := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
-	addr := fl.String("addr", "127.0.0.1:8080", "address to listen on")
+	addr := fl.String("addr", "", "address to listen on: host:port, or a host alone with --port (default 127.0.0.1:8080, or "+addrEnv+" and "+portEnv+")")
+	port := fl.Int("port", -1, "port to listen on, keeping the host of --addr (or set "+portEnv+"); 0 picks any free port")
 	dbPath := fl.String("db", "", dbFlagHelp())
 	token := fl.String("token", "", "an automation token: scripts and tools may call the API with it as a bearer token, acting as an analyst (or set "+tokenEnv+")")
 	signInMode := fl.String("sign-in", "auto", "require sign-in: auto (off until turned on in Settings; on if accounts already exist), "+
@@ -128,6 +209,13 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	if fl.NArg() > 0 {
 		return fatalf(env, "unexpected argument %q", fl.Arg(0))
 	}
+	set := map[string]bool{}
+	fl.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	listen, err := listenAddr(*addr, *port, set["addr"], set["port"], os.Getenv)
+	if err != nil {
+		return fatalf(env, "%v", err)
+	}
+	*addr = listen
 	if *token == "" {
 		*token = os.Getenv(tokenEnv)
 	}
@@ -265,6 +353,9 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
+		if isAddrInUse(err) {
+			return fatalf(env, "%s", busyPortMessage(*addr))
+		}
 		return fatalf(env, "listening on %s: %v", *addr, err)
 	}
 	httpSrv := &http.Server{

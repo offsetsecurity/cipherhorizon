@@ -36,6 +36,8 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       CIPHERHORIZON_TOKEN: ${CIPHERHORIZON_TOKEN:-}
+      # Another port: set it here and change both sides of "ports" above to match.
+      CIPHERHORIZON_PORT: "8080"
     volumes:
       - data:/data
     read_only: true
@@ -50,7 +52,7 @@ services:
     # The binary checks its own /api/v1/health (the image has no shell, curl or wget). Declared
     # here as well as in the Dockerfile: an image built by Podman (OCI format) drops HEALTHCHECK.
     healthcheck:
-      test: ["CMD", "/cipherhorizon", "healthcheck", "--addr", "127.0.0.1:8080"]
+      test: ["CMD", "/cipherhorizon", "healthcheck"]
       interval: 30s
       timeout: 3s
       start_period: 10s

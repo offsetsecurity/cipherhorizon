@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -182,23 +184,35 @@ func installProgram(programDir string) (string, error) {
 	return dst, nil
 }
 
-// serviceURL is where the installed service can be opened, from its --addr (default loopback).
+// serviceURL is where the installed service can be opened, from its --addr and --port, by the
+// same rules as serve (default loopback).
 func serviceURL(serveArgs []string) string {
-	addr, scheme := "127.0.0.1:8080", "http"
+	addr, port, scheme := "", -1, "http"
+	addrSet, portSet := false, false
 	for i, a := range serveArgs {
 		switch {
 		case (a == "--addr" || a == "-addr") && i+1 < len(serveArgs):
-			addr = serveArgs[i+1]
+			addr, addrSet = serveArgs[i+1], true
 		case strings.HasPrefix(a, "--addr="):
-			addr = strings.TrimPrefix(a, "--addr=")
+			addr, addrSet = strings.TrimPrefix(a, "--addr="), true
+		case (a == "--port" || a == "-port") && i+1 < len(serveArgs):
+			if n, err := strconv.Atoi(serveArgs[i+1]); err == nil {
+				port, portSet = n, true
+			}
+		case strings.HasPrefix(a, "--port="):
+			if n, err := strconv.Atoi(strings.TrimPrefix(a, "--port=")); err == nil {
+				port, portSet = n, true
+			}
 		case a == "--tls-cert" || strings.HasPrefix(a, "--tls-cert="):
 			scheme = "https"
 		}
 	}
-	if strings.HasPrefix(addr, ":") || strings.HasPrefix(addr, "0.0.0.0:") || strings.HasPrefix(addr, "[::]:") {
-		addr = "127.0.0.1:" + addr[strings.LastIndex(addr, ":")+1:]
+	// A service does not see this shell's environment, so only its own arguments count.
+	listen, err := listenAddr(addr, port, addrSet, portSet, func(string) string { return "" })
+	if err != nil {
+		listen = net.JoinHostPort(defaultHost, strconv.Itoa(defaultPort))
 	}
-	return scheme + "://" + addr
+	return scheme + "://" + loopbackFor(listen)
 }
 
 func serviceStart(env Env) int {

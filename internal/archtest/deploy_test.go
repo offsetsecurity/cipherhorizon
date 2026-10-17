@@ -37,7 +37,8 @@ func TestSystemdUnitIsSandboxed(t *testing.T) {
 		}
 	}
 	exec := strings.Join(unit["ExecStart"], " ")
-	if !strings.Contains(exec, "--addr 127.0.0.1:") || !strings.Contains(exec, "/var/lib/cipherhorizon/") || strings.Contains(exec, "--no-login") {
+	// The host alone (PRD-009 REQ-PORT-4): the port is 8080 unless CIPHERHORIZON_OPTS says --port.
+	if !strings.Contains(exec, "--addr 127.0.0.1 ") || !strings.Contains(exec, "/var/lib/cipherhorizon/") || strings.Contains(exec, "--no-login") {
 		t.Errorf("ExecStart = %q: it must listen on loopback, keep its database in the state directory and require sign-in", exec)
 	}
 	if len(unit["User"]) > 0 {

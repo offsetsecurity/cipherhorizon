@@ -26,7 +26,9 @@ ContainerName=cipherhorizon
 Image=ghcr.io/offsetsecurity/cipherhorizon:0.1.0
 PublishPort=127.0.0.1:8080:8080
 Volume=cipherhorizon-data:/data
-# Options for "serve" go after the image's defaults, e.g. Exec=serve --addr 0.0.0.0:8080 --plain-http --open-network --db /data/cipherhorizon.db --sign-in on
+# Another port: set it here and in PublishPort (the health check follows it), e.g.
+#   Environment=CIPHERHORIZON_PORT=9000   and   PublishPort=127.0.0.1:9000:9000
+# Options for "serve" go after the image's defaults, e.g. Exec=serve --addr 0.0.0.0 --plain-http --open-network --db /data/cipherhorizon.db --sign-in on
 ReadOnly=true
 Tmpfs=/tmp:size=16m,mode=1777
 DropCapability=ALL
@@ -34,7 +36,7 @@ NoNewPrivileges=true
 PodmanArgs=--pids-limit=256 --memory=1g
 # The binary checks its own /api/v1/health. Exec form (a JSON list): the image has no shell, and an
 # image built by Podman (OCI format) does not carry the Dockerfile HEALTHCHECK.
-HealthCmd=["/cipherhorizon","healthcheck","--addr","127.0.0.1:8080"]
+HealthCmd=["/cipherhorizon","healthcheck"]
 HealthInterval=30s
 HealthStartPeriod=10s
 

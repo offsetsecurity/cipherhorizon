@@ -162,7 +162,7 @@ Scan only systems you are authorised to test.
 serve runs the web UI and API: add endpoints, scan them, watch progress, see history and
 post-quantum readiness. Sign-in is off until someone turns it on in Settings, which creates
 the administrator; --sign-in on requires it from the start (the log then prints a one-time
-setup code), --sign-in off never. A database with accounts keeps sign-in on. It listens on 127.0.0.1:8080 by default. Any other address
+setup code), --sign-in off never. A database with accounts keeps sign-in on. It listens on 127.0.0.1:8080 by default; --port (or CIPHERHORIZON_PORT) changes the port. Any other address
 needs HTTPS (--tls-cert and --tls-key) or --plain-http when a TLS-terminating proxy is in
 front (name that proxy with --trusted-proxy so rate limits see real client addresses);
 Beyond loopback without sign-in the server refuses to start unless --open-network says it

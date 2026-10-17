@@ -28,7 +28,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 # $CIPHERHORIZON_OPTS (from the env file) is split on spaces into further serve options.
-ExecStart=/usr/bin/cipherhorizon serve --addr 127.0.0.1:8080 --db /var/lib/cipherhorizon/cipherhorizon.db $CIPHERHORIZON_OPTS
+ExecStart=/usr/bin/cipherhorizon serve --addr 127.0.0.1 --db /var/lib/cipherhorizon/cipherhorizon.db $CIPHERHORIZON_OPTS
 Restart=on-failure
 RestartSec=5s
 EnvironmentFile=-/etc/cipherhorizon/env
