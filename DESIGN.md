@@ -258,18 +258,38 @@ strip.
 
 ## 9. Motion
 
+Motion explains a change, once; nothing moves on a page where nothing is changing (UX-DESIGN-008).
+
 | Use | What | Duration | Easing |
 |---|---|---|---|
 | Page change | content fades in and rises 4px, once | 180ms | `cubic-bezier(.16,1,.3,1)` |
-| Hover | colour and border colour only | 120ms | ease-out |
+| Rows | rows and list items rise in, 18ms apart, at most 10 | 180ms | same |
+| Ring | segments sweep from nothing to their share, 60ms apart | 600ms | same |
+| Bars | inventory bars grow from the left | 500ms | same |
+| History line | the line draws, then its points fade in | 600ms + 160ms | same |
+| Figures | count to their value once, and again only when it changes | ≤ 600ms | ease-out cubic |
+| Filter change | the list cross-fades: out, redraw, in; rows do not stagger again | 80ms + 140ms | ease |
+| Chart hover / focus | the other marks of the chart fade to 35%; a tooltip fades in | 120ms | ease-out |
+| Clickable cell hover | background tint and a 2px accent edge that grows in on the left | 120 to 180ms | ease-out |
+| Button press | settles 1px while pressed | 80ms | ease-out |
+| Current place | the menu's current-place bar grows in when the place changes | 180ms | `cubic-bezier(.16,1,.3,1)` |
 | Disclosure | chevron rotates 90° | 150ms | ease-out |
 | Dialog | fade plus a 4px rise | 160ms in, 120ms out | ease-out / ease-in |
 | Toast | slide in 12px from the right | 200ms | ease-out |
 | Live state | progress shimmer, running dot pulse: **only while something is running** | 1.4–1.8s loop | linear |
 
-- Animate `opacity` and `transform` only.
+- Animate `opacity` and `transform` only; SVG lines and rings may also draw (`stroke-dasharray`, `stroke-dashoffset`).
+  `TestMotionRulesAreRespected` checks every keyframe and transition.
+- Draw-ins happen when a page arrives, never on a poll or a repaint.
 - No hover lifts, no bobbing icons, no looping decoration, no parallax.
-- `prefers-reduced-motion: reduce` turns every animation and transition off.
+- `prefers-reduced-motion: reduce` turns every animation and transition off, counting included.
+
+### Charts you can act on
+
+A chart mark that counts a set of things opens that set, already filtered: a readiness level opens the endpoints at
+it, a ring segment the algorithms with that status, an expiry bar the certificates in that window. The filter lives
+in the address and shows as a removable chip on the list. Every mark is a link with a name that says what it opens,
+reachable by Tab and opened with Enter; a mark that counts nothing is not interactive. See UX-DESIGN-008.
 
 ---
 

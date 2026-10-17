@@ -45,7 +45,7 @@ func sampleReport() *tlsprobe.Report {
 			{Version: "TLSv1.3", ID: 0x11EC, Name: "X25519MLKEM768", PQ: true, Hybrid: true, IANARecommended: "Y"},
 			{Version: "TLSv1.3", ID: 513, Name: "MLKEM768", PQ: true, IANARecommended: "N"},
 			{Version: "TLSv1.3", ID: 29, Name: "x25519", IANARecommended: "Y"},
-			{Version: "TLSv1.2", ID: 23, Name: "secp256r1", IANARecommended: "Y"}, // no catalogue entry: expect no ref
+			{Version: "TLSv1.2", ID: 23, Name: "secp256r1", IANARecommended: "Y"},
 		},
 		Certificates: []tlsprobe.CertResult{{
 			Source: "tls-default",
@@ -185,7 +185,8 @@ func TestFromTLSReportBuildsCertificates(t *testing.T) {
 	if v, _ := property(cert, "chain-role"); v != "leaf" {
 		t.Errorf("chain-role = %q, want leaf", v)
 	}
-	if cp.SignatureAlgorithmRef != "crypto/algorithm/rsa@1.2.840.113549.1.1.1" {
+	// The exact signature algorithm, with its OID (CBOM-REVIEW-002 C-3).
+	if cp.SignatureAlgorithmRef != "crypto/algorithm/sha256withrsaencryption@1.2.840.113549.1.1.11" {
 		t.Errorf("signatureAlgorithmRef = %q", cp.SignatureAlgorithmRef)
 	}
 	if cp.NotValidBefore == "" || cp.NotValidAfter == "" {

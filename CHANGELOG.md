@@ -10,6 +10,73 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Charts you can act on.** Every chart mark that counts something opens it, already filtered
+  ([PRD-009](docs/product/PRD-009-interactive-charts-motion-port-cbom.md), [UX-DESIGN-008](docs/product/UX-DESIGN-008-interactive-charts-and-motion.md)):
+  - **Overview:**
+    - a readiness level opens the TLS endpoints or SSH servers at that level (both, as two links, when both
+      protocols are there);
+    - a severity chip opens the findings of that severity;
+    - "N exposed to harvest-now-decrypt-later" opens that protocol's exposed endpoints.
+  - **Inventory:**
+    - each ring segment and legend row opens the algorithms with that post-quantum status;
+    - each *By purpose* segment opens that purpose and status;
+    - a *Replace first*, protocol or software row opens exactly that item;
+    - each certificate-expiry segment opens the certificates in that window.
+  - **A report's history:** each point opens the scan it stands for.
+  - **The same behaviour for every mark:** a tooltip on hover and keyboard focus, the other marks dimmed, Tab and
+    Enter, a name that says what opens.
+- **Filters in the address.** The TLS and SSH lists (`level`, `exposed`), Findings (`severity`, `status`, `kind`),
+  Certificates (`expires`, `key`, `sig`, `origin`) and the inventory lists (`q`, `name`, `quantum`, `purpose`,
+  `source`) read their filters from the URL and write changes back. A filtered list can be bookmarked, and Back
+  returns to the chart. A filter the page has no control for shows as a removable chip.
+  - `GET /api/v1/inventory` gains `quantum` (vulnerable, safe, unknown), `purpose` and `name` (exact). `vulnerable=1`
+    still works.
+- **Quiet motion.** Everything is listed in DESIGN.md §9, and all of it is off under reduced motion:
+  - rings sweep to their share;
+  - inventory bars grow;
+  - history points arrive after their line;
+  - figures count to their value once;
+  - a list cross-fades when its filter changes;
+  - clickable cells show an accent edge;
+  - a pressed button settles 1px.
+- **`serve --port`, and `CIPHERHORIZON_PORT` / `CIPHERHORIZON_ADDR`.**
+  - The port can be changed without retyping the host, and `--addr` may be a host alone (`--addr 0.0.0.0 --port 9000`).
+    `--port 0` takes any free port and prints it.
+  - A port already in use now says so and suggests the next one, instead of a raw socket error.
+  - `healthcheck` follows the same variables, so the container image, compose file and Quadlet unit change port
+    with one variable. See [Choosing the port](docs/engineering/INSTALL.md#choosing-the-port).
+
+### Changed
+
+- **The CBOM lists what it used to leave out** ([CBOM-REVIEW-002](docs/product/CBOM-REVIEW-002-oids-and-completeness.md)).
+  Consumers keyed on component counts will see more components:
+  - **Legacy bulk ciphers:** a suite's 3DES, RC4 (export RC4-40 included), DES and RC2 cipher is now an algorithm
+    asset, with its cited classical status. Before, a server accepting only such suites had none of them in its CBOM.
+  - **Named-curve key exchange:** accepted groups `secp256r1`, `secp384r1`, `secp521r1` and `x448` are now
+    `ECDH-P256`, `ECDH-P384`, `ECDH-P521` (id-ecDH with the curve) and `X448` (1.3.101.111), judged
+    quantum-vulnerable. Before, they were missing.
+  - **Certificate signatures:** a certificate's signature algorithm is now exact, with its OID. For example
+    `ecdsa-with-SHA256` (1.2.840.10045.4.3.2), `sha256WithRSAEncryption` (1.2.840.113549.1.1.11) or `RSASSA-PSS`
+    (1.2.840.113549.1.1.10), instead of the family `ECDSA` (no OID) or `RSA` (the key's OID).
+  - **ChaCha20-Poly1305** carries its OID, 1.2.840.113549.1.9.16.3.18 (RFC 8103).
+  - **CycloneDX 1.7 certificates** fill `serialNumber` and `fingerprint` (SHA-256). 1.6 keeps the
+    `cipherhorizon:cert-serial` property.
+  - A static-RSA suite lists RSA once, not twice.
+- The container image sets `CIPHERHORIZON_PORT=8080` and runs `serve --addr 0.0.0.0`. Its health check no longer
+  names a port. The systemd unit passes `--addr 127.0.0.1`, so `CIPHERHORIZON_OPTS="--port 9000"` works.
+
+### Fixed
+
+- **Two keys with one name were one inventory row with a random status.** Keys are named by their certificate's
+  subject, so an ECDSA and an ML-DSA certificate for the same host merged into one row. That row was
+  quantum-vulnerable or quantum-safe depending on the order the merge read them, so the Inventory's counts could
+  change between two loads of the same data.
+  - A key's algorithm is now part of its identity: such keys are two rows, each with its own status, and the list
+    names the algorithm.
+  - Any disagreement between sources resolves to the worse status, whatever the order.
+
 ## [0.1.1] - 2026-10-14
 
 ### Fixed

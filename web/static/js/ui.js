@@ -327,23 +327,42 @@ export function playEnter(root, ms = 900) {
 const shownNumbers = new Map();
 const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// A figure is a number, or two joined by " / " or " of " ("3 of 7"); anything else is shown as is.
 export function countUp(el, key, value) {
   const text = String(value);
   const prev = shownNumbers.get(key);
   shownNumbers.set(key, text);
-  const parts = (t) => { const m = /^(\d+)(?: \/ (\d+))?$/.exec(t); return m ? [Number(m[1]), m[2] === undefined ? null : Number(m[2])] : null; };
+  const parts = (t) => {
+    const m = /^(\d+)(?:( \/ | of )(\d+))?$/.exec(t);
+    return m ? { a: Number(m[1]), sep: m[2] || '', b: m[3] === undefined ? null : Number(m[3]) } : null;
+  };
   const to = parts(text);
   if (!to || prev === text || reducedMotion()) return;
-  const from = (prev && parts(prev)) || [0, to[1] === null ? null : 0];
-  const start = performance.now(), dur = 650;
-  const fmt = (a, b) => (b === null ? `${a}` : `${a} / ${b}`);
-  el.textContent = fmt(from[0], from[1]);
+  const was = prev && parts(prev);
+  const from = was && was.sep === to.sep ? was : { a: 0, b: to.b === null ? null : 0 };
+  const start = performance.now(), dur = 600;
+  const fmt = (a, b) => (b === null ? `${a}` : `${a}${to.sep}${b}`);
+  el.textContent = fmt(from.a, from.b);
   const tick = (now) => {
     const t = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - t, 3);
-    el.textContent = fmt(Math.round(from[0] + (to[0] - from[0]) * e), to[1] === null ? null : Math.round(from[1] + (to[1] - from[1]) * e));
+    el.textContent = fmt(Math.round(from.a + (to.a - from.a) * e), to.b === null ? null : Math.round(from.b + (to.b - from.b) * e));
     if (t < 1 && el.isConnected !== false) requestAnimationFrame(tick); else el.textContent = text;
   };
   requestAnimationFrame(tick);
+  // A hidden tab runs no animation frames: the figure must still end on its value.
+  setTimeout(() => { if (shownNumbers.get(key) === text) el.textContent = text; }, dur + 120);
+}
+
+/** Cross-fade a list while it is redrawn for a new filter (UX-DESIGN-008 §4): out, paint, in.
+ *  Rows do not stagger again. paint may be async. */
+export async function crossFade(el, paint) {
+  if (!el || reducedMotion()) { await paint(); return; }
+  el.classList.add('fade-host', 'fading');
+  await new Promise((r) => setTimeout(r, 80));
+  // The reader may have left the page during the fade (a click on a row): then there is nothing to
+  // redraw, and a redraw would write this list's filters into the next page's address.
+  if (!el.isConnected) return;
+  try { await paint(); } finally { el.classList.remove('fading'); }
 }
 
 /** A small "copy" control that confirms in place. */

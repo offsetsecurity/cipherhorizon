@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -102,9 +103,13 @@ func detailOf(c cdx.Component) string {
 func inventoryRows(inv *mergedInventory, tab string) []inventoryRow {
 	keep := inventoryTabs[tab]
 	status := map[string]string{}
+	algName := map[string]string{}
 	for _, c := range inv.bom.compsOrEmpty() {
 		if st := property(c, "cipherhorizon:pqc:status"); st != "" {
 			status[c.BOMRef] = st
+		}
+		if assetType(c) == cdx.CryptoAssetTypeAlgorithm {
+			algName[c.BOMRef] = c.Name
 		}
 	}
 	byName := map[string]int{}
@@ -114,6 +119,8 @@ func inventoryRows(inv *mergedInventory, tab string) []inventoryRow {
 			continue
 		}
 		q := "not-applicable"
+		key := string(assetType(c)) + "\x00" + c.Name
+		detail := detailOf(c)
 		switch assetType(c) {
 		case cdx.CryptoAssetTypeAlgorithm:
 			q = "unknown"
@@ -121,25 +128,33 @@ func inventoryRows(inv *mergedInventory, tab string) []inventoryRow {
 				q = st
 			}
 		case cdx.CryptoAssetTypeRelatedCryptoMaterial:
+			// A key takes the status of its algorithm. Keys are named by their certificate's
+			// subject, and two certificates may share a subject while holding different keys (an
+			// ECDSA and an ML-DSA certificate for the same host): the algorithm is part of a key's
+			// identity, so they stay two rows, each with its own status.
 			q = "unknown"
-			for _, d := range inv.deps[c.BOMRef] { // a key takes the status of its algorithm
-				if st := status[d]; st != "" {
-					q = st
+			var algs []string
+			for _, d := range inv.deps[c.BOMRef] {
+				q = worseQuantum(q, status[d])
+				if n := algName[d]; n != "" {
+					algs = append(algs, n)
 				}
 			}
+			if len(algs) > 0 {
+				key += "\x00" + strings.Join(algs, "+")
+				detail = strings.TrimPrefix(detail+" · "+strings.Join(algs, " + "), " · ")
+			}
 		}
-		key := string(assetType(c)) + "\x00" + c.Name
 		i, ok := byName[key]
 		if !ok {
 			i = len(out)
 			byName[key] = i
-			out = append(out, inventoryRow{Name: c.Name, Kind: tab, Detail: detailOf(c), Quantum: q, Places: []sourceLabel{}})
+			out = append(out, inventoryRow{Name: c.Name, Kind: tab, Detail: detail, Quantum: q, Places: []sourceLabel{}})
 		}
 		row := &out[i]
 		row.Refs = append(row.Refs, c.BOMRef)
-		if row.Quantum == "unknown" && q != "unknown" {
-			row.Quantum = q
-		}
+		// Two sources may disagree about one item; the worse status wins, whatever their order.
+		row.Quantum = worseQuantum(row.Quantum, q)
 		for _, p := range inv.seenIn[c.BOMRef] {
 			if !containsLabel(row.Places, p) {
 				row.Places = append(row.Places, p)
@@ -209,14 +224,37 @@ func (s *Server) inventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	text := strings.ToLower(strings.TrimSpace(q.Get("q")))
-	vulnerable := q.Get("vulnerable") == "1"
+	// quantum and purpose are the dashboard's own buckets (PRD-009 REQ-CHT-2), computed the same
+	// way, so a chart's figure and the list it opens agree. vulnerable=1 is the older spelling.
+	quantum := q.Get("quantum")
+	if quantum == "" && q.Get("vulnerable") == "1" {
+		quantum = "vulnerable"
+	}
+	if quantum != "" && quantum != "vulnerable" && quantum != "safe" && quantum != "unknown" {
+		writeErr(w, http.StatusBadRequest, "quantum must be vulnerable, safe or unknown")
+		return
+	}
+	purpose := q.Get("purpose")
+	if purpose != "" && !slices.Contains(purposeOrder, purpose) {
+		writeErr(w, http.StatusBadRequest, "purpose must be one of: "+strings.Join(purposeOrder, ", "))
+		return
+	}
+	// name is an exact match, for a chart row that names one item (Replace first: "X25519" must
+	// not also list X25519MLKEM768, as the text filter would).
+	name := q.Get("name")
 	rows := inventoryRows(inv, tab)
 	filtered := make([]inventoryRow, 0, len(rows))
 	for _, row := range rows {
+		if name != "" && row.Name != name {
+			continue
+		}
 		if text != "" && !strings.Contains(strings.ToLower(row.Name), text) && !strings.Contains(strings.ToLower(row.Detail), text) {
 			continue
 		}
-		if vulnerable && row.Quantum != "quantum-vulnerable" {
+		if quantum != "" && quantumBucket(row.Quantum) != quantum {
+			continue
+		}
+		if purpose != "" && purposeOf(row.Detail) != purpose {
 			continue
 		}
 		if source != "" {
@@ -421,6 +459,7 @@ func (s *Server) mergeInventory(includeImported bool) (*mergedInventory, error) 
 		for x := range set {
 			inv.deps[r] = append(inv.deps[r], x)
 		}
+		sort.Strings(inv.deps[r]) // map order would make every reader of deps nondeterministic
 	}
 	return inv, nil
 }
@@ -600,4 +639,37 @@ func (s *Server) inventoryCBOM(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", `attachment; filename="cipherhorizon-inventory-cbom-`+strconv.Itoa(int(s.cfg.Now().Unix()))+`.json"`)
 	}
 	_, _ = w.Write(buf.Bytes())
+}
+
+// quantumBucket is the dashboard's post-quantum bucket for a row's status: anything neither
+// vulnerable nor safe (unknown, not applicable) is counted as not classified.
+func quantumBucket(status string) string {
+	switch status {
+	case "quantum-vulnerable":
+		return "vulnerable"
+	case "quantum-safe":
+		return "safe"
+	}
+	return "unknown"
+}
+
+// worseQuantum combines two post-quantum statuses of one item: a known status beats unknown, and
+// quantum-vulnerable beats quantum-safe, so a merge never depends on the order it saw its sources.
+// "not-applicable" and "" add nothing.
+func worseQuantum(a, b string) string {
+	rank := func(q string) int {
+		switch q {
+		case "quantum-vulnerable":
+			return 3
+		case "quantum-safe":
+			return 2
+		case "unknown":
+			return 1
+		}
+		return 0
+	}
+	if rank(b) > rank(a) {
+		return b
+	}
+	return a
 }

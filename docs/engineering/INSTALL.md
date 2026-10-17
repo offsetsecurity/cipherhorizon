@@ -18,6 +18,24 @@ Every option listens on `127.0.0.1:8080` and has sign-in off until you turn it o
 itself can reach it. To share it, turn sign-in on and serve HTTPS (or put it behind a TLS proxy): see
 [Sharing it](#sharing-it-with-other-machines).
 
+### Choosing the port
+
+8080 is only the default. Pick another port with `--port`, or with `CIPHERHORIZON_PORT` where editing the command
+line is awkward (containers, services). A flag wins over the variable. `--addr` sets the interface; it can be a host
+alone (`--addr 0.0.0.0 --port 9000`).
+
+| How you run it | Another port |
+|---|---|
+| In a terminal | `cipherhorizon serve --port 9000` (`--port 0` takes any free port and prints it) |
+| Linux package (systemd) | `CIPHERHORIZON_OPTS="--port 9000"` in `/etc/cipherhorizon/env`, then `sudo systemctl restart cipherhorizon` |
+| Windows service | `cipherhorizon service install --port 9000` (as administrator) |
+| Docker / Podman | `-e CIPHERHORIZON_PORT=9000 -p 127.0.0.1:9000:9000` (the health check follows the variable) |
+| Compose | `CIPHERHORIZON_PORT` under `environment`, and both sides of `ports` |
+| Quadlet | `Environment=CIPHERHORIZON_PORT=9000` and `PublishPort=127.0.0.1:9000:9000` |
+
+If the port is taken, `serve` says so and suggests the next one, for example
+`port 8080 is already in use on 127.0.0.1 … Start on another port with --port 8081`.
+
 ## Linux: .deb and .rpm
 
 ```sh

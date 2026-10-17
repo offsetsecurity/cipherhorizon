@@ -34,16 +34,22 @@ func TestCatalogueIsWellFormed(t *testing.T) {
 	}
 }
 
+// An OID names one catalogue entry, with one exception RFC 5480 defines: ECDH on a named curve
+// is id-ecDH with the curve as a parameter, so a curve variant shares its family's OID. The
+// family must sort first, so that a lookup by OID (certinfo, an imported CBOM) finds the family.
 func TestOIDsAreUnique(t *testing.T) {
-	seen := map[string]string{}
+	seen := map[string]algo.Algorithm{}
 	for _, a := range algo.All() {
 		if a.OID == "" {
 			continue
 		}
 		if other, dup := seen[a.OID]; dup {
-			t.Errorf("OID %s used by both %s and %s", a.OID, a.ID, other)
+			if a.Curve == "" || other.Curve != "" || !strings.HasPrefix(a.ID, other.ID+"-") {
+				t.Errorf("OID %s used by both %s and %s", a.OID, a.ID, other.ID)
+			}
+			continue
 		}
-		seen[a.OID] = a.ID
+		seen[a.OID] = a
 	}
 }
 
@@ -133,5 +139,36 @@ func TestLegacyAndUnclassifiedShowUpAsProperties(t *testing.T) {
 	}
 	if p := algo.MustGet("AES").Component().Properties; p != nil {
 		t.Errorf("an ordinary algorithm gained properties: %v", *p)
+	}
+}
+
+// TestCatalogueOIDsAreCited pins the OIDs CBOM-REVIEW-002 checked against their primary
+// sources, so a later edit cannot drift from what the RFC says.
+func TestCatalogueOIDsAreCited(t *testing.T) {
+	for id, want := range map[string]string{
+		"ChaCha20-Poly1305": "1.2.840.113549.1.9.16.3.18", // RFC 8103 section 3
+		"ECDH":              "1.3.132.1.12",               // RFC 5480 section 2.1.2
+		"ECDH-P256":         "1.3.132.1.12",
+		"ECDH-P384":         "1.3.132.1.12",
+		"ECDH-P521":         "1.3.132.1.12",
+		"X25519":            "1.3.101.110", // RFC 8410 section 3
+		"X448":              "1.3.101.111",
+		"Ed25519":           "1.3.101.112",
+		"Ed448":             "1.3.101.113",
+		"RSA":               "1.2.840.113549.1.1.1", // RFC 8017 appendix A.1
+	} {
+		a, ok := algo.Lookup(id)
+		if !ok {
+			t.Errorf("%s is not in the catalogue", id)
+			continue
+		}
+		if a.OID != want {
+			t.Errorf("%s OID = %q, want %q", id, a.OID, want)
+		}
+	}
+	for id, curve := range map[string]string{"ECDH-P256": "secp256r1", "ECDH-P384": "secp384r1", "ECDH-P521": "secp521r1"} {
+		if a := algo.MustGet(id); a.Curve != curve {
+			t.Errorf("%s curve = %q, want %q", id, a.Curve, curve)
+		}
 	}
 }

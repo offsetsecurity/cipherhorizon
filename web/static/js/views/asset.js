@@ -552,7 +552,7 @@ export async function render(root, { args, query, protocol = 'tls' }) {
   const historySection = () => {
     const done = history.filter((p) => p.status === 'done');
     const wrap = h('div', { class: 'stack' });
-    wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'Readiness over time'), historyChart(history),
+    wrap.appendChild(h('section', { class: 'card' }, h('h2', null, 'Readiness over time'), historyChart(history, 640, 170, (p) => `${place.list}/${id}?scan=${p.scanId}`),
       h('p', { class: 'hint' }, asset.protocol === 'ssh' ? 'Each point is a completed scan, labelled ✓ when it met the SSH baseline, or with the number of changes it needed.'
         : 'Each point is a completed scan, labelled with its TLS hygiene score.')));
 

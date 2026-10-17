@@ -22,6 +22,7 @@ var prdPaths = []string{
 	"../../docs/product/PRD-006-self-evident-results-and-signatures.md",
 	"../../docs/product/PRD-007-launch-1-0.md",
 	"../../docs/product/PRD-008-pq-signatures-and-ssh.md",
+	"../../docs/product/PRD-009-interactive-charts-motion-port-cbom.md",
 }
 
 const (

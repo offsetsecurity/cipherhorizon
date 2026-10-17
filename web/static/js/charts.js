@@ -99,7 +99,8 @@ function pointMeasure(p, long) {
   return long ? `TLS hygiene ${p.band} ${p.score}` : String(p.score);
 }
 
-export function historyChart(points, width = 640, height = 170) {
+// hrefFor, when given, makes each point a mark that opens that scan (PRD-009 REQ-CHT-5).
+export function historyChart(points, width = 640, height = 170, hrefFor = null) {
   const pts = points.filter((p) => p.status === 'done' && p.readinessLevel !== null);
   const pad = { l: 132, r: 30, t: 14, b: 26 };
   const root = svg('svg', { viewBox: `0 0 ${width} ${height}`, class: 'chart', role: 'img',
@@ -126,9 +127,16 @@ export function historyChart(points, width = 640, height = 170) {
     d += i === 0 ? `M ${px} ${py}` : ` H ${px} V ${py}`;
   });
   root.appendChild(svg('path', { d, class: 'stepline', fill: 'none', pathLength: '1' }));
-  pts.forEach((p) => {
-    root.appendChild(svg('circle', { cx: x(p.at), cy: y(p.readinessLevel), r: 5, class: `dot ${levelClass(p.readinessLevel)}` },
-      svg('title', null, `${new Date(p.at).toLocaleString()}: L${p.readinessLevel} ${levelName(p.readinessLevel)}, ${pointMeasure(p, true)}`)));
+  pts.forEach((p, i) => {
+    const words = `${new Date(p.at).toLocaleString()}: L${p.readinessLevel} ${levelName(p.readinessLevel)}, ${pointMeasure(p, true)}`;
+    const href = hrefFor ? hrefFor(p) : null;
+    const g = svg('g', mark({ class: 'dotmark' }, href, `Scan of ${words}: open its report`,
+      { tip: `L${p.readinessLevel} ${levelName(p.readinessLevel)}`, sub: `${stamp(p.at)} · ${pointMeasure(p, true)}` }),
+    // A 12px invisible hit area around the 5px dot (WCAG 2.2 target size).
+    href ? svg('circle', { cx: x(p.at), cy: y(p.readinessLevel), r: 12, class: 'hit' }) : null,
+    svg('circle', { cx: x(p.at), cy: y(p.readinessLevel), r: 5, class: `dot ${levelClass(p.readinessLevel)}` }, svg('title', null, words)));
+    g.style.setProperty('--i', String(Math.min(i, 9)));
+    root.appendChild(g);
     root.appendChild(svg('text', { x: x(p.at), y: y(p.readinessLevel) - 9, class: 'dotlabel', 'text-anchor': 'middle' }, pointMeasure(p, false)));
   });
   root.appendChild(svg('text', { x: pad.l, y: height - 6, class: 'axis' }, stamp(pts[0].at)));
@@ -150,4 +158,122 @@ export function spark(points, w = 70, h2 = 20) {
   const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${i * step} ${h2 - 2 - (p.readinessLevel / 4) * (h2 - 4)}`).join(' ');
   root.appendChild(svg('path', { d, class: 'stepline', fill: 'none' }));
   return root;
+}
+
+// ---- marks you can act on (UX-DESIGN-008 §2) -------------------------------------------------
+// A mark that counts a set of things opens that set. It is an SVG or HTML element with
+// role=link, a name that says what it opens, and data-href; one delegated listener set (wireMarks,
+// installed once on the page) gives every mark the same hover, focus, tooltip and keys. A mark
+// that counts nothing gets none of this.
+
+/** Attributes that make an element a mark: merge them into its own (class is appended). */
+export function mark(attrs, href, label, { tip, sub, key } = {}) {
+  if (!href) return attrs;
+  return {
+    ...attrs,
+    class: `${(attrs && attrs.class) || ''} mark`.trim(),
+    role: 'link', tabindex: '0', 'aria-label': label, 'data-href': href,
+    'data-tip': tip || label, 'data-tip-sub': sub || null, 'data-key': key || null,
+  };
+}
+
+let tipEl = null;
+function tooltip() {
+  if (!tipEl) {
+    tipEl = h('div', { class: 'charttip', 'aria-hidden': 'true', hidden: true });
+    document.body.appendChild(tipEl);
+  }
+  return tipEl;
+}
+
+function showTip(el, at) {
+  const tip = tooltip();
+  tip.replaceChildren(
+    h('b', null, el.getAttribute('data-tip') || ''),
+    el.getAttribute('data-tip-sub') ? h('span', null, el.getAttribute('data-tip-sub')) : null,
+    el.getAttribute('data-href') ? h('span', { class: 'charttip-hint' }, 'Click to open the list') : null);
+  tip.hidden = false;
+  const r = el.getBoundingClientRect();
+  const w = tip.offsetWidth, ht = tip.offsetHeight;
+  // Beside the pointer, or above the mark on keyboard focus; flipped at the viewport's edges.
+  let x = at ? at.x + 14 : r.left + r.width / 2 - w / 2;
+  let y = at ? at.y + 16 : r.top - ht - 8;
+  if (x + w > window.innerWidth - 8) x = (at ? at.x - 14 : r.right) - w;
+  if (x < 8) x = 8;
+  if (y + ht > window.innerHeight - 8) y = (at ? at.y : r.top) - ht - 10;
+  if (y < 8) y = r.bottom + 8;
+  tip.style.left = `${Math.round(x + window.scrollX)}px`;
+  tip.style.top = `${Math.round(y + window.scrollY)}px`;
+}
+
+function hideTip() { if (tipEl) tipEl.hidden = true; }
+
+// The marks of one chart share a container: the nearest [data-chart], else the svg or list.
+const chartOf = (el) => el.closest('[data-chart]') || el.closest('svg') || el.parentElement;
+
+function heat(el, on) {
+  const chart = chartOf(el);
+  if (!chart) return;
+  chart.classList.toggle('chart-hot', on);
+  const key = el.getAttribute('data-key');
+  const same = key ? chart.querySelectorAll(`.mark[data-key="${CSS.escape(key)}"]`) : [el];
+  for (const m of chart.querySelectorAll('.mark.is-hot')) m.classList.remove('is-hot');
+  if (on) for (const m of same) m.classList.add('is-hot');
+}
+
+/** Install the mark behaviour once, on the element that holds every page. */
+export function wireMarks(root) {
+  if (!root || root._marksWired) return;
+  root._marksWired = true;
+  const markOf = (e) => (e.target instanceof Element ? e.target.closest('.mark[data-href]') : null);
+  const open = (el, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    hideTip();
+    location.hash = el.getAttribute('data-href');
+  };
+  root.addEventListener('click', (e) => { const el = markOf(e); if (el) open(el, e); });
+  root.addEventListener('keydown', (e) => {
+    const el = markOf(e);
+    if (el && (e.key === 'Enter' || e.key === ' ')) open(el, e);
+  });
+  root.addEventListener('pointerover', (e) => { const el = markOf(e); if (el) { heat(el, true); showTip(el, { x: e.clientX, y: e.clientY }); } });
+  root.addEventListener('pointermove', (e) => { const el = markOf(e); if (el && tipEl && !tipEl.hidden) showTip(el, { x: e.clientX, y: e.clientY }); });
+  root.addEventListener('pointerout', (e) => {
+    const el = markOf(e);
+    if (el && !(e.relatedTarget instanceof Node && el.contains(e.relatedTarget))) { heat(el, false); hideTip(); }
+  });
+  root.addEventListener('focusin', (e) => { const el = markOf(e); if (el) { heat(el, true); showTip(el, null); } });
+  root.addEventListener('focusout', (e) => { const el = markOf(e); if (el) { heat(el, false); hideTip(); } });
+  window.addEventListener('hashchange', hideTip);
+  // Scrolling moves the pointer off its mark, but focusing a mark by keyboard scrolls it into view:
+  // that tooltip stays (it is placed in page coordinates, so it moves with the page).
+  window.addEventListener('scroll', () => { if (!document.activeElement?.matches?.('.mark')) hideTip(); }, { passive: true });
+}
+
+// ---- filters in the address (UX-DESIGN-008 §1.2) ---------------------------------------------
+
+/** Set (or, with '' / null, remove) query parameters of the current page without a new history
+ *  entry and without re-routing, so Back returns to the chart the reader came from. */
+export function setQuery(changes) {
+  const [path, qs = ''] = (location.hash || '#/').split('?');
+  const q = new URLSearchParams(qs);
+  for (const [k, v] of Object.entries(changes)) {
+    if (v === '' || v === null || v === undefined || v === false) q.delete(k);
+    else q.set(k, String(v));
+  }
+  const s = q.toString();
+  history.replaceState(history.state, '', `${path}${s ? `?${s}` : ''}`);
+}
+
+/** A removable chip that says why a list is filtered: "Purpose: Key exchange ×". */
+export function filterChip(label, onClear) {
+  return h('span', { class: 'fchip' }, h('span', null, label),
+    h('button', { type: 'button', class: 'fchip-x', 'aria-label': `Remove the filter ${label}`, onclick: onClear }, '×'));
+}
+
+/** A row of chips, or nothing when no filter is set. */
+export function filterChips(chips) {
+  const list = chips.filter(Boolean);
+  return list.length ? h('div', { class: 'fchips', role: 'group', 'aria-label': 'Filters from the address' }, list) : null;
 }

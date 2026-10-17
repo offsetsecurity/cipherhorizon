@@ -31,6 +31,10 @@ data lives, backup, upgrade and removal: [docs/engineering/INSTALL.md](docs/engi
 Open <http://127.0.0.1:8080>, type an address, press Enter. Sign-in is off until you want it: turn it on in
 **Settings** to give a team accounts and roles, or start with `--sign-in on`.
 
+Another port: `cipherhorizon serve --port 9000`, or set `CIPHERHORIZON_PORT=9000` (containers and services; the
+health check follows it). If the port is taken, `serve` says so and suggests the next one. Every way of running it:
+[Choosing the port](docs/engineering/INSTALL.md#choosing-the-port).
+
 From the command line, no server needed:
 
 ```sh
@@ -77,7 +81,8 @@ CycloneDX 1.7 CBOM, with PDF reports for each endpoint and for the whole invento
 | **SSH servers** | Identification and algorithm lists, negotiation as OpenSSH 10.6 would (the ML-KEM hybrid included), every host key fetched and verified (Ed25519, ECDSA, RSA, ML-DSA and the composite `ssh-mldsa44-ed25519`), 18 cited checks, and the CipherHorizon SSH baseline 2026 with the `sshd_config` lines to meet it. It never logs in. |
 | **Post-quantum readiness** | L0 to L4 for every TLS endpoint and SSH server, each protocol by its own stated rules, with harvest-now-decrypt-later exposure. |
 | **Machines** | Two readable inventory scripts (PowerShell, shell) list a machine's cryptographic software and certificates; nothing is installed and no key material is read. |
-| **Inventory** | TLS endpoints, SSH servers, machines and imported CBOMs merged into one CycloneDX 1.7 (or 1.6) CBOM. |
+| **Inventory** | TLS endpoints, SSH servers, machines and imported CBOMs merged into one CycloneDX 1.7 (or 1.6) CBOM: every algorithm with its OID where one exists (the exact certificate signature algorithm, ECDH on each named curve, legacy ciphers such as 3DES and RC4), certificates with their serial and SHA-256 fingerprint. |
+| **Charts you can act on** | Every chart opens what it counts: a readiness level opens the endpoints at that level, a ring segment the quantum-vulnerable algorithms, an expiry bar the certificates expiring in that window, a point on the history the scan it stands for. The filter stays in the address, so a filtered list can be bookmarked and Back returns to the chart. |
 | **Findings and systems** | Findings across everything, grouped by problem, with triage; systems ranked for migration by exposure and how long their data must stay secret; OMB M-23-02 export per system. |
 | **Reports** | PDF reports per TLS endpoint, per SSH server and for the whole inventory; CycloneDX, CSV and JSON downloads. |
 | **Over time** | Schedules, history, and what changed between two scans. |

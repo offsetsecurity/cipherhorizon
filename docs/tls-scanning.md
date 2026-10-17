@@ -63,13 +63,15 @@ that (readiness level, TLS hygiene score, findings), from the same facts, and ci
 
 ## CBOM export (`--cbom`)
 
-`cipherhorizon tls scan --cbom HOST[:PORT]` turns one scan into a CycloneDX 1.6 CBOM instead of a text or JSON
-report. The subject (`metadata.component`, a `device` named `host:port`) depends on one `protocol` component per
+`cipherhorizon tls scan --cbom HOST[:PORT]` turns one scan into a CycloneDX CBOM instead of a text or JSON
+report (CycloneDX 1.7 by default; `--spec 1.6` for 1.6). The subject (`metadata.component`, a `device` named `host:port`) depends on one `protocol` component per
 supported TLS version, each with its accepted cipher suites, and on one `certificate` component per certificate the
 server presented. Below those hang the `algorithm` components they reference: each bulk cipher as a key-size-and-mode
-variant (`AES-128-GCM`, not just `AES`), each key-exchange group, and the post-quantum hybrids (`X25519MLKEM768` and
+variant (`AES-128-GCM`, not just `AES`) or, for legacy suites, `3DES`, `RC4` and `DES` with their classical status;
+each key-exchange group (`ECDH-P256` for secp256r1, `X25519`, `X448`), and the post-quantum hybrids (`X25519MLKEM768` and
 the two other RFC 10024 groups get a `combiner`-primitive component and a cited PQC verdict). A certificate points at
-its public key, a `related-crypto-material` component with its size, which points at `RSA-2048` or `ECDSA-P256`. It
+its public key, a `related-crypto-material` component with its size, which points at `RSA-2048` or `ECDSA-P256`, and at
+its exact signature algorithm with its OID (`ecdsa-with-SHA256`, `sha256WithRSAEncryption`). It
 takes exactly one target, since a CBOM has one subject.
 
 An edge below a protocol means the endpoint *accepts* that suite or group; what a current client actually

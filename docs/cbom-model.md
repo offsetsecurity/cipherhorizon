@@ -54,6 +54,9 @@ asserted as an error.
 | **Retired or broken algorithms** | an ordinary algorithm asset with `cipherhorizon:classical-status` and `cipherhorizon:classical-basis` (the source, quoted no further than it says), and `cipherhorizon:pqc:unclassified-reason` instead of a verdict. |
 | Bulk cipher of a suite | a variant with key size and mode: `AES-128-GCM`, `AES-256-CBC`, `ChaCha20-Poly1305`; each has its own OID under the NIST AES arc and `parameterSetIdentifier` / `mode`. The whole-family `AES` entry exists only for host inventories that cannot see a key size, and for a suite variant the catalogue has no entry for. |
 | A certificate's public key | its own `related-crypto-material` component (`public-key`, `size`), referenced by the certificate's `subjectPublicKeyRef`, pointing at a key-algorithm variant: `RSA-2048`, `ECDSA-P256` (`curve` = `secp256r1`, RFC 5480), or the catalogue entry when there is no size to state (Ed25519, ML-DSA). |
+| A certificate's signature | its exact algorithm with its OID, from the certificate: `ecdsa-with-SHA256` (1.2.840.10045.4.3.2, RFC 5758), `sha256WithRSAEncryption` (1.2.840.113549.1.1.11, RFC 8017), `RSASSA-PSS` (1.2.840.113549.1.1.10; its hash is a parameter, not recorded yet). Ed25519 and ML-DSA are already exact. A signature with no variant (DSA with SHA-256) stays at its family. |
+| Accepted key-exchange groups | one algorithm per group: `X25519`, `X448` (RFC 8410 OIDs); `ECDH-P256`, `ECDH-P384`, `ECDH-P521` (id-ecDH 1.3.132.1.12 with the curve, RFC 5480: the curve is a parameter of ECDH, carried as `ellipticCurve` secg/secp256r1 in 1.7); the hybrids (`X25519MLKEM768` …, no OID: IANA assigns code points); the RFC 7919 groups as `DH`. Brainpool, binary and GOST curves have no entry yet: named in the suite text only. |
+| A suite's bulk cipher | AES and ChaCha20-Poly1305 by variant; 3DES, RC4 (export RC4-40 included), DES and RC2 by family, with their cited classical status. NULL is no cipher and gets no algorithm. |
 | A certificate's role | `cipherhorizon:chain-role` = `leaf`, `intermediate` or `root`, from its position in the chain the server sent. |
 | Key material itself | **never written.** The model has no field for a key value and the vocabulary layer strips one if a plugin sets it. |
 
@@ -74,7 +77,7 @@ stretched:
 | `negotiated` | algorithm | used by the handshake a current client completed |
 | `negotiated-suite`, `negotiated-group` | protocol | the suite and group of that handshake |
 | `chain-role` | certificate | `leaf`, `intermediate`, `root` |
-| `cert-serial` | certificate | serial number (CycloneDX 1.6 has no field for it) |
+| `cert-serial` | certificate | serial number, in 1.6 documents only (1.6 has no field for it; 1.7 writes `serialNumber`) |
 | `iana-obsolete` | algorithm | a group IANA marks obsolete, e.g. the pre-standard `X25519Kyber768Draft00` |
 | `tls-graph` | document | what the graph's edges mean (above) |
 
@@ -83,10 +86,12 @@ evaluation's output, derived from the same facts and cited; a CBOM carries facts
 
 ## Known limits (and what they would need)
 
-- **Signature algorithms are family-level** (`RSA`, `ECDSA`), not per-hash (`sha256WithRSAEncryption`): the hash
-  is in the certificate but the catalogue does not yet carry per-hash signature OIDs.
 - **Key exchange is family-level** (`ECDH`, `DH`) rather than the curve or group used in a TLS 1.2 handshake; the
   accepted groups are separate components, and the negotiated one is flagged (TLS 1.3 and hybrid groups).
+- **RSASSA-PSS parameters** (hash, MGF, salt length) are not recorded: the algorithm and its OID are.
+- **A hybrid group does not point at its parts** (ML-KEM-768 and X25519): CycloneDX has no relation for a combiner,
+  and a dependency would claim the server accepts pure ML-KEM-768 (CBOM-REVIEW-002 C-7).
+- **The MAC of a TLS 1.2 suite and the HKDF hash of a TLS 1.3 suite** are named in the suite only (C-8).
 - **A curve or key type with no catalogue entry** is named in the certificate text but gets no algorithm
   component. Omit, don't guess.
 - CycloneDX 1.7 adds `ellipticCurve`, `algorithmFamily`, `tlsGroups` on cipher suites and richer relationship
@@ -104,6 +109,18 @@ A review of the first endpoint CBOM raised six points. What was done:
 | Obsolete draft group as a dependency | **Same answer.** It is listed because a server was observed accepting it, and marked `iana-obsolete`; it is not flagged negotiated unless it was. |
 | Certificate points at an algorithm, not a key | **Fixed.** `subjectPublicKeyRef` now references a `related-crypto-material` public key with its size and algorithm variant, as the 1.6 schema describes it. |
 | No statement of where crypto is used | **Fixed.** The endpoint now depends on its protocols and certificates; certificates on keys; keys on algorithms. |
+
+A second review, of OIDs and completeness (2026-10-18, [CBOM-REVIEW-002](product/CBOM-REVIEW-002-oids-and-completeness.md)):
+
+| Point | Outcome |
+|---|---|
+| 3DES, RC4, DES in accepted suites left out | **Fixed.** Referenced, with their classical status |
+| NIST P-curve and X448 groups left out | **Fixed.** `ECDH-P256/P384/P521`, `X448` |
+| Certificate signature at family level, no OID | **Fixed.** The exact algorithm and OID |
+| ChaCha20-Poly1305 said to have no OID | **Fixed.** RFC 8103's OID |
+| 1.7 `serialNumber` and `fingerprint` unused | **Fixed** (1.7 only) |
+| RSA listed twice in a static-RSA suite | **Fixed** |
+| Hybrid parts, MAC/HKDF hash, classical security level, SSLv3 certificate | Known limits, above |
 
 ## Certificate facts in the CBOM (PRD-004 REQ-TNFR-7)
 
@@ -130,4 +147,4 @@ vendored schemas). A certificate from a `tls-report/1` scan has none of these fa
 | Lifetime and the limit it is held to | derivable from `notValidBefore`/`notValidAfter`; the limit is a judgement |
 | Served order, chain problems, per-store trust | properties of an endpoint's configuration and of evaluation, not of the certificate |
 | Stapled OCSP response, the SCTs themselves | revocation evidence observed on a connection, not part of the certificate (embedded SCTs are part of it, but are not decoded into the CBOM) |
-| Public-key SHA-256 (SPKI) | no field; the certificate's SHA-256 fingerprint is the identifier used |
+| Public-key SHA-256 (SPKI) | not written yet; the certificate's SHA-256 fingerprint is the identifier used (in 1.7 also as `fingerprint`) |

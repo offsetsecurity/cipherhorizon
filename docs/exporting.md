@@ -26,7 +26,7 @@ One internal model is built and converted at the last step. The conversion does 
 
 ### Where the registry has no family
 
-Of the 52 catalogue algorithms, these have no single registry family and are emitted **without** `algorithmFamily`, on purpose:
+Of the catalogue's algorithms, these have no single registry family and are emitted **without** `algorithmFamily`, on purpose:
 
 | Catalogue entry | Why |
 |---|---|

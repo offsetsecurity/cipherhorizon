@@ -6,6 +6,9 @@
 #   docker build -t cipherhorizon --build-arg VERSION=0.1.0 .
 #   docker run --rm -p 8080:8080 -e CIPHERHORIZON_TOKEN="$(openssl rand -hex 24)" -v ch-data:/data cipherhorizon
 #
+# Another port: set CIPHERHORIZON_PORT and publish that port; the health check follows it.
+#   docker run --rm -p 127.0.0.1:9000:9000 -e CIPHERHORIZON_PORT=9000 -v ch-data:/data cipherhorizon
+#
 # The build stage always runs on the builder's native platform and cross-compiles, so a
 # multi-arch image needs no emulation.
 
@@ -40,6 +43,8 @@ COPY --from=build /out/cipherhorizon /cipherhorizon
 COPY --from=build --chown=65532:65532 /out/data /data
 VOLUME ["/data"]
 WORKDIR /data
+# The port is CIPHERHORIZON_PORT (serve and healthcheck both read it); 8080 unless set.
+ENV CIPHERHORIZON_PORT=8080
 EXPOSE 8080
 # Sign-in is off by default, as everywhere (turn it on in Settings, or run with --sign-in on, which
 # prints a one-time setup code to `docker logs`). Inside a container the server must listen on
@@ -48,7 +53,7 @@ EXPOSE 8080
 # --plain-http is right for that, or behind a TLS-terminating proxy; to serve HTTPS directly, mount a
 # certificate and override CMD with --tls-cert/--tls-key instead.
 ENTRYPOINT ["/cipherhorizon"]
-CMD ["serve", "--addr", "0.0.0.0:8080", "--plain-http", "--open-network", "--db", "/data/cipherhorizon.db"]
+CMD ["serve", "--addr", "0.0.0.0", "--plain-http", "--open-network", "--db", "/data/cipherhorizon.db"]
 # The base image has no shell, curl or wget, so the binary checks its own /api/v1/health.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
-  CMD ["/cipherhorizon", "healthcheck", "--addr", "127.0.0.1:8080"]
+  CMD ["/cipherhorizon", "healthcheck"]

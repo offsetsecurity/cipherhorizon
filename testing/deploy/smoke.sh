@@ -12,7 +12,7 @@
 # Usage: testing/deploy/smoke.sh            (ENGINE=docker to use Docker instead of Podman;
 #        SKIP_BUILD=1 IMAGE=ghcr.io/... WANT_VERSION=1.0.0 to test a published image)
 # Needs: podman or docker, curl, and openssl (or CERT= and KEY= naming a test certificate and key
-# for 127.0.0.1). Uses host ports 18080 and 18443. With Podman on Windows or macOS the ports are
+# for 127.0.0.1). Uses host ports 18080, 18443 and 19000. With Podman on Windows or macOS the ports are
 # not forwarded to the host: run it inside the machine (`podman machine ssh`), as on Linux.
 set -euo pipefail
 
@@ -21,18 +21,19 @@ IMAGE=${IMAGE:-cipherhorizon:smoke}
 NAME=chsmoke
 HTTP_PORT=${HTTP_PORT:-18080}
 TLS_PORT=${TLS_PORT:-18443}
+ALT_PORT=${ALT_PORT:-19000}
 WORK=$(mktemp -d)
 pass=0 fail=0
 
 ok()   { echo "  ok    $*"; pass=$((pass + 1)); }
 bad()  { echo "  FAIL  $*"; fail=$((fail + 1)); }
 cleanup() {
-  $ENGINE rm -f "$NAME" "$NAME-tls" >/dev/null 2>&1 || true
+  $ENGINE rm -f "$NAME" "$NAME-tls" "$NAME-port" >/dev/null 2>&1 || true
   $ENGINE volume rm -f "$NAME-data" "$NAME-tls-data" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
-cleanup_quiet() { $ENGINE rm -f "$NAME" "$NAME-tls" >/dev/null 2>&1 || true; $ENGINE volume rm -f "$NAME-data" "$NAME-tls-data" >/dev/null 2>&1 || true; }
+cleanup_quiet() { $ENGINE rm -f "$NAME" "$NAME-tls" "$NAME-port" >/dev/null 2>&1 || true; $ENGINE volume rm -f "$NAME-data" "$NAME-tls-data" >/dev/null 2>&1 || true; }
 cleanup_quiet
 
 # The hardening docker-compose.yml applies (audit L-13).
@@ -42,7 +43,7 @@ HARDEN=(--read-only --tmpfs /tmp:size=16m,mode=1777 --cap-drop ALL --security-op
 # Exec form (a JSON list), as the Quadlet unit has it: the image has no shell. Docker honours the image's own
 # HEALTHCHECK, so only Podman is given one.
 HEALTH=()
-[ "$ENGINE" = podman ] && HEALTH=(--health-cmd '["/cipherhorizon","healthcheck","--addr","127.0.0.1:8080"]' --health-interval 5s --health-timeout 3s --health-start-period 10s --health-retries 5)
+[ "$ENGINE" = podman ] && HEALTH=(--health-cmd '["/cipherhorizon","healthcheck"]' --health-interval 5s --health-timeout 3s --health-start-period 10s --health-retries 5)
 
 echo "== build"
 if [ -z "${SKIP_BUILD:-}" ]; then
@@ -77,7 +78,7 @@ s=$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" "$base/api/v1/about")
 [ "$s" = 200 ] && ok "the new session works" || bad "a signed-in request answered $s"
 s=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/about")
 [ "$s" = 401 ] && ok "without a session the API now refuses (401)" || bad "unauthenticated about answered $s"
-$ENGINE exec "$NAME" /cipherhorizon healthcheck --addr 127.0.0.1:8080 >/dev/null 2>&1 && ok "healthcheck inside the read-only container" || bad "healthcheck failed inside"
+$ENGINE exec "$NAME" /cipherhorizon healthcheck >/dev/null 2>&1 && ok "healthcheck inside the read-only container" || bad "healthcheck failed inside"
 
 echo "== backup while it runs"
 if $ENGINE exec "$NAME" /cipherhorizon db backup --db /data/cipherhorizon.db /data/backup.db >"$WORK/backup.log" 2>&1; then
@@ -86,6 +87,13 @@ if $ENGINE exec "$NAME" /cipherhorizon db backup --db /data/cipherhorizon.db /da
     ok "the copy opens and holds the administrator"
   else bad "the copy does not hold the administrator"; fi
 else bad "db backup failed: $(cat "$WORK/backup.log")"; fi
+
+echo "== another port: CIPHERHORIZON_PORT (PRD-009 REQ-PORT-4, QA-PLAN-007 PORT)"
+$ENGINE run -d --name "$NAME-port" "${HARDEN[@]}" -e CIPHERHORIZON_PORT="$ALT_PORT" -p "127.0.0.1:$ALT_PORT:$ALT_PORT" "$IMAGE" >/dev/null
+for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$ALT_PORT/api/v1/health" >/dev/null 2>&1 && break; sleep 0.5; done
+curl -fsS "http://127.0.0.1:$ALT_PORT/api/v1/health" | grep -q '"ok"' && ok "serves on port $ALT_PORT from CIPHERHORIZON_PORT" || bad "nothing answers on $ALT_PORT"
+$ENGINE exec "$NAME-port" /cipherhorizon healthcheck >/dev/null 2>&1 && ok "the health check follows CIPHERHORIZON_PORT" || bad "the health check does not find port $ALT_PORT"
+$ENGINE rm -f "$NAME-port" >/dev/null 2>&1 || true
 
 echo "== HTTPS with a mounted certificate, scanned by the image's own CLI"
 if [ -n "${CERT:-}" ]; then cp "$CERT" "$WORK/cert.pem"; cp "$KEY" "$WORK/key.pem"; else

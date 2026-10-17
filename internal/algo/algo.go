@@ -39,6 +39,11 @@ type Algorithm struct {
 	// Mode is the block-cipher / AEAD mode of operation, when the entry names one.
 	Mode cdx.CryptoAlgorithmMode
 
+	// Curve is the SECG name of the elliptic curve an entry is defined on (RFC 5480
+	// section 2.1.1.1), for an entry that is one curve of a family: ECDH-P256 is ECDH on
+	// secp256r1. Empty otherwise.
+	Curve string
+
 	// QuantumLevel is the NIST PQC security category (1-5) that the algorithm's
 	// defining standard assigns to it, or 0 when no standard asserts one. It is
 	// never inferred: 0 means "omit nistQuantumSecurityLevel".
@@ -76,7 +81,7 @@ func (a Algorithm) BOMRef() string {
 
 // Component renders the algorithm as a CycloneDX cryptographic-asset component.
 func (a Algorithm) Component() cdx.Component {
-	props := &cdx.CryptoAlgorithmProperties{Primitive: a.Primitive, ParameterSetIdentifier: a.ParameterSet, Mode: a.Mode}
+	props := &cdx.CryptoAlgorithmProperties{Primitive: a.Primitive, ParameterSetIdentifier: a.ParameterSet, Mode: a.Mode, Curve: a.Curve}
 	if a.QuantumLevel != 0 {
 		lvl := a.QuantumLevel
 		props.NistQuantumSecurityLevel = &lvl

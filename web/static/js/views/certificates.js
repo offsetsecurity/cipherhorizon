@@ -2,10 +2,14 @@
 // the CA certificates (PRD-003 REQ-UI-4). Filters are applied here, on data already loaded.
 import { h, clear, fmtDate } from '../dom.js';
 import { api } from '../api.js';
-import { badge, button, skeleton, empty } from '../ui.js';
+import { badge, button, skeleton, empty, crossFade } from '../ui.js';
+import { setQuery } from '../charts.js';
 import { certTable, anchorLine, classLabel } from '../estate-ui.js';
 
-const WINDOWS = [['any', 'Any expiry'], ['expired', 'Expired'], ['30', 'Within 30 days'], ['90', 'Within 90 days']];
+// The Inventory dashboard's expiry buckets open this list with ?expires=…; 31-90 and later are its
+// "Within 90 days" and "Later" segments, with the same boundaries (PRD-009 REQ-CHT-2).
+const WINDOWS = [['any', 'Any expiry'], ['expired', 'Expired'], ['30', 'Within 30 days'], ['90', 'Within 90 days'],
+  ['31-90', 'In 31 to 90 days'], ['later', 'In more than 90 days']];
 const PAGE = 500; // rows drawn at once: a whole estate is 50,000 certificates and a browser should not be asked to draw them all
 const QUANTUM_VULNERABLE = ['RSA', 'ECDSA', 'EC', 'DSA', 'ED25519', 'ED448'];
 
@@ -13,6 +17,8 @@ function matches(c, f) {
   const d = c.daysLeft;
   if (f.window === 'expired' && !(d !== null && d < 0)) return false;
   if ((f.window === '30' || f.window === '90') && !(d !== null && d >= 0 && d <= Number(f.window))) return false;
+  if (f.window === '31-90' && !(d !== null && d > 30 && d <= 90)) return false;
+  if (f.window === 'later' && !(d !== null && d > 90)) return false;
   if (f.key === 'weak' && !(c.keyAlgorithm && c.keyAlgorithm.toUpperCase() === 'RSA' && c.keyBits && c.keyBits < 2048)) return false;
   if (f.key === 'unknown' && c.keyBits) return false;
   if (f.key === 'quantum' && !QUANTUM_VULNERABLE.includes((c.keyAlgorithm || '').toUpperCase())) return false;
@@ -40,13 +46,21 @@ export async function render(root, ctx = {}) {
     return null;
   }
 
-  const f = { window: 'any', key: '', sig: '', origin: '', text: '' };
+  // The filters start from the address and are written back to it (UX-DESIGN-008 §1.2).
+  const query = ctx.query || new URLSearchParams();
+  const pick = (v, allowed) => (allowed.includes(v) ? v : '');
   const sigs = [...new Set(certs.map((c) => c.signatureAlgorithm).filter(Boolean))].sort();
   const origins = [...new Set(certs.flatMap((c) => c.origins || []))].sort();
+  const f = {
+    window: pick(query.get('expires'), WINDOWS.map(([v]) => v)) || 'any',
+    key: pick(query.get('key'), ['weak', 'unknown', 'quantum']),
+    sig: pick(query.get('sig'), sigs), origin: pick(query.get('origin'), origins), text: query.get('q') || '',
+  };
   let limit = PAGE;
   const out = h('div');
   const count = h('p', { class: 'hint', role: 'status' });
   const draw = () => {
+    setQuery({ expires: f.window === 'any' ? '' : f.window, key: f.key, sig: f.sig, origin: f.origin, q: f.text });
     clear(out);
     const shown = certs.filter((c) => matches(c, f));
     count.textContent = `${shown.length} of ${certs.length} certificate${certs.length === 1 ? '' : 's'}${shown.length > limit ? `; the first ${limit} are drawn, worst first` : ''}`;
@@ -56,10 +70,11 @@ export async function render(root, ctx = {}) {
   };
   const sel = (id, label, options, key) => h('div', null,
     h('label', { for: id }, label),
-    h('select', { id, onchange: (e) => { f[key] = e.target.value; limit = PAGE; draw(); } }, options.map(([v, l]) => h('option', { value: v }, l))));
+    h('select', { id, onchange: (e) => { f[key] = e.target.value; limit = PAGE; crossFade(out, draw); } },
+      options.map(([v, l]) => h('option', { value: v, selected: v === f[key] }, l))));
   root.appendChild(h('div', { class: 'toolbar' },
     h('div', { class: 'grow' }, h('label', { for: 'cert-q' }, 'Search'),
-      h('input', { type: 'search', id: 'cert-q', placeholder: 'Name, subject or fingerprint', oninput: (e) => { f.text = e.target.value.trim(); limit = PAGE; draw(); } })),
+      h('input', { type: 'search', id: 'cert-q', placeholder: 'Name, subject or fingerprint', value: f.text, oninput: (e) => { f.text = e.target.value.trim(); limit = PAGE; draw(); } })),
     sel('cert-window', 'Expires', WINDOWS, 'window'),
     sel('cert-key', 'Key', [['', 'Any key'], ['weak', 'RSA under 2048 bits'], ['unknown', 'Size not recorded'], ['quantum', 'Quantum-vulnerable algorithm']], 'key'),
     sel('cert-sig', 'Signature', [['', 'Any signature'], ...sigs.map((s) => [s, s])], 'sig'),
