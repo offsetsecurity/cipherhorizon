@@ -197,10 +197,12 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 // the same way a host CBOM carries no verdict beyond the algorithm's own.
 func writeTLSCBOM(env Env, rep *tlsprobe.Report, t tlsprobe.Target, spec string) error {
 	bom, warnings := cbom.Build(tlscbom.FromTLSReport(rep), cbom.Options{
-		Tool:      cbom.Tool{Name: "cipherhorizon", Version: version.Version},
-		Endpoint:  fmt.Sprintf("%s:%d", t.Host, t.Port),
-		Now:       env.Now,
-		NewSerial: env.NewSerial,
+		Tool:     cbom.Tool{Name: "cipherhorizon", Version: version.Version},
+		Endpoint: fmt.Sprintf("%s:%d", t.Host, t.Port),
+		// What the scan covered, so an absent component is not read as an absent capability.
+		MetadataProperties: tlscbom.Coverage(rep),
+		Now:                env.Now,
+		NewSerial:          env.NewSerial,
 	})
 	for _, w := range warnings {
 		warnf(env, "%s", w)

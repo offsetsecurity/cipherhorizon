@@ -72,9 +72,10 @@ func TestLegacySuiteCiphersAreAssets(t *testing.T) {
 			t.Errorf("%s lists %v, want %s among them", name, suites[name], want)
 		}
 	}
-	// NULL is no cipher: the suite keeps only its key exchange.
-	if got := suites["TLS_RSA_WITH_NULL_MD5"]; len(got) != 1 {
-		t.Errorf("the NULL suite lists %v, want only RSA", got)
+	// NULL is no cipher: the suite keeps its key exchange and its MAC (AUDIT-TLS-CBOM-001 A-11), and
+	// no cipher at all.
+	if got := suites["TLS_RSA_WITH_NULL_MD5"]; len(got) != 2 || !containsRef(got, "crypto/algorithm/rsa@1.2.840.113549.1.1.1") || !containsRef(got, "crypto/algorithm/hmac-sha-1@1.2.840.113549.2.7") {
+		t.Errorf("the NULL suite lists %v, want RSA and its MAC only", got)
 	}
 	for _, ref := range []string{"crypto/algorithm/3des", "crypto/algorithm/rc4", "crypto/algorithm/des"} {
 		c := findComponent(assets, ref)

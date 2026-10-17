@@ -314,6 +314,20 @@ type CertInfo struct {
 	Wildcards        []string          `json:"wildcards,omitempty"`
 	LifetimeDays     int               `json:"lifetimeDays,omitempty"`
 	RSAExponent      int               `json:"rsaExponent,omitempty"`
+
+	// AUDIT-TLS-CBOM-001 additions (optional; absent in earlier reports, never invented).
+	SignatureParams string          `json:"signatureParams,omitempty"` // RSASSA-PSS parameters, in words
+	AuthorityKeyID  string          `json:"authorityKeyId,omitempty"`  // hex
+	SubjectKeyID    string          `json:"subjectKeyId,omitempty"`    // hex
+	Extensions      []CertExtension `json:"extensions,omitempty"`      // every extension, by OID
+}
+
+// CertExtension is one extension of a certificate: its OID, whether it is critical, and the name
+// this program decodes it by (empty when it does not).
+type CertExtension struct {
+	OID      string `json:"oid"`
+	Critical bool   `json:"critical,omitempty"`
+	Name     string `json:"name,omitempty"`
 }
 
 // BasicConstraints is the basicConstraints extension.

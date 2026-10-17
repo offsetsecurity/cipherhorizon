@@ -66,6 +66,11 @@ type Facts struct {
 	Wildcards        []string // DNS SANs that are wildcards
 	LifetimeDays     int      // validity period in days, rounded up (notBefore and notAfter both inclusive)
 	RSAExponent      int      // public exponent of an RSA key, else 0
+
+	SigParams    string      // RSASSA-PSS parameters in words (RFC 8017 A.2.3), "" for other signatures
+	AuthorityKey string      // authorityKeyIdentifier keyIdentifier, hex
+	SubjectKey   string      // subjectKeyIdentifier, hex
+	Extensions   []Extension // every extension, by OID, decoded or not
 }
 
 // BasicConstraints is the basicConstraints extension.
@@ -142,6 +147,9 @@ func Describe(c *x509.Certificate) Facts {
 	}
 	f.KeyAlgorithm, f.KeyOID, f.KeyBits, f.Curve = describeKey(c)
 	f.SigName, f.SigOID = describeSignature(c)
+	f.SigParams = describePSS(c)
+	f.AuthorityKey, f.SubjectKey = hexOrEmpty(c.AuthorityKeyId), hexOrEmpty(c.SubjectKeyId)
+	f.Extensions = extensions(c)
 
 	spki := sha256.Sum256(c.RawSubjectPublicKeyInfo)
 	f.SPKISHA256 = hex.EncodeToString(spki[:])

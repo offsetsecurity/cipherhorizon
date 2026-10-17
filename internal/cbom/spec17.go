@@ -53,7 +53,7 @@ var registryFamily = map[string]struct{ Family, Why string }{
 	"X25519MLKEM768":     {"", "a TLS hybrid group of two families (ECDH and ML-KEM)"},
 	// SSH (PRD-008). CAST-128 is the registry's CAST5 (RFC 2144 names the cipher both ways).
 	"AES-192-CBC": {"AES", ""}, "AES-128-CTR": {"AES", ""}, "AES-192-CTR": {"AES", ""}, "AES-256-CTR": {"AES", ""},
-	"HMAC-SHA-1": {"HMAC", ""}, "HMAC-SHA-256": {"HMAC", ""}, "HMAC-SHA-512": {"HMAC", ""}, "HMAC-MD5": {"HMAC", ""},
+	"HMAC-SHA-1": {"HMAC", ""}, "HMAC-SHA-256": {"HMAC", ""}, "HMAC-SHA-384": {"HMAC", ""}, "HMAC-SHA-512": {"HMAC", ""}, "HMAC-MD5": {"HMAC", ""},
 	"UMAC": {"UMAC", ""}, "Blowfish": {"Blowfish", ""}, "CAST-128": {"CAST5", ""},
 	"mlkem768x25519-sha256":    {"", "an SSH hybrid key exchange of two families (ECDH and ML-KEM)"},
 	"mlkem768nistp256-sha256":  {"", "an SSH hybrid key exchange of two families (ECDH and ML-KEM)"},
@@ -189,6 +189,11 @@ func convert17(c cdx.Component) cdx.Component {
 				p.RelatedCryptographicAssets = &[]cdx.RelatedCryptographicAsset{{Type: "algorithm", Ref: string(p.AlgorithmRef)}}
 				p.AlgorithmRef = ""
 			}
+			// A key's SPKI SHA-256 has a field in 1.7 (AUDIT-TLS-CBOM-001 A-12); 1.6 keeps the property.
+			var fp string
+			if fp, c.Properties = takeProperty(c.Properties, PropertyNamespace+":key-fingerprint-sha256"); isSHA256Hex(fp) {
+				p.Fingerprint = &cdx.Hash{Algorithm: cdx.HashAlgoSHA256, Value: fp}
+			}
 		}
 	}
 	return c
@@ -207,6 +212,27 @@ func isSHA256Hex(s string) bool {
 		}
 	}
 	return true
+}
+
+// takeProperty removes the first property called name and returns its value and the rest (nil when
+// none is left). The input slice is not changed.
+func takeProperty(props *[]cdx.Property, name string) (string, *[]cdx.Property) {
+	if props == nil {
+		return "", nil
+	}
+	var value string
+	rest := make([]cdx.Property, 0, len(*props))
+	for _, x := range *props {
+		if x.Name == name && value == "" {
+			value = x.Value
+			continue
+		}
+		rest = append(rest, x)
+	}
+	if len(rest) == 0 {
+		return value, nil
+	}
+	return value, &rest
 }
 
 // takeSerial moves the cert-serial property into the 1.7 serialNumber field and returns the

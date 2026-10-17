@@ -5,6 +5,7 @@ package tlscbom
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/collector"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/registry"
 )
 
 // FromTLSReport turns an active TLS scan's observations into CBOM assets: one
@@ -85,11 +87,39 @@ func FromTLSReport(rep *tlsprobe.Report) []collector.CryptoAsset {
 		return ref, true
 	}
 
+	// How each component was learned (AUDIT-TLS-CBOM-001 A-5). One component can be reached more
+	// than one way (X25519 is an accepted group; ECDH is derived from an accepted suite's name).
+	states := map[string]map[string]bool{}
+	record := func(ref, state string) {
+		if states[ref] == nil {
+			states[ref] = map[string]bool{}
+		}
+		states[ref][state] = true
+	}
+	as := func(state string, r resolver) resolver {
+		return func(id string) (string, bool) {
+			ref, ok := r(id)
+			if ok {
+				record(ref, state)
+			}
+			return ref, ok
+		}
+	}
+	hybridAccepted := func(g tlsprobe.GroupResult) (string, bool) {
+		ref, ok := emitHybrid(g)
+		if ok {
+			record(ref, EvidenceAccepted)
+		}
+		return ref, ok
+	}
+
 	for _, p := range rep.Protocols {
 		if !p.Supported {
 			continue
 		}
-		assets = append(assets, protocolAsset(rep, p.Version, emit, emitHybrid))
+		pa := protocolAsset(rep, p.Version, as(EvidenceDerived, emit), as(EvidenceAccepted, emit), hybridAccepted)
+		record(pa.Component.BOMRef, EvidenceObserved)
+		assets = append(assets, pa)
 		index[assets[len(assets)-1].Component.BOMRef] = len(assets) - 1
 	}
 	// emitAsset adds a component this scan derived itself (a key-size variant such
@@ -102,19 +132,53 @@ func FromTLSReport(rep *tlsprobe.Report) []collector.CryptoAsset {
 			index[ref] = len(assets)
 			assets = append(assets, a)
 		}
+		record(ref, EvidenceObserved)
 		return ref
 	}
-	for _, c := range certificateAssets(rep, emit, emitAsset) {
+	for _, c := range certificateAssets(rep, as(EvidenceObserved, emit), emitAsset) {
+		record(c.Component.BOMRef, EvidenceObserved)
 		assets = append(assets, c)
 		index[c.Component.BOMRef] = len(assets) - 1
 	}
-	signatureAlgorithms(rep, emit, emitted)
+	signatureAlgorithms(rep, as(EvidenceAccepted, emit), emitted)
 
-	markNegotiated(rep, emitted)
+	for _, ref := range markNegotiated(rep, emitted) {
+		record(ref, EvidenceNegotiated)
+	}
+	for i := range assets {
+		if st := states[assets[i].Component.BOMRef]; len(st) > 0 {
+			var list []string
+			for _, s := range []string{EvidenceObserved, EvidenceAccepted, EvidenceDerived, EvidenceNegotiated} {
+				if st[s] {
+					list = append(list, s)
+				}
+			}
+			addProperty(&assets[i].Component, "evidence", strings.Join(list, ", "))
+		}
+	}
 
 	sort.SliceStable(assets, func(i, j int) bool { return assets[i].Component.BOMRef < assets[j].Component.BOMRef })
 	return assets
 }
+
+// The evidence states (AUDIT-TLS-CBOM-001 A-5), written as cipherhorizon:evidence on every
+// component. They say how a fact was learned, and they are never a probability:
+//
+//   - observed: seen directly: a ServerHello for a protocol version, a certificate and what it
+//     states (its key, its signature algorithm), decoded from the bytes the server sent;
+//   - accepted: a probe offering only that one thing was answered (a key-exchange group named by a
+//     HelloRetryRequest, a TLS 1.3 signature scheme answered with a ServerHello);
+//   - derived: implied by an accepted thing through a fixed, cited mapping: the bulk cipher, key
+//     exchange and authentication an accepted suite's IANA registry entry names;
+//   - negotiated: used by the one handshake a current client completed (see markNegotiated).
+//
+// What was not tested, or proved nothing, is stated per stage in the document's metadata (Coverage).
+const (
+	EvidenceObserved   = "observed"
+	EvidenceAccepted   = "accepted"
+	EvidenceDerived    = "derived"
+	EvidenceNegotiated = "negotiated"
+)
 
 // observedEvidence is feature 1: every fact this builder emits was directly
 // observed on the wire (a ServerHello, a HelloRetryRequest, a certificate) —
@@ -152,7 +216,8 @@ func observedEvidence(method string) *cdx.Evidence {
 // which do not always match: a catalogue-backed group's component is named
 // after the catalogue ID ("ML-KEM-768"), not the raw registry group name
 // ("MLKEM768") the negotiated result carries.
-func markNegotiated(rep *tlsprobe.Report, emitted func(string) (*collector.CryptoAsset, bool)) {
+// It returns the bom-refs it marked (the protocol among them), for the evidence states.
+func markNegotiated(rep *tlsprobe.Report, emitted func(string) (*collector.CryptoAsset, bool)) (marked []string) {
 	n := rep.Negotiated
 	if n == nil || n.Error != "" {
 		return
@@ -161,6 +226,7 @@ func markNegotiated(rep *tlsprobe.Report, emitted func(string) (*collector.Crypt
 	if !ok {
 		return
 	}
+	marked = append(marked, proto.Component.BOMRef)
 	addProperty(&proto.Component, "negotiated-suite", n.Suite)
 	if n.Group != "" {
 		addProperty(&proto.Component, "negotiated-group", n.Group)
@@ -182,7 +248,9 @@ func markNegotiated(rep *tlsprobe.Report, emitted func(string) (*collector.Crypt
 				continue
 			}
 			if a, found := algo.Lookup(id); found {
-				markNegotiatedOnce(emitted, a.BOMRef())
+				if markNegotiatedOnce(emitted, a.BOMRef(), n.Version) {
+					marked = append(marked, a.BOMRef())
+				}
 			}
 		}
 		break
@@ -209,9 +277,12 @@ func markNegotiated(rep *tlsprobe.Report, emitted func(string) (*collector.Crypt
 		default:
 			return // no component exists for this group (e.g. an uncatalogued classical curve)
 		}
-		markNegotiatedOnce(emitted, ref)
+		if markNegotiatedOnce(emitted, ref, n.Version) {
+			marked = append(marked, ref)
+		}
 		return
 	}
+	return
 }
 
 // sigCatalogueID maps the key a TLS 1.3 signature scheme needs to its catalogue algorithm. A key
@@ -239,9 +310,11 @@ func signatureAlgorithms(rep *tlsprobe.Report, emit resolver, emitted func(strin
 		return
 	}
 	names := make([]string, 0, len(acc))
+	coded := make([]string, 0, len(acc))
 	var refs []string
 	for _, s := range acc {
 		names = append(names, s.Name)
+		coded = append(coded, ianaName(s.Name, s.ID))
 		id, ok := sigCatalogueID(s.Algorithm)
 		if !ok {
 			continue
@@ -253,6 +326,9 @@ func signatureAlgorithms(rep *tlsprobe.Report, emit resolver, emitted func(strin
 	// Looked up only now: emit may have grown the slice the component lives in.
 	proto, _ := emitted(protocolBOMRef("TLSv1.3"))
 	addProperty(&proto.Component, "accepted-signature-schemes", strings.Join(names, ","))
+	// The same schemes with their IANA code points (AUDIT-TLS-CBOM-001 A-13). These are what the
+	// server can sign a TLS 1.3 handshake with, not its certificates' signature algorithms.
+	addProperty(&proto.Component, "accepted-signature-schemes-iana", strings.Join(coded, ", "))
 	have := map[string]bool{}
 	for _, d := range proto.DependsOn {
 		have[d] = true
@@ -269,19 +345,25 @@ func signatureAlgorithms(rep *tlsprobe.Report, emit resolver, emitted func(strin
 // markNegotiatedOnce flags the component with ref as used by the negotiated
 // handshake, once, however many parts of the negotiated suite it plays (RSA is
 // both key exchange and authentication in a static-RSA suite).
-func markNegotiatedOnce(emitted func(string) (*collector.CryptoAsset, bool), ref string) {
+//
+// negotiated-in names the version of that handshake (AUDIT-TLS-CBOM-001 A-14): one algorithm
+// component (AES-128-GCM) serves suites of several versions, and the flag alone does not say which
+// one was used. It reports whether the component exists.
+func markNegotiatedOnce(emitted func(string) (*collector.CryptoAsset, bool), ref, version string) bool {
 	a, found := emitted(ref)
 	if !found {
-		return
+		return false
 	}
 	if a.Component.Properties != nil {
 		for _, p := range *a.Component.Properties {
 			if p.Name == cbom.PropertyNamespace+":negotiated" {
-				return
+				return true
 			}
 		}
 	}
 	addProperty(&a.Component, "negotiated", "true")
+	addProperty(&a.Component, "negotiated-in", version)
+	return true
 }
 
 // addProperty appends one namespaced custom property to c, preserving any it
@@ -319,7 +401,9 @@ type resolver func(id string) (ref string, ok bool)
 // hybridResolver is resolver's counterpart for hybrid groups.
 type hybridResolver func(g tlsprobe.GroupResult) (ref string, ok bool)
 
-func protocolAsset(rep *tlsprobe.Report, version string, emit resolver, emitHybrid hybridResolver) collector.CryptoAsset {
+// emitSuite resolves what a suite's IANA name implies (derived); emitGroup resolves an accepted
+// group (accepted). They are the same catalogue lookup, kept apart for the evidence states.
+func protocolAsset(rep *tlsprobe.Report, version string, emitSuite, emitGroup resolver, emitHybrid hybridResolver) collector.CryptoAsset {
 	var suites []cdx.CipherSuite
 	var deps []string
 	seen := map[string]bool{}
@@ -339,7 +423,7 @@ func protocolAsset(rep *tlsprobe.Report, version string, emit resolver, emitHybr
 			if !ok {
 				return
 			}
-			ref, found := emit(id)
+			ref, found := emitSuite(id)
 			if !found {
 				return
 			}
@@ -356,6 +440,7 @@ func protocolAsset(rep *tlsprobe.Report, version string, emit resolver, emitHybr
 		add(cipherCatalogueID(s))
 		add(kxCatalogueID(s.Kx))
 		add(authCatalogueID(s.Auth))
+		add(macCatalogueID(s))
 		suites = append(suites, cdx.CipherSuite{
 			Name:        s.Name,
 			Identifiers: ptrOrNil([]string{hexID(s.ID)}),
@@ -363,12 +448,17 @@ func protocolAsset(rep *tlsprobe.Report, version string, emit resolver, emitHybr
 		})
 	}
 
+	// Every accepted group is listed with its IANA code point, whether or not the catalogue has an
+	// algorithm for it, so a group the program cannot model (brainpool, a binary curve, GOST) is
+	// still in the document (AUDIT-TLS-CBOM-001 A-4).
+	var groupIDs []string
 	for _, g := range rep.Groups {
 		if g.Version != version {
 			continue
 		}
+		groupIDs = append(groupIDs, ianaName(g.Name, g.ID))
 		if id, ok := groupCatalogueID(g); ok {
-			dep(emit(id))
+			dep(emitGroup(id))
 		} else if g.PQ && g.Hybrid {
 			dep(emitHybrid(g))
 		}
@@ -391,8 +481,14 @@ func protocolAsset(rep *tlsprobe.Report, version string, emit resolver, emitHybr
 	if len(suites) > 0 {
 		c.Component.CryptoProperties.ProtocolProperties.CipherSuites = &suites
 	}
+	if len(groupIDs) > 0 {
+		addProperty(&c.Component, "accepted-groups", strings.Join(groupIDs, ", "))
+	}
 	return c
 }
+
+// ianaName is a registry name with its code point, as IANA lists it: "x25519 (0x001D)".
+func ianaName(name string, id uint16) string { return name + " (" + hexID(id) + ")" }
 
 func hexID(id uint16) string {
 	const hexDigits = "0123456789ABCDEF"
@@ -420,6 +516,33 @@ func cipherCatalogueID(s tlsprobe.SuiteResult) (string, bool) {
 		// A whole-family entry: the catalogue has no key-size variants for these, and
 		// an export (40-bit) RC4 or DES is still RC4 or DES.
 		return s.Cipher, true
+	}
+	return "", false
+}
+
+// macCatalogueID names what protects the records of a suite besides its cipher (AUDIT-TLS-CBOM-001
+// A-11), as the IANA registry entry for the suite states it: the HMAC of a TLS 1.2 CBC or stream
+// suite (..._SHA, _SHA256, _SHA384, _MD5), or, for an AEAD suite, the hash its name carries (the
+// TLS 1.2 PRF hash, or the TLS 1.3 HKDF hash). Derived from the registry, like the cipher.
+func macCatalogueID(s tlsprobe.SuiteResult) (string, bool) {
+	switch s.MAC {
+	case "SHA1":
+		return "HMAC-SHA-1", true
+	case "SHA256":
+		return "HMAC-SHA-256", true
+	case "SHA384":
+		return "HMAC-SHA-384", true
+	case "MD5":
+		return "HMAC-MD5", true
+	case "AEAD":
+		if r, ok := registry.SuiteByID(s.ID); ok {
+			switch r.Hash {
+			case "SHA256":
+				return "SHA-256", true
+			case "SHA384":
+				return "SHA-384", true
+			}
+		}
 	}
 	return "", false
 }
@@ -557,7 +680,36 @@ func chainRole(pos int, ci tlsprobe.CertInfo) string {
 // server presented, plus, for each, the public key it certifies as its own
 // related-crypto-material component (see cbom.CertificateAsset, which the host
 // inventory shares). emit resolves a catalogue algorithm; emitAsset adds a derived one.
+//
+// Each certificate says which handshakes returned it (AUDIT-TLS-CBOM-001 A-9) and, within a chain
+// as served, which certificate after it issued it (A-10). A chain is never rebuilt from a trust
+// store here: an issued-by link exists only when the server sent the issuer next.
 func certificateAssets(rep *tlsprobe.Report, emit resolver, emitAsset func(collector.CryptoAsset) string) []collector.CryptoAsset {
+	sources := map[string][]string{}
+	noSNIOnly := map[string]bool{}
+	issuedBy := map[string]string{}
+	for _, cr := range rep.Certificates {
+		for pos, ci := range cr.Chain {
+			if ci.SHA256 == "" {
+				continue
+			}
+			src := cr.Source
+			if cr.NoSNI {
+				src += " (no SNI)"
+			}
+			if !slices.Contains(sources[ci.SHA256], src) {
+				sources[ci.SHA256] = append(sources[ci.SHA256], src)
+			}
+			if _, seen := noSNIOnly[ci.SHA256]; !seen {
+				noSNIOnly[ci.SHA256] = cr.NoSNI
+			} else if !cr.NoSNI {
+				noSNIOnly[ci.SHA256] = false
+			}
+			if pos+1 < len(cr.Chain) && cr.Chain[pos+1].SHA256 != "" && ci.Issuer != "" && ci.Issuer == cr.Chain[pos+1].Subject && issuedBy[ci.SHA256] == "" {
+				issuedBy[ci.SHA256] = "crypto/certificate/" + strings.ToLower(cr.Chain[pos+1].SHA256)
+			}
+		}
+	}
 	seen := map[string]bool{}
 	var out []collector.CryptoAsset
 	for _, cr := range rep.Certificates {
@@ -567,6 +719,14 @@ func certificateAssets(rep *tlsprobe.Report, emit resolver, emitAsset func(colle
 			}
 			seen[ci.SHA256] = true
 			cert, key := certificateAsset(ci, chainRole(pos, ci), emit, emitAsset)
+			addProperty(&cert.Component, "seen-in", strings.Join(sources[ci.SHA256], ", "))
+			if noSNIOnly[ci.SHA256] {
+				// Only a client that sends no server name gets this certificate.
+				addProperty(&cert.Component, "no-sni", "true")
+			}
+			if by := issuedBy[ci.SHA256]; by != "" {
+				addProperty(&cert.Component, "issued-by", by)
+			}
 			out = append(out, cert)
 			if key != nil {
 				out = append(out, *key)
@@ -584,6 +744,7 @@ func certificateAsset(ci tlsprobe.CertInfo, role string, emit resolver, emitAsse
 		Subject: ci.Subject, Issuer: ci.Issuer, SerialHex: ci.SerialHex, SHA256: ci.SHA256,
 		NotBefore: ci.NotBefore, NotAfter: ci.NotAfter,
 		KeyAlgorithm: ci.PublicKey.Algorithm, KeyBits: ci.PublicKey.Bits, Curve: ci.PublicKey.Curve, SigName: ci.SignatureAlg.Name,
+		SigOID: ci.SignatureAlg.OID, KeyOID: ci.PublicKey.OID,
 		Extensions: certExtensions(ci),
 	}, emit, emitAsset)
 	ev := observedEvidence("certificate chain presented during the TLS handshake")
@@ -592,9 +753,22 @@ func certificateAsset(ci tlsprobe.CertInfo, role string, emit resolver, emitAsse
 	if ci.SerialHex != "" {
 		props = append(props, cbom.Property("cert-serial", ci.SerialHex))
 	}
+	if ci.SignatureParams != "" {
+		// RSASSA-PSS hash, mask generation, salt and trailer (RFC 8017 A.2.3): CycloneDX has no
+		// field for a signature's parameters (AUDIT-TLS-CBOM-001 A-3).
+		props = append(props, cbom.Property("signature-parameters", ci.SignatureParams))
+	}
 	cert.Component.Properties = &props
 	if key != nil {
 		key.Component.Evidence = ev
+		// The key's own identity and the RSA exponent (A-12). In 1.7 the fingerprint moves into
+		// relatedCryptoMaterialProperties.fingerprint; 1.6 has no such field.
+		if ci.SPKISHA256 != "" {
+			addProperty(&key.Component, "key-fingerprint-sha256", ci.SPKISHA256)
+		}
+		if ci.RSAExponent > 0 {
+			addProperty(&key.Component, "rsa-exponent", strconv.Itoa(ci.RSAExponent))
+		}
 	}
 	return cert, key
 }
@@ -608,7 +782,10 @@ func ptrOrNil[T any](s []T) *[]T {
 }
 
 // certExtensions names the extensions a tls-report/2 recorded, by the CycloneDX 1.7 common
-// names (PRD-004 REQ-TNFR-7). A tls-report/1 certificate yields none: nothing is invented.
+// names (PRD-004 REQ-TNFR-7), and lists every other extension by its OID as a 1.7 custom
+// extension, decoded where this program decodes it and marked "not decoded" where it does not
+// (AUDIT-TLS-CBOM-001 A-7, A-8). A tls-report/1 certificate yields what it recorded: nothing is
+// invented.
 func certExtensions(ci tlsprobe.CertInfo) []cbom.CertExtension {
 	var out []cbom.CertExtension
 	if bc := ci.BasicConstraints; bc != nil {
@@ -630,5 +807,144 @@ func certExtensions(ci tlsprobe.CertInfo) []cbom.CertExtension {
 	if len(ci.Policies) > 0 {
 		out = append(out, cbom.CertExtension{Name: "certificatePolicies", Value: strings.Join(ci.Policies, ", ")})
 	}
+	var san []string
+	for _, d := range ci.DNSNames {
+		san = append(san, "DNS:"+d)
+	}
+	for _, ip := range ci.IPAddresses {
+		san = append(san, "IP:"+ip)
+	}
+	if len(san) > 0 {
+		out = append(out, cbom.CertExtension{Name: "subjectAlternativeName", Value: strings.Join(san, ", ")})
+	}
+	var aia []string
+	for _, u := range ci.OCSPServers {
+		aia = append(aia, "OCSP - URI:"+u)
+	}
+	for _, u := range ci.IssuerURLs {
+		aia = append(aia, "CA Issuers - URI:"+u)
+	}
+	if len(aia) > 0 {
+		out = append(out, cbom.CertExtension{Name: "authorityInformationAccess", Value: strings.Join(aia, ", ")})
+	}
+	if len(ci.CRLPoints) > 0 {
+		out = append(out, cbom.CertExtension{Name: "crlDistributionPoints", Value: "URI:" + strings.Join(ci.CRLPoints, ", URI:")})
+	}
+	if ci.AuthorityKeyID != "" {
+		out = append(out, cbom.CertExtension{Name: "authorityKeyIdentifier", Value: ci.AuthorityKeyID})
+	}
+	if ci.SubjectKeyID != "" {
+		out = append(out, cbom.CertExtension{Name: "subjectKeyIdentifier", Value: ci.SubjectKeyID})
+	}
+	if ci.EmbeddedSCTs {
+		out = append(out, cbom.CertExtension{Name: "signedCertificateTimestamp", Value: "present (not decoded into the CBOM)"})
+	}
+	// Every extension 1.7 has no common name for: name constraints and the TLS Feature are decoded;
+	// anything else is listed by OID as not decoded.
+	for _, e := range ci.Extensions {
+		if commonExtensionNames[e.Name] {
+			continue
+		}
+		v := "not decoded"
+		switch e.Name {
+		case "nameConstraints":
+			v = nameConstraintsWords(ci.NameConstraints)
+		case "tlsFeature":
+			v = "present"
+			if ci.OCSPMustStaple {
+				v = "status_request (OCSP must-staple)"
+			}
+		}
+		if e.Critical {
+			v += "; critical"
+		}
+		name := e.OID
+		if e.Name != "" {
+			name = e.Name + " (" + e.OID + ")"
+		}
+		out = append(out, cbom.CertExtension{Name: name, Value: v, Custom: true})
+	}
 	return out
+}
+
+// commonExtensionNames are the extensions written under their 1.7 common name above.
+var commonExtensionNames = map[string]bool{
+	"basicConstraints": true, "keyUsage": true, "extendedKeyUsage": true, "certificatePolicies": true,
+	"subjectAlternativeName": true, "authorityInformationAccess": true, "crlDistributionPoints": true,
+	"authorityKeyIdentifier": true, "subjectKeyIdentifier": true, "signedCertificateTimestamp": true,
+}
+
+func nameConstraintsWords(nc *tlsprobe.NameConstraints) string {
+	if nc == nil {
+		return "present"
+	}
+	var parts []string
+	if len(nc.Permitted) > 0 {
+		parts = append(parts, "permitted: "+strings.Join(nc.Permitted, ", "))
+	}
+	if len(nc.Excluded) > 0 {
+		parts = append(parts, "excluded: "+strings.Join(nc.Excluded, ", "))
+	}
+	if len(parts) == 0 {
+		return "present, no names"
+	}
+	return strings.Join(parts, "; ")
+}
+
+// Coverage states, in the document's metadata, what the scan covered (AUDIT-TLS-CBOM-001 A-6): one
+// property per stage (done; done with inconclusive parts; not tested and why; inconclusive), whether
+// the scan was complete, and the registry the derived facts were mapped with. Without it an absent
+// component cannot be told apart from an untested one.
+func Coverage(rep *tlsprobe.Report) []cdx.Property {
+	if rep == nil {
+		return nil
+	}
+	props := []cdx.Property{cbom.Property("scan-complete", strconv.FormatBool(!rep.Incomplete))}
+	for _, st := range rep.Stages {
+		var v string
+		switch st.Outcome {
+		case tlsprobe.OutcomeDone:
+			v = "done"
+			if len(st.Inconclusive) > 0 {
+				v += "; inconclusive: " + strings.Join(st.Inconclusive, "; ")
+			}
+		case tlsprobe.OutcomeSkipped:
+			// Why it did not run decides what its absence means: a test switched off, one that
+			// does not apply to this service, one an earlier failure prevented, or one the budget cut.
+			v = map[string]string{
+				tlsprobe.ReasonOptionOff:     "not tested",
+				tlsprobe.ReasonNotApplicable: "not applicable",
+				tlsprobe.ReasonNotReached:    "not reached",
+				tlsprobe.ReasonBudget:        "not tested (budget)",
+				tlsprobe.ReasonLegacy:        "not recorded (older report)",
+			}[st.ReasonCode]
+			if v == "" {
+				v = "not tested"
+			}
+			if st.Reason != "" {
+				v += ": " + st.Reason
+			}
+		case tlsprobe.OutcomeInconclusive:
+			v = "inconclusive"
+			if why := firstNonEmpty(st.Reason, st.ReasonCode); why != "" {
+				v += ": " + why
+			}
+		default:
+			continue
+		}
+		props = append(props, cbom.Property("coverage:"+st.Name, v))
+	}
+	props = append(props, cbom.Property("mapping",
+		"IANA TLS cipher suites retrieved "+registry.SuitesRetrieved+", supported groups retrieved "+registry.GroupsRetrieved+
+			"; algorithm catalogue with cited OIDs (docs/cbom-model.md)"))
+	return props
+}
+
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
 }
