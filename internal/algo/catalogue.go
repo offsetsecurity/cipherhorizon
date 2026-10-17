@@ -138,6 +138,8 @@ var catalogue = []Algorithm{
 	// (hmacWithSHA1 1.2.840.113549.2.7, hmacWithSHA256 .2.9, hmacWithSHA512 .2.11).
 	{ID: "HMAC-SHA-1", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveMAC, OID: "1.2.840.113549.2.7"},
 	{ID: "HMAC-SHA-256", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveMAC, OID: "1.2.840.113549.2.9"},
+	// hmacWithSHA384, RFC 8018 appendix B.1.2: the MAC of TLS 1.2 ..._SHA384 CBC suites (AUDIT-TLS-CBOM-001 A-11).
+	{ID: "HMAC-SHA-384", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveMAC, OID: "1.2.840.113549.2.10"},
 	{ID: "HMAC-SHA-512", NoPQCVerdict: noCitedCategory, Primitive: cdx.CryptoPrimitiveMAC, OID: "1.2.840.113549.2.11"},
 	{ID: "HMAC-MD5", NoPQCVerdict: legacyNoVerdict, Primitive: cdx.CryptoPrimitiveMAC, Legacy: &Legacy{
 		Summary:  "has updated security considerations because of weaknesses in MD5",

@@ -80,6 +80,17 @@ stretched:
 | `cert-serial` | certificate | serial number, in 1.6 documents only (1.6 has no field for it; 1.7 writes `serialNumber`) |
 | `iana-obsolete` | algorithm | a group IANA marks obsolete, e.g. the pre-standard `X25519Kyber768Draft00` |
 | `tls-graph` | document | what the graph's edges mean (above) |
+| `evidence` | every component | how it was learned: `observed` (a ServerHello; a certificate and what it states), `accepted` (a probe offering only that group or signature scheme was answered), `derived` (implied by an accepted suite's IANA registry entry: its cipher, key exchange, authentication, MAC or hash), `negotiated` (used by the one handshake a current client completed). Several can apply. Never a probability (AUDIT-TLS-CBOM-001 A-5) |
+| `negotiated-in` | algorithm | the version of the handshake that used it (`TLSv1.3`); `negotiated` stays `true` |
+| `scan-complete`, `coverage:<stage>` | document | what the scan covered, per stage: `done`, `done; inconclusive: …`, `not tested: …` (switched off), `not applicable: …`, `not reached: …` (an earlier step failed), `not tested (budget)`, `inconclusive: …`. An absent component means "not accepted" only where its stage is `done` (A-6) |
+| `mapping` | document | the IANA registries (with retrieval dates) and the catalogue the derived facts were mapped with |
+| `accepted-groups` | protocol | every accepted group with its IANA code point, `x25519 (0x001D)`, including groups the catalogue cannot model (brainpool, binary curves, GOST) (A-4) |
+| `accepted-signature-schemes-iana` | protocol (TLS 1.3) | the accepted signature schemes with their code points, `ecdsa_secp256r1_sha256 (0x0403)`: what the server can sign a handshake with, not its certificates' algorithms (A-13) |
+| `identifier-status` | algorithm | `unrecognised`: an algorithm the catalogue does not know, kept by the OID read from the certificate (name and `oid` are that OID), with no family or verdict guessed (A-1, A-2) |
+| `signature-parameters` | certificate | RSASSA-PSS hash, mask generation, salt length and trailer field as the certificate states them, each RFC 8017 default marked `(default)` (A-3) |
+| `seen-in`, `no-sni` | certificate | which handshakes returned it (`tls-default`, `tls1.2-ecdsa`, `tls1.2-rsa`, `… (no SNI)`), and `true` when only a client sending no server name gets it (A-9) |
+| `issued-by` | certificate | the bom-ref of the next certificate in the chain **as served** when it is this one's issuer; never a certificate the server did not send (A-10) |
+| `key-fingerprint-sha256`, `rsa-exponent` | public key | the SubjectPublicKeyInfo SHA-256 (in 1.7 it is `fingerprint` instead) and an RSA key's exponent (A-12) |
 
 Not in the CBOM by design: the readiness level (L0-L4), the TLS hygiene score and findings. Those are the
 evaluation's output, derived from the same facts and cited; a CBOM carries facts and per-algorithm verdicts only.
@@ -88,10 +99,8 @@ evaluation's output, derived from the same facts and cited; a CBOM carries facts
 
 - **Key exchange is family-level** (`ECDH`, `DH`) rather than the curve or group used in a TLS 1.2 handshake; the
   accepted groups are separate components, and the negotiated one is flagged (TLS 1.3 and hybrid groups).
-- **RSASSA-PSS parameters** (hash, MGF, salt length) are not recorded: the algorithm and its OID are.
 - **A hybrid group does not point at its parts** (ML-KEM-768 and X25519): CycloneDX has no relation for a combiner,
   and a dependency would claim the server accepts pure ML-KEM-768 (CBOM-REVIEW-002 C-7).
-- **The MAC of a TLS 1.2 suite and the HKDF hash of a TLS 1.3 suite** are named in the suite only (C-8).
 - **A curve or key type with no catalogue entry** is named in the certificate text but gets no algorithm
   component. Omit, don't guess.
 - CycloneDX 1.7 adds `ellipticCurve`, `algorithmFamily`, `tlsGroups` on cipher suites and richer relationship
@@ -122,6 +131,8 @@ A second review, of OIDs and completeness (2026-10-18, [CBOM-REVIEW-002](product
 | RSA listed twice in a static-RSA suite | **Fixed** |
 | Hybrid parts, MAC/HKDF hash, classical security level, SSLv3 certificate | Known limits, above |
 
+A third review, the remote TLS CBOM audit (2026-10-18, [AUDIT-TLS-CBOM-001](audit/AUDIT-TLS-CBOM-001-remote-tls-cbom.md)), added the evidence states, the coverage, unknown OIDs kept, every accepted group and scheme by code point, the RSASSA-PSS parameters, suite MACs and hashes, every certificate extension, the served-chain links and where each certificate was seen.
+
 ## Certificate facts in the CBOM (PRD-004 REQ-TNFR-7)
 
 `tls-report/2` records more about each certificate than before. They reach the CBOM only where CycloneDX has a field.
@@ -134,6 +145,16 @@ A second review, of OIDs and completeness (2026-10-18, [CBOM-REVIEW-002](product
 | `keyUsage` | the RFC 5280 names, comma separated |
 | `extendedKeyUsage` | `serverAuth`, `clientAuth`, ... (an unnamed usage as its OID) |
 | `certificatePolicies` | the policy OIDs |
+| `subjectAlternativeName` | `DNS:name, IP:address`, … (the DNS and IP names; other SAN types are not recorded) |
+| `authorityInformationAccess` | `OCSP - URI:…, CA Issuers - URI:…` |
+| `crlDistributionPoints` | `URI:…` |
+| `authorityKeyIdentifier`, `subjectKeyIdentifier` | the key identifier, hex |
+| `signedCertificateTimestamp` | `present (not decoded into the CBOM)` |
+
+Every **other** extension is written as a 1.7 `customExtension`, named by its OID (with the name this program
+decodes it by, when it does, as in `nameConstraints (2.5.29.30)` or `tlsFeature (1.3.6.1.5.5.7.1.24)`), valued with
+what was decoded (name constraints' permitted and excluded names; `status_request (OCSP must-staple)`) or
+`not decoded`, and `; critical` when it is. Nothing is decoded that the parser did not decode (AUDIT-TLS-CBOM-001 A-7, A-8).
 
 1.6 has no such field, so a 1.6 document omits them (`TestCertificateExtensionsOnlyIn17` validates both against the
 vendored schemas). A certificate from a `tls-report/1` scan has none of these facts, and none is invented.
@@ -142,9 +163,7 @@ vendored schemas). A certificate from a `tls-report/1` scan has none of these fa
 
 | Fact | Why |
 |---|---|
-| Name constraints | 1.7's common extension names do not include nameConstraints; a custom extension would be our own vocabulary |
 | The DV/OV/IV/EV class | derived from the policy OIDs, which are emitted |
 | Lifetime and the limit it is held to | derivable from `notValidBefore`/`notValidAfter`; the limit is a judgement |
 | Served order, chain problems, per-store trust | properties of an endpoint's configuration and of evaluation, not of the certificate |
 | Stapled OCSP response, the SCTs themselves | revocation evidence observed on a connection, not part of the certificate (embedded SCTs are part of it, but are not decoded into the CBOM) |
-| Public-key SHA-256 (SPKI) | not written yet; the certificate's SHA-256 fingerprint is the identifier used (in 1.7 also as `fingerprint`) |

@@ -26,6 +26,8 @@ type CertFacts struct {
 	KeyBits      int
 	Curve        string
 	SigName      string // as Go's x509 (or certinfo, for algorithms Go does not know) names the signature algorithm
+	SigOID       string // the certificate's signatureAlgorithm OID, as read from it
+	KeyOID       string // the SubjectPublicKeyInfo algorithm OID, as read from it
 
 	// Extensions are the certificate extensions CycloneDX 1.7 names (certificateExtensions,
 	// commonExtensionName). They are written only to 1.7 documents; 1.6 has no such field.
@@ -36,6 +38,9 @@ type CertFacts struct {
 type CertExtension struct {
 	Name  string // basicConstraints, keyUsage, extendedKeyUsage, certificatePolicies, ...
 	Value string
+	// Custom marks an extension 1.7 has no common name for: it is written as a customExtension,
+	// named by Name (which carries the OID), the schema's own place for such extensions.
+	Custom bool
 }
 
 // commonExtensions are the names the 1.7 schema allows for commonExtensionName.
@@ -66,7 +71,10 @@ func CertificateAsset(f CertFacts, emit func(id string) (string, bool), emitAsse
 	}
 	var exts []cdx.CertificateExtension
 	for _, e := range f.Extensions {
-		if commonExtensions[e.Name] && e.Value != "" {
+		switch {
+		case e.Custom && e.Name != "":
+			exts = append(exts, cdx.CertificateExtension{Custom: &cdx.CustomCertificateExtension{Name: e.Name, Value: e.Value}})
+		case commonExtensions[e.Name] && e.Value != "":
 			exts = append(exts, cdx.CertificateExtension{Common: &cdx.CommonCertificateExtension{Name: cdx.CertificateExtensionName(e.Name), Value: e.Value}})
 		}
 	}
@@ -78,7 +86,7 @@ func CertificateAsset(f CertFacts, emit func(id string) (string, bool), emitAsse
 	var deps []string
 	// A post-quantum signature (Go's x509 does not recognise it) is already an
 	// exact catalogue name by the time it reaches here: see certinfo.
-	if ref, ok := signatureAlgorithm(f.SigName, emit, emitAsset); ok {
+	if ref, ok := signatureAlgorithm(f.SigName, f.SigOID, emit, emitAsset); ok {
 		props.SignatureAlgorithmRef = cdx.BOMReference(ref)
 		deps = append(deps, ref)
 	}
@@ -152,7 +160,7 @@ var sigVariants = map[string]struct{ name, oid string }{
 // signatureAlgorithm resolves a certificate's signature algorithm to the most precise asset
 // there is: its exact variant with OID, else its catalogue family, else the catalogue entry of
 // that name (a post-quantum signature is already an exact catalogue name, see certinfo).
-func signatureAlgorithm(goName string, emit func(id string) (string, bool), emitAsset func(collector.CryptoAsset) string) (string, bool) {
+func signatureAlgorithm(goName, oid string, emit func(id string) (string, bool), emitAsset func(collector.CryptoAsset) string) (string, bool) {
 	if v, ok := sigVariants[goName]; ok {
 		return emitAsset(collector.CryptoAsset{Component: cdx.Component{
 			BOMRef: "crypto/algorithm/" + strings.ToLower(v.name) + "@" + v.oid, Type: cdx.ComponentTypeCryptographicAsset, Name: v.name,
@@ -164,7 +172,58 @@ func signatureAlgorithm(goName string, emit func(id string) (string, bool), emit
 	if !named {
 		id = goName
 	}
-	return emit(id)
+	if ref, ok := emit(id); ok {
+		return ref, true
+	}
+	// No catalogue entry and no variant: keep the identifier the certificate states rather than
+	// drop it (AUDIT-TLS-CBOM-001 A-1). No family is guessed.
+	return unrecognised(oid, cdx.CryptoPrimitiveSignature, "signature algorithm", emitAsset)
+}
+
+// UnrecognisedStatus is the cipherhorizon:identifier-status of an algorithm this program could not
+// name: it is in the document by the identifier it was read with, and nothing more is claimed.
+const UnrecognisedStatus = "unrecognised"
+
+// unrecognised emits an algorithm known only by the OID it was read with: named by the OID, with
+// that OID, the primitive its position proves (a certificate's signature field holds a signature
+// algorithm), no family, no verdict, and a property saying so. false when there is no OID either.
+func unrecognised(oid string, prim cdx.CryptoPrimitive, what string, emitAsset func(collector.CryptoAsset) string) (string, bool) {
+	if !validOID(oid) {
+		return "", false
+	}
+	props := []cdx.Property{
+		Property("identifier-status", UnrecognisedStatus),
+		Property("pqc:unclassified-reason", "This "+what+" is not in the catalogue: it is listed by the OID read from the certificate, and no family or post-quantum verdict is guessed."),
+	}
+	return emitAsset(collector.CryptoAsset{Component: cdx.Component{
+		BOMRef: "crypto/algorithm/oid-" + oid + "@" + oid, Type: cdx.ComponentTypeCryptographicAsset, Name: oid,
+		CryptoProperties: &cdx.CryptoProperties{AssetType: cdx.CryptoAssetTypeAlgorithm,
+			AlgorithmProperties: &cdx.CryptoAlgorithmProperties{Primitive: prim}, OID: oid},
+		Properties: &props,
+	}}), true
+}
+
+// validOID reports whether s is a dotted OID (two or more arcs of digits), so nothing else read
+// from a certificate can become a bom-ref or a name.
+func validOID(s string) bool {
+	if len(s) < 3 || len(s) > 128 || strings.Count(s, ".") < 1 {
+		return false
+	}
+	prevDot := true
+	for _, r := range s {
+		switch {
+		case r == '.':
+			if prevDot {
+				return false
+			}
+			prevDot = true
+		case r >= '0' && r <= '9':
+			prevDot = false
+		default:
+			return false
+		}
+	}
+	return !prevDot
 }
 
 // eccCurves maps Go's elliptic curve names to the SECG names RFC 5480 section
@@ -212,7 +271,11 @@ func keyAlgorithm(f CertFacts, emit func(id string) (string, bool), emitAsset fu
 				func(ap *cdx.CryptoAlgorithmProperties) { ap.Curve = c.secg }), true
 		}
 	}
-	return emit(ki.Algorithm)
+	if ref, ok := emit(ki.Algorithm); ok {
+		return ref, true
+	}
+	// A key type with no catalogue entry keeps its SubjectPublicKeyInfo OID (AUDIT-TLS-CBOM-001 A-2).
+	return unrecognised(f.KeyOID, cdx.CryptoPrimitiveUnknown, "public-key algorithm", emitAsset)
 }
 
 // PublicKeyAsset is a public key seen on its own, such as an SSH host key: the same

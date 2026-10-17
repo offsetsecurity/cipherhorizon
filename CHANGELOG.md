@@ -10,6 +10,41 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Changed
+
+- **The remote TLS CBOM says how it knows each fact, and keeps every identifier it read**
+  ([AUDIT-TLS-CBOM-001](docs/audit/AUDIT-TLS-CBOM-001-remote-tls-cbom.md)). All of it is additive: new components,
+  `cipherhorizon:*` properties, and CycloneDX 1.7 fields the schema defines. See docs/cbom-model.md.
+  - **Evidence states.** Every component has `cipherhorizon:evidence`:
+    - `observed`: a ServerHello, or a certificate and what it states;
+    - `accepted`: a group or signature scheme a single-item probe was answered for;
+    - `derived`: what an accepted suite's IANA entry names;
+    - `negotiated`: used by the one handshake a current client completed.
+
+    A negotiated component also says which version (`negotiated-in`).
+  - **Coverage.** The document's metadata states, per scan stage, whether it was done, not tested, not applicable,
+    not reached, cut by the budget or inconclusive, and whether the scan was complete. An absent component can now
+    be told apart from an untested one.
+  - **No identifier is dropped.**
+    - A certificate signature or key algorithm the catalogue does not know is kept by the OID read from the
+      certificate (`identifier-status = unrecognised`), with no family guessed.
+    - Every accepted group is listed with its IANA code point, including brainpool, binary and GOST curves.
+    - The TLS 1.3 signature schemes are also listed with their code points.
+  - **RSASSA-PSS parameters** are decoded per certificate: hash, mask generation, salt length and trailer field, with
+    RFC 8017 defaults marked.
+  - **Suites reference their MAC or hash:** HMAC-SHA-1, HMAC-SHA-256, the new HMAC-SHA-384 (1.2.840.113549.2.10),
+    HMAC-MD5, or the SHA-256/SHA-384 of an AEAD suite's PRF or HKDF.
+  - **Certificates carry every extension.**
+    - The 1.7 common names: subjectAlternativeName, authorityInformationAccess, crlDistributionPoints,
+      authorityKeyIdentifier, subjectKeyIdentifier, signedCertificateTimestamp.
+    - Every other extension as a 1.7 custom extension named by its OID: name constraints and the TLS Feature
+      decoded, unknown ones marked `not decoded`, critical flagged.
+  - **The served chain is linked:** `issued-by`, only to a certificate the server sent. Each certificate says which
+    handshakes returned it (`seen-in`, `no-sni`).
+  - **Public keys** carry their SPKI SHA-256 (the 1.7 `fingerprint`) and RSA exponent.
+- `tls-report/2` gains optional certificate fields: `signatureParams`, `authorityKeyId`, `subjectKeyId` and
+  `extensions`. Older reports read as before.
+
 ## [0.2.0] - 2026-10-17
 
 ### Added

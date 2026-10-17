@@ -11,10 +11,13 @@ import (
 	"strconv"
 	"strings"
 
+	cdx "github.com/CycloneDX/cyclonedx-go"
+
 	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
@@ -541,9 +544,14 @@ func (s *Server) scanCBOM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	assets, endpoint := endpointAssets(dec)
+	var coverage []cdx.Property
+	if dec.tls != nil {
+		coverage = tlscbom.Coverage(dec.tls) // what the scan covered (AUDIT-TLS-CBOM-001 A-6)
+	}
 	bom, _ := cbom.Build(assets, cbom.Options{
-		Tool:     cbom.Tool{Name: "cipherhorizon", Version: s.cfg.Version},
-		Endpoint: endpoint,
+		Tool:               cbom.Tool{Name: "cipherhorizon", Version: s.cfg.Version},
+		Endpoint:           endpoint,
+		MetadataProperties: coverage,
 	})
 	pqcRep := pqc.Analyze(bom)
 	pqc.Annotate(bom, pqcRep)

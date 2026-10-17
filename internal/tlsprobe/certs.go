@@ -281,6 +281,10 @@ func DescribeCertificate(c *x509.Certificate) CertInfo {
 		DER: base64.StdEncoding.EncodeToString(c.Raw), SPKISHA256: f.SPKISHA256, KeyUsage: f.KeyUsage,
 		ExtKeyUsage: f.ExtKeyUsage, Policies: f.Policies, PolicyClass: f.PolicyClass, CNOnly: f.CNOnly,
 		Wildcards: f.Wildcards, LifetimeDays: f.LifetimeDays, RSAExponent: f.RSAExponent,
+		SignatureParams: f.SigParams, AuthorityKeyID: f.AuthorityKey, SubjectKeyID: f.SubjectKey,
+	}
+	for _, e := range f.Extensions {
+		ci.Extensions = append(ci.Extensions, CertExtension{OID: e.OID, Critical: e.Critical, Name: e.Name})
 	}
 	if bc := f.BasicConstraints; bc != nil {
 		ci.BasicConstraints = &BasicConstraints{CA: bc.CA, MaxPathLen: bc.MaxPathLen}
