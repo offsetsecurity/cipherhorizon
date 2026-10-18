@@ -119,3 +119,90 @@ Acceptable, Weak, Insecure. But:
 The PRD template gets one line: "Every algorithm the feature lists states its classical strength and its
 post-quantum status." The QA plan template gets the matching check. The screen walk (UX-REVIEW) checks it on
 every screen that lists an algorithm.
+
+## 5. How the strength is calculated: NIST's method, reproduced
+
+Every number below is computed by `internal/algo/strength.go`. The tests in `strength_test.go` fail unless the
+results equal NIST's own published tables, to the precision NIST prints them. The source text was read in the
+documents themselves.
+
+### 5.1 RSA and finite-field DH: the General Number Field Sieve
+
+The best known classical attack on RSA (factoring the modulus N) and on finite-field DH (discrete logarithms modulo
+the prime p) is the General Number Field Sieve. Its heuristic running time is
+
+  L_N[⅓, (64/9)^⅓] = exp( (64/9)^⅓ · (ln N)^⅓ · (ln ln N)^⅔ ),  with (64/9)^⅓ ≈ 1.923.
+
+NIST turns it into bits of security for an L-bit modulus. This is the FIPS 140-3 Implementation Guidance §D.B
+(formerly FIPS 140-2 IG 7.5), as written in **SP 800-56B Rev. 2, Appendix D**:
+
+  **E(L) = ( 1.923 · ∛(L·ln 2) · ∛( (ln(L·ln 2))² ) − 4.69 ) / ln 2**
+
+- ln N = L·ln 2, because an L-bit number is about 2^L.
+- Dividing by ln 2 converts natural-log work into bits.
+- The constant **4.69** calibrates the curve so that **L = 1024 gives exactly 80.00 bits**, the strength SP 800-57
+  assigns to 1024-bit RSA. It absorbs the o(1) term of the asymptotic formula.
+
+**Rounding.** *"The value of E will be rounded to the nearest integer multiple of eight"* (SP 800-56B Rev. 2,
+Appendix D). We also hold the result to 256, the highest strength SP 800-57 assigns.
+
+| Modulus or prime (bits) | E(L) | Strength | NIST's published value |
+|---|---|---|---|
+| 1024 | 80.00 | 80 | 80 (SP 800-57 Pt 1 Table 2) |
+| 1536 | 96.60 | 96 | (not tabulated; MODP group 5) |
+| 2048 | 110.12 | **112** | 110.1 → 112 (SP 800-56B Table 4); ffdhe2048 = 112 (SP 800-56A Table 26) |
+| 3072 | 131.97 | **128** | 131.97 → 128 (both) |
+| 4096 | 149.73 | **152** | 149.73 → 152 (both) |
+| 6144 | 178.42 | **176** | 178.42 → 176 (both) |
+| 8192 | 201.71 | **200** | 201.7 → 200 (both) |
+| 15360 | 262.62 | **256** (held) | 256 (SP 800-57 Pt 1 Table 2) |
+
+**SP 800-57 Table 2 lists 7680 bits as 192, while the formula gives 196.25, rounded to 200.** Both are right
+about different questions. Table 2 gives the *smallest key that reaches* each strength category (80, 112, 128,
+192, 256). The 56B method *estimates the strength of a given key*. A scanner holds a given key, so it reports the
+estimate; a 7680-bit key comfortably meets the 192 category. For the thresholds that matter in practice (112 and
+128), the two methods never disagree.
+
+### 5.2 Elliptic curves: half the order
+
+The best known classical attack on the elliptic-curve discrete logarithm problem is Pollard's rho, about
+√(πn/4) ≈ 2^(f/2) operations for a base point of order n with f bits. **SP 800-186 §3**: *"if an elliptic curve has a
+basepoint of order n, then the security strength will be approximately one half of the bit length of n"*. We take
+f/2, rounded to a multiple of eight, held to 256.
+
+| Curve (as TLS or SSH names it) | Order f (bits) | f/2 | Strength | SP 800-186 Table 1 |
+|---|---|---|---|---|
+| secp224r1 (P-224) | 224 | 112 | 112 | 112 |
+| secp256r1 (P-256) | 256 | 128 | 128 | 128 |
+| x25519, Ed25519 (Curve25519) | 253 | 126.5 | 128 | 128 |
+| secp384r1 (P-384) | 384 | 192 | 192 | 192 |
+| x448, Ed448 (Curve448) | 446 | 223 | 224 | 224 |
+| secp521r1 (P-521) | 521 | 260.5 | 256 (held) | 256 |
+
+### 5.3 Symmetric ciphers, hashes, MACs: SP 800-57 Part 1 Tables 2 and 3
+
+| Algorithm | Strength | Why |
+|---|---|---|
+| AES-128 / 192 / 256 | 128 / 192 / 256 | Exhaustive key search (Table 2) |
+| 3DES (3TDEA, 168-bit key) | 112 | Meet-in-the-middle halves the work of the three-key cascade (Table 2). Deprecated through 2023 and disallowed after (SP 800-131A Rev. 2); 64-bit block, so Sweet32 also applies |
+| 2TDEA | 80 | Table 2 |
+| DES | 56: **broken** | 56-bit key, exhaustive search is practical |
+| RC4 | **broken** | RFC 7465, whatever its key length |
+| ChaCha20 | 256 | Key length (RFC 8439). NIST does not list it, so this is stated as key length, not a NIST strength |
+| SHA-256 / 384 / 512 (signatures, collision resistance) | 128 / 192 / 256 | Birthday bound, half the output (Table 3) |
+| SHA-1 (signatures) | under 80: **broken** | Table 3 footnote 74 |
+| HMAC-SHA-1 / HMAC-SHA-256 and longer | 128 / 256 | Table 3 (keyed: collisions do not apply) |
+
+### 5.4 Worked examples: a suite is as strong as its weakest part
+
+| What the scan saw | Parts | Weakest | Strength word |
+|---|---|---|---|
+| TLS 1.3, `TLS_AES_128_GCM_SHA256`, X25519, ECDSA P-256 certificate | AES-128 128 · X25519 128 · P-256 128 · HKDF-SHA-256 256 | 128 | **Strong** (≥128, AEAD, forward secret) |
+| The same suite, with an RSA-2048 certificate | … · RSA-2048 **112** | 112 | **Acceptable** under OD-1's weakest-part rule |
+| TLS 1.2, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, secp384r1, RSA-3072 | AES-256 256 · P-384 192 · RSA-3072 128 · HMAC-SHA-384 256 | 128 | **Acceptable** (not AEAD) |
+| TLS 1.2, `TLS_DHE_RSA_WITH_AES_128_GCM_SHA256`, 1024-bit DH prime | DH-1024 **80** | 80 | **Weak** (80 to 111 bits) |
+| `TLS_RSA_WITH_3DES_EDE_CBC_SHA`, RSA-2048 | 3DES 112, 64-bit block · RSA key transport (no forward secrecy) | 112 | **Weak** (64-bit block; no forward secrecy) |
+| `TLS_RSA_WITH_DES_CBC_SHA` | DES **broken** | broken | **Insecure** (today's code says Weak: #18) |
+
+The calculator is in place and tested. Wiring it into the suite rating, the API, the CLI, the Inventory, the SSH
+report and the CBOM is the rest of this enhancement, after the owner approves it (OD-1).
