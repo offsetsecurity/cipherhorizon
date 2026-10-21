@@ -49,6 +49,11 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   progress writes could land out of order. The count now only moves forward, and writes are serialised. This was
   found by a CI run of the workflow test.
 
+### Security
+
+- Built with Go 1.27.3 (GO-2026-6809). `crypto/x509` now distrusts compromised intermediate certificates, and the
+  trust check uses it.
+
 ## [0.3.0] - 2026-10-17
 
 ### Changed
