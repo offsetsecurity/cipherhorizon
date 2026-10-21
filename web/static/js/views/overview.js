@@ -61,11 +61,10 @@ function protocolCard(protocol, list) {
         : done.length ? `${meets} of ${judged.length} meet the baseline${failed ? `; ${failed} failed` : ''}` : 'none scanned yet'),
       ssh1 ? h('span', { class: 'stat-note fleet-warn' }, `${ssh1} offer${ssh1 === 1 ? 's' : ''} SSH-1 only`) : null], [exposedLink]);
   }
-  const sound = done.filter((a) => a.lastDone.band === 'Strong' || a.lastDone.band === 'Sound').length;
   const expiring = done.filter((a) => { const d = daysUntil(a.lastDone.certNotAfter); return d !== null && d <= 30; }).length;
   return stat('#/endpoints', expiring ? 'warn' : '', 'TLS endpoints', String(list.length), [
     h('span', { class: 'stat-note' }, !list.length ? 'none added yet: scan one above'
-      : done.length ? `${done.length} scanned${failed ? `, ${failed} failed` : ''}; ${sound} rated Strong or Sound` : 'none scanned yet'),
+      : !done.length ? 'none scanned yet' : failed ? `${failed} failed to scan` : `${done.length} scanned`),
     expiring ? h('span', { class: 'stat-note fleet-warn' }, `${plural(expiring, 'certificate')} expire${expiring === 1 ? 's' : ''} within 30 days`) : null], [exposedLink]);
 }
 

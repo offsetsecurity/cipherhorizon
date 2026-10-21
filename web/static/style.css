@@ -1590,6 +1590,41 @@ a.sumtile:focus-visible::after, a.recent-row:focus-visible::after { transform: s
 .text-bad { color: var(--bad); font-weight: 550; }
 .strength-cell { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .35rem; }
 
+/* PRD-011: classes, suite parts and the Algorithms in use card. A class is said in words, and its
+   tag is a quiet outline so the strength beside it stays the loudest thing in the row. */
+.clstag { display: inline-block; padding: 0 .4rem; border: 1px solid var(--border); border-radius: 999px; font-size: .72rem;
+  line-height: 1.5; color: var(--text-2); background: var(--surface); white-space: nowrap; }
+.cl-asymmetric { border-color: var(--ok-border); color: var(--ok); }
+.cl-symmetric { border-color: var(--good-border); color: var(--good); }
+.cl-hash { border-color: var(--info-border); color: var(--info-c); }
+details.strength-cell { display: block; }
+details.strength-cell > summary { cursor: pointer; list-style: none; display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .35rem; }
+details.strength-cell > summary::-webkit-details-marker { display: none; }
+details.strength-cell > summary::after { content: '▸'; color: var(--muted); font-size: .7rem; }
+details.strength-cell[open] > summary::after { content: '▾'; }
+.parts { margin-top: .4rem; padding: .5rem .6rem; border-left: 2px solid var(--border); background: var(--surface-2); border-radius: 0 6px 6px 0; min-width: 16rem; }
+.parts > .hint { margin: 0 0 .35rem; }
+.partlist { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.partlist li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .45rem; }
+.partlist .part-role { color: var(--muted); min-width: 6.5rem; }
+.partlist li.weakest b { text-decoration: underline; text-decoration-color: var(--warn); text-underline-offset: 3px; }
+.algos .algos-class { display: flex; align-items: baseline; gap: .4rem; margin-top: var(--space-4); }
+.algos tr.weakest td:first-child b { text-decoration: underline; text-decoration-color: var(--warn); text-underline-offset: 3px; }
+.algos .strength-of { white-space: nowrap; }
+.verdict-first { margin-bottom: .2rem; }
+.cell-why { display: block; font-size: .75rem; line-height: 1.35; max-width: 22rem; }
+
+/* PRD-012: the certificate page. Long values (fingerprints, hex, PEM) wrap or scroll inside their box,
+   never the page. */
+.plainlist { list-style: none; margin: 0; padding: 0; display: grid; gap: .15rem; }
+.plainlist.dn li { overflow-wrap: anywhere; }
+.served-by { margin: 0 0 var(--space-3); color: var(--text-2); }
+.x509-summary .verdict-line { margin: 0; }
+.x509-ext td { vertical-align: top; }
+.x509-ext .plainlist li, .hexval, .copyable.mono { overflow-wrap: anywhere; word-break: break-all; }
+pre.pem { font-family: var(--font-mono); font-size: .74rem; line-height: 1.45; max-height: 18rem; overflow: auto; padding: .75rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; margin: var(--space-3) 0 var(--space-2); white-space: pre; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

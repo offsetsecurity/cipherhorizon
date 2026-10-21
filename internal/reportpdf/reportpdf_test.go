@@ -199,3 +199,26 @@ func TestPDFAndEvaluationAgreeOnStrength(t *testing.T) {
 		t.Error("the PDF's group table lacks the classical strength")
 	}
 }
+
+// PRD-011 REQ-CLS-8: the full PDF lists every algorithm the evaluation lists, under its class.
+func TestPDFListsAlgorithmsByClass(t *testing.T) {
+	info := render(t, KindFull)
+	ev := eval.Evaluate(legacyServer(), now)
+	if len(ev.Algorithms) == 0 {
+		t.Fatal("the evaluation lists no algorithms")
+	}
+	flat := strings.Join(strings.Fields(info.Text), "")
+	if !strings.Contains(flat, "Algorithmsinuse,byclass") {
+		t.Fatal("the PDF has no Algorithms in use table")
+	}
+	for _, a := range ev.Algorithms {
+		if !strings.Contains(flat, strings.Join(strings.Fields(a.Name), "")) {
+			t.Errorf("the PDF lacks %s (%s, %s)", a.Name, a.Class, a.Role)
+		}
+	}
+	for _, w := range []string{"Asymmetric", "Symmetric", "Hash"} {
+		if !strings.Contains(info.Text, w) {
+			t.Errorf("the PDF never names the %s class", w)
+		}
+	}
+}

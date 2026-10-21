@@ -98,3 +98,46 @@ func TestInventoryRowsCarryClassicalStrength(t *testing.T) {
 		}
 	}
 }
+
+// PRD-011 REQ-CLS-7: every algorithm and key row has a class, and ?class= keeps only that class.
+func TestInventoryFiltersByClass(t *testing.T) {
+	e := newEnv(t)
+	if sc := e.scanAndWait(e.addAsset(hybridServer(t).Addr).ID); sc.Status != "done" {
+		t.Fatalf("scan %+v", sc)
+	}
+	type row struct {
+		Name  string `json:"name"`
+		Class string `json:"class"`
+	}
+	var out struct {
+		Rows []row `json:"rows"`
+	}
+	for _, kind := range []string{"algorithm", "key"} {
+		e.call("GET", "/api/v1/inventory?kind="+kind, nil, &out)
+		for _, r := range out.Rows {
+			if r.Class == "" {
+				t.Errorf("%s %s has no class", kind, r.Name)
+			}
+		}
+	}
+	seen := map[string]string{}
+	for _, class := range []string{"asymmetric", "symmetric", "hash"} {
+		if s := e.call("GET", "/api/v1/inventory?kind=algorithm&class="+class, nil, &out); s != 200 {
+			t.Fatalf("class %s: %d", class, s)
+		}
+		for _, r := range out.Rows {
+			if r.Class != class {
+				t.Errorf("class=%s listed %s (%s)", class, r.Name, r.Class)
+			}
+			seen[r.Name] = class
+		}
+	}
+	for name, want := range map[string]string{"X25519": "asymmetric", "X25519MLKEM768": "asymmetric", "AES-128-GCM": "symmetric"} {
+		if seen[name] != want {
+			t.Errorf("%s is in class %q, want %q", name, seen[name], want)
+		}
+	}
+	if s := e.call("GET", "/api/v1/inventory?kind=algorithm&class=quantum", nil, nil); s != 400 {
+		t.Errorf("an unknown class answered %d, want 400", s)
+	}
+}

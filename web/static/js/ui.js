@@ -32,15 +32,20 @@ export function levelBadge(level, withName = true) {
 
 // Hygiene (TLS or SSH): this product's own 0-100 score of how well an endpoint is configured, shown as a
 // band word (never colour alone) and the number.
-export const BAND_ORDER = ['Strong', 'Sound', 'Fair', 'Weak', 'Broken', 'Not rated'];
-const BAND_TONE = { Strong: 'good', Sound: 'ok', Fair: 'warn', Weak: 'bad', Broken: 'bad', 'Not rated': 'neutral' };
-export const bandTone = (band) => BAND_TONE[band] || 'neutral';
+// The bands were renamed (UX-REVIEW-010 U-1) so that no word belongs to two scales: Strong and Weak
+// are suite-strength words. An evaluation stored before the rename still says the old word.
+const OLD_BAND = { Strong: 'Excellent', Sound: 'Good', Weak: 'Poor', Broken: 'Failing' };
+export const bandWord = (band) => OLD_BAND[band] || band;
+export const BAND_ORDER = ['Excellent', 'Good', 'Fair', 'Poor', 'Failing', 'Not rated'];
+const BAND_TONE = { Excellent: 'good', Good: 'ok', Fair: 'warn', Poor: 'bad', Failing: 'bad', 'Not rated': 'neutral' };
+export const bandTone = (band) => BAND_TONE[bandWord(band)] || 'neutral';
 
 export function bandBadge(band, score) {
   if (!band) return badge('·', 'none');
   const rated = typeof score === 'number' && score >= 0;
-  return h('span', { class: `badge band tone-${bandTone(band)}`, title: `Hygiene: ${band}${rated ? `, ${score} out of 100` : ''}` },
-    band, rated ? h('span', { class: 'band-n' }, ` ${score}`) : null);
+  const word = bandWord(band);
+  return h('span', { class: `badge band tone-${bandTone(band)}`, title: `TLS hygiene: ${word}${rated ? `, ${score} out of 100` : ''}` },
+    word, rated ? h('span', { class: 'band-n' }, ` ${score}`) : null);
 }
 
 export function sevBadge(sev) {
@@ -124,6 +129,8 @@ function certCard(c, role, idx, opts) {
     field('Valid until', `${fmtDay(c.notAfter)}`),
     field('Certificate type', c.isCa ? 'CA (can sign other certificates)' : 'End-entity (leaf)'),
     fieldCopy('SHA-256 fingerprint', c.sha256),
+    /^[0-9a-f]{64}$/.test(c.sha256 || '') ? h('div', { class: 'certfield' }, h('dt', null, 'Every field'),
+      h('dd', null, h('a', { href: `#/certificates/${c.sha256}${opts && opts.scanId ? `?scan=${opts.scanId}` : ''}` }, 'Open the whole certificate (extensions, PEM)'))) : null,
     fieldProse('Subject alternative names', [...(c.dnsNames || []), ...(c.ipAddresses || [])].join(', ') || 'none'),
     c.ocspMustStaple ? field('OCSP must-staple', 'yes') : null,
     c.embeddedScts ? field('Certificate Transparency (SCT)', 'embedded') : null,
@@ -173,7 +180,7 @@ export function certChain(c, opts = {}) {
   const rail = h('div', { class: 'certchain' },
     ...chain.map((cert, i) => {
       const role = certRole(i, chain);
-      const card = certCard(cert, role, i, { chainLen: chain.length });
+      const card = certCard(cert, role, i, { chainLen: chain.length, scanId: opts.scanId });
       const isLast = i === chain.length - 1;
       const nodeStatus = certWarnings(cert, i === 0 && chain.length === 1 && cert.selfSigned).length ? 'warn' : 'trusted';
       return h('div', { class: 'certnode' },

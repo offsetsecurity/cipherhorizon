@@ -948,3 +948,10 @@ func firstNonEmpty(ss ...string) string {
 	}
 	return ""
 }
+
+// CipherID and GroupID are the catalogue IDs this package gives a suite's cipher and a group,
+// for the evaluation's list of algorithms in use (PRD-011 REQ-CLS-4), so both name them alike.
+func CipherID(s tlsprobe.SuiteResult) (string, bool) { return cipherCatalogueID(s) }
+
+// GroupID is the catalogue ID this package gives a key-exchange group; see CipherID.
+func GroupID(g tlsprobe.GroupResult) (string, bool) { return groupCatalogueID(g) }

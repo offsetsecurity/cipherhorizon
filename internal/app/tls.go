@@ -7,6 +7,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
@@ -166,6 +168,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 			if err := rep.WriteTextWith(env.Stdout, strengthAnnotations(ev)); err != nil {
 				return fatalf(env, "writing report: %v", err)
 			}
+			writeAlgorithms(env.Stdout, ev)
 		}
 	}
 	if !*asJSON && !*asCBOM && !*details {
@@ -252,5 +255,43 @@ func strengthAnnotations(ev eval.Evaluation) tlsprobe.Annotations {
 			}
 			return ""
 		},
+	}
+}
+
+// writeAlgorithms prints, after --details, every algorithm the endpoint uses by class, and each
+// suite's parts (PRD-011 REQ-CLS-8): what the report's Algorithms in use card and the strength
+// cells show.
+func writeAlgorithms(w io.Writer, ev eval.Evaluation) {
+	if len(ev.Algorithms) == 0 {
+		return
+	}
+	_, _ = fmt.Fprintln(w, "\nAlgorithms in use, by class")
+	class := ""
+	for _, a := range ev.Algorithms {
+		if a.Class != class {
+			class = a.Class
+			_, _ = fmt.Fprintf(w, "  %s\n", strings.ToUpper(class[:1])+class[1:])
+		}
+		st := a.Strength.Words()
+		if a.Weakest {
+			st += " (weakest)"
+		}
+		pq := a.PQC
+		if pq == "" {
+			pq = "-"
+		}
+		_, _ = fmt.Fprintf(w, "    %-34s %-17s %-24s %-19s %s\n", a.Name, a.Role, st, pq, strings.Join(a.UsedBy, ", "))
+	}
+	_, _ = fmt.Fprintln(w, "\nSuite parts (a suite is as strong as its weakest part)")
+	for _, s := range ev.SuiteStrength {
+		parts := make([]string, 0, len(s.Parts))
+		for _, p := range s.Parts {
+			part := fmt.Sprintf("%s %s %s", p.Role, p.Name, p.Strength.Words())
+			if p.Name == s.Weakest {
+				part += " (weakest)"
+			}
+			parts = append(parts, part)
+		}
+		_, _ = fmt.Fprintf(w, "  %s %s: %s\n", s.Version, s.Name, strings.Join(parts, "; "))
 	}
 }

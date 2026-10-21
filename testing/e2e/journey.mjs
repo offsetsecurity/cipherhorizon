@@ -21,6 +21,8 @@ import { pqsPhase } from './pqs-phase.mjs';
 import { sshPhase } from './ssh-phase.mjs';
 import { chartsPhase } from './charts-phase.mjs';
 import { strengthPhase } from './strength-phase.mjs';
+import { classesPhase } from './classes-phase.mjs';
+import { x509Phase } from './x509-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -44,24 +46,37 @@ function check(id, description, ok, detail = '') {
 
 // ---- a minimal DevTools client ------------------------------------------------------------------
 
-const port = 9333 + Math.floor(Math.random() * 500);
-const profile = mkdtempSync(join(tmpdir(), 'cbom-e2e-'));
-const proc = spawn(BROWSER, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`,
-  `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--window-size=1280,900',
-  ...(process.env.CI ? ['--no-sandbox'] : []), 'about:blank'], { stdio: 'ignore' });
+let port, proc;
+function startBrowser() {
+  port = 9333 + Math.floor(Math.random() * 500);
+  const profile = mkdtempSync(join(tmpdir(), 'cbom-e2e-'));
+  proc = spawn(BROWSER, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`,
+    `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--window-size=1280,900',
+    ...(process.env.CI ? ['--no-sandbox'] : []), 'about:blank'], { stdio: 'ignore' });
+}
+startBrowser();
 let ws, seq = 0;
 const pending = new Map();
 const consoleErrors = [];
 
 async function connect() {
-  // Up to 60 s: a busy CI runner can take longer than 15 s to start a headless browser.
-  for (let i = 0; i < 400; i++) {
-    try {
-      const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-      const page = list.find((t) => t.type === 'page');
-      if (page) { ws = new WebSocket(page.webSocketDebuggerUrl); break; }
-    } catch { /* browser still starting */ }
-    await sleep(150);
+  // A busy CI runner can take longer than 15 s to start a headless browser, and a browser that has
+  // just updated itself sometimes never opens its DevTools port (QA-REPORT-011): wait 30 s, then
+  // start a fresh one, on a new port, once more.
+  for (let attempt = 0; attempt < 2 && !ws; attempt++) {
+    if (attempt) {
+      try { proc.kill(); } catch { /* already gone */ }
+      console.log('the browser did not answer in 30 s; starting it again');
+      startBrowser();
+    }
+    for (let i = 0; i < 200 && !ws; i++) {
+      try {
+        const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+        const page = list.find((t) => t.type === 'page');
+        if (page) ws = new WebSocket(page.webSocketDebuggerUrl);
+      } catch { /* browser still starting */ }
+      if (!ws) await sleep(150);
+    }
   }
   if (!ws) throw new Error('could not reach the browser');
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
@@ -256,7 +271,7 @@ async function main() {
   for (const [p, lv] of Object.entries(expectLevel)) {
     check(`E2E-04.4.${p}`, `endpoint :${p} reads L${lv}`, by[p]?.lastDone?.readinessLevel === lv, by[p]?.lastDone?.readinessLevel);
   }
-  check('E2E-05.3', 'the SSLv3 endpoint has TLS hygiene Broken, and a sound TLS 1.2 one is not', by[9443]?.lastDone?.band === 'Broken' && by[9442]?.lastDone?.band !== 'Broken',
+  check('E2E-05.3', 'the SSLv3 endpoint has TLS hygiene Failing, and a sound TLS 1.2 one is not', by[9443]?.lastDone?.band === 'Failing' && by[9442]?.lastDone?.band !== 'Failing',
     `${by[9443]?.lastDone?.band} ${by[9443]?.lastDone?.score} / ${by[9442]?.lastDone?.band} ${by[9442]?.lastDone?.score}`);
   const hyg = (await api(`/api/v1/scans/${by[9443].lastDone.id}/evaluation`)).hygiene;
   const hygFindings = (await api(`/api/v1/scans/${by[9443].lastDone.id}/evaluation`)).findings;
@@ -750,6 +765,8 @@ async function main() {
   await sshPhase({ check, js, go, sleep, shot, viewport, clickText });
   await chartsPhase({ check, js, go, sleep, shot, viewport, send });
   await strengthPhase({ check, js, go, sleep, shot, viewport });
+  await classesPhase({ check, js, go, sleep, shot, viewport });
+  await x509Phase({ check, js, go, sleep, shot, viewport });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');

@@ -53,6 +53,8 @@ type inventoryRow struct {
 	// Strength is the classical security strength (PRD-010 REQ-STR-6): bits from NIST's methods, or a
 	// cited broken status, or why it is not rated. Algorithms and keys only.
 	Strength *algo.Strength `json:"classicalStrength,omitempty"`
+	// Class is asymmetric, symmetric or hash (PRD-011 REQ-CLS-7). Algorithms and keys only.
+	Class string `json:"class,omitempty"`
 }
 
 func property(c cdx.Component, name string) string {
@@ -126,6 +128,7 @@ func inventoryRows(inv *mergedInventory, tab string) []inventoryRow {
 		key := string(assetType(c)) + "\x00" + c.Name
 		detail := detailOf(c)
 		var strength *algo.Strength
+		class := ""
 		switch assetType(c) {
 		case cdx.CryptoAssetTypeAlgorithm:
 			q = "unknown"
@@ -134,12 +137,14 @@ func inventoryRows(inv *mergedInventory, tab string) []inventoryRow {
 			}
 			st := algo.StrengthOf(c.Name)
 			strength = &st
+			class = classOfComponent(c)
 		case cdx.CryptoAssetTypeRelatedCryptoMaterial:
 			// A key takes the status of its algorithm. Keys are named by their certificate's
 			// subject, and two certificates may share a subject while holding different keys (an
 			// ECDSA and an ML-DSA certificate for the same host): the algorithm is part of a key's
 			// identity, so they stay two rows, each with its own status.
 			q = "unknown"
+			class = algo.ClassAsymmetric // a key is always an asymmetric key pair's
 			var algs []string
 			for _, d := range inv.deps[c.BOMRef] {
 				q = worseQuantum(q, status[d])
@@ -159,7 +164,7 @@ func inventoryRows(inv *mergedInventory, tab string) []inventoryRow {
 		if !ok {
 			i = len(out)
 			byName[key] = i
-			out = append(out, inventoryRow{Name: c.Name, Kind: tab, Detail: detail, Quantum: q, Places: []sourceLabel{}, Strength: strength})
+			out = append(out, inventoryRow{Name: c.Name, Kind: tab, Detail: detail, Quantum: q, Places: []sourceLabel{}, Strength: strength, Class: class})
 		}
 		row := &out[i]
 		row.Refs = append(row.Refs, c.BOMRef)
@@ -252,6 +257,11 @@ func (s *Server) inventory(w http.ResponseWriter, r *http.Request) {
 	// name is an exact match, for a chart row that names one item (Replace first: "X25519" must
 	// not also list X25519MLKEM768, as the text filter would).
 	name := q.Get("name")
+	class := q.Get("class")
+	if class != "" && class != algo.ClassAsymmetric && class != algo.ClassSymmetric && class != algo.ClassHash {
+		writeErr(w, http.StatusBadRequest, "class must be asymmetric, symmetric or hash")
+		return
+	}
 	rows := inventoryRows(inv, tab)
 	filtered := make([]inventoryRow, 0, len(rows))
 	for _, row := range rows {
@@ -262,6 +272,9 @@ func (s *Server) inventory(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if quantum != "" && quantumBucket(row.Quantum) != quantum {
+			continue
+		}
+		if class != "" && row.Class != class {
 			continue
 		}
 		if purpose != "" && purposeOf(row.Detail) != purpose {
@@ -682,4 +695,15 @@ func worseQuantum(a, b string) string {
 		return b
 	}
 	return a
+}
+
+// classOfComponent is an algorithm component's class: from its CycloneDX primitive, or, when the
+// source gave none, from its name.
+func classOfComponent(c cdx.Component) string {
+	if cp := c.CryptoProperties; cp != nil && cp.AlgorithmProperties != nil {
+		if cl := algo.ClassOfPrimitive(cp.AlgorithmProperties.Primitive); cl.Known() {
+			return cl.Class
+		}
+	}
+	return algo.ClassOf(c.Name).Class
 }

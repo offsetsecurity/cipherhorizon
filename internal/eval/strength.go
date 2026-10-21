@@ -23,8 +23,9 @@ const (
 
 // StrengthPart is one part of a cipher suite and its strength.
 type StrengthPart struct {
-	Role     string        `json:"role"` // cipher, key exchange, authentication, MAC
-	Name     string        `json:"name"` // AES-128-GCM, ffdhe2048, RSA-2048 certificate key, HMAC-SHA-1
+	Role     string        `json:"role"`  // cipher, key exchange, authentication, MAC, hash (HKDF), hash (PRF)
+	Class    string        `json:"class"` // asymmetric, symmetric or hash (PRD-011)
+	Name     string        `json:"name"`  // AES-128-GCM, ffdhe2048, RSA-2048 certificate key, HMAC-SHA-1
 	Strength algo.Strength `json:"strength"`
 }
 
@@ -221,6 +222,13 @@ func suiteStrengths(rep *tlsprobe.Report) []SuiteStrength {
 		}
 		if p, ok := macPart(s); ok {
 			parts = append(parts, p)
+		}
+		// Last, so a tie never names the hash as the weakest part (PRD-011 REQ-CLS-2).
+		if p, ok := hashPart(s); ok {
+			parts = append(parts, p)
+		}
+		for i := range parts {
+			parts[i].Class = classOfRole(parts[i].Role)
 		}
 		out = append(out, rateSuite(s, parts, noFS))
 	}

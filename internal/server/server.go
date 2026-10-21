@@ -337,6 +337,7 @@ func (s *Server) routes() {
 	handle("GET /api/v1/systems/{id}/certificates", s.systemCertificates)
 	handle("GET /api/v1/certificates", s.listCertificates)
 	handle("GET /api/v1/certificates/{fingerprint}", s.getCertificate)
+	handle("GET /api/v1/certificates/{fingerprint}/x509", s.getCertificateX509)
 	handle("POST /api/v1/imports", s.importDocument)
 	handle("GET /api/v1/imports", s.listImports)
 	handle("GET /api/v1/imports/{id}", s.getImport)

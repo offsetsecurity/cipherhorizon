@@ -10,26 +10,41 @@ import (
 
 func hygiene(rep *tlsprobe.Report) eval.Hygiene { return eval.Evaluate(rep, now).Hygiene }
 
-func TestBands(t *testing.T) {
+// REQ-UXF-1: the bands have words of their own, which no other scale uses, and an evaluation
+// stored before the rename reads as the new name and ranks as it.
+func TestBandsHaveTheirOwnWords(t *testing.T) {
 	for score, want := range map[int]string{
-		100: "Strong", 90: "Strong", 89: "Sound", 75: "Sound", 74: "Fair", 55: "Fair",
-		54: "Weak", 30: "Weak", 29: "Broken", 0: "Broken", -1: eval.BandNotRated,
+		100: "Excellent", 90: "Excellent", 89: "Good", 75: "Good", 74: "Fair", 55: "Fair",
+		54: "Poor", 30: "Poor", 29: "Failing", 0: "Failing", -1: eval.BandNotRated,
 	} {
 		if got := eval.BandFor(score); got != want {
 			t.Errorf("score %d -> %s, want %s", score, got, want)
 		}
 	}
-	order := []string{eval.BandNotRated, "Broken", "Weak", "Fair", "Sound", "Strong"}
+	order := []string{eval.BandNotRated, "Failing", "Poor", "Fair", "Good", "Excellent"}
 	for i := 1; i < len(order); i++ {
 		if eval.BandRank(order[i]) <= eval.BandRank(order[i-1]) {
 			t.Errorf("%s should rank above %s", order[i], order[i-1])
 		}
 	}
+	suiteWords := []string{eval.StrengthStrong, eval.StrengthAcceptable, eval.StrengthWeak, eval.StrengthInsecure}
+	for score := 0; score <= 100; score++ {
+		for _, w := range suiteWords {
+			if strings.EqualFold(eval.BandFor(score), w) {
+				t.Errorf("band %q is also a suite-strength word", eval.BandFor(score))
+			}
+		}
+	}
+	for old, now := range map[string]string{"Strong": "Excellent", "Sound": "Good", "Fair": "Fair", "Weak": "Poor", "Broken": "Failing"} {
+		if eval.BandName(old) != now || eval.BandRank(old) != eval.BandRank(now) {
+			t.Errorf("old band %s reads %s (rank %d), want %s (rank %d)", old, eval.BandName(old), eval.BandRank(old), now, eval.BandRank(now))
+		}
+	}
 }
 
-func TestACleanEndpointIsStrong(t *testing.T) {
+func TestACleanEndpointIsExcellent(t *testing.T) {
 	h := hygiene(modern())
-	if h.Band != "Strong" || h.Score < 90 {
+	if h.Band != "Excellent" || h.Score < 90 {
 		t.Errorf("hygiene = %+v", h)
 	}
 	if h.Ceiling != nil {
@@ -90,7 +105,7 @@ func TestEveryDeductionTracesToAFinding(t *testing.T) {
 
 func TestTerribleEndpointIsBroken(t *testing.T) {
 	h := hygiene(terrible())
-	if h.Band != "Broken" || h.Score > 29 {
+	if h.Band != "Failing" || h.Score > 29 {
 		t.Errorf("hygiene = %+v", h)
 	}
 	if len(h.Deductions) == 0 {
@@ -99,7 +114,7 @@ func TestTerribleEndpointIsBroken(t *testing.T) {
 }
 
 func TestCeilings(t *testing.T) {
-	// One high finding alone (an untrusted certificate) costs 20 points, which would be 80 (Sound);
+	// One high finding alone (an untrusted certificate) costs 20 points, which would be 80 (Good);
 	// the ceiling makes it at most Fair.
 	rep := modern()
 	rep.Certificates = []tlsprobe.CertResult{cert("RSA", 2048, func(c *tlsprobe.CertResult) { c.Trusted = false })}

@@ -449,6 +449,10 @@ var migrations = []string{
 	`ALTER TABLE scans ADD COLUMN baseline TEXT NOT NULL DEFAULT '';
 	ALTER TABLE scans ADD COLUMN baseline_meets INTEGER;
 	ALTER TABLE scans ADD COLUMN baseline_changes INTEGER NOT NULL DEFAULT 0;`,
+	// 15: the TLS hygiene bands are renamed (PRD-011 REQ-UXF-1), so that Strong and Weak belong to suite
+	// strength alone. Every stored scan's band is carried over to its new name; the score is unchanged.
+	`UPDATE scans SET band = CASE band WHEN 'Strong' THEN 'Excellent' WHEN 'Sound' THEN 'Good'
+		WHEN 'Weak' THEN 'Poor' WHEN 'Broken' THEN 'Failing' ELSE band END;`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same

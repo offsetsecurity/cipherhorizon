@@ -6,7 +6,7 @@ import { historyChart, levelClass, levelName } from '../charts.js';
 import { summaryView, configurationView, weaknessesView, cbomView, SECTIONS } from './report.js';
 import './report-ssh.js'; // registers the SSH report profile (PRD-008)
 import { PLACES, protocolOf, reportHref, baselineWords } from './assets.js';
-import { levelBadge, bandBadge, bandTone, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog, crumbs,
+import { levelBadge, bandBadge, bandTone, bandWord, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog, crumbs,
   scanProgress, badge, certExpiry, certChain, playEnter } from '../ui.js';
 
 export async function render(root, { args, query, protocol = 'tls' }) {
@@ -391,7 +391,7 @@ export async function render(root, { args, query, protocol = 'tls' }) {
     }
     const tone = { good: 'lv3', ok: 'lv2', warn: 'lv1', bad: 'lv0', neutral: 'lvu' }[bandTone(g.band)];
     return h('div', null,
-      h('div', { class: 'row' }, h('div', { class: `bigLevel ${tone}` }, g.score < 0 ? '·' : String(g.score), h('small', null, g.band)),
+      h('div', { class: 'row' }, h('div', { class: `bigLevel ${tone}` }, g.score < 0 ? '·' : String(g.score), h('small', null, bandWord(g.band))),
         h('div', null, h('div', null, h('b', null, g.score < 0 ? 'Not rated' : `${g.score} out of 100`)),
           h('div', { class: 'muted' }, 'how well the endpoint is configured; this product’s own score'))),
       h('h3', null, 'How it was scored'),

@@ -39,8 +39,10 @@ function strengthCell(st) {
   if (st.status === 'broken') return badge('✖ broken', 'bad', st.basis);
   if (st.status === 'disallowed') return h('span', { title: st.basis }, `${st.bits} bits `, badge('disallowed', 'warn', st.basis));
   if (st.status === 'rated') return h('span', { class: st.bits < 112 ? 'text-bad' : '', title: st.basis }, `${st.bits} bits`);
-  return h('span', { class: 'muted', title: st.basis }, 'not rated');
+  // UX-REVIEW-010 U-6: say why on the row, not only in the API.
+  return h('span', { class: 'muted', title: st.basis }, 'not rated', st.basis ? h('span', { class: 'cell-why' }, st.basis) : null);
 }
+const CLASS_WORD = { asymmetric: 'Asymmetric', symmetric: 'Symmetric', hash: 'Hash' };
 const quantumBadge = (q) => { const [t, k] = QUANTUM[q] || [q, 'neutral']; return k === 'none' ? h('span', { class: 'muted' }, t) : badge(t, k); };
 // Certificates and their keys are named by their subject; people know them by the common name.
 const cnOf = (dn) => { const m = /CN=([^,]+)/.exec(dn || ''); return m ? m[1] : dn; };
@@ -347,6 +349,9 @@ async function itemsList(root, kind, query) {
   if (!quantumWords[quantum]) quantum = '';
   let purpose = query.get('purpose') || '';
   let name = query.get('name') || '';
+  // PRD-011 REQ-CLS-7: the class filter (asymmetric, symmetric, hash), kept in the address like the others.
+  const cls = h('select', { 'aria-label': 'Class' }, [['', 'Any class'], ['asymmetric', 'Asymmetric'], ['symmetric', 'Symmetric'], ['hash', 'Hash']]
+    .map(([v, l]) => h('option', { value: v, selected: v === (query.get('class') || '') }, l)));
   const text = h('input', { type: 'search', placeholder: 'Filter by name', value: query.get('q') || '', 'aria-label': 'Filter by name' });
   const vuln = h('input', { type: 'checkbox', id: 'inv-vuln', checked: quantum === 'vulnerable' });
   const source = h('select', { 'aria-label': 'Source' }, [['', 'Any source'], ['endpoint', 'Endpoint scans'], ['machine', 'Machines'], ['import', 'Imported CBOMs']]
@@ -368,7 +373,8 @@ async function itemsList(root, kind, query) {
     if (purpose) q.purpose = purpose;
     if (name) q.name = name;
     if (source.value) q.source = source.value;
-    setQuery({ q: q.q || '', quantum, purpose, name, source: source.value, vulnerable: '' });
+    if (kind === 'algorithm' && cls.value) q.class = cls.value;
+    setQuery({ q: q.q || '', quantum, purpose, name, source: source.value, class: kind === 'algorithm' ? cls.value : '', vulnerable: '' });
     paintChips();
     // The dashboard's post-quantum figures count algorithms and keys together; on the algorithm
     // list, say how many keys share the status, so the two lists add up to the figure clicked.
@@ -388,7 +394,7 @@ async function itemsList(root, kind, query) {
       h('thead', null, h('tr', null, ['Name', kind === 'software' ? 'Version' : 'Kind', showQuantum ? 'Classical strength' : null, showQuantum ? 'Post-quantum' : null, 'Seen on', 'Last seen'].filter(Boolean).map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, rows.map((r) => h('tr', null,
         h('td', null, h('b', { title: r.name }, shownName(r.name))),
-        h('td', { class: 'muted' }, humanDetail(r.detail) || '·'),
+        h('td', { class: 'muted' }, r.class ? `${CLASS_WORD[r.class] || r.class} · ` : '', humanDetail(r.detail) || (r.class ? '' : '·')),
         showQuantum ? h('td', null, strengthCell(r.classicalStrength)) : null,
         showQuantum ? h('td', null, quantumBadge(r.quantum)) : null,
         h('td', null, placesCell(r.places)),
@@ -400,8 +406,9 @@ async function itemsList(root, kind, query) {
   text.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 250); });
   vuln.addEventListener('change', () => { quantum = vuln.checked ? 'vulnerable' : (quantum === 'vulnerable' ? '' : quantum); redraw(); });
   source.addEventListener('change', redraw);
+  cls.addEventListener('change', redraw);
   root.append(h('div', { class: 'toolbar' }, text,
-    kind === 'algorithm' || kind === 'key' ? h('label', { class: 'check' }, vuln, ' Only quantum-vulnerable') : null, source), chips, list);
+    kind === 'algorithm' || kind === 'key' ? h('label', { class: 'check' }, vuln, ' Only quantum-vulnerable') : null, kind === 'algorithm' ? cls : null, source), chips, list);
   await draw();
 }
 

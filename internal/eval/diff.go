@@ -53,7 +53,7 @@ func Compare(fromRep, toRep *tlsprobe.Report, fromEv, toEv Evaluation) Diff {
 			Before: fmt.Sprintf("L%d %s", fromEv.Readiness.Level, fromEv.Readiness.Label),
 			After:  fmt.Sprintf("L%d %s", toEv.Readiness.Level, toEv.Readiness.Label), Impact: imp})
 	}
-	if fromEv.Hygiene.Band != toEv.Hygiene.Band {
+	if BandName(fromEv.Hygiene.Band) != BandName(toEv.Hygiene.Band) { // an old name is its new one
 		add(Change{Area: "hygiene", Kind: "changed", Subject: "TLS hygiene",
 			Before: hygieneText(fromEv.Hygiene), After: hygieneText(toEv.Hygiene),
 			Impact: bandImpact(fromEv.Hygiene.Band, toEv.Hygiene.Band)})
@@ -176,9 +176,9 @@ func Compare(fromRep, toRep *tlsprobe.Report, fromEv, toEv Evaluation) Diff {
 
 func hygieneText(h Hygiene) string {
 	if h.Score < 0 {
-		return h.Band
+		return BandName(h.Band)
 	}
-	return fmt.Sprintf("%s (%d)", h.Band, h.Score)
+	return fmt.Sprintf("%s (%d)", BandName(h.Band), h.Score)
 }
 
 func bandImpact(from, to string) Impact {
