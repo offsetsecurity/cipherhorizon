@@ -201,8 +201,9 @@ function algoRows(ctx, kind, label) {
         bitsBar(a.strength, { name: a.name }),
         h('span', { class: 'sshrow-pq' }, pqGlyph(pqOf(a))),
         a.baseline === '' ? h('span', { class: 'bmark bmark-na', title: 'A signal, not an algorithm: the baseline does not judge it' }, '·')
-          : h('span', { class: `bmark ${off ? 'bmark-off' : 'bmark-ok'}`, title: off ? (a.verdict === 'unknown' ? 'Not on the baseline, and not in this program’s registry' : 'Not on the baseline') : 'On the baseline' },
-            h('span', { 'aria-hidden': 'true' }, off ? '✕' : '✓'), off ? 'should be off' : 'allowed'));
+          : h('span', { class: `bmark ${off ? 'bmark-off' : 'bmark-ok'}`, title: off ? (ctx.offWhy[a.name] || (a.verdict === 'unknown' ? 'Not on the baseline, and not in this program’s registry' : 'Not on the baseline')) : 'On the baseline' },
+            h('span', { 'aria-hidden': 'true' }, off ? '✕' : '✓'), off ? 'should be off' : 'allowed',
+            off && ctx.offWhy[a.name] ? h('span', { class: 'bmark-why' }, ctx.offWhy[a.name].split(/[:,(]/)[0].trim()) : null));
     }));
 }
 
@@ -275,7 +276,7 @@ function hostKeysPart(ctx, tone) {
     cards.push(h('li', { class: 'chaincard keycard is-missing' }, h('span', { class: 'cc-role cc-role-bad' }, 'Not fetched'),
       h('span', { class: 'servedcn' }, h('code', null, a.algorithm)), h('span', { class: 'cc-foot' }, a.detail || a.outcome)));
   }
-  return part(ctx, 'host-keys', 'Host keys', tone, 'Each key the server proved it holds. A key is as strong as its best signature.',
+  return part(ctx, 'host-keys', 'Host keys', tone, 'Each key the server proved it holds. Its bar is the strongest signature it can make; a weaker algorithm it also answers to has its own row below.',
     cards.length ? h('ol', { class: 'chainribbon keyribbon', 'aria-label': 'Host keys' }, cards) : h('p', { class: 'muted' }, 'No host key was fetched.'),
     algoRows(ctx, 'host-key', 'Host-key algorithms'));
 }
@@ -314,7 +315,8 @@ function baselinePart(ctx, tone) {
   const verdict = statusTile(b.title, b.meets ? 'Meets the baseline' : `Does not meet it · ${plural(b.changes.length, 'change')} to make`, b.meets ? 'good' : 'problem');
   verdict.classList.add('stile-verdict');
   const reqs = (b.requires || []).map((r) => {
-    const t = statusTile(r.text, r.met ? 'Met' : `Not met${r.detail ? `: ${r.detail.replace(/\.$/, '')}` : ''}`, r.met ? 'good' : 'problem', r.cite && r.cite.url ? r.cite.url : null);
+    const t = r.notApplicable ? statusTile(r.text, `Does not apply${r.detail ? `: ${r.detail.replace(/\.$/, '').replace(/^The server has/, 'the server has')}` : ''}`, 'na', r.cite && r.cite.url ? r.cite.url : null)
+      : statusTile(r.text, r.met ? 'Met' : `Not met${r.detail ? `: ${r.detail.replace(/\.$/, '')}` : ''}`, r.met ? 'good' : 'problem', r.cite && r.cite.url ? r.cite.url : null);
     t.classList.add('reqtile');
     if (r.cite) {
       t.title = `Source: ${r.cite.title}`;
@@ -362,7 +364,12 @@ function sshConfiguration(ctx, about) {
       (changes[at] = changes[at] || []).push(c);
     }
   }
-  const pctx = { ...ctx, issues, changes };
+  // Why each algorithm should be off, from the baseline's own change ("Stop offering x: why.").
+  const offWhy = {};
+  for (const c of (b && b.judged ? b.changes || [] : [])) {
+    if (c.action === 'remove') offWhy[c.name] = c.text.replace(`Stop offering ${c.name}: `, '').replace(/\.$/, '');
+  }
+  const pctx = { ...ctx, issues, changes, offWhy };
   const tones = Object.fromEntries(SSH_PARTS.map(([id]) => [id, toneOf(sec[id])]));
   tones.baseline = !b || !b.judged ? 'na' : b.meets ? 'good' : 'attention';
   const goTo = (id) => document.getElementById(id)?.scrollIntoView({ block: 'start' });

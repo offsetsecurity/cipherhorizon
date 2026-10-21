@@ -26,6 +26,11 @@ func sshStrength(kind, name string, a registry.Algorithm, ok bool, keys []sshpro
 		st = sshNamed(a.Catalogue, a.KeyBits, a.Cipher)
 	case registry.KindMAC:
 		st = sshNamed(a.Catalogue, 0, "")
+		// A truncated tag bounds forgery: an attacker guesses it with probability 2^-tag (SP 800-107
+		// Rev. 1 section 5.3.5), so hmac-sha1-96 is 96 bits, not HMAC-SHA-1's 128.
+		if a.TagBits > 0 && st.Known() && a.TagBits < st.Bits {
+			st = algo.Strength{Bits: a.TagBits, Status: st.Status, Basis: fmt.Sprintf("%s; truncated to a %d-bit tag, which bounds forgery (NIST SP 800-107 Rev. 1, section 5.3.5)", st.Basis, a.TagBits)}
+		}
 	default:
 		return nil
 	}

@@ -304,3 +304,78 @@ func TestSSHRemediationNamesTheDirective(t *testing.T) {
 		t.Errorf("only %d SSH rules fired: %v", len(seen), seen)
 	}
 }
+
+// QA of PR #24: a requirement with nothing to judge says so. A server with no RSA host key meets the
+// RSA size rule, but "met" would claim a check that never ran: it does not apply.
+func TestRSASizeRuleWithoutAnRSAKeyDoesNotApply(t *testing.T) {
+	for name, tc := range map[string]struct {
+		rep *sshprobe.Report
+		na  bool
+		met bool
+	}{
+		"no RSA host key":    {modernSSH(), true, true},
+		"a 3072-bit RSA key": {stockOpenSSH10(), false, true},
+		"a 2048-bit RSA key": {legacySSH(), false, false},
+	} {
+		ev := eval.EvaluateSSH(tc.rep, eval.Input{Now: now})
+		var got *eval.RequireView
+		for i, r := range ev.Baseline.Requires {
+			if r.ID == eval.ReqRSASize {
+				got = &ev.Baseline.Requires[i]
+			}
+		}
+		if got == nil {
+			t.Fatalf("%s: no RSA size requirement", name)
+		}
+		if got.NotApplicable != tc.na || got.Met != tc.met {
+			t.Errorf("%s: notApplicable %v met %v, want %v %v (%s)", name, got.NotApplicable, got.Met, tc.na, tc.met, got.Detail)
+		}
+	}
+}
+
+// QA of PR #24: next steps name OpenSSH releases only to an OpenSSH server; any other server is told
+// what to offer.
+func TestSSHNextStepsNameOpenSSHOnlyForOpenSSH(t *testing.T) {
+	noPQ := func(software string) *sshprobe.Report {
+		r := modernSSH()
+		r.Identification.Software = software
+		r.Algorithms.Kex = []string{"curve25519-sha256"}
+		r.Negotiated.Kex = "curve25519-sha256"
+		return r
+	}
+	open := eval.EvaluateSSH(noPQ("OpenSSH_9.6"), eval.Input{Now: now})
+	if !strings.HasPrefix(open.Readiness.NextSteps[0], "Upgrade to OpenSSH 9.9") {
+		t.Errorf("an OpenSSH server is told %q", open.Readiness.NextSteps[0])
+	}
+	other := eval.EvaluateSSH(noPQ("Go"), eval.Input{Now: now})
+	if strings.HasPrefix(other.Readiness.NextSteps[0], "Upgrade to OpenSSH") || !strings.Contains(other.Readiness.NextSteps[0], "mlkem768x25519-sha256") {
+		t.Errorf("a Go server is told %q", other.Readiness.NextSteps[0])
+	}
+	noStrict := modernSSH()
+	noStrict.Identification.Software = "Go"
+	noStrict.Algorithms.StrictKex = false
+	for _, c := range eval.EvaluateSSH(noStrict, eval.Input{Now: now}).Baseline.Changes {
+		if c.Action == eval.ChangeUpgrade && strings.HasPrefix(c.Text, "Upgrade to OpenSSH") {
+			t.Errorf("a Go server is told %q", c.Text)
+		}
+	}
+}
+
+// QA of PR #24: a truncated MAC is as strong as its tag (SP 800-107 Rev. 1 section 5.3.5).
+func TestTruncatedMACIsBoundedByItsTag(t *testing.T) {
+	r := modernSSH()
+	r.Algorithms.MACC2S = []string{"hmac-sha1", "hmac-sha1-96", "hmac-sha2-256-etm@openssh.com"}
+	r.Algorithms.MACS2C = r.Algorithms.MACC2S
+	want := map[string]int{"hmac-sha1": 128, "hmac-sha1-96": 96, "hmac-sha2-256-etm@openssh.com": 256}
+	for _, a := range eval.EvaluateSSH(r, eval.Input{Now: now}).SSHAlgorithms {
+		if w, ok := want[a.Name]; ok {
+			if a.Strength == nil || a.Strength.Bits != w {
+				t.Errorf("%s: %+v, want %d bits", a.Name, a.Strength, w)
+			}
+			delete(want, a.Name)
+		}
+	}
+	if len(want) > 0 {
+		t.Errorf("not listed: %v", want)
+	}
+}

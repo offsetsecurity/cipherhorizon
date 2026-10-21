@@ -18,7 +18,7 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/10"
+const Version = "eval/11"
 
 // eval/7 (PRD-008): a post-quantum signature scheme proved accepted by the signature stage counts
 // toward L4, and SSH endpoints are judged into the same shape (Protocol "ssh").
@@ -138,6 +138,8 @@ type Evaluation struct {
 	// eval/10 (PRD-011): every algorithm the endpoint uses, by class, with its strength,
 	// post-quantum status and uses. Each suite part also says its class, and gains its hash part.
 	Algorithms []AlgorithmUse `json:"algorithms,omitempty"`
+	// eval/11 (PRD-014 QA): a truncated SSH MAC is bounded by its tag; SSH next steps name OpenSSH
+	// releases only to OpenSSH servers; a baseline requirement with nothing to judge does not apply.
 }
 
 // Check is one check the evaluation ran. Title names what was looked for (a problem, as a

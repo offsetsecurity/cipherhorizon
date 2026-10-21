@@ -1886,7 +1886,7 @@ td.invpq { width: 1%; text-align: center; }
 @media (max-width: 520px) { .suite-strength-narrow { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); } table.suites th.suite { position: sticky; left: 0; background: var(--surface); z-index: 1; max-width: 230px; } }
 /* ---- UX-DESIGN-012: the SSH Configuration ------------------------------------------------------ */
 .sshalgs { display: flex; flex-direction: column; gap: 2px; }
-.sshrow { display: grid; grid-template-columns: minmax(170px, 300px) minmax(0, 1fr) 28px 128px; column-gap: 14px; align-items: center; padding: 5px 8px; border-radius: 3px; }
+.sshrow { display: grid; grid-template-columns: minmax(170px, 300px) minmax(0, 1fr) 28px 160px; column-gap: 14px; align-items: center; padding: 5px 8px; border-radius: 3px; }
 .sshrow-axis { font-size: 12px; padding-bottom: 2px; }
 .sshrow-alg { display: flex; flex-direction: column; min-width: 0; } .sshrow-alg code { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
 .sshrow-alg > span { font-size: 11.5px; color: var(--muted); }
@@ -1917,3 +1917,5 @@ td.invpq { width: 1%; text-align: center; }
 }
 @media (max-width: 520px) { .sshrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 22px; column-gap: 8px; padding: 5px 4px; } .keycard { flex-basis: 260px; } }
 @media (min-width: 521px) { .stile-verdict { grid-column: span 2; } }
+.bmark-why { display: block; font-size: 11.5px; font-weight: 400; color: var(--text-2); white-space: normal; }
+.sshrow .bmark { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; } .sshrow .bmark-why { flex-basis: 100%; }
