@@ -240,6 +240,7 @@ func (r *Report) writeFeatures(o *out) {
 		{"secure renegotiation (RFC 5746)", f.SecureRenegotiation, "supported", "not offered"},
 		{"extended master secret (RFC 7627)", f.ExtendedMasterSecret, "supported", "not offered"},
 		{"encrypt-then-MAC (RFC 7366)", f.EncryptThenMAC, "supported", "not offered"},
+		{"heartbeat (RFC 6520)", f.Heartbeat, "negotiated", "not negotiated"},
 		{"session tickets", f.SessionTickets, "offered", "not offered"},
 		{"OCSP stapling", f.OCSPStapling, "supported", "not offered"},
 		{"TLS compression", f.Compression, "ACCEPTED", "refused"},

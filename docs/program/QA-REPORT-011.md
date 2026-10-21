@@ -9,14 +9,14 @@ Date: 2026-10-21. Build: branch `feat/classes-and-x509` on top of `ee275af` (PR 
 
 | Gate | Command | Result |
 |---|---|---|
-| Unit and integration | `go test ./...` | GO_RESULT |
+| Unit and integration | `go test ./...` | passed on the data layer (commit cb2f165); the final build is in [QA-REPORT-012](QA-REPORT-012.md) |
 | Traceability | `TestRequirementsTraceability` (in the above) | 23 new rows (14 PRD-011, 9 PRD-012), all done, each with evidence |
 | Lint | `golangci-lint run ./...`, and with `GOOS=linux` | 0 issues, 0 issues |
 | Fuzz | `FuzzX509Decode`, 120 s in WSL (the Windows engine stalls on ASN.1) | 6,071,367 inputs, no crash or hang |
 | Decoder against OpenSSL | a demo target's certificate through `openssl x509 -text` and `x509view.Decode` | same extensions, criticality, names and SHA-256 |
 | UI scripts parse | `node --check` on every module | all parse |
-| Browser journey | `testing/e2e/journey.mjs` (CI setup) | JOURNEY_RESULT |
-| Screen walk | below | SCREEN_RESULT |
+| Browser journey | `testing/e2e/journey.mjs` (CI setup) | 224 passed, 3 failed: the 3 were first-pass screens the owner then rejected, rebuilt by PRD-013 ([QA-REPORT-012](QA-REPORT-012.md)) |
+| Screen walk | below | superseded: see below |
 
 ## What the new checks cover
 
@@ -86,4 +86,4 @@ Date: 2026-10-21. Build: branch `feat/classes-and-x509` on top of `ee275af` (PR 
 
 ## Screen walk
 
-SCREEN_WALK
+The first-pass screens of PRD-011 and PRD-012 (the Algorithms in use card, the suite part list, the certificate page as tables) were rejected by the owner as too texty before they shipped. PRD-013 rebuilt them as instruments; the walk of the screens that ship, at every width and in dark mode, is in [QA-REPORT-012](QA-REPORT-012.md). The data layer this report covers is unchanged by that rebuild.

@@ -5,6 +5,7 @@ import { h } from '../dom.js';
 import { levelClass, levelName } from '../charts.js';
 import { badge, button, citations, toast } from '../ui.js';
 import { registerProfile, versionState, plural } from './report.js';
+import { bitsBar, pqGlyph } from '../viz.js';
 
 export const SSH_SECTIONS = [
   ['ssh-version', 'SSH version & software', 'Which protocol version the server speaks and what it says it runs.'],
@@ -48,17 +49,21 @@ function strengthWords(st) {
   return h('span', { class: 'muted', title: st.basis }, 'not rated');
 }
 
+// Key exchange and host keys are what a quantum computer breaks; ciphers and MACs are not a quantum question.
+const pqOf = (a) => (a.kind === 'kex' || a.kind === 'host-key' ? (a.verdict === 'post-quantum' ? 'quantum-safe' : a.verdict === 'unknown' ? '' : 'quantum-vulnerable') : '');
+
 /** One kind of algorithm as a table: name, what it is, its strength, its verdict, and the one a current client uses. */
 function algoTable(ev, kind, caption) {
   const rows = (ev.sshAlgorithms || []).filter((a) => a.kind === kind);
   if (!rows.length) return null;
   return h('div', null, caption ? h('h3', null, caption) : null,
     h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-      h('thead', null, h('tr', null, ['Name', 'What it is', 'Classical strength', 'Baseline', ''].map((c) => h('th', { scope: 'col' }, c)))),
+      h('thead', null, h('tr', null, ['Name', 'What it is', 'Classical strength', 'Post-quantum', 'Baseline', ''].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, rows.map((a) => h('tr', null,
         h('td', null, h('code', null, a.name)),
         h('td', { class: 'muted' }, a.display || ''),
-        h('td', { class: 'nowrap' }, kind === 'compression' ? '' : strengthWords(a.strength)),
+        h('td', { class: 'invbits' }, kind === 'compression' ? '' : a.strength ? bitsBar(a.strength, { name: a.name }) : strengthWords(a.strength)),
+        h('td', { class: 'invpq' }, pqGlyph(pqOf(a))),
         h('td', null, versionState(statusOf(a))),
         h('td', null, a.used ? badge('used by OpenSSH 10.6', 'info', 'What a current client negotiates') : null)))))));
 }

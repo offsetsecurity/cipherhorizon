@@ -16,14 +16,20 @@ export async function strengthPhase({ check, js, go, sleep, shot, viewport }) {
     const page = await js(`await new Promise((r) => setTimeout(r, 200));
       for (const d of document.querySelectorAll('details.ver-row')) d.open = true;
       return { rows: [...document.querySelectorAll('.ver-body tbody tr')].map((tr) => ({ name: tr.querySelector('code')?.textContent, cell: tr.querySelector('.strength-cell')?.textContent || tr.textContent })),
-        groups: [...document.querySelectorAll('table')].filter((t) => /Classical strength/.test(t.querySelector('thead')?.textContent || '')).flatMap((t) => [...t.querySelectorAll('tbody tr')].map((tr) => tr.textContent)) }`);
+        groups: [...document.querySelectorAll('#sec-key-exchange .gchip')].filter((c) => c.querySelector('.gchip-bits')).map((c) => ({ name: c.childNodes[c.childNodes.length - 2]?.textContent, bits: c.querySelector('.gchip-bits').textContent })) }`);
     for (const s of ev.suiteStrength || []) {
       const row = page.rows.find((r) => r.name === s.name);
       suites++;
       const word = s.word[0].toUpperCase() + s.word.slice(1);
       if (!row || !row.cell.includes(word) || (s.bits && !row.cell.includes(`${s.bits} bits`))) bad.push({ endpoint: a.name, suite: s.name, want: `${word} ${s.bits}`, got: row && row.cell });
     }
-    groups += page.groups.filter((g) => /\d+ bits|broken|not rated/.test(g)).length;
+    // Each group chip states the bits the evaluation gives that group.
+    for (const g of page.groups) {
+      const k = (ev.keyStrength || []).find((x) => x.kind === 'group' && x.name === g.name);
+      const want = !k || !k.strength ? 'not rated' : k.strength.status === 'rated' ? String(k.strength.bits) : k.strength.status === 'disallowed' ? `${k.strength.bits} bits, disallowed` : k.strength.status;
+      groups++;
+      if (g.bits !== want) bad.push({ endpoint: a.name, group: g.name, want, got: g.bits });
+    }
   }
   check('E2E-STR-1', 'every suite on every TLS report shows the strength the evaluation API states (word and bits), and groups show their bits',
     suites > 10 && bad.length === 0 && groups > 0, JSON.stringify({ suites, groups, bad: bad.slice(0, 3) }));

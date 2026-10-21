@@ -18,19 +18,21 @@ export async function classesPhase({ check, js, go, sleep, shot, viewport }) {
     const ev = await js(`return (await fetch('/api/v1/scans/${a.lastDone.id}/evaluation')).json()`);
     await go(`#/endpoints/${a.id}?tab=configuration`);
     await sleep(1400);
-    const page = await js(`const card = document.querySelector('#main .report.configuration > section');
-      const tables = [...document.querySelectorAll('#sec-algorithms h3.algos-class')].map((h3) => ({ cls: h3.textContent, rows: [...h3.nextElementSibling.querySelectorAll('tbody tr')]
-        .map((tr) => ({ name: tr.cells[0].textContent, role: tr.cells[1].textContent, strength: tr.cells[2].textContent, weakest: tr.classList.contains('weakest') })) }));
-      return { firstId: card && card.id, tables }`);
-    if (page.firstId === 'sec-algorithms') first++;
+    const page = await js(`const jump = [...document.querySelectorAll('nav.jump a')].map((a) => a.getAttribute('href'));
+      const tables = [...document.querySelectorAll('#sec-algorithms .lane')].map((lane) => ({ cls: lane.getAttribute('aria-label'), rows: [...lane.querySelectorAll('.lane-row')]
+        .map((r) => ({ name: r.querySelector('.lane-alg code').textContent, strength: r.querySelector('.bitsbar').getAttribute('aria-label'), weakest: r.classList.contains('weakest') })) }));
+      return { reachable: jump.includes('#sec-algorithms'), tables }`);
+    if (page.reachable) first++;
     for (const al of ev.algorithms || []) {
       rows++;
-      const t = page.tables.find((x) => x.cls.toLowerCase().includes(al.class));
-      const r = t && t.rows.find((x) => x.name === al.name && x.role.toLowerCase() === al.role.toLowerCase());
-      if (!r || !r.strength.startsWith(words(al.strength)) || r.weakest !== !!al.weakest) bad.push({ endpoint: a.name, al: `${al.class}/${al.role}/${al.name}`, want: words(al.strength), got: r && r.strength });
+      // The lane is named by the class exactly (asymmetric is not symmetric).
+      const t = page.tables.find((x) => x.cls.toLowerCase() === al.class);
+      const label = `${al.name}: ${words(al.strength)}${al.weakest ? ', the weakest' : ''}`;
+      const r = t && t.rows.find((x) => x.name === al.name && x.strength === label && x.weakest === !!al.weakest);
+      if (!r) bad.push({ endpoint: a.name, al: `${al.class}/${al.role}/${al.name}`, want: label, got: t && t.rows.filter((x) => x.name === al.name).map((x) => x.strength) });
     }
   }
-  check('E2E-CLS-1', 'Configuration opens with Algorithms in use, and every algorithm the API lists is there under its class with its role, strength and weakest mark',
+  check('E2E-CLS-1', 'Every algorithm (reached from the jump row) lists each algorithm the API lists in its class lane, with its strength and weakest mark',
     rows > 20 && bad.length === 0 && first === Math.min(6, endpoints.length), JSON.stringify({ rows, first, bad: bad.slice(0, 3) }));
   await shot('classes-algorithms');
 
@@ -38,25 +40,29 @@ export async function classesPhase({ check, js, go, sleep, shot, viewport }) {
   const ev0 = await js(`return (await fetch('/api/v1/scans/${endpoints[0].lastDone.id}/evaluation')).json()`);
   await go(`#/endpoints/${endpoints[0].id}?tab=configuration`);
   await sleep(1400);
-  const parts = await js(`for (const d of document.querySelectorAll('details.ver-row')) d.open = true;
-    const cell = document.querySelector('.ver-body details.strength-cell');
-    if (!cell) return null;
-    cell.querySelector('summary').click();
-    await new Promise((r) => setTimeout(r, 150));
-    const name = cell.closest('tr').querySelector('code').textContent;
-    return { name, open: cell.open, items: [...cell.querySelectorAll('.partlist li')].map((li) => ({ cls: li.querySelector('.clstag')?.textContent, text: li.textContent, weakest: li.classList.contains('weakest') })) }`);
-  const want = parts && (ev0.suiteStrength || []).find((s) => s.name === parts.name);
-  check('E2E-CLS-2', 'a suite’s strength opens to every part with its class, the weakest marked',
-    !!parts && parts.open && want && parts.items.length === want.parts.length && parts.items.every((i) => i.cls) && parts.items.filter((i) => i.weakest).length === 1
-      && parts.items.some((i) => /Hash/.test(i.cls)),
-    JSON.stringify({ parts, want: want && want.parts.map((p) => `${p.class}:${p.role}:${p.name}`) }).slice(0, 400));
+  // E2E-CLS-2 (PRD-013 REQ-VIS-3): each suite row has its five part cells; every part the evaluation
+  // gives is a cell with its bits, and the weakest is the one cell ringed.
+  const parts = await js(`return [...document.querySelectorAll('#sec-protocols .ver-block')].flatMap((b) => [...b.querySelectorAll('tbody tr')].map((tr) => ({
+    version: b.id.replace('ver-', ''), name: tr.querySelector('code').textContent, cells: tr.querySelectorAll('td.pcol').length,
+    parts: [...tr.querySelectorAll('.pcell')].filter((c) => !c.matches('.pcell-none, .pcell-na')).map((c) => c.title.split(':')[0] + '=' + c.firstChild.textContent),
+    ringed: [...tr.querySelectorAll('.pcell.is-weakest')].map((c) => c.title.split(':')[0]) })))`);
+  const wrong = [];
+  for (const s of ev0.suiteStrength || []) {
+    const row = parts.find((r) => r.name === s.name && r.version === s.version);
+    const cell = (p) => `${p.name}=${p.strength && p.strength.status === 'broken' ? '✕' : p.strength && (p.strength.status === 'rated' || p.strength.status === 'disallowed') ? p.strength.bits : '?'}`;
+    const want = (s.parts || []).map(cell);
+    if (!row || row.cells !== 5 || want.some((w) => !row.parts.includes(w)) || (s.weakest && row.ringed.join() !== s.weakest)) wrong.push({ suite: s.name, want, got: row });
+  }
+  check('E2E-CLS-2', 'every suite row has its five part cells, each part with its bits, the weakest ringed, the hash part included',
+    (ev0.suiteStrength || []).length > 0 && wrong.length === 0 && parts.some((r) => r.parts.some((p) => /^SHA/.test(p))),
+    JSON.stringify({ suites: parts.length, wrong: wrong.slice(0, 2) }).slice(0, 400));
 
   // E2E-CLS-3: the Inventory's Class filter (in the address), and the CBOM tab's classical strength.
   await go('#/inventory/algorithms?class=hash');
   await sleep(1500);
   const inv = await js(`const kinds = [...document.querySelectorAll('#main tbody tr')].map((tr) => tr.cells[1].textContent);
-    const sel = [...document.querySelectorAll('#main select')].find((s) => s.getAttribute('aria-label') === 'Class');
-    return { n: kinds.length, all: kinds.every((k) => k.startsWith('Hash')), value: sel && sel.value, hash: location.hash }`);
+    const on = document.querySelector('.segmented[aria-label="Class"] .seg[aria-pressed="true"]');
+    return { n: kinds.length, all: kinds.every((k) => k.startsWith('Hash')), value: on && on.dataset.class, hash: location.hash }`);
   await go(`#/endpoints/${endpoints[0].id}?tab=cbom`);
   await sleep(1600);
   const cb = await js(`const head = [...document.querySelectorAll('.report.cbom thead th')].map((x) => x.textContent);

@@ -258,6 +258,12 @@ func (s *Server) inventory(w http.ResponseWriter, r *http.Request) {
 	// not also list X25519MLKEM768, as the text filter would).
 	name := q.Get("name")
 	class := q.Get("class")
+	// strength is the Inventory histogram's bucket (PRD-013 REQ-VIS-8).
+	strength := q.Get("strength")
+	if strength != "" && !slices.Contains(strengthBuckets, strength) {
+		writeErr(w, http.StatusBadRequest, "strength must be one of: "+strings.Join(strengthBuckets, ", "))
+		return
+	}
 	if class != "" && class != algo.ClassAsymmetric && class != algo.ClassSymmetric && class != algo.ClassHash {
 		writeErr(w, http.StatusBadRequest, "class must be asymmetric, symmetric or hash")
 		return
@@ -275,6 +281,9 @@ func (s *Server) inventory(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if class != "" && row.Class != class {
+			continue
+		}
+		if strength != "" && strengthBucket(row.Strength) != strength {
 			continue
 		}
 		if purpose != "" && purposeOf(row.Detail) != purpose {
@@ -706,4 +715,27 @@ func classOfComponent(c cdx.Component) string {
 		}
 	}
 	return algo.ClassOf(c.Name).Class
+}
+
+// strengthBuckets are the Inventory histogram's columns, weakest first (UX-DESIGN-011 §3.4): a cited
+// break, below 112 bits (RFC 9325 section 4.1's floor), then the strengths NIST assigns.
+var strengthBuckets = []string{"broken", "below-112", "112", "128", "192", "256", "not-rated"}
+
+// strengthBucket is the column a classical strength falls in.
+func strengthBucket(st *algo.Strength) string {
+	switch {
+	case st == nil || (!st.Known() && st.Status != algo.StrengthBroken):
+		return "not-rated"
+	case st.Status == algo.StrengthBroken:
+		return "broken"
+	case st.Bits < 112:
+		return "below-112"
+	case st.Bits < 128:
+		return "112"
+	case st.Bits < 192:
+		return "128"
+	case st.Bits < 256:
+		return "192"
+	}
+	return "256"
 }

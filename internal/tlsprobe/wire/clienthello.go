@@ -190,6 +190,10 @@ func SessionTicket() Extension { return Extension{Type: ExtSessionTicket, Data: 
 // StatusRequest asks for an OCSP staple (status_request, type ocsp, empty lists).
 func StatusRequest() Extension { return Extension{Type: ExtStatusRequest, Data: []byte{1, 0, 0, 0, 0}} }
 
+// Heartbeat offers the heartbeat extension (RFC 6520) in mode peer_allowed_to_send. The scan only
+// reads whether the server echoes it: it never sends a heartbeat message.
+func Heartbeat() Extension { return Extension{Type: ExtHeartbeat, Data: []byte{1}} }
+
 // ALPN offers application protocols.
 func ALPN(protocols ...string) Extension {
 	var list builder

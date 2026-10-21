@@ -241,6 +241,10 @@ type Features struct {
 	SessionTickets *bool `json:"sessionTickets,omitempty"`
 	// EncryptThenMAC: the server echoed encrypt_then_mac (RFC 7366).
 	EncryptThenMAC *bool `json:"encryptThenMac,omitempty"`
+	// Heartbeat: the server echoed the heartbeat extension (RFC 6520) to a TLS 1.2 or earlier hello.
+	// Nothing needs it, and it is where Heartbleed lived (CVE-2014-0160); nil when no such hello was
+	// answered (a TLS 1.3-only server, where no implementation offers it). PRD-013 REQ-VIS-9.
+	Heartbeat *bool `json:"heartbeat,omitempty"`
 	// OCSPStapling: the server supports status_request.
 	OCSPStapling *bool `json:"ocspStapling,omitempty"`
 	// Compression: the server accepted TLS-level compression (CRIME).

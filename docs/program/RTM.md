@@ -364,7 +364,7 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-CLS-2 | P0 | — | ENH-002 | — | TestSuiteHasItsHashPart, TestEverySuiteInTheRegistryIsRated | done | OD-1: counts as a part; never decides a word on today's numbers |
 | REQ-CLS-3 | P0 | — | ENH-002 | — | TestSignatureAlgorithmIsHashAndKey, TestHashKDFStrengthFollowsTable3 | done | Go, OID and Java spellings |
 | REQ-CLS-4 | P0 | — | ENH-002 | — | TestEvaluationListsAlgorithmsByClass | done | eval/10 |
-| REQ-CLS-5 | P0 | — | ENH-002 | — | script:testing/e2e/classes-phase.mjs#E2E-CLS-1 | done | OD-2: first card on Configuration |
+| REQ-CLS-5 | P0 | — | ENH-002 | — | script:testing/e2e/classes-phase.mjs#E2E-CLS-1 | done | OD-2 was first card; PRD-013 moved it last (protocols first, owner comment) |
 | REQ-CLS-6 | P0 | — | ENH-002 | — | script:testing/e2e/classes-phase.mjs#E2E-CLS-2 | done |  |
 | REQ-CLS-7 | P1 | — | ENH-002 | — | TestInventoryFiltersByClass, script:testing/e2e/classes-phase.mjs#E2E-CLS-3 | done |  |
 | REQ-CLS-8 | P1 | — | ENH-002 | — | TestPDFListsAlgorithmsByClass, TestDetailsShowAlgorithmsByClass | done | the CLI also lists each suite's parts |
@@ -388,6 +388,23 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-XV-7 | P0 | — | ENH-003 | — | script:testing/e2e/x509-phase.mjs#E2E-XV-4 | done | the hostile demo target (9450) |
 | REQ-XV-8 | P1 | — | ENH-003 | — | script:testing/e2e/x509-phase.mjs#E2E-XV-5 | done |  |
 | REQ-XV-9 | P2 | — | ENH-003 | — | report:docs/methodology.md | done | Help › Scan a TLS endpoint; openapi.json |
+
+## PRD-013 · Instruments, not paragraphs ([PRD-013](../product/PRD-013-visual-rebuild.md); results in [QA-REPORT-012](QA-REPORT-012.md))
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-VIS-1 | P0 | — | UX-DESIGN-011 | — | TestInstrumentsAreSharedAndLabelled, script:testing/e2e/visual-phase.mjs#E2E-VIS-1 | done | viz.js; a question mark for "not classified", a dot for "no verdict" |
+| REQ-VIS-2 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-2, script:testing/e2e/journey.mjs#E2E-05.2 | done | a fifth tile (Not checked) joins the strip's row |
+| REQ-VIS-3 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-3, script:testing/e2e/strength-phase.mjs#E2E-STR-1, script:testing/e2e/classes-phase.mjs#E2E-CLS-2 | done | protocols first (owner comment on the concept); supersedes PRD-011 OD-2 |
+| REQ-VIS-4 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/x509-phase.mjs#E2E-XV-1, script:testing/e2e/t1-phase.mjs#T1-E2E.8 | done |  |
+| REQ-VIS-5 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-4, script:testing/e2e/t1-phase.mjs#T1-E2E.15 | done | HSTS shows the header as sent; an invalid one says browsers ignore it |
+| REQ-VIS-6 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/classes-phase.mjs#E2E-CLS-1, script:testing/e2e/t1-phase.mjs#T1-E2E.7 | done | in-page anchors (#sec-…) are now allowed hrefs |
+| REQ-VIS-7 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/x509-phase.mjs#E2E-XV-2 | done | an EC key with key encipherment is marked (RFC 8813) |
+| REQ-VIS-8 | P1 | — | UX-DESIGN-011 | — | TestInventoryFiltersByStrength, script:testing/e2e/visual-phase.mjs#E2E-VIS-5 | done |  |
+| REQ-VIS-9 | P2 | — | UX-DESIGN-011 | — | TestHeartbeatIsProbed | done | 0-RTT stays not probed |
+| REQ-VIS-10 | P2 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-6 | done | the rest of the SSH report keeps its PRD-008 layout |
+| REQ-VIS-11 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-7, script:testing/e2e/x509-phase.mjs#E2E-XV-5 | done | contrast measured on instrument text, light and dark |
+| REQ-VIS-12 | P0 | — | UX-DESIGN-011 | — | report:docs/product/CRYPTO-REVIEW-001-visual-rebuild.md, report:docs/program/QA-REPORT-012.md | done |  |
 
 ## Security requirements (SECARCH-001) coverage
 

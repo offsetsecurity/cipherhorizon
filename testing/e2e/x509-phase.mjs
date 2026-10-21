@@ -17,17 +17,18 @@ export async function x509Phase({ check, js, go, sleep, shot, viewport }) {
   await go(`#/endpoints/${target.id}?tab=configuration`);
   await sleep(1500);
   const nodes = await js(`return [...document.querySelectorAll('.servednode .servedcn a')].map((a) => a.getAttribute('href'))`);
-  const chainLen = await js(`return document.querySelectorAll('.servednode:not(.missing)').length`);
+  const chainLen = await js(`return document.querySelectorAll('.servednode:not(.is-missing)').length`);
   const firstHref = nodes[0];
   await js(`document.querySelector('.servednode .servedcn a').click(); return true`);
   await sleep(1600);
-  const at = await js(`return { hash: location.hash, served: document.querySelector('.served-by')?.textContent || '' }`);
+  const at = await js(`return { hash: location.hash, served: document.querySelector('.xchain .hint')?.textContent || document.querySelector('p.served-by')?.textContent || '',
+    here: document.querySelector('.xchain .chaincard.is-here .cc-role')?.textContent || '' }`);
   await js(`history.back(); return true`);
   await sleep(1500);
   const back = await js(`return { hash: location.hash, chain: !!document.querySelector('.servednode') }`);
   check('E2E-XV-1', 'every certificate in Chain as served opens its own page for that scan, which names the endpoint and its place in the chain; Back returns to the chain',
     nodes.length > 0 && nodes.length === chainLen && nodes.every((h) => new RegExp(`^#/certificates/[0-9a-f]{64}\\?scan=${target.lastDone.id}$`).test(h))
-      && at.hash === firstHref && /Served by .+certificate 1 of \d+ in the chain/.test(at.served) && back.chain && /^#\/endpoints\//.test(back.hash),
+      && at.hash === firstHref && /Served by .+certificate 1 of \d+/.test(at.served) && /Back to the chain/.test(at.served) && /^Leaf · this certificate$/.test(at.here) && back.chain && /^#\/endpoints\//.test(back.hash),
     JSON.stringify({ nodes: nodes.length, chainLen, at, back }).slice(0, 400));
 
   // E2E-XV-2: the page's sections, in ENH-003 §3.2's order, agree with the API.
@@ -36,13 +37,20 @@ export async function x509Phase({ check, js, go, sleep, shot, viewport }) {
   await go(firstHref);
   await sleep(1600);
   const page = await js(`const h2 = [...document.querySelectorAll('#main h2')].map((x) => x.textContent);
-    const facts = Object.fromEntries([...document.querySelectorAll('#main dl.facts > div')].map((d) => [d.querySelector('dt').textContent, d.querySelector('dd').textContent]));
-    return { h2, extRows: document.querySelectorAll('.x509-ext tbody tr').length, key: facts['Classical strength'] || '', serial: facts['Serial number'] || '', sha256: facts['SHA-256'] || '' }`);
-  const order = ['Identity', 'Names', 'Public key', 'Signature', `Extensions (${api.x509.extensions.length})`, 'Fingerprints', 'The certificate (PEM)'];
-  check('E2E-XV-2', 'the certificate page has Identity, Names, Public key, Signature, every Extension, Fingerprints and the PEM, in that order, agreeing with the API',
-    api.der && order.every((t, i) => page.h2[i] === t) && page.extRows === api.x509.extensions.length && page.key.startsWith(words(api.x509.publicKey.strength))
-      && page.serial.includes(api.x509.serial) && page.sha256.includes(api.x509.sha256),
-    JSON.stringify({ h2: page.h2, extRows: page.extRows, want: api.x509 && api.x509.extensions.length, key: page.key.slice(0, 40) }));
+    const ids = Object.fromEntries([...document.querySelectorAll('.xids .xid')].map((d) => [d.querySelector('.xid-head span').textContent, d.querySelector('.xid-v').textContent]));
+    const pos = (sel) => { const all = [...document.querySelectorAll('#main *')]; return all.indexOf(document.querySelector(sel)); };
+    return { h2, extRows: document.querySelectorAll('#x-ext ~ dl.specsheet > dt, section:has(#x-ext) dl.specsheet > dt').length,
+      key: document.querySelector('section:has(#x-key) .bitsbar')?.getAttribute('aria-label') || '',
+      sig: document.querySelector('section:has(#x-sig) .bitsbar')?.getAttribute('aria-label') || '',
+      serial: ids['Serial number'] || '', sha256: ids['SHA-256 fingerprint'] || '', sha1: ids['SHA-1 fingerprint'] || '', spki: ids['Key fingerprint (SPKI SHA-256)'] || '',
+      order: [pos('section:has(#x-ext)'), pos('.xids'), pos('details.xpem')], pemClosed: !document.querySelector('details.xpem').open }`);
+  const order = ['Validity', 'Public key', 'Issuer’s signature', 'Names it is valid for', 'What it may be used for', 'Every extension'];
+  check('E2E-XV-2', 'the certificate page reads Validity, the key and signature meters, names, uses, every extension, the identifiers, then the PEM (collapsed), agreeing with the API (PRD-013 REQ-VIS-7)',
+    api.der && order.every((t, i) => page.h2[i] === t) && page.extRows === api.x509.extensions.length
+      && page.key === `Public key: ${words(api.x509.publicKey.strength)}` && page.sig === `Issuer’s signature: ${words(api.x509.signature.strength)}`
+      && page.serial === api.x509.serial && page.sha256 === api.x509.sha256 && page.sha1 === api.x509.sha1 && page.spki === api.x509.publicKey.spkiSha256
+      && page.order[0] < page.order[1] && page.order[1] < page.order[2] && page.pemClosed,
+    JSON.stringify({ h2: page.h2, extRows: page.extRows, want: api.x509 && api.x509.extensions.length, key: page.key, sig: page.sig, order: page.order }));
   await shot('x509-page');
 
   // E2E-XV-3: the PEM on the page is this certificate, and it can be downloaded.

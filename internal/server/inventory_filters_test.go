@@ -141,3 +141,48 @@ func TestInventoryFiltersByClass(t *testing.T) {
 		t.Errorf("an unknown class answered %d, want 400", s)
 	}
 }
+
+// PRD-013 REQ-VIS-8: ?strength= keeps one histogram column; the columns add up to the list.
+func TestInventoryFiltersByStrength(t *testing.T) {
+	e := newEnv(t)
+	if sc := e.scanAndWait(e.addAsset(hybridServer(t).Addr).ID); sc.Status != "done" {
+		t.Fatalf("scan %+v", sc)
+	}
+	var all struct {
+		Rows []struct {
+			Name string `json:"name"`
+		} `json:"rows"`
+	}
+	e.call("GET", "/api/v1/inventory?kind=algorithm", nil, &all)
+	total := 0
+	seen := map[string]string{}
+	for _, b := range []string{"broken", "below-112", "112", "128", "192", "256", "not-rated"} {
+		var out struct {
+			Rows []struct {
+				Name     string `json:"name"`
+				Strength *struct {
+					Bits   int    `json:"bits"`
+					Status string `json:"status"`
+				} `json:"classicalStrength"`
+			} `json:"rows"`
+		}
+		if s := e.call("GET", "/api/v1/inventory?kind=algorithm&strength="+b, nil, &out); s != 200 {
+			t.Fatalf("strength=%s: %d", b, s)
+		}
+		total += len(out.Rows)
+		for _, r := range out.Rows {
+			seen[r.Name] = b
+		}
+	}
+	if total != len(all.Rows) {
+		t.Errorf("the columns hold %d algorithms, the list %d", total, len(all.Rows))
+	}
+	for name, want := range map[string]string{"AES-128-GCM": "128", "X25519MLKEM768": "192", "AES-256-GCM": "256"} {
+		if seen[name] != want {
+			t.Errorf("%s is in column %q, want %q", name, seen[name], want)
+		}
+	}
+	if s := e.call("GET", "/api/v1/inventory?kind=algorithm&strength=strong", nil, nil); s != 400 {
+		t.Errorf("an unknown column answered %d, want 400", s)
+	}
+}

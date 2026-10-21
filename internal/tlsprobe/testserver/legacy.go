@@ -46,6 +46,88 @@ func ServerHello(version, suite uint16) []byte {
 	return append(rec, msg...)
 }
 
+// offeredExtensions lists the extension types a TLS ClientHello record carries.
+func offeredExtensions(b []byte) map[uint16]bool {
+	out := map[uint16]bool{}
+	if len(b) < 5+4+2+32+1 || b[0] != 22 || b[5] != 1 {
+		return out
+	}
+	body := b[9:]
+	p := 34
+	p += 1 + int(body[p]) // session id
+	if p+2 > len(body) {
+		return out
+	}
+	p += 2 + (int(body[p])<<8 | int(body[p+1])) // cipher suites
+	if p+1 > len(body) {
+		return out
+	}
+	p += 1 + int(body[p]) // compression methods
+	if p+2 > len(body) {
+		return out
+	}
+	end := p + 2 + (int(body[p])<<8 | int(body[p+1]))
+	for p += 2; p+4 <= end && p+4 <= len(body); {
+		t := uint16(body[p])<<8 | uint16(body[p+1])
+		n := int(body[p+2])<<8 | int(body[p+3])
+		out[t] = true
+		p += 4 + n
+	}
+	return out
+}
+
+// ServerHelloWithExtensions is ServerHello with empty-bodied extensions of the given types (an
+// echo, the way a server confirms extended_master_secret or heartbeat; heartbeat gets its mode).
+func ServerHelloWithExtensions(version, suite uint16, types []uint16) []byte {
+	sh := binary.BigEndian.AppendUint16(nil, version)
+	sh = append(sh, make([]byte, 32)...)
+	sh = append(sh, 0)
+	sh = binary.BigEndian.AppendUint16(sh, suite)
+	sh = append(sh, 0)
+	var ext []byte
+	for _, t := range types {
+		ext = binary.BigEndian.AppendUint16(ext, t)
+		if t == 15 {
+			ext = append(ext, 0, 1, 1) // heartbeat: peer_allowed_to_send
+			continue
+		}
+		ext = append(ext, 0, 0)
+	}
+	sh = binary.BigEndian.AppendUint16(sh, uint16(len(ext))) //nolint:gosec // a few bytes
+	sh = append(sh, ext...)
+	msg := []byte{2, 0}
+	msg = binary.BigEndian.AppendUint16(msg, uint16(len(sh))) //nolint:gosec // a ServerHello of a few dozen bytes
+	msg = append(msg, sh...)
+	msg = append(msg, 14, 0, 0, 0)
+	rec := binary.BigEndian.AppendUint16([]byte{22}, version)
+	rec = binary.BigEndian.AppendUint16(rec, uint16(len(msg))) //nolint:gosec // as above
+	return append(rec, msg...)
+}
+
+// LegacyEcho is Legacy that also echoes, in its ServerHello, each extension in echo the client
+// offered.
+func LegacyEcho(version uint16, order []uint16, echo []uint16) func([]byte) []byte {
+	base := Legacy(version, order, false)
+	return func(in []byte) []byte {
+		out := base(in)
+		if len(out) < 6 || out[0] != 22 {
+			return out
+		}
+		offered := offeredExtensions(in)
+		var types []uint16
+		for _, t := range echo {
+			if offered[t] {
+				types = append(types, t)
+			}
+		}
+		if len(types) == 0 {
+			return out
+		}
+		suite := uint16(out[5+4+2+32+1])<<8 | uint16(out[5+4+2+32+2])
+		return ServerHelloWithExtensions(version, suite, types)
+	}
+}
+
 // Alert is a fatal TLS alert record.
 func Alert(desc byte) []byte { return []byte{21, 3, 3, 0, 2, 2, desc} }
 

@@ -23,6 +23,7 @@ import { chartsPhase } from './charts-phase.mjs';
 import { strengthPhase } from './strength-phase.mjs';
 import { classesPhase } from './classes-phase.mjs';
 import { x509Phase } from './x509-phase.mjs';
+import { visualPhase } from './visual-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -308,14 +309,14 @@ async function main() {
   await sleep(500);
   await shot('asset-terrible-legacy-report');
   // Action items: each finding once, in plain words (PRD-006 REQ-RV-2).
-  const fnd = await js(`const rows = [...document.querySelectorAll('#fix .action')];
-    const groups = [...document.querySelectorAll('#fix .action-group')];
-    return { rows: rows.length, todo: rows.filter((r) => /What to do:/.test(r.innerText)).length,
-      groups: groups.length, groupWhy: groups.filter((g) => /Why it matters:/.test(g.querySelector('.action-group-head')?.innerText || '')).length,
-      whys: groups.map((g) => g.querySelector('.action-why')?.textContent),
+  const fnd = await js(`const rows = [...document.querySelectorAll('#fix ol.fixlist > li.action')];
+    return { rows: rows.length, numbered: rows.filter((r, i) => r.querySelector('.fix-n')?.textContent === String(i + 1)).length,
+      todo: rows.filter((r) => (r.querySelector('.action-fix')?.textContent || '').trim().length > 10).length,
+      why: rows.filter((r) => (r.querySelector('.action-fix')?.title || '').length > 10).length,
+      evidence: rows.filter((r) => r.querySelector('a.action-more')).length,
       titles: rows.map((r) => r.querySelector('.action-title').textContent) }`);
-  check('E2E-05.2', 'action items list each finding once with what to do, grouped so each reason (why it matters) is said once',
-    fnd.rows > 0 && fnd.todo === fnd.rows && fnd.groups > 0 && fnd.groupWhy === fnd.groups && new Set(fnd.whys).size === fnd.whys.length
+  check('E2E-05.2', 'Fix first lists each finding once, numbered, with what to do, why it matters in its tooltip and a link to its evidence (UX-DESIGN-011 §3.1)',
+    fnd.rows > 0 && fnd.numbered === fnd.rows && fnd.todo === fnd.rows && fnd.why === fnd.rows && fnd.evidence === fnd.rows
     && new Set(fnd.titles).size === fnd.titles.length, JSON.stringify(fnd).slice(0, 200));
   await shot('asset-terrible-legacy-findings');
   await js(`[...document.querySelectorAll('.tab')].find((t) => t.textContent === 'Weaknesses').click()`);
@@ -573,14 +574,14 @@ async function main() {
     const tab = (n) => [...document.querySelectorAll('.tab')].find((t) => t.textContent === n).click();
     tab('Configuration');
     await new Promise((r) => setTimeout(r, 400));
-    const rows = [...document.querySelectorAll('.matrix .ver-row')];
-    const matrix = { rows: rows.length, names: rows.map((r) => r.querySelector('.ver-name')?.textContent), opened: false, suites: 0,
-      states: Object.fromEntries(rows.map((r) => [r.querySelector('.ver-name')?.textContent, r.querySelector('.vstate')?.textContent])),
-      summary: document.querySelector('.ver-sum')?.textContent || '' };
-    const on = document.querySelector('.matrix details.ver-row');
-    if (on) { on.open = true; matrix.opened = true; matrix.suites = on.querySelectorAll('tbody tr').length; }
-    const cards = [...document.querySelectorAll('.detcard')];
-    const purposes = cards.map((c) => (c.querySelector('.purpose')?.textContent || '').trim().split(/ +/).length);
+    const blocks = [...document.querySelectorAll('#sec-protocols .ver-block')];
+    const offChips = [...document.querySelectorAll('#sec-protocols .ver-off .vchip')];
+    const matrix = { first: document.querySelector('.report.configuration > section')?.id,
+      on: blocks.map((b) => b.querySelector('.ver-name')?.textContent), off: offChips.map((c) => c.textContent),
+      suites: blocks.map((b) => b.querySelectorAll('tbody tr').length),
+      states: Object.fromEntries(blocks.map((b) => [b.querySelector('.ver-name')?.textContent, b.querySelector('.ver-bad')?.textContent || 'on'])) };
+    const cards = [...document.querySelectorAll('.report.configuration > section.cfg')];
+    const purposes = cards.map((c) => (c.querySelector('.cfg-aside')?.textContent || '').trim().split(/ +/).length);
     const findingCards = document.querySelectorAll('.report.configuration .finding, .report.configuration .issue').length;
     const about = !!document.querySelector('#sec-details');
     tab('CBOM');
@@ -591,14 +592,14 @@ async function main() {
   check('E2E-F.6', 'Summary shows the verdict, how many checks ran, and the action items first', rp.strip && rp.fix && /\d+ checks run/.test(rp.coverage), JSON.stringify({ strip: rp.strip, fix: rp.fix, coverage: rp.coverage }));
   check('E2E-F.7', 'every finding appears once in the action items; What was evaluated has a line per area; Configuration shows no finding card',
     rp.issues.length > 0 && new Set(rp.issues).size === rp.issues.length && rp.checks === 8 && rp.findingCards === 0, JSON.stringify(rp).slice(0, 240));
-  check('E2E-F.8', 'area purpose lines are at most 15 words, and How we tested ends Configuration', rp.maxPurpose <= 15 && rp.about, JSON.stringify({ max: rp.maxPurpose, about: rp.about }));
+  check('E2E-F.8', 'Configuration has its six sections, each aside at most 25 words, and How we tested ends it', rp.details === 6 && rp.maxPurpose <= 25 && rp.about, JSON.stringify({ sections: rp.details, max: rp.maxPurpose, about: rp.about }));
   check('E2E-F.9', 'the header has Scan again, Download and More; the tabs are Summary, Configuration, Weaknesses, CBOM, History',
     ['Scan again', 'Download', 'More'].every((t) => rp.head.includes(t)) && !rp.head.includes('Delete') && rp.tabs.join() === 'Summary,Configuration,Weaknesses,CBOM,History', JSON.stringify({ head: rp.head, tabs: rp.tabs }));
-  check('E2E-R.1', 'Configuration opens with a matrix of every TLS version; an accepted version opens to its suites (PRD-006 REQ-RV-3)',
-    rp.matrix.rows >= 4 && rp.matrix.names[0] === 'TLS 1.3' && rp.matrix.opened && rp.matrix.suites > 0, JSON.stringify(rp.matrix));
-  check('E2E-R.3', 'each version says what it is and whether that is right: an enabled old version "should be off", a disabled one "good"',
-    Object.entries(rp.matrix.states).every(([v, t]) => (/^(SSL|TLS 1\.[01])/.test(v) ? /Enabled · should be off|Disabled · good/.test(t) : /Enabled|Disabled|Not determined/.test(t)))
-    && /^Enabled: /.test(rp.matrix.summary), JSON.stringify({ states: rp.matrix.states, summary: rp.matrix.summary }));
+  check('E2E-R.1', 'Configuration opens with the protocols: every version is shown, each one on with its suites, the ones off on one line (PRD-013 REQ-VIS-3)',
+    rp.matrix.first === 'sec-protocols' && rp.matrix.on.length + rp.matrix.off.length >= 4 && rp.matrix.on.length > 0 && rp.matrix.suites.every((n) => n > 0), JSON.stringify(rp.matrix));
+  check('E2E-R.3', 'each version says whether that is right: an old version that is on "should be off", a current one does not',
+    Object.entries(rp.matrix.states).every(([v, t]) => (/^(SSL|TLS 1\.[01])/.test(v) ? /On · should be off/.test(t) : t === 'on'))
+    && Object.keys(rp.matrix.states).some((v) => /^(SSL|TLS 1\.[01])/.test(v)), JSON.stringify({ states: rp.matrix.states, off: rp.matrix.off }));
   check('E2E-R.2', 'the CBOM tab shows the endpoint\'s components with downloads (PRD-006 REQ-RV-5)',
     rp.cbom.rows >= 3 && rp.cbom.counts >= 2 && rp.cbom.dl.includes('Download CycloneDX 1.7'), JSON.stringify(rp.cbom));
   const pdfs = await js(`const out = {};
@@ -767,6 +768,7 @@ async function main() {
   await strengthPhase({ check, js, go, sleep, shot, viewport });
   await classesPhase({ check, js, go, sleep, shot, viewport });
   await x509Phase({ check, js, go, sleep, shot, viewport });
+  await visualPhase({ check, js, go, sleep, shot, viewport });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');
