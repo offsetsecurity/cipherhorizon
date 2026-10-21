@@ -99,6 +99,11 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Fixed
 
+- **SSH evaluation (eval/11; stored scans are re-evaluated on start):**
+  - a truncated MAC is as strong as its tag: hmac-sha1-96 is 96 bits, not 128 (NIST SP 800-107 Rev. 1);
+  - the next steps name OpenSSH releases only to a server that identifies as OpenSSH;
+  - a baseline rule with nothing to judge (the RSA size rule on a server with no RSA key) says it does not apply
+    instead of *Met*.
 - **Single-DES suites (56-bit key) are Insecure, not Weak** (#18).
 - **The TLS hygiene figure on a report's Summary opened *About this report*.** It now opens how the score was worked
   out, on Weaknesses.

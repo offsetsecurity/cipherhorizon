@@ -15,9 +15,9 @@ Requirements: [PRD-014](../product/PRD-014-ssh-instruments.md), [RTM](RTM.md) §
 | Copy rules | `TestUICopyRules`, `TestSSHReportCopyHasNoTLSWords`, `TestSSHServersAreNamedAndNotScored` | pass |
 | Lint | `golangci-lint run ./...`, and with `GOOS=linux` | 0 issues, 0 issues |
 | UI scripts parse | `node --check` on the changed modules | all parse |
-| Browser journey | `testing/e2e/journey.mjs`, the CI setup (fresh database, fresh demo targets, sign-in on with a token) | **237 passed, 0 failed** |
+| Browser journey | `testing/e2e/journey.mjs`, the CI setup (fresh database, fresh demo targets, sign-in on with a token) | **238 passed, 0 failed** (after the second evaluation, with PR #23's E2E-VIS-FOLD) |
 | Screen walk | below | done, 3 defects found and fixed |
-| Cryptography | CRYPTO-REVIEW-002 | signed off, 2 defects fixed, 3 notes kept |
+| Cryptography | CRYPTO-REVIEW-002 | signed off, 5 defects fixed, 2 notes kept |
 
 ## The new and rewritten checks
 
@@ -60,6 +60,20 @@ Every SSH screen, at 1440 px, 375 px and in dark mode, on the six demo servers.
 Seen and kept: the single *Strict key exchange* and *Compression* tiles (one fact each, in the part they belong to);
 the *Software* tile in no tone (the scanner does not judge versions); the dot in the post-quantum column for ciphers
 and MACs (CRYPTO-REVIEW-002 note 3).
+
+## Second evaluation (owner request, after the PR opened)
+
+The owner asked for a proper evaluation of this PR. Walked again as PM, design and cryptographer on the merged branch
+(with PR #23's folding versions), at 1440 and 375 px:
+
+4. **The reason a row should be off was only in a tooltip**, so *hmac-sha2-256: 256 bits, should be off* read as a
+   contradiction. Each such row now says why under the mark (*encrypt-and-MAC*, *a CBC mode cipher*, *a 96-bit tag*),
+   in a Baseline column wide enough to hold it on one line (150 px at 1100 px and under, 160 above).
+5. Cryptography found three more defects in the evaluation itself, fixed with tests: truncated MACs bounded by their
+   tag, OpenSSH releases named only to OpenSSH servers, and a rule with nothing to judge saying it does not apply
+   (CRYPTO-REVIEW-002 fixes 3 to 5). The evaluation is now eval/11, so stored scans are re-evaluated on start.
+6. The host keys' aside said "a key is as strong as its best signature", which hid that a weaker algorithm the key
+   answers to is a row of its own. It now says both.
 
 ## Not covered
 

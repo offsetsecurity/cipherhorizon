@@ -13,7 +13,7 @@ Data: the CI journey's SSH demo servers: 9460 (hybrid key exchange, OpenSSH-styl
 
 ## Verdict
 
-**Signed off**, with the two defects below fixed in this branch and three notes left as they are, each with its
+**Signed off**, with the five defects below fixed in this branch (3 to 5 from a second evaluation the owner asked for) and two notes left as they are, each with its
 reason. No number on the SSH screens disagrees with its cited source.
 
 ## Numbers checked
@@ -71,17 +71,25 @@ reason. No number on the SSH screens disagrees with its cited source.
 2. **"Listed in the server's order; the client's order decides" stood on Key exchange alone**, which could read as
    if the other lists were preferences. RFC 4253 §7.1 applies the rule to every list; the aside now says so.
 
+3. **Truncated MACs were rated by their HMAC** (the first review's note 1, now fixed). hmac-sha1-96 showed 128 bits,
+   but a 96-bit tag lets a forger guess right with probability 2⁻⁹⁶ per attempt: SP 800-107 Rev. 1 §5.3.5 bounds a
+   truncated MAC by its tag. The strength is now the smaller of the HMAC's and the tag's (hmac-sha1-96 → 96,
+   umac-64 → 64), with the reason in its basis. `TestTruncatedMACIsBoundedByItsTag`. eval/11.
+4. **The next steps told every server to "Upgrade to OpenSSH 9.9"**, including the demo servers that identify as Go.
+   OpenSSH releases are now named only to a server that identifies as OpenSSH; any other is told what to offer
+   (mlkem768x25519-sha256 first; strict key exchange), with OpenSSH as the reference point.
+   `TestSSHNextStepsNameOpenSSHOnlyForOpenSSH`.
+5. **"RSA host keys are at least 3072 bits: Met" on servers with no RSA key.** Nothing was judged, so *Met* claimed a
+   check that never ran. The requirement now carries `notApplicable` and the tile says *Does not apply: the server has
+   no RSA host key*; the verdict is unchanged. `TestRSASizeRuleWithoutAnRSAKeyDoesNotApply`.
+
 ## Notes left as they are
 
-1. **Truncated MACs are rated by their HMAC.** hmac-sha1-96 shows 128 bits: SP 800-57 Table 3 rates the HMAC, not
-   its tag length, and a 96-bit tag bounds a forgery guess at 2⁻⁹⁶ per attempt, online. The row is marked
-   *should be off* and SSH.MAC-WEAK names the truncation, so no verdict is wrong; a tag-length cap
-   (SP 800-107 Rev. 1, truncated MAC tags) would be a change to the evaluation, which PRD-014 leaves alone. Proposed as a
-   follow-up for the strength catalogue.
-2. **SHA-1 key exchanges are rated by their group.** diffie-hellman-group14-sha1 shows 112 bits (the 2048-bit
-   group); its SHA-1 exchange hash is what puts it on *should be off* (SSH.KEX-SHA1, RFC 9142). Same reasoning as
-   note 1.
-3. **Ciphers and MACs carry a dot, not a shield.** The TLS class map and the Inventory mark AES as quantum-safe
+1. **SHA-1 key exchanges are rated by their group.** diffie-hellman-group14-sha1 shows 112 bits (the 2048-bit
+   group); its SHA-1 exchange hash is what puts it on *should be off* (SSH.KEX-SHA1, RFC 9142), and the row now says so
+   beside the mark (*a SHA-1 key exchange*). The bar stays the group's strength and the mark carries the SHA-1 risk;
+   kept.
+2. **Ciphers and MACs carry a dot, not a shield.** The TLS class map and the Inventory mark AES as quantum-safe
    (NIST IR 8547; Grover gives no practical break), while the SSH rows give ciphers and MACs no post-quantum
    verdict, as PRD-013 drew them. Both are true statements; the dot's tooltip says *no post-quantum verdict*, not
    *safe* or *vulnerable*. Kept, so the SSH page does not imply that its ciphers were classified by a source they
@@ -89,5 +97,5 @@ reason. No number on the SSH screens disagrees with its cited source.
 
 ## Sign-off
 
-The numbers and claims on the SSH Summary and Configuration are correct against their sources, with fixes 1 and 2
+The numbers and claims on the SSH Summary and Configuration are correct against their sources, with fixes 1 to 5
 in this branch. Signed off for PRD-014 REQ-SSV-9, cryptography.
