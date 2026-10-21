@@ -55,13 +55,15 @@ func TestECCStrengthReproducesSP800186(t *testing.T) {
 	for curve, want := range map[string]int{
 		"secp224r1": 112, "secp256r1": 128, "Curve25519": 128, "Ed25519": 128,
 		"secp384r1": 192, "Curve448": 224, "Ed448": 224, "secp521r1": 256,
+		"sect233k1": 112, "sect233r1": 112, "sect283k1": 128, "sect283r1": 128, "sect409k1": 192, "sect409r1": 192,
+		"sect571k1": 256, "sect571r1": 256,
 	} {
 		got, ok := algo.CurveStrength(curve)
 		if !ok || got != want {
 			t.Errorf("CurveStrength(%s) = %d, %v; SP 800-186 Table 1 says %d", curve, got, ok, want)
 		}
 	}
-	if _, ok := algo.CurveStrength("brainpoolP256r1"); ok {
+	if _, ok := algo.CurveStrength("curveSM2"); ok {
 		t.Error("a curve without a listed order was given a strength")
 	}
 }
@@ -94,5 +96,41 @@ func TestSymmetricAndHashStrengthsFollowSP80057(t *testing.T) {
 		if got, ok := algo.HMACStrength(h); !ok || got != want {
 			t.Errorf("HMACStrength(%s) = %d; Table 3 says %d", h, got, want)
 		}
+	}
+}
+
+// PRD-010 REQ-STR-1: every catalogue algorithm has a classical strength with its source, or a
+// stated reason it has none. Nothing falls through to "no strength is recorded".
+func TestEveryAlgorithmHasACitedStrength(t *testing.T) {
+	for _, a := range algo.All() {
+		s := algo.StrengthOf(a.ID)
+		if s.Basis == "" || s.Basis == "no strength is recorded for this algorithm" {
+			t.Errorf("%s has no cited strength", a.ID)
+		}
+		if s.Known() && s.Bits < 80 {
+			t.Errorf("%s is rated %d bits: below 80 it must be broken", a.ID, s.Bits)
+		}
+	}
+	for name, want := range map[string]string{
+		"RSA-1024": "80 bits", "RSA-2048": "112 bits", "RSA-3072": "128 bits", "RSA-512": "broken",
+		"ECDSA-P256": "128 bits", "ECDSA-P384": "192 bits", "3DES": "112 bits, disallowed", "DES": "broken", "RC4": "broken",
+		"AES-128-GCM": "128 bits", "ChaCha20-Poly1305": "256 bits", "X25519MLKEM768": "192 bits",
+		"ecdsa-with-SHA256": "128 bits", "sha1WithRSAEncryption": "broken", "ML-DSA-65": "192 bits",
+		"oid-1.3.6.1.4.1.99999.1": "not rated",
+	} {
+		if got := algo.StrengthOf(name).Words(); got != want {
+			t.Errorf("StrengthOf(%s) = %q, want %q", name, got, want)
+		}
+	}
+	for g, want := range map[string]int{"x25519": 128, "secp256r1": 128, "secp384r1": 192, "ffdhe2048": 112, "ffdhe3072": 128, "MLKEM768": 192, "X25519MLKEM768": 192} {
+		if s := algo.GroupStrength(g); s.Bits != want {
+			t.Errorf("GroupStrength(%s) = %+v, want %d", g, s, want)
+		}
+	}
+	if s := algo.KeyStrength("RSA", 4096, ""); s.Bits != 152 {
+		t.Errorf("RSA-4096 = %+v, want 152", s)
+	}
+	if s := algo.KeyStrength("ECDSA", 256, "P-256"); s.Bits != 128 {
+		t.Errorf("ECDSA P-256 = %+v, want 128", s)
 	}
 }

@@ -12,8 +12,19 @@ import (
 // WriteText renders the report for a person. It states what was observed and the
 // registry facts attached to it (IANA's Recommended flag, export/anonymous/NULL
 // properties); it passes no verdicts. Evaluation is a separate layer.
-func (r *Report) WriteText(w io.Writer) error {
-	o := &out{w: w}
+func (r *Report) WriteText(w io.Writer) error { return r.WriteTextWith(w, Annotations{}) }
+
+// Annotations add a caller's words to the rows WriteText prints, such as the evaluation's strength
+// of each suite and group (PRD-010 REQ-STR-5). This package passes no verdicts itself; a nil
+// function adds nothing.
+type Annotations struct {
+	Suite func(s SuiteResult) string
+	Group func(g GroupResult) string
+}
+
+// WriteTextWith is WriteText with annotations.
+func (r *Report) WriteTextWith(w io.Writer, a Annotations) error {
+	o := &out{w: w, ann: a}
 	r.writeText(o)
 	return o.err
 }
@@ -23,6 +34,7 @@ func (r *Report) WriteText(w io.Writer) error {
 type out struct {
 	w   io.Writer
 	err error
+	ann Annotations
 }
 
 func (o *out) f(format string, args ...any) { o.fTo(o.w, format, args...) }
@@ -135,7 +147,11 @@ func (r *Report) writeSuites(o *out) {
 		if s.Rank > 0 {
 			rank = fmt.Sprint(s.Rank)
 		}
-		o.fTo(tw, "    %s\t%s\t%s\tiana:%s\t%s\n", rank, s.Name, suiteFacts(s), s.IANARecommended, "")
+		note := ""
+		if o.ann.Suite != nil {
+			note = o.ann.Suite(s)
+		}
+		o.fTo(tw, "    %s\t%s\t%s\tiana:%s\t%s\n", rank, s.Name, suiteFacts(s), s.IANARecommended, note)
 	}
 	o.flush(tw)
 }
@@ -185,6 +201,11 @@ func (r *Report) writeGroups(o *out) {
 		}
 		if g.Obsolete {
 			tags = append(tags, "obsolete draft")
+		}
+		if o.ann.Group != nil {
+			if n := o.ann.Group(g); n != "" {
+				tags = append([]string{n}, tags...)
+			}
 		}
 		o.fTo(tw, "    %s\t%s\tiana:%s\t%s\n", rank, g.Name, g.IANARecommended, strings.Join(tags, ", "))
 	}

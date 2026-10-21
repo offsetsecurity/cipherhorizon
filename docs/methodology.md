@@ -136,6 +136,38 @@ takes every finding except info, orders it by severity, then by whether it stops
 untrusted, name mismatch, missing intermediate, no serverAuth, Must-Staple missing, revoked), then by section order,
 and shows the first three distinct rules.
 
+## Classical strength (eval/9, PRD-010)
+
+Every algorithm the product lists has a classical security strength in bits, computed with NIST's own methods.
+Where no number applies, it says why instead: a cited break, or no rating. The derivation, with NIST's tables
+reproduced to the decimal, is in [ENH-001 §5](product/ENH-001-cipher-strength.md#5-how-the-strength-is-calculated-nists-method-reproduced).
+The code is `internal/algo/strength.go` and `strength_of.go`.
+
+| What | Method | Source |
+|---|---|---|
+| RSA modulus, finite-field DH prime | General Number Field Sieve: E(L) = (1.923·∛(L·ln 2)·∛((ln(L·ln 2))²) − 4.69)/ln 2, rounded to the nearest multiple of eight, at most 256. 1024 → 80, 2048 → 112, 3072 → 128, 4096 → 152, 8192 → 200 | FIPS 140-3 IG D.B; SP 800-56B Rev. 2 Appendix D, Table 4; SP 800-56A Rev. 3, Table 26 |
+| Elliptic curves | Half the bit length of the base point's order, taken to the nearest strength SP 800-186 assigns (80, 112, 128, 192, 224, 256): P-256 and Curve25519 → 128, P-384 → 192, Curve448 → 224, P-521 → 256 | SP 800-186 §3 and Table 1 |
+| Symmetric ciphers | AES-k → k; 3DES (3TDEA) → 112, disallowed for encryption after 2023; DES, RC4, RC2 → broken. Ciphers NIST does not rate (ChaCha20, Camellia, ARIA, SEED, …) get the bound an exhaustive key search sets, labelled as such | SP 800-57 Part 1 Rev. 5 Table 2; SP 800-131A Rev. 2; RFC 7465 |
+| Hashes and MACs | Signatures, where collision resistance is needed: SHA-256 → 128, SHA-384 → 192, SHA-512 → 256; SHA-1 and MD5 → broken. HMAC: SHA-1 → 128, SHA-256 and longer → 256 | SP 800-57 Part 1 Table 3 |
+| Post-quantum algorithms | The classical equivalent of their NIST category: ML-KEM-512/768/1024 → 128/192/256, ML-DSA-44/65/87 → 128/192/256, SLH-DSA by its level | FIPS 203, 204, 205 |
+| Hybrids | Secure while either part is, so their stronger part: X25519MLKEM768 → 192 | RFC 10024, RFC 10042 |
+
+**A TLS cipher suite is as strong as its weakest part.** Its parts are the bulk cipher; the key exchange (the
+weakest group the server accepts for that version, the DH prime it sent, or, for RSA key transport, the certificate
+key); the authentication (the weakest end-entity key the server presented that the suite can use); and, for a
+non-AEAD suite, the MAC.
+
+| Word | When |
+|---|---|
+| **Insecure** | a part is broken (NULL, export, RC4, single DES, anonymous), or fewer than 80 bits |
+| **Weak** | 80 to 111 bits, or a 64-bit block cipher (Sweet32; RFC 9325 §4.2), or no forward secrecy (RFC 9325 §4.1) |
+| **Acceptable** | at least 112 bits, but below 128 or not AEAD (RFC 9325 §4.2 prefers AEAD) |
+| **Strong** | at least 128 bits in every part, AEAD, forward secrecy |
+
+An RSA-2048 certificate (112 bits) makes every suite it authenticates *Acceptable*: the honest reading of SP 800-57,
+and the owner's decision OD-1. Each suite states its weakest part and the reason for its word. The words are this
+product's own; the numbers are NIST's.
+
 ## SSH
 
 SSH servers share the readiness scale and the findings model. They are **not scored**: an SSH server is judged against

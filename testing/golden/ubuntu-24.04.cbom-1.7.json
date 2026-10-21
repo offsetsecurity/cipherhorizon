@@ -301,7 +301,8 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "EdDSA",
-          "ellipticCurve": "other/Ed25519"
+          "ellipticCurve": "other/Ed25519",
+          "classicalSecurityLevel": 128
         },
         "oid": "1.3.101.112"
       }
@@ -378,7 +379,8 @@
         "assetType": "algorithm",
         "algorithmProperties": {
           "primitive": "hash",
-          "algorithmFamily": "SHA-2"
+          "algorithmFamily": "SHA-2",
+          "classicalSecurityLevel": 128
         },
         "oid": "2.16.840.1.101.3.4.2.1"
       }
@@ -417,7 +419,8 @@
         "assetType": "algorithm",
         "algorithmProperties": {
           "primitive": "hash",
-          "algorithmFamily": "SHA-2"
+          "algorithmFamily": "SHA-2",
+          "classicalSecurityLevel": 192
         },
         "oid": "2.16.840.1.101.3.4.2.2"
       }
@@ -456,7 +459,8 @@
         "assetType": "algorithm",
         "algorithmProperties": {
           "primitive": "hash",
-          "algorithmFamily": "SHA-2"
+          "algorithmFamily": "SHA-2",
+          "classicalSecurityLevel": 256
         },
         "oid": "2.16.840.1.101.3.4.2.3"
       }

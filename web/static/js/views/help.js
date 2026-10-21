@@ -38,6 +38,7 @@ const TOPICS = [
   ['import', 'Import a CBOM'],
   ['levels', 'Post-quantum readiness levels'],
   ['score', 'The TLS hygiene score'],
+  ['strength', 'Classical strength'],
   ['baseline', 'The SSH baseline'],
   ['limits', 'What is and is not checked'],
   ['charts', 'Charts and filtered lists'],
@@ -101,6 +102,16 @@ export async function render(root) {
         'Each distinct problem counts once. A critical finding limits the score to 29 and a high one to 74, so a serious problem cannot be averaged away.'),
       h('p', null, 'Bands: Strong (90 and above), Sound (75 to 89), Fair (55 to 74), Weak (30 to 54), Broken (below 30). Every point taken off is listed on the endpoint’s page with the finding it came from.'),
       h('p', { class: 'text-2' }, 'Post-quantum findings are not counted: the readiness level answers that separately, so an endpoint can score Strong and still be exposed to harvest-now-decrypt-later. The weights are this product’s own choice, not a standard. SSH servers have no score: see the SSH baseline.')),
+    sec('strength', 'Classical strength',
+      h('p', null, 'Every algorithm, key and cipher suite shows how strong it is against today’s computers, in bits: about 2 to that power operations would break it. The numbers are NIST’s, computed the way NIST computes them: RSA and Diffie-Hellman by the General Number Field Sieve estimate (2048 bits gives 112, 3072 gives 128), elliptic curves at half their order (P-256 and X25519 give 128), AES by its key, hashes by their collision resistance.'),
+      h('p', null, h('b', null, 'A cipher suite is as strong as its weakest part'), ': the cipher, the key exchange, the certificate key and the MAC. It is '),
+      h('ul', null, [
+        [h('b', null, 'Insecure'), ' when a part is broken (no encryption, export, RC4, single DES, no authentication) or under 80 bits;'],
+        [h('b', null, 'Weak'), ' from 80 to 111 bits, or with a 64-bit block cipher such as 3DES, or without forward secrecy;'],
+        [h('b', null, 'Acceptable'), ' at 112 bits or more, but under 128 or not an AEAD cipher;'],
+        [h('b', null, 'Strong'), ' at 128 bits or more in every part, with an AEAD cipher and forward secrecy.'],
+      ].map((x) => h('li', null, x))),
+      h('p', { class: 'text-2' }, 'An RSA-2048 certificate is 112 bits, so the suites it authenticates read Acceptable. Each suite names its weakest part. The words are this product’s own; the numbers and their sources are in the methodology. Post-quantum readiness is separate: a 128-bit classical algorithm can still be broken by a quantum computer.')),
     sec('baseline', 'The SSH baseline',
       h('p', null, 'An SSH server is judged against a baseline: a named, versioned list of what an SSH server may offer and must offer, every entry cited. It ', h('b', null, 'meets'),
         ' the baseline when nothing it offers should be off and every requirement holds; otherwise the report lists the changes and the ', code('sshd_config'), ' lines that make them. A server whose lists could not be read is not judged.'),
@@ -144,5 +155,13 @@ export async function render(root) {
     sec('sources', 'Sources', citations(SOURCES.map(([title, url]) => ({ title, url })))));
 
   root.appendChild(h('div', { class: 'help-layout' }, toc, body));
+  // #/help?topic=strength opens at that topic (links from the report's legends).
+  const topic = new URLSearchParams(location.hash.split('?')[1] || '').get('topic');
+  // Scroll once now and again when the web fonts are in: their metrics move the sections down.
+  if (topic && TOPICS.some(([id]) => id === topic)) {
+    const go = () => document.getElementById(`help-${topic}`)?.scrollIntoView({ block: 'start' });
+    setTimeout(go, 0);
+    if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(go);
+  }
   return null;
 }

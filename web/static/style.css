@@ -1586,6 +1586,10 @@ a.sumtile:focus-visible::after, a.recent-row:focus-visible::after { transform: s
 .fade-host { transition: opacity 140ms ease; }
 .fade-host.fading { opacity: 0; transition-duration: 80ms; }
 
+/* PRD-010: classical strength. Below 112 bits is weak (RFC 9325 section 4.1), said in words beside it. */
+.text-bad { color: var(--bad); font-weight: 550; }
+.strength-cell { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .35rem; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

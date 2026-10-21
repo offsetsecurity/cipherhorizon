@@ -38,16 +38,27 @@ const statusOf = (a) => {
 };
 const offCount = (all) => all.filter((a) => a.baseline === 'off').length;
 
-/** One kind of algorithm as a table: name, what it is, its verdict, and the one a current client uses. */
+// An algorithm's classical strength (PRD-010): bits from NIST's methods, broken with its reason, or
+// why it is not rated; the source is in the tooltip.
+function strengthWords(st) {
+  if (!st) return h('span', { class: 'muted' }, '·');
+  if (st.status === 'broken') return badge('✖ broken', 'bad', st.basis);
+  if (st.status === 'disallowed') return h('span', { title: st.basis }, `${st.bits} bits `, badge('disallowed', 'warn', st.basis));
+  if (st.status === 'rated') return h('span', { class: st.bits < 112 ? 'text-bad' : '', title: st.basis }, `${st.bits} bits`);
+  return h('span', { class: 'muted', title: st.basis }, 'not rated');
+}
+
+/** One kind of algorithm as a table: name, what it is, its strength, its verdict, and the one a current client uses. */
 function algoTable(ev, kind, caption) {
   const rows = (ev.sshAlgorithms || []).filter((a) => a.kind === kind);
   if (!rows.length) return null;
   return h('div', null, caption ? h('h3', null, caption) : null,
     h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-      h('thead', null, h('tr', null, ['Name', 'What it is', 'Baseline', ''].map((c) => h('th', { scope: 'col' }, c)))),
+      h('thead', null, h('tr', null, ['Name', 'What it is', 'Classical strength', 'Baseline', ''].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, rows.map((a) => h('tr', null,
         h('td', null, h('code', null, a.name)),
         h('td', { class: 'muted' }, a.display || ''),
+        h('td', { class: 'nowrap' }, kind === 'compression' ? '' : strengthWords(a.strength)),
         h('td', null, versionState(statusOf(a))),
         h('td', null, a.used ? badge('used by OpenSSH 10.6', 'info', 'What a current client negotiates') : null)))))));
 }

@@ -32,6 +32,15 @@ const QUANTUM = {
   unknown: ['? not classified', 'neutral'],
   'not-applicable': ['·', 'none'],
 };
+// The classical strength of an algorithm or key (PRD-010): bits from NIST's methods, or broken with
+// its cited reason, or why it is not rated. The source is in the tooltip.
+function strengthCell(st) {
+  if (!st) return h('span', { class: 'muted' }, '·');
+  if (st.status === 'broken') return badge('✖ broken', 'bad', st.basis);
+  if (st.status === 'disallowed') return h('span', { title: st.basis }, `${st.bits} bits `, badge('disallowed', 'warn', st.basis));
+  if (st.status === 'rated') return h('span', { class: st.bits < 112 ? 'text-bad' : '', title: st.basis }, `${st.bits} bits`);
+  return h('span', { class: 'muted', title: st.basis }, 'not rated');
+}
 const quantumBadge = (q) => { const [t, k] = QUANTUM[q] || [q, 'neutral']; return k === 'none' ? h('span', { class: 'muted' }, t) : badge(t, k); };
 // Certificates and their keys are named by their subject; people know them by the common name.
 const cnOf = (dn) => { const m = /CN=([^,]+)/.exec(dn || ''); return m ? m[1] : dn; };
@@ -376,10 +385,11 @@ async function itemsList(root, kind, query) {
     }
     const showQuantum = kind === 'algorithm' || kind === 'key';
     list.appendChild(h('div', { class: 'tablewrap' }, h('table', { class: 'compact invtable' },
-      h('thead', null, h('tr', null, ['Name', kind === 'software' ? 'Version' : 'Kind', showQuantum ? 'Post-quantum' : null, 'Seen on', 'Last seen'].filter(Boolean).map((c) => h('th', { scope: 'col' }, c)))),
+      h('thead', null, h('tr', null, ['Name', kind === 'software' ? 'Version' : 'Kind', showQuantum ? 'Classical strength' : null, showQuantum ? 'Post-quantum' : null, 'Seen on', 'Last seen'].filter(Boolean).map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, rows.map((r) => h('tr', null,
         h('td', null, h('b', { title: r.name }, shownName(r.name))),
         h('td', { class: 'muted' }, humanDetail(r.detail) || '·'),
+        showQuantum ? h('td', null, strengthCell(r.classicalStrength)) : null,
         showQuantum ? h('td', null, quantumBadge(r.quantum)) : null,
         h('td', null, placesCell(r.places)),
         h('td', { class: 'muted nowrapcell' }, r.lastSeen ? relTime(r.lastSeen) : '·')))))));

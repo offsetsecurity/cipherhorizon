@@ -163,7 +163,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		}
 		if *details {
 			_, _ = fmt.Fprintln(env.Stdout)
-			if err := rep.WriteText(env.Stdout); err != nil {
+			if err := rep.WriteTextWith(env.Stdout, strengthAnnotations(ev)); err != nil {
 				return fatalf(env, "writing report: %v", err)
 			}
 		}
@@ -227,4 +227,30 @@ func anySupported(rep *tlsprobe.Report) bool {
 		}
 	}
 	return false
+}
+
+// strengthAnnotations print, beside each suite and group of --details, the classical strength the
+// evaluation gives it (PRD-010 REQ-STR-5): "strong 128 (AES-128-GCM)", "weak 112 (3DES)".
+func strengthAnnotations(ev eval.Evaluation) tlsprobe.Annotations {
+	return tlsprobe.Annotations{
+		Suite: func(s tlsprobe.SuiteResult) string {
+			for _, r := range ev.SuiteStrength {
+				if r.Version == s.Version && r.ID == s.ID {
+					if r.Bits > 0 {
+						return fmt.Sprintf("%s %d (%s)", r.Word, r.Bits, r.Weakest)
+					}
+					return r.Word + " (" + r.Weakest + ")"
+				}
+			}
+			return ""
+		},
+		Group: func(g tlsprobe.GroupResult) string {
+			for _, k := range ev.KeyStrength {
+				if k.Kind == "group" && k.Version == g.Version && k.Name == g.Name {
+					return k.Strength.Words()
+				}
+			}
+			return ""
+		},
+	}
 }

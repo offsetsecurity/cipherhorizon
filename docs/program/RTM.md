@@ -342,6 +342,20 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-CBM-6 | P2 | WP-4 | PRD-009 | — | TestSuiteAlgorithmsAreUnique | done | C-6 |
 | REQ-CBM-7 | P1 | WP-4 | PRD-009 | — | report:docs/product/CBOM-REVIEW-002-oids-and-completeness.md | done | docs/cbom-model.md, tls-scanning.md, exporting.md |
 
+## PRD-010 · Classical strength for every detected algorithm ([PRD-010](../product/PRD-010-classical-strength.md); results in [QA-REPORT-010](QA-REPORT-010.md))
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-STR-1 | P0 | — | ENH-001 | — | TestEveryAlgorithmHasACitedStrength, TestGNFSReproducesNISTTables, TestECCStrengthReproducesSP800186, TestSymmetricAndHashStrengthsFollowSP80057 | done | curve rule corrected to SP 800-186's levels (K-233 is 112, not 120) |
+| REQ-STR-2 | P0 | — | ENH-001 | — | TestSuiteStrengthIsTheWeakestPart, TestSingleDESIsInsecure, TestEverySuiteInTheRegistryIsRated | done | fixes #18 |
+| REQ-STR-3 | P0 | — | ENH-001 | — | TestEvaluationCarriesStrength | done | eval/9 |
+| REQ-STR-4 | P0 | — | ENH-001 | — | TestPDFAndEvaluationAgreeOnStrength, script:testing/e2e/strength-phase.mjs#E2E-STR-1 | done | the JS and Go heuristics are deleted |
+| REQ-STR-5 | P1 | — | ENH-001 | — | TestDetailsShowSuiteStrength | done |  |
+| REQ-STR-6 | P0 | — | ENH-001 | — | TestInventoryRowsCarryClassicalStrength, script:testing/e2e/strength-phase.mjs#E2E-STR-2 | done |  |
+| REQ-STR-7 | P1 | — | ENH-001 | — | TestSSHAlgorithmsCarryStrength | done | RSA and DSA host keys by the presented key's size; SHA-1 signatures broken |
+| REQ-STR-8 | P0 | — | ENH-001 | — | TestCBOMCarriesClassicalSecurityLevel, TestLegacyOutputIsPreserved | done | host goldens regenerated; the legacy test allows exactly this addition |
+| REQ-STR-9 | P1 | — | ENH-001 | — | report:docs/methodology.md, script:testing/e2e/strength-phase.mjs#E2E-STR-3 | done | Help (the report's legend opens it at the topic), cbom-model, CHANGELOG, README |
+
 ## Security requirements (SECARCH-001) coverage
 
 Each SR must be exercised by at least one requirement above; `TestRequirementsTraceability` checks that every `SR-nn` in SECARCH-001 appears in the SR column at least once, except those listed here as cross-cutting.

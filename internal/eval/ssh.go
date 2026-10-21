@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
 	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe"
 	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe/registry"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
@@ -735,6 +736,8 @@ type SSHAlgorithm struct {
 	Used bool `json:"used,omitempty"`
 	// Baseline is allowed or off against the evaluation's baseline (PRD-008 REQ-SHB-3).
 	Baseline string `json:"baseline"`
+	// Strength is its classical strength (PRD-010 REQ-STR-7); nil for compression.
+	Strength *algo.Strength `json:"strength,omitempty"`
 }
 
 // sshAlgorithmViews lists every advertised algorithm, kind by kind, in the server's order.
@@ -751,7 +754,8 @@ func sshAlgorithmViews(c *sshCtx, b *SSHBaseline) []SSHAlgorithm {
 	}{{registry.KindKex, c.alg.Kex}, {registry.KindHostKey, c.alg.HostKey}, {registry.KindCipher, c.ciphers}, {registry.KindMAC, c.macs}, {registry.KindCompression, c.comp}} {
 		for _, name := range l.names {
 			a, ok := registry.Lookup(l.kind, name)
-			v := SSHAlgorithm{Kind: l.kind, Name: name, Display: a.Display, Used: used[l.kind] == name, Baseline: BaselineOff}
+			v := SSHAlgorithm{Kind: l.kind, Name: name, Display: a.Display, Used: used[l.kind] == name, Baseline: BaselineOff,
+				Strength: sshStrength(l.kind, name, a, ok, c.rep.HostKeys)}
 			if registry.IsPseudo(name) {
 				v.Baseline = ""
 			} else if b.allows(l.kind, name) {

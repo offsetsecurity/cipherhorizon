@@ -168,7 +168,10 @@ estimate; a 7680-bit key comfortably meets the 192 category. For the thresholds 
 The best known classical attack on the elliptic-curve discrete logarithm problem is Pollard's rho, about
 √(πn/4) ≈ 2^(f/2) operations for a base point of order n with f bits. **SP 800-186 §3**: *"if an elliptic curve has a
 basepoint of order n, then the security strength will be approximately one half of the bit length of n"*. We take
-f/2, rounded to a multiple of eight, held to 256.
+f/2 to the **nearest strength SP 800-186 Table 1 assigns** (80, 112, 128, 192, 224, 256). This replaces an earlier
+"round to a multiple of eight", which matched the prime curves but gave K-233 120 bits where NIST says 112. The
+nearest-level rule reproduces every row of Table 1, binary curves included: K-233 116 → 112, K-283 140.5 → 128,
+K-409 203.5 → 192, K-571 285 → 256.
 
 | Curve (as TLS or SSH names it) | Order f (bits) | f/2 | Strength | SP 800-186 Table 1 |
 |---|---|---|---|---|

@@ -197,14 +197,26 @@ export function summaryView(ctx) {
 const VERSION_ORDER = ['TLSv1.3', 'TLSv1.2', 'TLSv1.1', 'TLSv1.0', 'SSLv3', 'SSLv2'];
 const versionLabel = (v) => v.replace('TLSv', 'TLS ').replace('SSLv', 'SSL ');
 
-/** How strong a cipher suite is, in four words a reader can compare across versions. */
-function suiteStrength(s) {
-  if (s.cipher === 'NULL' || s.export || s.anon || s.cipher === 'RC4') return 'insecure';
-  if (s.blockBits === 64 || (s.kx && !s.ephemeral && ['RSA', 'DH', 'ECDH'].includes(s.kx))) return 'weak';
-  if (!s.aead && s.version !== 'TLSv1.3') return 'acceptable';
-  return 'strong';
-}
+/** A suite's classical strength, from the evaluation (PRD-010): the word, the bits of its weakest
+ *  part, which part, and why. The rules are the server's, cited in docs/methodology.md; the page only
+ *  shows them. A result evaluated before eval/9 has none and shows "not rated". */
+const suiteRating = (ev, s) => ((ev && ev.suiteStrength) || []).find((x) => x.version === s.version && x.id === s.id) || null;
+const suiteStrength = (ev, s) => (suiteRating(ev, s) || {}).word || 'unrated';
 const STRENGTHS = [['strong', 'Strong', 'good'], ['acceptable', 'Acceptable', 'neutral'], ['weak', 'Weak', 'warn'], ['insecure', 'Insecure', 'bad']];
+/** The strength of a certificate key or group from the evaluation, in words ("112 bits"). */
+const keyBits = (ev, kind, name) => {
+  const k = ((ev && ev.keyStrength) || []).find((x) => x.kind === kind && x.name === name);
+  if (!k) return '';
+  const st = k.strength;
+  return st.status === 'rated' ? `${st.bits} bits` : st.status === 'disallowed' ? `${st.bits} bits, disallowed` : st.status === 'broken' ? 'broken' : 'not rated';
+};
+const strengthCell = (ev, s) => {
+  const r = suiteRating(ev, s);
+  if (!r) return h('span', { class: 'muted' }, 'not rated');
+  const [, word, tone] = STRENGTHS.find(([k]) => k === r.word) || [null, r.word, 'neutral'];
+  return h('span', { class: 'strength-cell', title: r.reason }, badge(word, tone),
+    h('span', { class: 'hint' }, r.bits ? ` ${r.bits} bits · ${r.weakest}` : r.weakest ? ` ${r.weakest}` : ''));
+};
 
 function strengthBar(counts, total, max) {
   const W = 160, H = 10;
@@ -244,7 +256,7 @@ function versionState([tone, sym, state, judgement]) {
 
 /** The protocol matrix: every version, accepted or not, and for each accepted one what it ran. */
 function protocolMatrix(ctx) {
-  const { rep } = ctx;
+  const { rep, ev } = ctx;
   const byVersion = Object.fromEntries((rep.protocols || []).map((p) => [p.version, p]));
   const suites = rep.suites || [];
   const groups = rep.groups || [];
@@ -264,7 +276,7 @@ function protocolMatrix(ctx) {
     const p = byVersion[v];
     const vs = suites.filter((s) => s.version === v);
     const counts = {};
-    for (const s of vs) counts[suiteStrength(s)] = (counts[suiteStrength(s)] || 0) + 1;
+    for (const s of vs) counts[suiteStrength(ev, s)] = (counts[suiteStrength(ev, s)] || 0) + 1;
     const fs = vs.filter((s) => s.version === 'TLSv1.3' || s.ephemeral).length;
     const vg = groups.filter((g) => g.version === v);
     const pq = vg.filter((g) => g.pq && !g.obsolete);
@@ -281,11 +293,9 @@ function protocolMatrix(ctx) {
       accepted ? h('span', { class: 'ver-open' }, h('span', { class: 't-show' }, 'Show suites'), h('span', { class: 't-hide' }, 'Hide suites')) : h('span', null));
     if (!accepted) return h('div', { class: `ver-row off vr-${verdict[0]}` }, h('div', { class: 'ver-line' }, ...line.childNodes));
     const suiteRows = vs.map((s) => {
-      const st = suiteStrength(s);
-      const [, word, tone] = STRENGTHS.find(([k]) => k === st);
       return h('tr', null, h('td', { class: 'num' }, s.rank || '·'), h('td', null, h('code', null, s.name)),
         h('td', null, s.cipher === 'NULL' ? 'none' : `${s.cipher}-${s.keyBits} ${s.mode}`), h('td', null, s.kx || 'TLS 1.3'),
-        h('td', null, badge(word, tone)), h('td', { class: 'muted' }, ianaLabel(s.ianaRecommended)));
+        h('td', null, strengthCell(ev, s)), h('td', { class: 'muted' }, ianaLabel(s.ianaRecommended)));
     });
     return h('details', { class: `ver-row on vr-${verdict[0]}`, id: `ver-${v}` }, line,
       h('div', { class: 'ver-body' },
@@ -296,7 +306,8 @@ function protocolMatrix(ctx) {
         vg.length ? h('p', null, h('b', null, 'Key-exchange groups: '), vg.map((g, i) => [i ? ', ' : '',
           h('span', { class: g.pq && !g.obsolete ? 'pq-group' : '' }, g.name), g.pq && !g.obsolete ? ' (post-quantum)' : ''])) : null));
   });
-  const legend = h('p', { class: 'hint strength-legend' }, h('span', null, 'Suite strength:'), STRENGTHS.map(([k, w]) => h('span', null, h('span', { class: `swatch sw-st-${k}`, 'aria-hidden': 'true' }), ` ${w} `)));
+  const legend = h('p', { class: 'hint strength-legend' }, h('span', null, 'Suite strength:'), STRENGTHS.map(([k, w]) => h('span', null, h('span', { class: `swatch sw-st-${k}`, 'aria-hidden': 'true' }), ` ${w} `)),
+    h('span', null, 'A suite is as strong as its weakest part (cipher, key exchange, certificate key, MAC), in bits as NIST estimates them. ', h('a', { href: '#/help?topic=strength' }, 'How strength is worked out')));
   const n = rep.negotiated || {};
   return h('section', { class: 'card matrix', id: 'sec-protocols', 'aria-labelledby': 'matrix-h' },
     h('span', { id: 'sec-suites' }),
@@ -577,7 +588,7 @@ function certificatesBody(ctx) {
   const draw = () => {
     tabs.replaceChildren(...views.map((v, i) => h('button', { type: 'button', role: 'tab', class: 'chaintab', 'aria-selected': String(i === selected),
       onclick: () => { selected = i; draw(); } }, chainLabel(v))));
-    panel.replaceChildren(chainPanel(views[selected], certs, asset));
+    panel.replaceChildren(chainPanel(views[selected], certs, asset, ctx.ev));
   };
   draw();
   const first = views.find((v) => !v.noSni) || views[0];
@@ -587,7 +598,7 @@ function certificatesBody(ctx) {
   const trustedBy = (first.trust || []).filter((t) => t.trusted).map((t) => t.store);
   if (first.private && first.private.trusted) trustedBy.push('your CA bundle');
   const facts = [
-    `Issued to ${cn(leaf.subject)} by ${cn(leaf.issuer)}; ${keyDesc(leaf.publicKey)} key, signed with ${leaf.signatureAlgorithm.name}.`,
+    `Issued to ${cn(leaf.subject)} by ${cn(leaf.issuer)}; ${keyDesc(leaf.publicKey)} key${keyBits(ctx.ev, 'certificate-key', leaf.sha256) ? ` (${keyBits(ctx.ev, 'certificate-key', leaf.sha256)})` : ''}, signed with ${leaf.signatureAlgorithm.name}.`,
     left === null ? null : left < 0 ? `Expired ${-left} days ago (${fmtDay(leaf.notAfter)}).`
       : `Valid until ${fmtDay(leaf.notAfter)}: ${left} days left of a ${first.lifetime.days}-day lifetime.`,
     trustedBy.length ? `Trusted by ${trustedBy.join(', ')}.` : 'Not trusted by any root store checked.',
@@ -599,14 +610,14 @@ function certificatesBody(ctx) {
   return { verdict, facts, lead: h('div', null, views.length > 1 ? tabs : null, panel) };
 }
 
-function chainPanel(v, certs, asset) {
+function chainPanel(v, certs, asset, ev) {
   const cr = certs.find((c) => c.chain[0] && c.chain[0].sha256 === v.leaf && !!c.noSni === !!v.noSni) || certs.find((c) => c.chain[0] && c.chain[0].sha256 === v.leaf);
   if (v.error || !cr) return h('p', { class: 'muted' }, v.error || 'This chain could not be analysed.');
   return h('div', { class: 'chainpanel' },
     v.noSni ? h('div', { class: 'callout info', role: 'note' }, h('b', null, 'Only clients that send no server name see this certificate. '),
       'Every current client sends one, and many large sites deliberately serve a placeholder here. It is shown for information and is not scored.') : null,
     h('h3', null, 'Chain as served'),
-    servedDiagram(v, cr),
+    servedDiagram(v, cr, ev),
     h('h3', null, 'Trust'),
     trustRows(v),
     h('details', { class: 'alldata' }, h('summary', null, 'Validity, names and every field'),
@@ -619,7 +630,7 @@ function chainPanel(v, certs, asset) {
       certChain(cr, { host: asset.host, noTrust: true })));
 }
 
-function servedDiagram(v, cr) {
+function servedDiagram(v, cr, ev) {
   const issuesAt = {};
   for (const i of v.served.issues || []) (issuesAt[i.index] = issuesAt[i.index] || []).push(i);
   const onPath = new Set(v.served.path || []);
@@ -627,7 +638,7 @@ function servedDiagram(v, cr) {
     h('span', { class: 'servedpos' }, String(i)),
     h('div', null,
       h('div', { class: 'servedcn' }, cn(c.subject)),
-      h('div', { class: 'hint' }, i === 0 ? 'leaf' : c.selfSigned ? 'root' : 'intermediate', ` · ${keyDesc(c.publicKey)} · until ${fmtDay(c.notAfter)}`),
+      h('div', { class: 'hint' }, i === 0 ? 'leaf' : c.selfSigned ? 'root' : 'intermediate', ` · ${keyDesc(c.publicKey)}${keyBits(ev, 'certificate-key', c.sha256) ? ` (${keyBits(ev, 'certificate-key', c.sha256)})` : ''} · until ${fmtDay(c.notAfter)}`),
       (issuesAt[i] || []).map((is) => h('div', { class: 'servedissue' }, `⚠ ${is.kind}: ${is.detail}`)),
       (v.served.expiresFirst || []).includes(i) ? h('div', { class: 'servedissue' }, '⚠ expires before the leaf') : null)));
   if (v.served.missing) {
@@ -766,17 +777,18 @@ function suiteProblems(s) {
   return out;
 }
 
-function suiteTable(rows) {
+function suiteTable(rows, ev) {
   return h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-    h('thead', null, h('tr', null, ['Version', '#', 'Suite', 'Cipher', 'Key exchange', 'Flags', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
+    h('thead', null, h('tr', null, ['Version', '#', 'Suite', 'Cipher', 'Key exchange', 'Strength', 'Flags', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
     h('tbody', null, rows.map((s) => h('tr', null, h('td', null, s.version), h('td', { class: 'num' }, s.rank || '·'), h('td', null, h('code', null, s.name)),
       h('td', null, s.cipher === 'NULL' ? 'none' : `${s.cipher}-${s.keyBits} ${s.mode}`), h('td', null, s.kx || 'TLS 1.3'),
+      h('td', null, strengthCell(ev, s)),
       h('td', null, suiteProblems(s).filter(([t]) => t !== 'IANA discouraged').map(([t, k]) => h('span', null, badge(t, k), ' ')), s.aead ? badge('AEAD', 'good') : null),
       h('td', null, badge(ianaLabel(s.ianaRecommended), s.ianaRecommended === 'Y' ? 'good' : s.ianaRecommended === 'D' ? 'bad' : 'neutral')))))));
 }
 
 function suitesBody(ctx) {
-  const { rep } = ctx;
+  const { rep, ev } = ctx;
   const suites = rep.suites || [];
   const problem = suites.filter((s) => suiteProblems(s).some(([, k]) => k !== 'neutral'));
   const fine = suites.filter((s) => !problem.includes(s));
@@ -787,8 +799,8 @@ function suitesBody(ctx) {
     `${plural(suites.length, 'suite')} accepted: ${aead} AEAD${cbc ? `, ${cbc} CBC` : ''}${problem.length ? `, ${problem.length} with a weakness` : ''}.`,
     order.length ? `Order: ${order.join('; ')}.` : null,
   ];
-  const lead = problem.length ? h('div', null, h('h3', null, 'Suites with a weakness'), suiteTable(problem)) : null;
-  return { facts, lead, all: fine.length ? h('div', null, h('p', { class: 'hint' }, 'Suites with no weakness flagged:'), suiteTable(fine)) : null };
+  const lead = problem.length ? h('div', null, h('h3', null, 'Suites with a weakness'), suiteTable(problem, ev)) : null;
+  return { facts, lead, all: fine.length ? h('div', null, h('p', { class: 'hint' }, 'Suites with no weakness flagged:'), suiteTable(fine, ev)) : null };
 }
 
 function keyExchangeBody(ctx) {
@@ -818,12 +830,13 @@ function keyExchangeBody(ctx) {
   const groupRow = (g) => h('tr', null,
     h('td', { class: 'num' }, g.rank || '·'),
     h('td', null, h('code', null, g.name)),
+    h('td', { class: 'nowrap' }, keyBits(ev, 'group', g.name) || h('span', { class: 'muted' }, '·')),
     h('td', null, g.pq ? badge(g.hybrid ? 'hybrid post-quantum' : 'post-quantum', g.obsolete ? 'warn' : 'good') : h('span', { class: 'muted' }, 'classical'),
       g.obsolete ? badge('obsolete draft', 'warn') : null),
     h('td', null, badge(ianaLabel(g.ianaRecommended), g.ianaRecommended === 'Y' ? 'good' : 'neutral')));
   const groupTable = (v) => h('div', null, h('h3', null, v),
     h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-      h('thead', null, h('tr', null, ['#', 'Group', 'Post-quantum', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
+      h('thead', null, h('tr', null, ['#', 'Group', 'Classical strength', 'Post-quantum', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, groups.filter((g) => g.version === v).map(groupRow)))));
   const all = h('div', null, gv.map(groupTable),
     rep.dh ? h('p', null, `DHE prime fingerprint ${rep.dh.primeSha256}, sampled from `, h('code', null, rep.dh.suite)) : null,

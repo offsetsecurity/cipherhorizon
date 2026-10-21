@@ -15,6 +15,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
 	"github.com/offsetsecurity/cipherhorizon/internal/collector"
 )
 
@@ -83,6 +84,7 @@ func Build(assets []collector.CryptoAsset, opts Options) (*cdx.BOM, []string) {
 		}
 		c := a.Component
 		warnings = append(warnings, sanitize(&c)...)
+		withClassicalLevel(&c)
 
 		ref := c.BOMRef
 		if prev, seen := components[ref]; seen {
@@ -333,4 +335,25 @@ func randomSerial() string {
 	b[6] = b[6]&0x0f | 0x40 // version 4
 	b[8] = b[8]&0x3f | 0x80 // RFC 4122 variant
 	return fmt.Sprintf("urn:uuid:%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// withClassicalLevel sets algorithmProperties.classicalSecurityLevel (CycloneDX 1.6 and 1.7) from
+// the strength model when the algorithm has a NIST-derived strength (PRD-010 REQ-STR-8). A broken
+// or unrated algorithm gets no number: its classical-status says why. A level a producer set is
+// kept. The component's own properties are copied, never shared.
+func withClassicalLevel(c *cdx.Component) {
+	cp := c.CryptoProperties
+	if cp == nil || cp.AssetType != cdx.CryptoAssetTypeAlgorithm || cp.AlgorithmProperties == nil || cp.AlgorithmProperties.ClassicalSecurityLevel != nil {
+		return
+	}
+	st := algo.StrengthOf(c.Name)
+	if !st.Known() {
+		return
+	}
+	cpCopy := *cp
+	ap := *cp.AlgorithmProperties
+	bits := st.Bits
+	ap.ClassicalSecurityLevel = &bits
+	cpCopy.AlgorithmProperties = &ap
+	c.CryptoProperties = &cpCopy
 }

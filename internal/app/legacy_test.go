@@ -134,7 +134,9 @@ func TestLegacyOutputIsPreserved(t *testing.T) {
 				if o.Type != c.Type || o.Name != c.Name || o.Version != c.Version || o.Purl != c.Purl {
 					t.Errorf("%s: identity changed: %+v -> %+v", ref, o, c)
 				}
-				if string(o.Crypto) != string(c.Crypto) {
+				// PRD-010 REQ-STR-8 adds classicalSecurityLevel to algorithms that have a NIST
+				// strength: the one addition allowed here; every other difference still fails.
+				if canonicalCrypto(t, o.Crypto) != canonicalCrypto(t, c.Crypto) {
 					t.Errorf("%s: cryptoProperties changed:\n old %s\n new %s", ref, o.Crypto, c.Crypto)
 				}
 				if !reflect.DeepEqual(o.locations(), c.locations()) {
@@ -238,4 +240,25 @@ func TestCurrentOutputCarriesClaimsAndCoverage(t *testing.T) {
 	if len(meta["cipherhorizon:coverage-note"]) != 1 || !strings.Contains(meta["cipherhorizon:coverage-note"][0], "elevated") {
 		t.Errorf("a user-tier run must carry the privilege note: %v", meta["cipherhorizon:coverage-note"])
 	}
+}
+
+// canonicalCrypto is cryptoProperties re-encoded with sorted keys and without the
+// classicalSecurityLevel PRD-010 added, so that addition is the only difference allowed.
+func canonicalCrypto(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	if len(raw) == 0 {
+		return "" // a component with no cryptoProperties (a package, a file)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if ap, ok := m["algorithmProperties"].(map[string]any); ok {
+		delete(ap, "classicalSecurityLevel")
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }

@@ -20,6 +20,7 @@ import { launchPhase } from './launch-phase.mjs';
 import { pqsPhase } from './pqs-phase.mjs';
 import { sshPhase } from './ssh-phase.mjs';
 import { chartsPhase } from './charts-phase.mjs';
+import { strengthPhase } from './strength-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -748,6 +749,7 @@ async function main() {
   await pqsPhase({ check, js, go, sleep, shot });
   await sshPhase({ check, js, go, sleep, shot, viewport, clickText });
   await chartsPhase({ check, js, go, sleep, shot, viewport, send });
+  await strengthPhase({ check, js, go, sleep, shot, viewport });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');
