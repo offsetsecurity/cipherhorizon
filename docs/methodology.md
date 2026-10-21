@@ -72,15 +72,19 @@ traced to a finding and every finding carries its sources.
 
    | Band | Score |
    |---|---|
-   | **Strong** | 90 to 100 |
-   | **Sound** | 75 to 89 |
+   | **Excellent** | 90 to 100 |
+   | **Good** | 75 to 89 |
    | **Fair** | 55 to 74 |
-   | **Weak** | 30 to 54 |
-   | **Broken** | 0 to 29 |
+   | **Poor** | 30 to 54 |
+   | **Failing** | 0 to 29 |
    | **Not rated** | no protocol version answered, so there is nothing to rate |
 
+   Until PRD-011 the bands were Strong, Sound, Fair, Weak and Broken. They were renamed because *Strong* and *Weak*
+   are suite-strength words, so one word meant two things on the same page (UX-REVIEW-010 U-1). Stored scans are
+   migrated, and an evaluation stored with an old name is read as the new one.
+
 **Post-quantum findings are never counted** (category `pqc`). Readiness answers that question, so a well-configured
-endpoint that has not yet adopted post-quantum key exchange scores Strong on hygiene and L1 on readiness, and it is
+endpoint that has not yet adopted post-quantum key exchange scores Excellent on hygiene and L1 on readiness, and it is
 not marked down twice.
 
 The result lists each deduction (rule ID, title, severity, points), any ceiling that changed the outcome, and what is
@@ -136,7 +140,7 @@ takes every finding except info, orders it by severity, then by whether it stops
 untrusted, name mismatch, missing intermediate, no serverAuth, Must-Staple missing, revoked), then by section order,
 and shows the first three distinct rules.
 
-## Classical strength (eval/9, PRD-010)
+## Classical strength (eval/9, PRD-010; classes and the hash part eval/10, PRD-011)
 
 Every algorithm the product lists has a classical security strength in bits, computed with NIST's own methods.
 Where no number applies, it says why instead: a cited break, or no rating. The derivation, with NIST's tables
@@ -148,14 +152,18 @@ The code is `internal/algo/strength.go` and `strength_of.go`.
 | RSA modulus, finite-field DH prime | General Number Field Sieve: E(L) = (1.923·∛(L·ln 2)·∛((ln(L·ln 2))²) − 4.69)/ln 2, rounded to the nearest multiple of eight, at most 256. 1024 → 80, 2048 → 112, 3072 → 128, 4096 → 152, 8192 → 200 | FIPS 140-3 IG D.B; SP 800-56B Rev. 2 Appendix D, Table 4; SP 800-56A Rev. 3, Table 26 |
 | Elliptic curves | Half the bit length of the base point's order, taken to the nearest strength SP 800-186 assigns (80, 112, 128, 192, 224, 256): P-256 and Curve25519 → 128, P-384 → 192, Curve448 → 224, P-521 → 256 | SP 800-186 §3 and Table 1 |
 | Symmetric ciphers | AES-k → k; 3DES (3TDEA) → 112, disallowed for encryption after 2023; DES, RC4, RC2 → broken. Ciphers NIST does not rate (ChaCha20, Camellia, ARIA, SEED, …) get the bound an exhaustive key search sets, labelled as such | SP 800-57 Part 1 Rev. 5 Table 2; SP 800-131A Rev. 2; RFC 7465 |
-| Hashes and MACs | Signatures, where collision resistance is needed: SHA-256 → 128, SHA-384 → 192, SHA-512 → 256; SHA-1 and MD5 → broken. HMAC: SHA-1 → 128, SHA-256 and longer → 256 | SP 800-57 Part 1 Table 3 |
+| Hashes and MACs | Signatures, where collision resistance is needed: SHA-256 → 128, SHA-384 → 192, SHA-512 → 256; SHA-1 and MD5 → broken. HMAC, a KDF or a PRF (the TLS PRF, HKDF): SHA-1 → 128, SHA-256 and longer → 256 | SP 800-57 Part 1 Table 3 |
+| Signature algorithms | The weaker of the hash (collision strength) and the signer's key, in every spelling (ECDSA-SHA256, SHA256-RSA, sha256WithRSAEncryption, SHA256withRSA). Without the key's size, the hash, and the basis says the key was not given | SP 800-57 Part 1 Tables 2 and 3 |
 | Post-quantum algorithms | The classical equivalent of their NIST category: ML-KEM-512/768/1024 → 128/192/256, ML-DSA-44/65/87 → 128/192/256, SLH-DSA by its level | FIPS 203, 204, 205 |
 | Hybrids | Secure while either part is, so their stronger part: X25519MLKEM768 → 192 | RFC 10024, RFC 10042 |
 
 **A TLS cipher suite is as strong as its weakest part.** Its parts are the bulk cipher; the key exchange (the
 weakest group the server accepts for that version, the DH prime it sent, or, for RSA key transport, the certificate
-key); the authentication (the weakest end-entity key the server presented that the suite can use); and, for a
-non-AEAD suite, the MAC.
+key); the authentication (the weakest end-entity key the server presented that the suite can use); for a non-AEAD
+suite, the MAC; and the hash that derives its keys: HKDF's in TLS 1.3, the PRF's in TLS 1.2 (SHA-256 unless the suite
+names SHA-384, RFC 5246 §5), the MD5 and SHA-1 pair in TLS 1.0 and 1.1 (secure while either is, RFC 2246 §5, so
+128). The hash part is rated in that use; with NIST's numbers it never lowers a suite today, but it counts like any
+other part (PRD-011 OD-1), so a later change to the numbers needs no new rule.
 
 | Word | When |
 |---|---|
@@ -167,6 +175,33 @@ non-AEAD suite, the MAC.
 An RSA-2048 certificate (112 bits) makes every suite it authenticates *Acceptable*: the honest reading of SP 800-57,
 and the owner's decision OD-1. Each suite states its weakest part and the reason for its word. The words are this
 product's own; the numbers are NIST's.
+
+### Classes (PRD-011)
+
+Every algorithm belongs to one class, from its CycloneDX primitive, and has a role within it:
+
+| Class | Primitives | Roles |
+|---|---|---|
+| **Asymmetric** | `pke`, `signature`, `key-agree`, `kem`, `combiner` (hybrids) | key exchange, signature |
+| **Symmetric** | `ae`, `block-cipher`, `stream-cipher`, `mac` | cipher, MAC |
+| **Hash** | `hash` | hash (HKDF), hash (PRF), hash (signature) |
+
+A TLS evaluation lists every algorithm the endpoint uses (`algorithms` in the API): its class, role, strength and
+post-quantum status, the suites or certificates that use it, and the weakest of each class. A hash is listed once per
+use, because its strength depends on the use: SHA-256 deriving keys is 256 bits, signing it is 128. The report's
+Configuration opens with this list (*Algorithms in use*); the PDF, `tls scan --details` and the Inventory's *Class*
+filter show the same classes.
+
+### One certificate, decoded (PRD-012)
+
+Every certificate in a report's *Chain as served*, its quick look and the CBOM tab opens the certificate's page,
+`#/certificates/{sha256}`. The page is decoded from the DER the scan kept (`GET /api/v1/certificates/{sha256}/x509`), so
+an older scan gains it without a rescan. In order, it shows: identity, names, the public key (with its classical
+strength and post-quantum status), the signature (the weaker of its hash and the issuer's key), every extension with
+its criticality and decoded value (one this program does not decode is shown as OID and hex), the fingerprints (SHA-1
+as an identifier only) and the PEM, to copy or download. A certificate known only from a machine inventory or an
+imported CBOM keeps no DER; its page shows the fields that source gave and says so. Every value comes from the
+certificate and is rendered as text.
 
 ## SSH
 

@@ -136,6 +136,8 @@ export const api = {
   systemObservations: (id) => request('GET', `/api/v1/systems/${id}/observations?current=1`),
   certificates: (query = '') => request('GET', `/api/v1/certificates${query}`),
   certificate: (fp) => request('GET', `/api/v1/certificates/${fp}`),
+  // The whole X.509 document, decoded from the DER a scan kept (PRD-012); scan picks the scan to read it from.
+  certificateX509: (fp, scan) => request('GET', `/api/v1/certificates/${fp}/x509${scan ? `?scan=${encodeURIComponent(scan)}` : ''}`),
   links: (state = '') => request('GET', `/api/v1/links${state ? `?state=${state}` : ''}`),
   confirmLink: (id, reason) => request('POST', `/api/v1/links/${id}/confirm${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
   rejectLink: (id, reason) => request('POST', `/api/v1/links/${id}/reject${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),

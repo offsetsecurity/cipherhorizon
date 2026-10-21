@@ -133,7 +133,7 @@ func TestEvaluationCarriesStrength(t *testing.T) {
 			t.Errorf("%s = %d, want %d (all: %v)", k, got[k], want, got)
 		}
 	}
-	if len(ev.SuiteStrength) != 1 || ev.Version != "eval/9" {
+	if len(ev.SuiteStrength) != 1 || ev.Version != eval.Version {
 		t.Errorf("suiteStrength %d, version %s", len(ev.SuiteStrength), ev.Version)
 	}
 }

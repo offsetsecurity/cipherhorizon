@@ -41,10 +41,10 @@ function append(el, children) {
   }
 }
 
-/** Only same-page routes and https links may become hrefs. */
+/** Only same-page routes, in-page anchors (an element id) and https links may become hrefs. */
 export function safeHref(u) {
   const s = String(u);
-  if (s.startsWith('#/') || s.startsWith('https://')) return s;
+  if (s.startsWith('#/') || s.startsWith('https://') || /^#[A-Za-z][\w.-]*$/.test(s)) return s;
   return '#/';
 }
 

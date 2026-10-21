@@ -135,7 +135,7 @@ export async function estatePhase(t) {
   await js(`document.querySelector('main tbody a')?.click()`);
   await sleep(900);
   const cp = await text();
-  check('E2E-24.3', 'a certificate page shows where it was seen and how, with key wording that says what was checked', /where it was seen/i.test(cp) && /sha-256 fingerprint/i.test(cp) && !/no private key/i.test(cp), cp.slice(0, 100));
+  check('E2E-24.3', 'a certificate page shows where it was seen and how, with key wording that says what was checked', /Seen on/.test(cp) && /sha-256 fingerprint/i.test(cp) && !/no private key/i.test(cp), cp.slice(0, 100));
   await shot('certificate-page');
 
   // ---- E6: M-23-02 export is reachable and has nine items ------------------------------------------------

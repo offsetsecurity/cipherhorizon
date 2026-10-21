@@ -700,6 +700,7 @@ func (p *prober) features(ctx context.Context, protos []protoProbe, legacy map[w
 		f.SessionTickets = b(sh.HasExt(wire.ExtSessionTicket))
 		f.EncryptThenMAC = b(sh.HasExt(wire.ExtEncryptThenMAC))
 		f.OCSPStapling = b(sh.HasExt(wire.ExtStatusRequest))
+		f.Heartbeat = b(sh.HasExt(wire.ExtHeartbeat))
 
 		// Compression: offer DEFLATE first and see whether the server takes it.
 		if len(e.suites) > 0 {

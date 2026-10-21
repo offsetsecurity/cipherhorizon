@@ -211,3 +211,17 @@ func TestHostileServersDoNotPanicOrHang(t *testing.T) {
 		})
 	}
 }
+
+// PRD-013 REQ-VIS-9: the scan records whether the server negotiates the heartbeat extension
+// (RFC 6520), from its ServerHello, and never sends a heartbeat message.
+func TestHeartbeatIsProbed(t *testing.T) {
+	order := []uint16{0xC013} // TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+	with := scanScripted(t, testserver.StartScript(t, testserver.LegacyEcho(0x0303, order, []uint16{15})))
+	if with.Features.Heartbeat == nil || !*with.Features.Heartbeat {
+		t.Errorf("a server that echoes heartbeat: Heartbeat = %v, want true", with.Features.Heartbeat)
+	}
+	without := scanScripted(t, testserver.StartScript(t, testserver.Legacy(0x0303, order, false)))
+	if without.Features.Heartbeat == nil || *without.Features.Heartbeat {
+		t.Errorf("a server that does not: Heartbeat = %v, want false", without.Features.Heartbeat)
+	}
+}

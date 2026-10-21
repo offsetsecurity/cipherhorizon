@@ -7,6 +7,7 @@ import { api } from '../api.js';
 import { badge, button, empty, modal, toast, skeleton, crumbs, crossFade, countUp } from '../ui.js';
 import { collectSteps } from '../guide.js';
 import { mark, setQuery, filterChip, filterChips } from '../charts.js';
+import { bitsBar, pqGlyph, stackBar } from '../viz.js';
 
 const LISTS = [
   ['algorithms', 'Algorithms', 'algorithm', 'Every algorithm in use, with its post-quantum status and where it is used'],
@@ -34,13 +35,21 @@ const QUANTUM = {
 };
 // The classical strength of an algorithm or key (PRD-010): bits from NIST's methods, or broken with
 // its cited reason, or why it is not rated. The source is in the tooltip.
-function strengthCell(st) {
+function strengthCell(st, name) {
   if (!st) return h('span', { class: 'muted' }, '·');
-  if (st.status === 'broken') return badge('✖ broken', 'bad', st.basis);
-  if (st.status === 'disallowed') return h('span', { title: st.basis }, `${st.bits} bits `, badge('disallowed', 'warn', st.basis));
-  if (st.status === 'rated') return h('span', { class: st.bits < 112 ? 'text-bad' : '', title: st.basis }, `${st.bits} bits`);
-  return h('span', { class: 'muted', title: st.basis }, 'not rated');
+  const bar = bitsBar(st, { name });
+  if (st.status !== 'not-rated') return bar;
+  return h('span', { class: 'invnr' }, bar, st.basis ? h('span', { class: 'cell-why' }, st.basis) : null);
 }
+// The strength histogram's columns, weakest first (the server's strength= filter, PRD-013 REQ-VIS-8).
+const STRENGTH_BUCKETS = [['broken', 'broken', 'problem'], ['below-112', 'below 112', 'attention'], ['112', '112', 'na'], ['128', '128', 'good'],
+  ['192', '192', 'good'], ['256', '256', 'good'], ['not-rated', 'not rated', 'na']];
+const bucketOf = (st) => (!st || !(st.status === 'rated' || st.status === 'disallowed' || st.status === 'broken') ? 'not-rated'
+  : st.status === 'broken' ? 'broken' : st.bits < 112 ? 'below-112' : st.bits < 128 ? '112' : st.bits < 192 ? '128' : st.bits < 256 ? '192' : '256');
+const bucketRank = (st) => STRENGTH_BUCKETS.findIndex(([k]) => k === bucketOf(st));
+const bitsOf = (r) => (r.classicalStrength && r.classicalStrength.bits) || 0;
+const quantumBucketOf = (q) => (q === 'quantum-vulnerable' ? 'vulnerable' : q === 'quantum-safe' ? 'safe' : 'other');
+const CLASS_WORD = { asymmetric: 'Asymmetric', symmetric: 'Symmetric', hash: 'Hash' };
 const quantumBadge = (q) => { const [t, k] = QUANTUM[q] || [q, 'neutral']; return k === 'none' ? h('span', { class: 'muted' }, t) : badge(t, k); };
 // Certificates and their keys are named by their subject; people know them by the common name.
 const cnOf = (dn) => { const m = /CN=([^,]+)/.exec(dn || ''); return m ? m[1] : dn; };
@@ -347,20 +356,30 @@ async function itemsList(root, kind, query) {
   if (!quantumWords[quantum]) quantum = '';
   let purpose = query.get('purpose') || '';
   let name = query.get('name') || '';
+  // PRD-011 REQ-CLS-7, PRD-013 REQ-VIS-8: the class (a segmented control) and the strength column.
+  let cls = ['asymmetric', 'symmetric', 'hash'].includes(query.get('class')) ? query.get('class') : '';
+  let strength = STRENGTH_BUCKETS.some(([k]) => k === query.get('strength')) ? query.get('strength') : '';
   const text = h('input', { type: 'search', placeholder: 'Filter by name', value: query.get('q') || '', 'aria-label': 'Filter by name' });
   const vuln = h('input', { type: 'checkbox', id: 'inv-vuln', checked: quantum === 'vulnerable' });
   const source = h('select', { 'aria-label': 'Source' }, [['', 'Any source'], ['endpoint', 'Endpoint scans'], ['machine', 'Machines'], ['import', 'Imported CBOMs']]
     .map(([v, l]) => h('option', { value: v, selected: v === (query.get('source') || '') }, l)));
+  const segs = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Class' });
+  const paintSegs = () => segs.replaceChildren(...[['', 'All'], ['asymmetric', 'Asymmetric'], ['symmetric', 'Symmetric'], ['hash', 'Hash']].map(([v, l]) =>
+    h('button', { type: 'button', class: 'seg', 'aria-pressed': String(cls === v), 'data-class': v, onclick: () => { cls = v; paintSegs(); redraw(); } }, l)));
+  paintSegs();
+  const overview = h('div');
   const chips = h('div');
   const list = h('div');
   const paintChips = () => {
     clear(chips);
     const c = filterChips([
       quantum && quantum !== 'vulnerable' ? filterChip(quantumWords[quantum], () => { quantum = ''; redraw(); }) : null,
+      strength ? filterChip(`Strength: ${(STRENGTH_BUCKETS.find(([k]) => k === strength) || [0, strength])[1]}`, () => { strength = ''; redraw(); }) : null,
       purpose ? filterChip(`Purpose: ${purpose}`, () => { purpose = ''; redraw(); }) : null,
       name ? filterChip(shownName(name), () => { name = ''; redraw(); }) : null]);
     if (c) chips.appendChild(c);
   };
+  const showQuantum = kind === 'algorithm' || kind === 'key';
   const draw = async () => {
     const q = { imported: '1' };
     if (text.value.trim()) q.q = text.value.trim();
@@ -368,7 +387,9 @@ async function itemsList(root, kind, query) {
     if (purpose) q.purpose = purpose;
     if (name) q.name = name;
     if (source.value) q.source = source.value;
-    setQuery({ q: q.q || '', quantum, purpose, name, source: source.value, vulnerable: '' });
+    if (kind === 'algorithm' && cls) q.class = cls;
+    if (showQuantum && strength) q.strength = strength;
+    setQuery({ q: q.q || '', quantum, purpose, name, source: source.value, class: kind === 'algorithm' ? cls : '', strength: showQuantum ? strength : '', vulnerable: '' });
     paintChips();
     // The dashboard's post-quantum figures count algorithms and keys together; on the algorithm
     // list, say how many keys share the status, so the two lists add up to the figure clicked.
@@ -383,25 +404,53 @@ async function itemsList(root, kind, query) {
       list.appendChild(h('p', { class: 'muted pad' }, Object.keys(q).length > 1 ? 'Nothing matches these filters.' : 'Nothing here yet. Scan an endpoint or add a machine inventory.'));
       return;
     }
-    const showQuantum = kind === 'algorithm' || kind === 'key';
-    list.appendChild(h('div', { class: 'tablewrap' }, h('table', { class: 'compact invtable' },
+    // Weakest first (UX-DESIGN-011 §3.4): what needs work is at the top.
+    const shown = showQuantum ? rows.slice().sort((x, y) => (bucketRank(x.classicalStrength) - bucketRank(y.classicalStrength)) || (bitsOf(x) - bitsOf(y)) || x.name.localeCompare(y.name)) : rows;
+    list.appendChild(h('div', { class: 'tablewrap' }, h('table', { class: `compact invtable${showQuantum ? ' invtable-viz' : ''}` },
       h('thead', null, h('tr', null, ['Name', kind === 'software' ? 'Version' : 'Kind', showQuantum ? 'Classical strength' : null, showQuantum ? 'Post-quantum' : null, 'Seen on', 'Last seen'].filter(Boolean).map((c) => h('th', { scope: 'col' }, c)))),
-      h('tbody', null, rows.map((r) => h('tr', null,
+      h('tbody', null, shown.map((r) => h('tr', null,
         h('td', null, h('b', { title: r.name }, shownName(r.name))),
-        h('td', { class: 'muted' }, humanDetail(r.detail) || '·'),
-        showQuantum ? h('td', null, strengthCell(r.classicalStrength)) : null,
-        showQuantum ? h('td', null, quantumBadge(r.quantum)) : null,
+        h('td', { class: 'muted' }, r.class ? `${CLASS_WORD[r.class] || r.class} · ` : '', humanDetail(r.detail) || (r.class ? '' : '·')),
+        showQuantum ? h('td', { class: 'invbits' }, strengthCell(r.classicalStrength, r.name)) : null,
+        showQuantum ? h('td', { class: 'invpq' }, pqGlyph(r.quantum), h('span', { class: 'sr-only' }, r.quantum)) : null,
         h('td', null, placesCell(r.places)),
         h('td', { class: 'muted nowrapcell' }, r.lastSeen ? relTime(r.lastSeen) : '·')))))));
-    list.appendChild(h('p', { class: 'hint' }, `${plural(rows.length, 'item')}. Post-quantum status uses the cited classification carried in the CBOM.`));
+    list.appendChild(h('p', { class: 'hint' }, `${plural(rows.length, 'item')}${showQuantum ? ', weakest first' : ''}. Post-quantum status uses the cited classification carried in the CBOM.`));
   };
   let timer = null;
   const redraw = () => crossFade(list, draw);
   text.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 250); });
   vuln.addEventListener('change', () => { quantum = vuln.checked ? 'vulnerable' : (quantum === 'vulnerable' ? '' : quantum); redraw(); });
   source.addEventListener('change', redraw);
-  root.append(h('div', { class: 'toolbar' }, text,
-    kind === 'algorithm' || kind === 'key' ? h('label', { class: 'check' }, vuln, ' Only quantum-vulnerable') : null, source), chips, list);
+  root.append(overview, h('div', { class: 'toolbar' }, text,
+    kind === 'algorithm' ? segs : null,
+    showQuantum ? h('label', { class: 'check' }, vuln, ' Only quantum-vulnerable') : null, source), chips, list);
+  if (kind === 'algorithm') {
+    // By class and by strength, from every algorithm (not the filtered list): each part opens the
+    // list filtered to it.
+    api.inventory('algorithm', { imported: '1' }).then(({ rows }) => {
+      const classBars = h('section', { class: 'card invcard', 'aria-labelledby': 'inv-class-h' }, h('h2', { id: 'inv-class-h' }, 'By class'),
+        ['asymmetric', 'symmetric', 'hash'].map((c) => {
+          const rs = rows.filter((r) => r.class === c);
+          const n = (q) => rs.filter((r) => quantumBucketOf(r.quantum) === q).length;
+          const sb = stackBar([{ n: n('vulnerable'), label: 'quantum-vulnerable', tone: 'problem' }, { n: n('safe'), label: 'quantum-safe', tone: 'good' }, { n: n('other'), label: 'not classified', tone: 'na' }]);
+          return h('a', { class: 'classrow', href: `#/inventory/algorithms?class=${c}` }, h('b', null, CLASS_WORD[c]), h('span', { class: 'classrow-n' }, String(rs.length)), sb.bar);
+        }),
+        h('div', { class: 'stack-legend' }, [['problem', 'quantum-vulnerable'], ['good', 'quantum-safe'], ['na', 'not classified']].map(([t, l]) =>
+          h('span', null, h('span', { class: `stack-dot tone-fill-${t}`, 'aria-hidden': 'true' }), l))));
+      const counts = Object.fromEntries(STRENGTH_BUCKETS.map(([k]) => [k, 0]));
+      for (const r of rows) counts[bucketOf(r.classicalStrength)]++;
+      const max = Math.max(1, ...Object.values(counts));
+      const hist = h('section', { class: 'card invcard', 'aria-labelledby': 'inv-str-h' }, h('h2', { id: 'inv-str-h' }, 'By classical strength'),
+        h('div', { class: 'hist' }, STRENGTH_BUCKETS.map(([k, label, tone]) => {
+          const col = h('a', { class: 'hist-col', href: `#/inventory/algorithms?strength=${k}`, 'aria-label': `${counts[k]} ${counts[k] === 1 ? 'algorithm' : 'algorithms'}: ${label}` },
+            h('span', { class: 'hist-n' }, String(counts[k])), h('span', { class: `hist-bar tone-fill-${tone}` }), h('span', { class: 'hist-label' }, label));
+          col.querySelector('.hist-bar').style.height = `${Math.max(3, (counts[k] / max) * 100)}px`;
+          return col;
+        })));
+      overview.replaceChildren(h('div', { class: 'invgrid' }, classBars, hist));
+    }).catch(() => {});
+  }
   await draw();
 }
 

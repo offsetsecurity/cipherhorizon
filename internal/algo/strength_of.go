@@ -83,6 +83,9 @@ func StrengthOf(name string) Strength {
 	case strings.HasPrefix(name, "oid-") || strings.Count(name, ".") > 2:
 		return notRated("an algorithm this program does not recognise")
 	}
+	if _, _, ok := SignatureParts(name); ok { // SHA256withRSA, SHA256-RSA: the hash, the key not given
+		return SignatureStrength(name, nil)
+	}
 	return notRated("no strength is recorded for this algorithm")
 }
 

@@ -98,3 +98,91 @@ func TestInventoryRowsCarryClassicalStrength(t *testing.T) {
 		}
 	}
 }
+
+// PRD-011 REQ-CLS-7: every algorithm and key row has a class, and ?class= keeps only that class.
+func TestInventoryFiltersByClass(t *testing.T) {
+	e := newEnv(t)
+	if sc := e.scanAndWait(e.addAsset(hybridServer(t).Addr).ID); sc.Status != "done" {
+		t.Fatalf("scan %+v", sc)
+	}
+	type row struct {
+		Name  string `json:"name"`
+		Class string `json:"class"`
+	}
+	var out struct {
+		Rows []row `json:"rows"`
+	}
+	for _, kind := range []string{"algorithm", "key"} {
+		e.call("GET", "/api/v1/inventory?kind="+kind, nil, &out)
+		for _, r := range out.Rows {
+			if r.Class == "" {
+				t.Errorf("%s %s has no class", kind, r.Name)
+			}
+		}
+	}
+	seen := map[string]string{}
+	for _, class := range []string{"asymmetric", "symmetric", "hash"} {
+		if s := e.call("GET", "/api/v1/inventory?kind=algorithm&class="+class, nil, &out); s != 200 {
+			t.Fatalf("class %s: %d", class, s)
+		}
+		for _, r := range out.Rows {
+			if r.Class != class {
+				t.Errorf("class=%s listed %s (%s)", class, r.Name, r.Class)
+			}
+			seen[r.Name] = class
+		}
+	}
+	for name, want := range map[string]string{"X25519": "asymmetric", "X25519MLKEM768": "asymmetric", "AES-128-GCM": "symmetric"} {
+		if seen[name] != want {
+			t.Errorf("%s is in class %q, want %q", name, seen[name], want)
+		}
+	}
+	if s := e.call("GET", "/api/v1/inventory?kind=algorithm&class=quantum", nil, nil); s != 400 {
+		t.Errorf("an unknown class answered %d, want 400", s)
+	}
+}
+
+// PRD-013 REQ-VIS-8: ?strength= keeps one histogram column; the columns add up to the list.
+func TestInventoryFiltersByStrength(t *testing.T) {
+	e := newEnv(t)
+	if sc := e.scanAndWait(e.addAsset(hybridServer(t).Addr).ID); sc.Status != "done" {
+		t.Fatalf("scan %+v", sc)
+	}
+	var all struct {
+		Rows []struct {
+			Name string `json:"name"`
+		} `json:"rows"`
+	}
+	e.call("GET", "/api/v1/inventory?kind=algorithm", nil, &all)
+	total := 0
+	seen := map[string]string{}
+	for _, b := range []string{"broken", "below-112", "112", "128", "192", "256", "not-rated"} {
+		var out struct {
+			Rows []struct {
+				Name     string `json:"name"`
+				Strength *struct {
+					Bits   int    `json:"bits"`
+					Status string `json:"status"`
+				} `json:"classicalStrength"`
+			} `json:"rows"`
+		}
+		if s := e.call("GET", "/api/v1/inventory?kind=algorithm&strength="+b, nil, &out); s != 200 {
+			t.Fatalf("strength=%s: %d", b, s)
+		}
+		total += len(out.Rows)
+		for _, r := range out.Rows {
+			seen[r.Name] = b
+		}
+	}
+	if total != len(all.Rows) {
+		t.Errorf("the columns hold %d algorithms, the list %d", total, len(all.Rows))
+	}
+	for name, want := range map[string]string{"AES-128-GCM": "128", "X25519MLKEM768": "192", "AES-256-GCM": "256"} {
+		if seen[name] != want {
+			t.Errorf("%s is in column %q, want %q", name, seen[name], want)
+		}
+	}
+	if s := e.call("GET", "/api/v1/inventory?kind=algorithm&strength=strong", nil, nil); s != 400 {
+		t.Errorf("an unknown column answered %d, want 400", s)
+	}
+}

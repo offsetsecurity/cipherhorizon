@@ -1328,6 +1328,55 @@
         }
       }
     },
+    "/api/v1/certificates/{fingerprint}/x509": {
+      "get": {
+        "summary": "One certificate decoded from the DER a scan kept: every field and extension, its key and signature strengths, fingerprints and PEM (PRD-012).",
+        "tags": [
+          "certificates"
+        ],
+        "operationId": "get_certificates_fingerprint_x509",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          },
+          {
+            "name": "scan",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Decode it as served in this scan (its chain position and issuer). Without it, the newest endpoint scan that saw it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
     "/api/v1/imports": {
       "post": {
         "summary": "Import a third-party CycloneDX CBOM (1.6 or 1.7) into a system the operator names.",

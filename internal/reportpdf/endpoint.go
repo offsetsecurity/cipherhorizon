@@ -150,14 +150,14 @@ func levelTone(l int) tone {
 var levelNames = map[int]string{4: "PQ-authenticated", 3: "Hybrid negotiated", 2: "Hybrid available", 1: "Exposed", 0: "Not ready", -1: "Undetermined"}
 
 func bandTone(b string) tone {
-	switch b {
-	case "Strong":
+	switch eval.BandName(b) {
+	case "Excellent":
 		return toneGood
-	case "Sound":
+	case "Good":
 		return toneOK
 	case "Fair":
 		return toneWarn
-	case "Weak", "Broken":
+	case "Poor", "Failing":
 		return toneBad
 	}
 	return toneInfo
@@ -310,7 +310,7 @@ func (x *endpoint) summary() {
 	}
 	x.tiles([]tile{
 		{lvl, "PQC readiness", label, levelTone(r.Level)},
-		{score, "TLS hygiene", fmt.Sprintf("%s, out of 100", g.Band), bandTone(g.Band)},
+		{score, "TLS hygiene", fmt.Sprintf("%s, out of 100", eval.BandName(g.Band)), bandTone(g.Band)},
 		{certBig, "Certificate", certSub, certT},
 		{fmt.Sprint(open), "Findings to act on", sub, findT},
 	})
@@ -1109,7 +1109,56 @@ func (x *endpoint) suites() sectionContent {
 		}
 		x.table([]pdf.Col{{Title: "Version", W: 0.7}, {Title: "#", W: 0.25}, {Title: "Suite", W: 2.6}, {Title: "Cipher", W: 1.1}, {Title: "Key exchange", W: 0.8},
 			{Title: "Strength", W: 1.5}, {Title: "Flags", W: 1.1}, {Title: "IANA", W: 0.85}}, rows)
+		x.algorithmsInUse()
 	}}
+}
+
+// algorithmsInUse is the report's Algorithms in use card on paper (PRD-011 REQ-CLS-8): every
+// algorithm by class, with its strength, post-quantum status and uses; the weakest of each class
+// is marked.
+func (x *endpoint) algorithmsInUse() {
+	if len(x.ev.Algorithms) == 0 {
+		return
+	}
+	x.h2("Algorithms in use, by class")
+	classWord := map[string]string{"asymmetric": "Asymmetric", "symmetric": "Symmetric", "hash": "Hash"}
+	var rows [][]pdf.Cell
+	for _, a := range x.ev.Algorithms {
+		st, sc := a.Strength.Words(), ink
+		if a.Strength.Status == "broken" {
+			sc = toneBad.fg
+		}
+		if a.Weakest {
+			st += " (weakest)"
+		}
+		pq, pc := "-", text2
+		switch a.PQC {
+		case "quantum-vulnerable":
+			pq, pc = "quantum-vulnerable", toneBad.fg
+		case "quantum-safe":
+			pq, pc = "quantum-safe", toneGood.fg
+		}
+		var suites, other []string
+		for _, u := range a.UsedBy {
+			if strings.HasPrefix(u, "TLS_") || strings.HasPrefix(u, "SSL_") {
+				suites = append(suites, u)
+			} else {
+				other = append(other, u)
+			}
+		}
+		used := other
+		if len(suites) > 0 {
+			vs := make([]string, len(a.Versions))
+			for i, v := range a.Versions {
+				vs[i] = strings.NewReplacer("TLSv", "TLS ", "SSLv", "SSL ").Replace(v)
+			}
+			used = append([]string{fmt.Sprintf("%s (%s)", plural(len(suites), "suite"), strings.Join(vs, ", "))}, other...)
+		}
+		rows = append(rows, []pdf.Cell{txt(classWord[a.Class], pdf.Regular, text2), txt(a.Name, pdf.Bold, ink), txt(a.Role, pdf.Regular, text2),
+			txt(st, pdf.Regular, sc), txt(pq, pdf.Regular, pc), txt(strings.Join(used, "; "), pdf.Regular, text2)})
+	}
+	x.table([]pdf.Col{{Title: "Class", W: 1.05}, {Title: "Algorithm", W: 1.7}, {Title: "Role", W: 0.95}, {Title: "Classical strength", W: 1.4},
+		{Title: "Post-quantum", W: 1.45}, {Title: "Used by", W: 1.95}}, rows)
 }
 
 // ---- key exchange --------------------------------------------------------------------------------
@@ -1433,7 +1482,7 @@ func (x *endpoint) hygieneMethod(m scanMeta) {
 	g := x.ev.Hygiene
 	x.h2("How the " + m.hygiene + " score was worked out")
 	if g.Score >= 0 {
-		x.p(body(fmt.Sprintf("Score %d of 100, band %s. ", g.Score, g.Band)), soft("Each finding takes points off 100; the weights are this product's own choice, not a standard."))
+		x.p(body(fmt.Sprintf("Score %d of 100, band %s. ", g.Score, eval.BandName(g.Band))), soft("Each finding takes points off 100; the weights are this product's own choice, not a standard."))
 	} else {
 		x.p(body("Not rated: "), soft(strings.Join(g.NotMeasured, "; ")))
 	}

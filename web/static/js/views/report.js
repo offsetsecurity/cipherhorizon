@@ -5,7 +5,9 @@
 // textContent-only DOM builder.
 import { h, svg, clear, fmtDate, fmtDay, daysUntil } from '../dom.js';
 import { levelClass, levelName } from '../charts.js';
-import { badge, sevBadge, evidenceBadge, citations, bandTone, certChain, button } from '../ui.js';
+import { badge, sevBadge, evidenceBadge, citations, bandTone, bandWord, button } from '../ui.js';
+import { tlsConfiguration, weakestAlgorithm, certHref } from './tls-config.js';
+import { bitsBar, gauge, levelStepper, lifetimeBar, stackBar, statusTile } from '../viz.js';
 
 export const SECTIONS = [
   ['certificates', 'Certificates & trust', 'Who issued the certificate, who trusts it, and how long it lasts.'],
@@ -76,7 +78,7 @@ const PROFILES = {};
 export function registerProfile(name, prof) { PROFILES[name] = prof; }
 const TLS = {
   sections: SECTIONS, builders: () => BUILDERS(), strip: (ctx, sections) => summaryStrip(ctx, sections), why: WHY, groupWord: GROUP_WORD,
-  hygiene: 'TLS hygiene', matrix: (ctx) => protocolMatrix(ctx), skipCards: ['protocols', 'suites', 'vulnerabilities'],
+  hygiene: 'TLS hygiene', configuration: (ctx, about) => tlsConfiguration(ctx, about), skipCards: ['protocols', 'suites', 'vulnerabilities'],
   stageTitles: { protocols: 'Protocols', suites: 'Cipher suites', 'key-exchange': 'Key exchange', signatures: 'Signature schemes', features: 'Features',
     certificates: 'Certificates', revocation: 'Revocation & transparency', http: 'HTTP' },
   schema: 'tls-report/1',
@@ -113,23 +115,6 @@ function checksOf(ev) {
   return uniqueFindings(ev).map((f) => ({ id: f.id, title: f.title, section: f.section, severity: f.severity, result: 'found' }));
 }
 
-function coverageLine(ev, onWeak) {
-  const cs = checksOf(ev);
-  const n = (r) => cs.filter((c) => c.result === r).length;
-  const sevOf = {};
-  for (const f of ev.findings) sevOf[f.id] = f.severity;
-  const problems = cs.filter((c) => c.result === 'found' && (sevOf[c.id] || c.severity) !== 'info').length;
-  const notes = n('found') - problems, clean = n('not-found'), skipped = n('not-checked');
-  return h('p', { class: 'coverage-line' },
-    h('b', null, `${cs.length} checks run: `),
-    h('span', { class: 'cov-found' }, `${problems} found a problem`), ', ',
-    notes ? [h('span', null, `${notes} found something to note`), ', '] : null,
-    h('span', { class: 'cov-clean' }, `${clean} passed`),
-    skipped ? [', ', h('span', { class: 'cov-skip' }, `${skipped} could not run`)] : null,
-    n('not-applicable') ? [', ', h('span', { class: 'muted' }, `${n('not-applicable')} do not apply`)] : null, '. ',
-    h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); onWeak(); } }, 'See every check →'));
-}
-
 /**
  * summaryView is for anyone: the verdict, how much was checked, and the action items in plain
  * words (PRD-006 REQ-RV-2).
@@ -152,43 +137,64 @@ export function summaryView(ctx) {
   wrap.appendChild(h('section', { class: `card verdict${worst ? ` v-${worst}` : extra ? ' v-medium' : ' v-none'}`, 'aria-label': 'Verdict' },
     h('div', { class: 'verdict-head' },
       h('h2', null, todo ? `${plural(todo, 'thing')} to fix` : 'Nothing to fix'),
+      // UX-REVIEW-010 U-2: the line under the headline is the first thing to fix, then the post-quantum news.
+      act[0] ? h('p', { class: 'verdict-line verdict-first' }, h('b', null, 'First: '), act[0].title, ` (${URGENCY[act[0].severity].toLowerCase()}).`) : null,
       ev.readiness.summary ? h('p', { class: 'verdict-line' }, h('b', null, 'Post-quantum: '), ev.readiness.summary) : null,
-      coverageLine(ev, () => ctx.goTab('weaknesses'))),
+      null),
     profileOf(ctx).strip(ctx, sections)));
 
-  const items = h('section', { class: 'card fixcard', id: 'fix', 'aria-labelledby': 'fix-h' }, h('h2', { id: 'fix-h' }, 'Action items'));
+  const items = h('section', { class: 'card fixcard', id: 'fix', 'aria-labelledby': 'fix-h' },
+    h('div', { class: 'cfg-head' }, h('h2', { id: 'fix-h' }, 'Fix first'),
+      h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goTab('weaknesses'); } }, 'Every check')));
   if (extra) items.appendChild(extra);
   if (!act.length) {
     if (!extra) items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
   } else {
-    // Findings that matter for the same reason share it: the reason is said once per group, each
-    // finding then says only what to do (DESIGN.md: no repeated copy).
-    const groups = [];
-    for (const f of act) {
-      const why = whyOf(f, profileOf(ctx));
-      let g = groups.find((x) => x.why === why);
-      if (!g) groups.push(g = { why, label: profileOf(ctx).groupWord[f.section === 'http' || f.section === 'revocation' ? f.section : f.category] || 'Other', items: [] });
-      g.items.push(f);
-    }
-    items.appendChild(h('div', { class: 'action-groups' }, groups.map((g) => h('div', { class: 'action-group' },
-      h('div', { class: 'action-group-head' }, h('h3', null, g.label), h('p', { class: 'action-why' }, h('b', null, 'Why it matters: '), g.why)),
-      h('ol', { class: 'actions' }, g.items.map((f) => h('li', { class: `action sev-${f.severity}`, id: `issue-${f.id}` },
-        h('div', { class: 'action-head' },
-          sevBadge(f.severity), h('span', { class: 'action-title' }, f.title), h('span', { class: `urgency u-${f.severity}` }, URGENCY[f.severity]),
+    // One numbered line per finding, worst first: what it is and what to do. Why it matters is in
+    // its evidence (UX-DESIGN-011 §3.1).
+    items.appendChild(h('ol', { class: 'fixlist actions' }, act.map((f, i) => h('li', { class: `action sev-${f.severity}`, id: `issue-${f.id}` },
+      h('span', { class: 'fix-n' }, String(i + 1)),
+      sevBadge(f.severity),
+      h('span', { class: 'fix-main' },
+        h('span', { class: 'action-head' }, h('span', { class: 'action-title' }, f.title), h('span', { class: `urgency u-${f.severity}` }, URGENCY[f.severity]),
           f.availability ? badge('clients fail to connect', 'bad', 'Clients that hit this refuse the connection') : null,
           ctx.triage && ctx.triage[f.id] ? badge(ctx.triage[f.id].status === 'accepted-risk' ? 'accepted risk' : 'acknowledged', 'neutral') : null),
-        h('p', { class: 'action-fix' }, h('b', null, 'What to do: '), f.remediation),
-        h('a', { href: `#chk-${f.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); ctx.goIssue(f.id); } }, 'Evidence and sources'))))))));
+        h('span', { class: 'action-fix', title: whyOf(f, profileOf(ctx)) }, f.remediation)),
+      h('a', { href: `#chk-${f.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); ctx.goIssue(f.id); } }, 'Evidence')))));
   }
   wrap.appendChild(items);
 
+  // The checks, as one bar of counts.
+  const cs = checksOf(ev);
+  const sevOf = {};
+  for (const f of ev.findings) sevOf[f.id] = f.severity;
+  const cnt = (r) => cs.filter((c) => c.result === r).length;
+  const problems = cs.filter((c) => c.result === 'found' && (sevOf[c.id] || c.severity) !== 'info').length;
+  const sb = stackBar([
+    { n: problems, label: problems === 1 ? 'problem' : 'problems', tone: 'problem' },
+    { n: cnt('found') - problems, label: 'to note', tone: 'attention' },
+    { n: cnt('not-found'), label: 'passed', tone: 'good' },
+    { n: cnt('not-checked'), label: 'could not run', tone: 'na' },
+    { n: cnt('not-applicable'), label: 'do not apply', tone: 'na' },
+  ]);
+  wrap.appendChild(h('section', { class: 'card checksbar', 'aria-labelledby': 'checks-h' },
+    h('div', { class: 'cfg-head' }, h('h2', { id: 'checks-h', class: 'coverage-line' }, `${cs.length} checks run`),
+      h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goTab('weaknesses'); } }, 'See every check')),
+    sb.bar, sb.legend));
+
+  // Each area as a tile: its state and its one line.
+  const TONE = { problem: 'problem', attention: 'attention', good: 'good' };
   wrap.appendChild(h('section', { class: 'card areas', id: 'checks', 'aria-labelledby': 'areas-h' },
-    h('h2', { id: 'areas-h' }, 'What was evaluated'),
-    h('ul', { class: 'checklist' }, data.map((d) => h('li', { class: `check-row ss-${d.sec.status}` },
-      h('span', { class: 'check-status' }, statusChip(d.sec.status)),
-      h('span', { class: 'check-name' }, d.title),
-      h('span', { class: 'check-verdict' }, d.verdict),
-      h('a', { href: `#sec-${d.id}`, class: 'check-go', onclick: (e) => { e.preventDefault(); ctx.goDetails(d.id); } }, 'Show'))))));
+    h('h2', { id: 'areas-h' }, 'By area'),
+    h('div', { class: 'stiles area-tiles' }, data.map((d) => {
+      const t = statusTile(d.title, d.verdict || (STATUS[d.sec.status] || [])[1] || '', TONE[d.sec.status] || 'na', `#sec-${d.id}`, (e) => { e.preventDefault(); ctx.goDetails(d.id); });
+      t.classList.add('check-row', `ss-${d.sec.status}`);
+      t.querySelector('.stile-state').classList.add('check-verdict');
+      // The glyph becomes the section's own chip: a symbol and a word, never colour alone.
+      t.querySelector('.stile-glyph').replaceWith(statusChip(d.sec.status));
+      t.querySelector('.stile-head .sr-only')?.remove();
+      return t;
+    }))));
   return wrap;
 }
 
@@ -197,129 +203,13 @@ export function summaryView(ctx) {
 const VERSION_ORDER = ['TLSv1.3', 'TLSv1.2', 'TLSv1.1', 'TLSv1.0', 'SSLv3', 'SSLv2'];
 const versionLabel = (v) => v.replace('TLSv', 'TLS ').replace('SSLv', 'SSL ');
 
-/** A suite's classical strength, from the evaluation (PRD-010): the word, the bits of its weakest
- *  part, which part, and why. The rules are the server's, cited in docs/methodology.md; the page only
- *  shows them. A result evaluated before eval/9 has none and shows "not rated". */
-const suiteRating = (ev, s) => ((ev && ev.suiteStrength) || []).find((x) => x.version === s.version && x.id === s.id) || null;
-const suiteStrength = (ev, s) => (suiteRating(ev, s) || {}).word || 'unrated';
-const STRENGTHS = [['strong', 'Strong', 'good'], ['acceptable', 'Acceptable', 'neutral'], ['weak', 'Weak', 'warn'], ['insecure', 'Insecure', 'bad']];
-/** The strength of a certificate key or group from the evaluation, in words ("112 bits"). */
-const keyBits = (ev, kind, name) => {
-  const k = ((ev && ev.keyStrength) || []).find((x) => x.kind === kind && x.name === name);
-  if (!k) return '';
-  const st = k.strength;
-  return st.status === 'rated' ? `${st.bits} bits` : st.status === 'disallowed' ? `${st.bits} bits, disallowed` : st.status === 'broken' ? 'broken' : 'not rated';
-};
-const strengthCell = (ev, s) => {
-  const r = suiteRating(ev, s);
-  if (!r) return h('span', { class: 'muted' }, 'not rated');
-  const [, word, tone] = STRENGTHS.find(([k]) => k === r.word) || [null, r.word, 'neutral'];
-  return h('span', { class: 'strength-cell', title: r.reason }, badge(word, tone),
-    h('span', { class: 'hint' }, r.bits ? ` ${r.bits} bits · ${r.weakest}` : r.weakest ? ` ${r.weakest}` : ''));
-};
 
-function strengthBar(counts, total, max) {
-  const W = 160, H = 10;
-  const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'hbar strength-bar', preserveAspectRatio: 'none', role: 'img',
-    'aria-label': STRENGTHS.map(([k, w]) => `${counts[k] || 0} ${w.toLowerCase()}`).join(', ') });
-  root.appendChild(svg('rect', { x: 0, y: 0, width: W, height: H, rx: 5, class: 'hbar-track' }));
-  let x = 0;
-  for (const [k] of STRENGTHS) {
-    const n = counts[k] || 0;
-    if (!n) continue;
-    const w = (W * n) / Math.max(1, max);
-    root.appendChild(svg('rect', { x, y: 0, width: w, height: H, class: `fill-st-${k}` }));
-    x += w;
-  }
-  return root;
-}
-
-/**
- * What a version being on or off means, in words: the state the server is in, then whether that
- * is right. [tone, symbol, state, judgement]
- */
-function versionVerdict(v, on, unknown, modernOn) {
-  if (unknown) return ['warn', '?', 'Not determined', 'the probe got no clear answer'];
-  if (on) {
-    if (legacyVersion(v)) return ['bad', '✖', 'Enabled', 'should be off'];
-    return ['good', '✔', 'Enabled', v === 'TLSv1.3' ? 'recommended' : 'fine'];
-  }
-  if (v === 'TLSv1.3') return ['warn', '▲', 'Disabled', 'should be on'];
-  if (v === 'TLSv1.2') return modernOn ? ['neutral', '·', 'Disabled', 'fine, TLS 1.3 is on'] : ['bad', '✖', 'Disabled', 'no modern version is on'];
-  return ['good', '✔', 'Disabled', 'good'];
-}
 
 function versionState([tone, sym, state, judgement]) {
   return h('span', { class: `vstate vs-${tone}` }, h('span', { class: 'vs-sym', 'aria-hidden': 'true' }, sym),
     h('b', null, state), judgement ? h('span', { class: 'vs-judge' }, ` · ${judgement}`) : null);
 }
 
-/** The protocol matrix: every version, accepted or not, and for each accepted one what it ran. */
-function protocolMatrix(ctx) {
-  const { rep, ev } = ctx;
-  const byVersion = Object.fromEntries((rep.protocols || []).map((p) => [p.version, p]));
-  const suites = rep.suites || [];
-  const groups = rep.groups || [];
-  const pref = (v, subject) => ((rep.preference || []).find((p) => p.version === v && p.subject === subject) || {}).order;
-  const orderWord = { server: 'server chooses', client: 'client chooses', mixed: 'depends on the offer', unknown: 'not determined' };
-  const versions = VERSION_ORDER.filter((v) => byVersion[v]);
-  const max = Math.max(1, ...versions.map((v) => suites.filter((s) => s.version === v).length));
-  const modernOn = !!(byVersion['TLSv1.3']?.supported || byVersion['TLSv1.2']?.supported);
-  const on = versions.filter((v) => byVersion[v].supported);
-  const shouldOff = on.filter(legacyVersion);
-  const summary = h('p', { class: 'ver-sum' },
-    h('b', null, 'Enabled: '), on.length ? on.map(versionLabel).join(', ') : 'none', '. ',
-    shouldOff.length ? h('span', { class: 'ver-sum-bad' }, `${shouldOff.map(versionLabel).join(' and ')} should be switched off.`)
-      : h('span', { class: 'ver-sum-good' }, 'No outdated version is enabled.'),
-    byVersion['TLSv1.3'] && !byVersion['TLSv1.3'].supported ? h('span', { class: 'ver-sum-bad' }, ' TLS 1.3 should be switched on.') : null);
-  const rows = versions.map((v) => {
-    const p = byVersion[v];
-    const vs = suites.filter((s) => s.version === v);
-    const counts = {};
-    for (const s of vs) counts[suiteStrength(ev, s)] = (counts[suiteStrength(ev, s)] || 0) + 1;
-    const fs = vs.filter((s) => s.version === 'TLSv1.3' || s.ephemeral).length;
-    const vg = groups.filter((g) => g.version === v);
-    const pq = vg.filter((g) => g.pq && !g.obsolete);
-    const accepted = p.supported;
-    const unknown = p.evidence === 'inconclusive';
-    const verdict = versionVerdict(v, accepted, unknown, modernOn);
-    const state = versionState(verdict);
-    const line = h('summary', { class: 'ver-line' },
-      h('span', { class: 'ver-name' }, versionLabel(v)),
-      h('span', { class: 'ver-state' }, state),
-      accepted ? h('span', { class: 'ver-suites' }, strengthBar(counts, vs.length, max), h('span', { class: 'ver-count' }, plural(vs.length, 'suite'))) : h('span', null),
-      accepted ? h('span', { class: 'ver-fs' }, vs.length ? (fs === vs.length ? 'all suites' : fs ? `${fs} of ${vs.length} suites` : 'none') : '') : h('span', null),
-      accepted ? h('span', { class: 'ver-kx' }, vg.length ? `${plural(vg.length, 'group')}${pq.length ? ' · post-quantum' : ''}` : '') : h('span', null),
-      accepted ? h('span', { class: 'ver-open' }, h('span', { class: 't-show' }, 'Show suites'), h('span', { class: 't-hide' }, 'Hide suites')) : h('span', null));
-    if (!accepted) return h('div', { class: `ver-row off vr-${verdict[0]}` }, h('div', { class: 'ver-line' }, ...line.childNodes));
-    const suiteRows = vs.map((s) => {
-      return h('tr', null, h('td', { class: 'num' }, s.rank || '·'), h('td', null, h('code', null, s.name)),
-        h('td', null, s.cipher === 'NULL' ? 'none' : `${s.cipher}-${s.keyBits} ${s.mode}`), h('td', null, s.kx || 'TLS 1.3'),
-        h('td', null, strengthCell(ev, s)), h('td', { class: 'muted' }, ianaLabel(s.ianaRecommended)));
-    });
-    return h('details', { class: `ver-row on vr-${verdict[0]}`, id: `ver-${v}` }, line,
-      h('div', { class: 'ver-body' },
-        vs.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-          h('thead', null, h('tr', null, ['#', 'Suite', 'Cipher', 'Key exchange', 'Strength', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
-          h('tbody', null, suiteRows))) : h('p', { class: 'muted' }, 'No cipher suites were recorded for this version.'),
-        pref(v, 'suites') ? h('p', { class: 'hint' }, `Suite order: ${orderWord[pref(v, 'suites')] || pref(v, 'suites')}.`) : null,
-        vg.length ? h('p', null, h('b', null, 'Key-exchange groups: '), vg.map((g, i) => [i ? ', ' : '',
-          h('span', { class: g.pq && !g.obsolete ? 'pq-group' : '' }, g.name), g.pq && !g.obsolete ? ' (post-quantum)' : ''])) : null));
-  });
-  const legend = h('p', { class: 'hint strength-legend' }, h('span', null, 'Suite strength:'), STRENGTHS.map(([k, w]) => h('span', null, h('span', { class: `swatch sw-st-${k}`, 'aria-hidden': 'true' }), ` ${w} `)),
-    h('span', null, 'A suite is as strong as its weakest part (cipher, key exchange, certificate key, MAC), in bits as NIST estimates them. ', h('a', { href: '#/help?topic=strength' }, 'How strength is worked out')));
-  const n = rep.negotiated || {};
-  return h('section', { class: 'card matrix', id: 'sec-protocols', 'aria-labelledby': 'matrix-h' },
-    h('span', { id: 'sec-suites' }),
-    h('h2', { id: 'matrix-h' }, 'Protocols and cipher suites, version by version'),
-    n.version ? h('p', { class: 'verdict-line' }, `A current client negotiates ${versionLabel(n.version)} with `, h('code', null, n.suite || ''),
-      n.group ? ` and ${n.group}${n.pq ? ' (post-quantum hybrid)' : ''}` : '', '.') : null,
-    summary,
-    h('div', { class: 'ver-head', 'aria-hidden': 'true' }, h('span', null, 'Version'), h('span', null, 'Status'), h('span', null, 'Cipher suites by strength'),
-      h('span', null, 'Forward secrecy'), h('span', null, 'Key exchange'), h('span', null, '')),
-    h('div', { class: 'ver-rows' }, rows),
-    legend);
-}
 
 /** A card of facts for one area (no finding cards; issues are named and link to Weaknesses). */
 function factCard(ctx, d, byId) {
@@ -349,6 +239,11 @@ export function configurationView(ctx) {
   for (const f of uniqueFindings(ev)) byId[f.id] = f;
   const stages = Object.fromEntries((rep.stages || []).map((x) => [x.name, x]));
   const prof = profileOf(ctx);
+  // TLS draws its own one-stop Configuration (UX-DESIGN-011 §3.2); other protocols keep fact cards.
+  if (prof.configuration) {
+    const about = aboutReport(ctx, stages);
+    return prof.configuration(ctx, about);
+  }
   const wrap = h('div', { class: 'report configuration' });
   if (prof.matrix) wrap.appendChild(prof.matrix(ctx));
   for (const d of data) {
@@ -492,6 +387,13 @@ export function cbomView(ctx) {
       h('div', { class: 'cbom-count' }, h('b', null, String(counts[k])), h('span', null, w)))));
     const order = { algorithm: 0, 'related-crypto-material': 1, certificate: 2, protocol: 3 };
     const q = (c) => prop(c, 'cipherhorizon:pqc:status');
+    // PRD-011 REQ-CLS-7: the CBOM's classicalSecurityLevel (PRD-010), or its cited classical status.
+    const classical = (c) => {
+      const a = c.cryptoProperties.algorithmProperties;
+      if (a && typeof a.classicalSecurityLevel === 'number') return `${a.classicalSecurityLevel} bits`;
+      const st = prop(c, 'cipherhorizon:classical-status');
+      return st ? h('span', { class: 'text-bad', title: st }, 'legacy') : h('span', { class: 'muted' }, '·');
+    };
     const qBadge = (s) => (s === 'quantum-vulnerable' ? badge('✖ quantum-vulnerable', 'bad') : s === 'quantum-safe' ? badge('✔ quantum-safe', 'good') : h('span', { class: 'muted' }, '·'));
     const detail = (c) => {
       const cp = c.cryptoProperties;
@@ -503,10 +405,12 @@ export function cbomView(ctx) {
       return '';
     };
     body.appendChild(h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-      h('thead', null, h('tr', null, ['Name', 'Type', 'Detail', 'Post-quantum'].map((c) => h('th', { scope: 'col' }, c)))),
+      h('thead', null, h('tr', null, ['Name', 'Type', 'Detail', 'Classical strength', 'Post-quantum'].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', null, comps.slice().sort((x, y) => (order[type(x)] - order[type(y)]) || x.name.localeCompare(y.name)).map((c) => h('tr', null,
-        h('td', null, h('b', { title: c.name }, cbomName(c))), h('td', { class: 'muted' }, (ASSET_WORD[type(c)] || type(c)).replace(/s$/, '')),
-        h('td', { class: 'muted' }, detail(c)), h('td', null, type(c) === 'algorithm' || type(c) === 'related-crypto-material' ? qBadge(q(c)) : h('span', { class: 'muted' }, '·'))))))));
+        h('td', null, type(c) === 'certificate' && /^crypto\/certificate\/[0-9a-f]{64}$/.test(c['bom-ref'] || '')
+          ? h('a', { href: certHref(c['bom-ref'].slice('crypto/certificate/'.length), ctx.scanId), title: c.name }, h('b', null, cbomName(c)))
+          : h('b', { title: c.name }, cbomName(c))), h('td', { class: 'muted' }, (ASSET_WORD[type(c)] || type(c)).replace(/s$/, '')),
+        h('td', { class: 'muted' }, detail(c)), h('td', null, classical(c)), h('td', null, type(c) === 'algorithm' || type(c) === 'related-crypto-material' ? qBadge(q(c)) : h('span', { class: 'muted' }, '·'))))))));
     body.appendChild(h('p', { class: 'hint' }, `${comps.length} cryptographic components; CycloneDX ${bom.specVersion}, serial ${bom.serialNumber || ''}.`));
   }).catch((e) => { clear(body); body.appendChild(h('p', { class: 'callout bad' }, e.message)); });
   return wrap;
@@ -520,40 +424,47 @@ function summaryStrip(ctx, sections) {
   const g = ev.hygiene;
   const notChecked = Object.values(sections).filter((s) => ['not-checked', 'not-collected', 'inconclusive'].includes(s.status));
   const pki = (ev.pki || []).find((v) => !v.noSni) || (ev.pki || [])[0];
-  let certHead = 'No certificate';
-  let certSub = '';
-  let certTone = 'lvu';
-  if (pki && ctx.rep.certificates) {
-    const cr = ctx.rep.certificates.find((c) => c.chain && c.chain[0] && c.chain[0].sha256 === pki.leaf);
-    const left = cr ? daysUntil(cr.chain[0].notAfter) : null;
-    const trusted = (pki.trust || []).filter((t) => t.trusted).length + (pki.private && pki.private.trusted ? 1 : 0);
-    const total = (pki.trust || []).length + (pki.private ? 1 : 0);
-    certHead = left === null ? '·' : left < 0 ? 'Expired' : `${left} days left`;
-    // UX-REVIEW-008 R2: the colour is about time; trust is said in words, so "89 days left" is
-    // never red because of something else.
-    certSub = trusted === 0 ? 'not trusted by any store checked' : `trusted by ${trusted} of ${total} ${total === 1 ? 'store' : 'stores'}`;
-    certTone = left === null ? 'lvu' : left < 0 ? 'lv0' : left <= 30 ? 'lv1' : 'lv3';
-  } else if (ctx.rep.certificates && ctx.rep.certificates.length) {
-    const left = daysUntil(ctx.rep.certificates[0].chain[0].notAfter);
-    certHead = left === null ? '·' : left < 0 ? 'Expired' : `${left} days left`;
-    certSub = 'trust not analysed by this scan version';
-  }
-  // Each figure opens the Details card it summarises.
-  const tile = (href, cls, big, label, sub) => h('a', { class: `sumtile ${cls}`, href, onclick: (e) => {
+  // Each instrument opens the section it summarises.
+  const tile = (href, cls, label, ...body) => h('a', { class: `sumtile ${cls}`, href, onclick: (e) => {
     e.preventDefault();
+    // The hygiene figure opens how it was worked out, on Weaknesses (UX-REVIEW-010 U-7).
+    if (href === '#score' && ctx.goTab) { ctx.goTab('weaknesses'); setTimeout(() => document.getElementById('score')?.scrollIntoView({ block: 'start' }), 0); return; }
     if (ctx.goDetails) { ctx.goDetails(href.replace('#sec-', '')); return; }
     const el = document.querySelector(href); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } }, h('div', { class: 'sumtile-big' }, big), h('div', { class: 'sumtile-label' }, label), h('div', { class: 'sumtile-sub' }, sub));
-  const tone = { good: 'lv3', ok: 'lv2', warn: 'lv1', bad: 'lv0', neutral: 'lvu' }[bandTone(g ? g.band : '')];
-  // UX-REVIEW-008 R1: post-quantum readiness leads, placed on its L0 to L4 scale.
-  const ready = tile('#sec-key-exchange', `bigLevel sumtile-lead ${levelClass(r.level)}`, r.level < 0 ? '?' : `L${r.level}`, 'Post-quantum readiness', r.label || levelName(r.level));
-  ready.appendChild(h('div', { class: 'lvscale', 'aria-hidden': 'true' }, [0, 1, 2, 3, 4].map((l) => h('span', { class: l <= r.level ? 'on' : '' }))));
-  return h('div', { class: 'sumstrip', role: 'group', 'aria-label': 'Summary' },
-    ready,
-    tile('#sec-details', `bigLevel ${tone}`, g && g.score >= 0 ? String(g.score) : '·', 'TLS hygiene', g ? g.band : 'Not rated'),
-    tile('#sec-certificates', `bigLevel ${certTone}`, certHead, 'Certificate', certSub),
-    notChecked.length ? tile(`#sec-${notChecked[0].id}`, 'bigLevel lv1', String(notChecked.length), 'Not checked',
-      notChecked.map((s) => (SECTIONS.find(([id]) => id === s.id) || [0, s.id])[1]).join(', ')) : null);
+  } }, h('div', { class: 'sumtile-label' }, label), ...body);
+  const ready = tile('#sec-key-exchange', `sumtile-lead bigLevel ${levelClass(r.level)}`, 'Post-quantum readiness',
+    h('div', { class: 'sumtile-figure' }, h('span', { class: `sumtile-big ${levelClass(r.level)}` }, r.level < 0 ? '?' : `L${r.level}`), h('span', { class: 'sumtile-sub' }, r.label || levelName(r.level))),
+    levelStepper(r.level));
+  const gtone = { good: 'good', ok: 'ok', warn: 'warn', bad: 'bad', neutral: 'neutral' }[bandTone(g ? g.band : '')] || 'neutral';
+  const hyg = tile('#score', 'sumtile-gauge', 'TLS hygiene',
+    g && g.score >= 0 ? gauge(g.score, bandWord(g.band), gtone) : h('div', { class: 'sumtile-big' }, '·'),
+    h('div', { class: 'sumtile-sub' }, g && g.ceiling ? `Capped at ${g.ceiling.score}: ${g.ceiling.reason}` : g && g.score >= 0 ? 'No finding caps the score' : 'Not rated'));
+  const weak = weakestAlgorithm(ev);
+  const strength = tile('#sec-algorithms', 'sumtile-strength', 'Weakest classical strength',
+    h('div', { class: 'sumtile-figure' }, h('span', { class: 'sumtile-big' }, weak ? (weak.strength.status === 'broken' ? 'broken' : String(weak.strength.bits)) : '·'),
+      h('span', { class: 'sumtile-sub' }, weak ? `${weak.strength.status === 'broken' ? '' : 'bits · '}${weak.name}` : 'not rated')),
+    weak ? bitsBar(weak.strength, { name: weak.name }) : null);
+  let certFig = 'No certificate', certSub = '', certBar = null, chips = null, ctone = 'lvu';
+  const certs = ctx.rep.certificates || [];
+  const crOf = pki ? certs.find((c) => c.chain && c.chain[0] && c.chain[0].sha256 === pki.leaf) : certs[0];
+  const leaf = crOf && crOf.chain ? crOf.chain[0] : null;
+  if (leaf) {
+    const left = daysUntil(leaf.notAfter);
+    certFig = left === null ? '·' : left < 0 ? 'Expired' : String(left);
+    certSub = left === null ? '' : left < 0 ? `on ${fmtDay(leaf.notAfter)}` : 'days left';
+    ctone = left === null ? 'lvu' : left < 0 ? 'lv0' : left <= 30 ? 'lv1' : 'lv3';
+    certBar = lifetimeBar(leaf.notBefore, leaf.notAfter);
+    const stores = pki ? [...(pki.trust || []), pki.private].filter(Boolean) : [];
+    chips = stores.length ? h('div', { class: 'trust-chips' }, stores.map((t) => h('span', { class: `tchip ${t.trusted ? 'tchip-good' : 'tchip-bad'}` }, `${t.store} ${t.trusted ? '✓' : '✕'}`)))
+      : h('div', { class: 'sumtile-sub' }, 'trust not analysed by this scan version');
+  }
+  const cert = tile('#sec-certificates', 'sumtile-cert', 'Certificate',
+    h('div', { class: 'sumtile-figure' }, h('span', { class: `sumtile-big ${ctone}` }, certFig), h('span', { class: 'sumtile-sub' }, certSub)), certBar, chips);
+  return h('div', { class: 'sumstrip', role: 'group', 'aria-label': 'Where this endpoint stands' },
+    ready, hyg, strength, cert,
+    notChecked.length ? tile(`#sec-${notChecked[0].id}`, 'lv1', 'Not checked',
+      h('div', { class: 'sumtile-figure' }, h('span', { class: 'sumtile-big' }, String(notChecked.length)),
+        h('span', { class: 'sumtile-sub' }, notChecked.map((x) => (SECTIONS.find(([id]) => id === x.id) || [0, x.id])[1]).join(', ')))) : null);
 }
 
 // ---- section anatomy ------------------------------------------------------------------------
@@ -574,23 +485,11 @@ function notChecked(sec) {
 // ---- certificates ---------------------------------------------------------------------------
 
 function certificatesBody(ctx) {
-  const { rep, ev, asset } = ctx;
+  const { rep, ev } = ctx;
   const certs = rep.certificates || [];
   if (!certs.length) return { facts: ['No certificate was received.'] };
   const views = ev.pki || [];
-  if (!views.length) {
-    return { facts: [`${plural(certs.length, 'certificate chain')} presented.`],
-      all: h('div', null, certs.map((c) => certChain(c, { host: asset.host }))) };
-  }
-  let selected = 0;
-  const panel = h('div');
-  const tabs = h('div', { class: 'chaintabs', role: 'tablist', 'aria-label': 'Certificate chains' });
-  const draw = () => {
-    tabs.replaceChildren(...views.map((v, i) => h('button', { type: 'button', role: 'tab', class: 'chaintab', 'aria-selected': String(i === selected),
-      onclick: () => { selected = i; draw(); } }, chainLabel(v))));
-    panel.replaceChildren(chainPanel(views[selected], certs, asset, ctx.ev));
-  };
-  draw();
+  if (!views.length) return { facts: [`${plural(certs.length, 'certificate chain')} presented.`] };
   const first = views.find((v) => !v.noSni) || views[0];
   const cr = certs.find((c) => c.chain[0].sha256 === first.leaf) || certs[0];
   const leaf = cr.chain[0];
@@ -598,7 +497,7 @@ function certificatesBody(ctx) {
   const trustedBy = (first.trust || []).filter((t) => t.trusted).map((t) => t.store);
   if (first.private && first.private.trusted) trustedBy.push('your CA bundle');
   const facts = [
-    `Issued to ${cn(leaf.subject)} by ${cn(leaf.issuer)}; ${keyDesc(leaf.publicKey)} key${keyBits(ctx.ev, 'certificate-key', leaf.sha256) ? ` (${keyBits(ctx.ev, 'certificate-key', leaf.sha256)})` : ''}, signed with ${leaf.signatureAlgorithm.name}.`,
+    `Issued to ${cn(leaf.subject)} by ${cn(leaf.issuer)}; ${keyDesc(leaf.publicKey)} key, signed with ${leaf.signatureAlgorithm.name}.`,
     left === null ? null : left < 0 ? `Expired ${-left} days ago (${fmtDay(leaf.notAfter)}).`
       : `Valid until ${fmtDay(leaf.notAfter)}: ${left} days left of a ${first.lifetime.days}-day lifetime.`,
     trustedBy.length ? `Trusted by ${trustedBy.join(', ')}.` : 'Not trusted by any root store checked.',
@@ -607,89 +506,13 @@ function certificatesBody(ctx) {
       : rep.noSni === 'different' ? 'Clients that send no server name get a different certificate (see the “Without SNI” tab).' : null,
   ];
   const verdict = `${trustedBy.length ? `Trusted by ${trustedBy.join(', ')}` : 'Not trusted by any store checked'} · ${left === null ? '' : left < 0 ? 'expired' : `${left} days left`}`;
-  return { verdict, facts, lead: h('div', null, views.length > 1 ? tabs : null, panel) };
+  return { verdict, facts };
 }
 
-function chainPanel(v, certs, asset, ev) {
-  const cr = certs.find((c) => c.chain[0] && c.chain[0].sha256 === v.leaf && !!c.noSni === !!v.noSni) || certs.find((c) => c.chain[0] && c.chain[0].sha256 === v.leaf);
-  if (v.error || !cr) return h('p', { class: 'muted' }, v.error || 'This chain could not be analysed.');
-  return h('div', { class: 'chainpanel' },
-    v.noSni ? h('div', { class: 'callout info', role: 'note' }, h('b', null, 'Only clients that send no server name see this certificate. '),
-      'Every current client sends one, and many large sites deliberately serve a placeholder here. It is shown for information and is not scored.') : null,
-    h('h3', null, 'Chain as served'),
-    servedDiagram(v, cr, ev),
-    h('h3', null, 'Trust'),
-    trustRows(v),
-    h('details', { class: 'alldata' }, h('summary', null, 'Validity, names and every field'),
-      h('h3', null, 'Validity'),
-      validityBar(cr.chain[0], v.lifetime),
-      h('h3', null, 'Names'),
-      h('p', null, v.names.matchedBy ? `${v.names.host} matches ${v.names.matchedBy}.` : `${v.names.host} matches none of the names.`,
-        ' Checked: ', (v.names.checked || []).join(', ') || 'no subject alternative names', '.',
-        h('span', { class: 'hint' }, ' The common name is never used (RFC 9525).')),
-      certChain(cr, { host: asset.host, noTrust: true })));
-}
 
-function servedDiagram(v, cr, ev) {
-  const issuesAt = {};
-  for (const i of v.served.issues || []) (issuesAt[i.index] = issuesAt[i.index] || []).push(i);
-  const onPath = new Set(v.served.path || []);
-  const items = cr.chain.map((c, i) => h('li', { class: `servednode${onPath.has(i) ? '' : ' offpath'}${issuesAt[i] ? ' hasissue' : ''}` },
-    h('span', { class: 'servedpos' }, String(i)),
-    h('div', null,
-      h('div', { class: 'servedcn' }, cn(c.subject)),
-      h('div', { class: 'hint' }, i === 0 ? 'leaf' : c.selfSigned ? 'root' : 'intermediate', ` · ${keyDesc(c.publicKey)}${keyBits(ev, 'certificate-key', c.sha256) ? ` (${keyBits(ev, 'certificate-key', c.sha256)})` : ''} · until ${fmtDay(c.notAfter)}`),
-      (issuesAt[i] || []).map((is) => h('div', { class: 'servedissue' }, `⚠ ${is.kind}: ${is.detail}`)),
-      (v.served.expiresFirst || []).includes(i) ? h('div', { class: 'servedissue' }, '⚠ expires before the leaf') : null)));
-  if (v.served.missing) {
-    const root = v.served.missing.likely === 'root';
-    items.push(h('li', { class: `servednode missing${root ? ' unknownroot' : ''}` }, h('span', { class: 'servedpos' }, '?'),
-      h('div', null, h('div', { class: 'servedcn' }, `${root ? 'Unknown root' : 'Missing'}: ${cn(v.served.missing.issuer)}`),
-        h('div', { class: 'hint' }, root
-          ? 'Not in any trusted store. Servers do not send their root; if this is your private CA, add it to the system’s CA bundle.'
-          : 'Not sent by the server and not in any trusted store.'),
-        (v.served.missing.aia || []).length ? h('div', { class: 'hint' }, 'The certificate says it is available at ', v.served.missing.aia.join(', '), ' (not fetched).') : null)));
-  }
-  return h('div', null, h('ol', { class: 'served' }, items),
-    h('p', { class: 'hint' }, `${plural(cr.chain.length, 'certificate')}, ${v.served.sizeBytes.toLocaleString()} bytes`,
-      v.served.sizeBytes > 4096 ? ': more than fits a typical first round trip; trim extra certificates.' : '.'));
-}
 
-function validityBar(leaf, lifetime) {
-  const from = Date.parse(leaf.notBefore), to = Date.parse(leaf.notAfter), now = Date.now();
-  const limitEnd = lifetime && lifetime.limitDays ? from + lifetime.limitDays * 86400000 : null;
-  const end = Math.max(to, limitEnd || 0, now);
-  const start = Math.min(from, now);
-  const W = 600, x = (t) => Math.round(((t - start) / Math.max(1, end - start)) * W);
-  const pieces = [
-    svg('rect', { x: 0, y: 14, width: W, height: 10, rx: 5, class: 'vb-track' }),
-    svg('rect', { x: x(from), y: 14, width: Math.max(2, x(to) - x(from)), height: 10, rx: 5, class: now > to ? 'vb-expired' : 'vb-valid' }),
-    svg('line', { x1: x(now), x2: x(now), y1: 6, y2: 32, class: 'vb-today' }),
-    svg('text', { x: Math.min(W - 40, Math.max(0, x(now) - 18)), y: 44, class: 'vb-label' }, 'today'),
-  ];
-  if (limitEnd && lifetime.applies) {
-    pieces.push(svg('line', { x1: x(limitEnd), x2: x(limitEnd), y1: 8, y2: 30, class: 'vb-limit' }),
-      svg('text', { x: Math.min(W - 70, Math.max(0, x(limitEnd) - 30)), y: 5, class: 'vb-label' }, `${lifetime.limitDays}-day limit`));
-  }
-  return h('div', { class: 'validity' },
-    svg('svg', { viewBox: `0 -8 ${W} 56`, class: 'vbar', role: 'img', 'aria-label': `Valid ${fmtDay(leaf.notBefore)} to ${fmtDay(leaf.notAfter)}` }, ...pieces),
-    h('div', { class: 'row spread hint' }, h('span', null, `issued ${fmtDay(leaf.notBefore)}`), h('span', null, `expires ${fmtDay(leaf.notAfter)}`)),
-    lifetime && lifetime.limitDays ? h('p', { class: 'hint' }, lifetime.applies
-      ? `Lifetime ${lifetime.days} days; the limit on its issue date was ${lifetime.limitDays} days (${lifetime.limitSource}).`
-      : `Lifetime ${lifetime.days} days. The public limit (${lifetime.limitDays} days on its issue date) does not apply: no public root store trusts it.`) : null);
-}
 
-function trustRows(v) {
-  const rows = [...(v.trust || []), v.private, v.os].filter(Boolean);
-  if (!rows.length) return h('p', { class: 'muted' }, 'No trust store was available.');
-  return h('div', null, h('div', { class: 'tablewrap' }, h('table', { class: 'compact trusttable' },
-    h('thead', null, h('tr', null, ['Store', 'Result', 'Detail'].map((c) => h('th', { scope: 'col' }, c)))),
-    h('tbody', null, rows.map((t) => h('tr', null,
-      h('td', null, h('b', null, t.store), t.snapshot ? h('div', { class: 'hint' }, `snapshot ${t.snapshot}`) : null),
-      h('td', null, t.trusted ? badge('✔ trusted', 'good') : t.distrust ? badge('✖ distrusted', 'bad') : t.expiredOnly ? badge('▲ expired', 'warn') : badge('✖ not trusted', 'bad')),
-      h('td', { class: 'muted' }, t.trusted ? `path of ${(t.path || []).length} certificates` : (t.distrust || t.error || ''))))))),
-    v.private ? null : h('p', { class: 'hint' }, 'Private CA? Add it to this endpoint’s system as a trust anchor (system page → CA bundle), and the result is re-evaluated without a rescan.'));
-}
+
 
 // ---- revocation & transparency ----------------------------------------------------------------
 
@@ -777,21 +600,11 @@ function suiteProblems(s) {
   return out;
 }
 
-function suiteTable(rows, ev) {
-  return h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-    h('thead', null, h('tr', null, ['Version', '#', 'Suite', 'Cipher', 'Key exchange', 'Strength', 'Flags', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
-    h('tbody', null, rows.map((s) => h('tr', null, h('td', null, s.version), h('td', { class: 'num' }, s.rank || '·'), h('td', null, h('code', null, s.name)),
-      h('td', null, s.cipher === 'NULL' ? 'none' : `${s.cipher}-${s.keyBits} ${s.mode}`), h('td', null, s.kx || 'TLS 1.3'),
-      h('td', null, strengthCell(ev, s)),
-      h('td', null, suiteProblems(s).filter(([t]) => t !== 'IANA discouraged').map(([t, k]) => h('span', null, badge(t, k), ' ')), s.aead ? badge('AEAD', 'good') : null),
-      h('td', null, badge(ianaLabel(s.ianaRecommended), s.ianaRecommended === 'Y' ? 'good' : s.ianaRecommended === 'D' ? 'bad' : 'neutral')))))));
-}
 
 function suitesBody(ctx) {
   const { rep, ev } = ctx;
   const suites = rep.suites || [];
   const problem = suites.filter((s) => suiteProblems(s).some(([, k]) => k !== 'neutral'));
-  const fine = suites.filter((s) => !problem.includes(s));
   const aead = suites.filter((s) => s.aead).length;
   const cbc = suites.filter((s) => s.mode === 'CBC' && s.version !== 'TLSv1.3').length;
   const order = (rep.preference || []).filter((p) => p.subject === 'suites').map((p) => `${p.version}: ${{ server: 'server decides', client: 'client decides', mixed: 'depends on the offer', unknown: 'not determined' }[p.order]}`);
@@ -799,8 +612,11 @@ function suitesBody(ctx) {
     `${plural(suites.length, 'suite')} accepted: ${aead} AEAD${cbc ? `, ${cbc} CBC` : ''}${problem.length ? `, ${problem.length} with a weakness` : ''}.`,
     order.length ? `Order: ${order.join('; ')}.` : null,
   ];
-  const lead = problem.length ? h('div', null, h('h3', null, 'Suites with a weakness'), suiteTable(problem, ev)) : null;
-  return { facts, lead, all: fine.length ? h('div', null, h('p', { class: 'hint' }, 'Suites with no weakness flagged:'), suiteTable(fine, ev)) : null };
+  // UX-REVIEW-010 U-3: the Summary says how strong the weakest suite is.
+  const rank = { insecure: 0, weak: 1, acceptable: 2, strong: 3 };
+  const worst = (ev.suiteStrength || []).slice().sort((a, b) => (rank[a.word] - rank[b.word]) || ((a.bits || 0) - (b.bits || 0)))[0];
+  const verdict = worst ? `${plural(suites.length, 'suite')} accepted; the weakest is ${worst.word}${worst.bits ? `, ${worst.bits} bits` : ''}${worst.weakest ? ` (${worst.weakest})` : ''}.` : null;
+  return { facts, verdict };
 }
 
 function keyExchangeBody(ctx) {
@@ -817,32 +633,7 @@ function keyExchangeBody(ctx) {
       : `Diffie-Hellman uses a ${rep.dh.primeBits}-bit prime that is not a published group.`) : null,
     signatureFact(rep.signatures),
   ];
-  const dim = (title, d) => h('div', { class: 'dim' }, h('h4', null, title, badge(d.status, 'neutral'), evidenceBadge(d.evidence)), h('div', null, d.detail), citations(d.citations));
-  const lead = h('div', { class: 'pqpanel' },
-    h('div', { class: 'readiness' }, h('div', { class: `bigLevel ${levelClass(r.level)}` }, r.level < 0 ? '?' : `L${r.level}`, h('small', null, r.label)),
-      h('div', null, h('p', null, r.summary))),
-    h('div', { class: 'scale', role: 'img', 'aria-label': `Level ${r.level} of 4` }, [0, 1, 2, 3, 4].map((l) =>
-      h('span', { class: `${levelClass(l)}${l === r.level ? ' on' : ''}`, title: levelName(l) }, `L${l}`))),
-    dim('Key establishment', r.keyEstablishment), dim('Authentication', r.authentication), dim('Symmetric strength', r.symmetric),
-    h('h3', null, 'What to do next'), h('ol', { class: 'next' }, r.nextSteps.map((s) => h('li', null, s))),
-    h('p', { class: 'hint' }, 'The level scale is this product’s own; each fact above cites its standard.'));
-  const gv = [...new Set(groups.map((g) => g.version))];
-  const groupRow = (g) => h('tr', null,
-    h('td', { class: 'num' }, g.rank || '·'),
-    h('td', null, h('code', null, g.name)),
-    h('td', { class: 'nowrap' }, keyBits(ev, 'group', g.name) || h('span', { class: 'muted' }, '·')),
-    h('td', null, g.pq ? badge(g.hybrid ? 'hybrid post-quantum' : 'post-quantum', g.obsolete ? 'warn' : 'good') : h('span', { class: 'muted' }, 'classical'),
-      g.obsolete ? badge('obsolete draft', 'warn') : null),
-    h('td', null, badge(ianaLabel(g.ianaRecommended), g.ianaRecommended === 'Y' ? 'good' : 'neutral')));
-  const groupTable = (v) => h('div', null, h('h3', null, v),
-    h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-      h('thead', null, h('tr', null, ['#', 'Group', 'Classical strength', 'Post-quantum', 'IANA'].map((c) => h('th', { scope: 'col' }, c)))),
-      h('tbody', null, groups.filter((g) => g.version === v).map(groupRow)))));
-  const all = h('div', null, gv.map(groupTable),
-    rep.dh ? h('p', null, `DHE prime fingerprint ${rep.dh.primeSha256}, sampled from `, h('code', null, rep.dh.suite)) : null,
-    signatureTable(rep.signatures),
-    h('details', null, h('summary', null, 'Sources for the readiness assessment'), citations(r.citations)));
-  return { facts, all: h('div', null, lead, all) };
+  return { facts };
 }
 
 /** One sentence on the TLS 1.3 signature schemes the server holds keys for (PRD-008 REQ-PQS-6). */
@@ -856,31 +647,6 @@ function signatureFact(sig) {
     : `The server authenticates with ${[...new Set(acc.map((s) => s.algorithm))].join(', ')}; no post-quantum signature scheme is accepted.`;
 }
 
-/** The signature-scheme table: what the server answered when each scheme was the only one offered. */
-function signatureTable(sig) {
-  if (!sig) return null;
-  const title = h('h3', null, 'Signature schemes the server can authenticate with (TLS 1.3)');
-  if (sig.control !== 'refused') {
-    return h('div', null, title, h('div', { class: 'callout info', role: 'note' },
-      sig.control === 'accepted'
-        ? 'This server answers whatever signature scheme is offered, so which keys it holds can not be told from a handshake.'
-        : `The control probe got no clear answer (${sig.controlWhy || 'no reply'}), so the per-scheme answers prove nothing.`));
-  }
-  const status = (s) => {
-    if (s.result === 'accepted') return versionState(['good', '✔', 'Accepted', s.pq ? `post-quantum (${s.algorithm})` : 'fine']);
-    if (s.result === 'refused') return versionState(['neutral', '·', 'Not accepted', s.pq ? 'no post-quantum key yet' : 'no key of this kind']);
-    return versionState(['warn', '?', 'Not determined', s.why || 'no clear answer']);
-  };
-  return h('div', null, title,
-    h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
-      h('thead', null, h('tr', null, ['Scheme', 'Key', 'Status'].map((c) => h('th', { scope: 'col' }, c)))),
-      h('tbody', null, (sig.schemes || []).map((s) => h('tr', null,
-        h('td', null, h('code', null, s.name)),
-        h('td', null, `${s.algorithm}${s.detail ? ` (${s.detail})` : ''}`),
-        h('td', null, status(s))))))),
-    h('p', { class: 'hint' }, 'Tested by offering one scheme per handshake; a server answers only for keys it holds. ',
-      `A control scheme no key can match was refused, so the answers are meaningful. Key shares: ${sig.keyShare || 'x25519'}.`));
-}
 
 function featuresBody(ctx) {
   const f = ctx.rep.features || {};

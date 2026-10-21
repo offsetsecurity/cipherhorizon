@@ -67,6 +67,7 @@ const (
 	ExtStatusRequest        uint16 = 5
 	ExtSupportedGroups      uint16 = 10
 	ExtECPointFormats       uint16 = 11
+	ExtHeartbeat            uint16 = 15
 	ExtSignatureAlgorithms  uint16 = 13
 	ExtALPN                 uint16 = 16
 	ExtEncryptThenMAC       uint16 = 22

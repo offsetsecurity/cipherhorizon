@@ -18,7 +18,7 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/9"
+const Version = "eval/10"
 
 // eval/7 (PRD-008): a post-quantum signature scheme proved accepted by the signature stage counts
 // toward L4, and SSH endpoints are judged into the same shape (Protocol "ssh").
@@ -134,6 +134,10 @@ type Evaluation struct {
 	// and of every accepted group and presented certificate key.
 	SuiteStrength []SuiteStrength `json:"suiteStrength,omitempty"`
 	KeyStrength   []KeyStrength   `json:"keyStrength,omitempty"`
+
+	// eval/10 (PRD-011): every algorithm the endpoint uses, by class, with its strength,
+	// post-quantum status and uses. Each suite part also says its class, and gains its hash part.
+	Algorithms []AlgorithmUse `json:"algorithms,omitempty"`
 }
 
 // Check is one check the evaluation ran. Title names what was looked for (a problem, as a
@@ -266,6 +270,7 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	ev.ReferenceData = referenceData(in.Now)
 	ev.SuiteStrength = suiteStrengths(rep)
 	ev.KeyStrength = keyStrengths(rep)
+	ev.Algorithms = algorithmsInUse(rep, ev.SuiteStrength)
 	if rep.DH != nil {
 		if p, ok := refdata.LookupDHPrime(rep.DH.PrimeSHA256); ok {
 			ev.DHGroup = &DHGroupView{Name: p.Name, Source: p.Source, Bits: p.Bits, Negotiated: p.Negotiated}

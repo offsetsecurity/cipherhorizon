@@ -33,8 +33,57 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - **SSH reports** (page and PDF): a strength for every key exchange, host key (by the presented key's size),
     cipher and MAC.
   - **CBOM:** `classicalSecurityLevel` on every algorithm with a strength (1.6 and 1.7).
+- **Every algorithm by class: asymmetric, symmetric, hash** ([PRD-011](docs/product/PRD-011-algorithm-classes-and-flow.md), #20).
+  - A TLS report's Configuration ends with *Every algorithm, by class*: one lane per class, each algorithm with its
+    role, a bits bar, its post-quantum status and the suites or certificates that use it, the weakest ringed.
+  - Every suite row shows its parts (cipher, key exchange, signature, MAC, key-derivation hash) as cells with their
+    bits, the weakest ringed.
+  - The Inventory filters algorithms by class (`?class=`, a segmented control), and its *Kind* says the class.
+  - The report's CBOM tab has a *Classical strength* column.
+  - The PDF and `tls scan --details` list the algorithms by class, and the CLI lists each suite's parts.
+  - API: the evaluation (`eval/10`) carries `algorithms`, and every suite part carries its `class`.
+- **Open any certificate and read the whole X.509 document** ([PRD-012](docs/product/PRD-012-certificate-viewer.md), #21).
+  - Every certificate in the chain and the CBOM tab opens its page.
+  - The page shows the chain it was served in, its validity, the key and the issuer's signature with their strengths
+    and post-quantum status, its names and uses, every extension with its criticality and decoded value, the
+    identifiers to copy, and the PEM (folded) to copy or download.
+  - It is decoded from the DER the scan kept (`GET /api/v1/certificates/{sha256}/x509`), so earlier scans have it
+    too.
+
+- **Instruments, not paragraphs: the report, the certificate page and the Inventory are rebuilt**
+  ([PRD-013](docs/product/PRD-013-visual-rebuild.md), [UX-DESIGN-011](docs/product/UX-DESIGN-011-instruments-not-paragraphs.md)).
+  One set of shared instruments draws every quantity the same way on every page: a 0 to 256 bits bar over the
+  strength bands, a strength chip, a part cell, a post-quantum glyph, a status tile, a validity bar, the hygiene
+  gauge and the readiness stepper. Each says in words what it shows.
+  - **Summary:** four figures (readiness, hygiene, the weakest classical strength, the certificate), *Fix first* as
+    one numbered line per problem, one bar of every check's result, and a tile per area that opens it.
+  - **Configuration** is one place to check the whole setup, in a reviewer's order: protocols and cipher suites
+    (what a current client gets, then each version with its groups and its suites in the server's order), the
+    certificate chain (each card opens its certificate; a missing issuer is drawn), key exchange and signatures,
+    revocation, protocol features, and every algorithm by class. Each version folds to one line when all its
+    suites are Strong, and opens when it needs a look. A row of chips at the top jumps to each part, and
+    each part ends with the issues found in it. HSTS shows the header as sent.
+  - **Inventory:** algorithms *By class* and *By classical strength* (`?strength=`: broken, below-112, 112, 128,
+    192, 256, not-rated), each bar opening its list; the list is weakest first, with a bits bar.
+  - **SSH reports:** the algorithm tables use the bits bar and a post-quantum column.
+  - **Scanner:** a TLS scan records whether the server negotiates the heartbeat extension (RFC 6520).
+  - Every number and claim on these screens was checked against its source
+    ([CRYPTO-REVIEW-001](docs/product/CRYPTO-REVIEW-001-visual-rebuild.md)).
 
 ### Changed
+
+- **The TLS hygiene bands have new names:** Excellent, Good, Fair, Poor, Failing (they were Strong, Sound, Fair,
+  Weak, Broken). *Strong* and *Weak* now mean only a suite's strength (UX-REVIEW-010, #22). The scores and the
+  thresholds are unchanged. Stored scans are migrated, and the API's `band` field uses the new names.
+- **Each suite gains the hash that derives its keys as a part**, rated in that use (SP 800-57 Table 3). With NIST's
+  numbers it changes no word.
+- **Signature algorithms are rated as their hash and their key together**, so `SHA256withRSA` from an imported CBOM
+  now reads 128 bits instead of *not rated*.
+- **The report's Summary:**
+  - the line under *N things to fix* names the first one;
+  - the *Cipher suites* row names the weakest suite and its bits;
+  - the Overview's TLS endpoints tile keeps to its count and the exposed figure.
+- **The Inventory explains every *not rated* strength** on the row.
 
 - **Suite strength words follow the weakest-part rule**, so some suites read differently:
   - a suite authenticated by an RSA-2048 certificate (112 bits) is now *Acceptable*, not *Strong*;
@@ -45,6 +94,9 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 ### Fixed
 
 - **Single-DES suites (56-bit key) are Insecure, not Weak** (#18).
+- **The TLS hygiene figure on a report's Summary opened *About this report*.** It now opens how the score was worked
+  out, on Weaknesses.
+- **The browser journey retries a browser that does not start**, instead of failing the whole run.
 - **A running scan's connection count could go backwards.** Concurrent probes reported counts out of order, and
   progress writes could land out of order. The count now only moves forward, and writes are serialised. This was
   found by a CI run of the workflow test.

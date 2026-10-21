@@ -16,16 +16,28 @@ var severityPoints = map[Severity]int{Critical: 40, High: 20, Medium: 10, Low: 4
 
 // The ceilings: a result cannot score above these while such a finding is present.
 const (
-	ceilingCritical = 29 // any critical finding: at most "Broken"
+	ceilingCritical = 29 // any critical finding: at most "Failing"
 	ceilingHigh     = 74 // any high finding: at most "Fair"
 )
 
-// The bands, best first. A score belongs to the first band whose minimum it reaches.
+// The bands, best first. A score belongs to the first band whose minimum it reaches. Their words
+// are this scale's alone (UX-REVIEW-010 U-1): Strong and Weak belong to suite strength (PRD-010).
 var bands = []struct {
 	Min  int
 	Name string
 }{
-	{90, "Strong"}, {75, "Sound"}, {55, "Fair"}, {30, "Weak"}, {0, "Broken"},
+	{90, "Excellent"}, {75, "Good"}, {55, "Fair"}, {30, "Poor"}, {0, "Failing"},
+}
+
+// oldBands are the names the bands had before PRD-011, which evaluations stored then still carry.
+var oldBands = map[string]string{"Strong": "Excellent", "Sound": "Good", "Weak": "Poor", "Broken": "Failing"}
+
+// BandName is a band's current name: an evaluation stored before PRD-011 says the old one.
+func BandName(band string) string {
+	if n, ok := oldBands[band]; ok {
+		return n
+	}
+	return band
 }
 
 // BandNotRated is the band of a result that could not be rated.
@@ -41,11 +53,13 @@ func BandFor(score int) string {
 			return b.Name
 		}
 	}
-	return "Broken"
+	return "Failing"
 }
 
-// BandRank orders bands from worst (0) to best; Not rated is below Broken.
+// BandRank orders bands from worst (0) to best; Not rated is below Failing. An old name ranks as
+// its new one.
 func BandRank(band string) int {
+	band = BandName(band)
 	for i, b := range bands {
 		if b.Name == band {
 			return len(bands) - i
@@ -80,8 +94,8 @@ type Hygiene struct {
 
 const hygieneMethodology = "TLS hygiene score: start at 100 and take off points for each finding on this result " +
 	"(critical 40, high 20, medium 10, low 4, info 0). Post-quantum findings are not counted; readiness is reported separately. " +
-	"Each distinct problem counts once. A critical finding limits the score to 29 (Broken) and a high finding to 74 (Fair). " +
-	"Bands: Strong 90 and above, Sound 75, Fair 55, Weak 30, Broken below. " +
+	"Each distinct problem counts once. A critical finding limits the score to 29 (Failing) and a high finding to 74 (Fair). " +
+	"Bands: Excellent 90 and above, Good 75, Fair 55, Poor 30, Failing below. " +
 	"The weights are this project's own choice, not a standard, and are not derived from any other scanner's rating."
 
 func computeHygiene(c *ctx, findings []Finding) Hygiene {

@@ -90,7 +90,7 @@ func (p *prober) legacyHello(v wire.Version, suites, groups []uint16) (*wire.Cli
 	h.Extensions = append(h.Extensions,
 		wire.SupportedGroups(groups), wire.ECPointFormats(),
 		wire.RenegotiationInfo(), wire.ExtendedMasterSecret(), wire.SessionTicket(),
-		wire.Extension{Type: wire.ExtEncryptThenMAC}, wire.StatusRequest())
+		wire.Extension{Type: wire.ExtEncryptThenMAC}, wire.StatusRequest(), wire.Heartbeat())
 	if v >= wire.VersionTLS12 {
 		h.Extensions = append(h.Extensions, wire.SignatureAlgorithms(signatureSchemes))
 	}

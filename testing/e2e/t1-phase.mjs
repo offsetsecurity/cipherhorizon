@@ -57,29 +57,34 @@ export async function t1Phase(t) {
     const checks = [...document.querySelectorAll('#checks .check-row .secstatus')].map((x) => x.textContent.trim());
     [...document.querySelectorAll('.tab')].find((t) => t.textContent === 'Configuration').click();
     await new Promise((r) => setTimeout(r, 400));
-    const secs = [...document.querySelectorAll('.detcard[id^="sec-"]')];
+    const secs = [...document.querySelectorAll('.report.configuration > section.cfg')];
     return {
       tiles, fix: fixRows, index: checks,
-      sections: secs.map((s) => ({ id: s.id, purpose: (s.querySelector('.purpose')?.textContent || '').length })),
-      trustRows: document.querySelectorAll('#sec-certificates .trusttable tbody tr').length,
-      missing: document.querySelector('#sec-certificates .servednode.missing')?.innerText || '',
+      sections: secs.map((s) => ({ id: s.id, h2: s.querySelector('h2')?.textContent || '' })),
+      jump: [...document.querySelectorAll('nav.jump a.jump-chip')].map((a) => ({ to: a.getAttribute('href'), dot: !!a.querySelector('.jump-dot') })),
+      trustRows: document.querySelectorAll('#sec-certificates .trust-chips .tchip').length,
+      missing: document.querySelector('#sec-certificates .chaincard.is-missing')?.innerText || '',
     };`);
   check('T1-E2E.4', 'summary strip leads with post-quantum readiness, then TLS hygiene and the certificate; Not checked shows only when something was not checked (UX-REVIEW-008 R1)',
-    /^post-quantum readiness\|tls hygiene\|certificate(\|not checked)?$/.test(page.tiles.join('|').toLowerCase()), page.tiles.join('|'));
+    /^post-quantum readiness\|tls hygiene\|weakest classical strength\|certificate(\|not checked)?$/.test(page.tiles.join('|').toLowerCase()), page.tiles.join('|'));
   check('T1-E2E.5', 'What to fix lists the actionable findings, at least one', page.fix >= 1, page.fix);
   check('T1-E2E.6', 'every check row states its status as a symbol and a word',
     page.index.length === 8 && page.index.every((s) => /^[✖▲✔○?] (Problem|Needs attention|Good|Not checked|Not collected|Inconclusive)$/.test(s)), page.index.join(' / '));
-  check('T1-E2E.7', 'every area card in Configuration has a purpose line (REQ-TUI-4)',
-    PURPOSE_SECTIONS.filter((id) => !['protocols', 'suites', 'vulnerabilities'].includes(id)).every((id) => page.sections.find((s) => s.id === `sec-${id}`)?.purpose > 40), JSON.stringify(page.sections));
+  // PRD-013 REQ-VIS-3..6: the reviewer's order, each section named, and a jump row to each with its state.
+  const ORDER = ['sec-protocols', 'sec-certificates', 'sec-key-exchange', 'sec-revocation', 'sec-features', 'sec-algorithms'];
+  check('T1-E2E.7', 'Configuration has its sections in the reviewer’s order, each with a heading, and the jump row leads to each with its state',
+    page.sections.map((s) => s.id).join() === ORDER.join() && page.sections.every((s) => s.h2.length > 4)
+      && page.jump.map((j) => j.to).join() === ORDER.map((id) => `#${id}`).join() && page.jump.every((j) => j.dot), JSON.stringify({ sections: page.sections, jump: page.jump }));
+  void PURPOSE_SECTIONS;
   check('T1-E2E.8', 'a trust row per bundled store, and the missing issuer drawn in the served chain',
-    page.trustRows >= 2 && /Missing: Demo Corp Issuing CA 1/.test(page.missing), `${page.trustRows} rows; ${page.missing.slice(0, 60)}`);
-  const det = await js(`return { cards: document.querySelectorAll('.detcard').length, findingCards: document.querySelectorAll('.detcard .finding, .detcard .issue').length,
+    page.trustRows >= 2 && /Missing intermediate[\s\S]*Demo Corp Issuing CA 1/.test(page.missing), `${page.trustRows} rows; ${page.missing.slice(0, 60)}`);
+  const det = await js(`return { cards: document.querySelectorAll('.report.configuration .detcard').length, findingCards: document.querySelectorAll('.report.configuration .finding, .report.configuration .issue').length,
     certIssues: document.querySelector('#sec-certificates .detcard-issues')?.innerText || '' }`);
-  check('T1-E2E.17', 'Configuration shows facts only: no finding card, and a card with issues names them (PRD-006)',
-    det.cards === 5 && det.findingCards === 0 && /intermediate certificate is missing/i.test(det.certIssues), JSON.stringify(det));
+  check('T1-E2E.17', 'Configuration shows facts only: no finding card, and a section with issues names them (PRD-006)',
+    det.cards === 0 && det.findingCards === 0 && /intermediate certificate is missing/i.test(det.certIssues), JSON.stringify(det));
   const rev = await js(`return document.querySelector('#sec-revocation')?.innerText || ''`);
-  check('T1-E2E.15', 'revocation says in sentences what was stapled, lists the URLs the certificate gives, and says they were not looked up',
-    /OCSP response was stapled/.test(rev) && /ocsp\.demo-corp\.test/.test(rev) && /not looked up/.test(rev), rev.slice(0, 200));
+  check('T1-E2E.15', 'revocation says what was stapled, lists the URLs the certificate gives, and says they were not contacted',
+    /OCSP stapling/.test(rev) && /stapled/i.test(rev) && /ocsp\.demo-corp\.test/.test(rev) && /not contacted/.test(rev), rev.slice(0, 200));
   await shot('t1-broken-chain-report');
   // A finding and its area link both ways: Details names the issue and opens it in What to fix,
   // and the opened issue links back to its Details card.
@@ -140,8 +145,8 @@ export async function t1Phase(t) {
   await go(`#/endpoints/${ids.corp}`);
   await sleep(900);
   await js(OPEN_ALL);
-  const corpTrust = await js(`return document.querySelector('#sec-certificates .trusttable')?.innerText || ''`);
-  check('T1-E2E.12', 'the trust row shows "your CA bundle: trusted"', /your CA bundle[\s\S]*trusted/.test(corpTrust), corpTrust.slice(0, 160));
+  const corpTrust = await js(`return [...document.querySelectorAll('#sec-certificates .trust-chips .tchip')].map((c) => c.className + ' ' + c.textContent).join(' | ')`);
+  check('T1-E2E.12', 'the trust chips show "your CA bundle ✓"', /tchip-good your CA bundle ✓/.test(corpTrust), corpTrust.slice(0, 200));
   await shot('t1-private-ca-trusted');
 
   // ---- hostile target text in every new section ----------------------------------------------------------
@@ -153,7 +158,7 @@ export async function t1Phase(t) {
     fired: window.__xss ?? null,
     injected: document.querySelectorAll('#main img, #main script, #main svg[onload], #main a[href^="javascript"]').length,
     shownSubject: document.querySelector('#sec-certificates')?.innerText.includes('<img src=x') || false,
-    shownHSTS: document.querySelector('#sec-http')?.innerText.includes('<script>') || false,
+    shownHSTS: document.querySelector('#sec-features')?.innerText.includes('<script>') || false,
     shownOCSP: document.querySelector('#sec-revocation')?.innerText.includes('javascript:window.__xss=8') || false };`);
   check('T1-E2E.13', 'hostile certificate subject, SAN, OCSP URL and HSTS header render as text and never execute',
     xss.fired === null && xss.injected === 0 && xss.shownSubject && xss.shownHSTS && xss.shownOCSP, JSON.stringify(xss));
@@ -166,11 +171,11 @@ export async function t1Phase(t) {
   const narrow = await js(`const over = () => document.documentElement.scrollWidth - document.documentElement.clientWidth;
     document.querySelectorAll('#main details').forEach((d) => { d.open = true; });
     const summary = over();
-    const cols = getComputedStyle(document.querySelector('#checks .check-row')).gridTemplateColumns.split(' ').length;
+    const cols = getComputedStyle(document.querySelector('#checks .area-tiles')).gridTemplateColumns.split(' ').length;
     ${OPEN_ALL}
     return { summary, details: over(), cols };`);
-  check('T1-E2E.14', 'at 390 px neither Summary nor Configuration (opened in full) scrolls sideways, and check rows fold to two columns',
-    narrow.summary <= 1 && narrow.details <= 1 && narrow.cols === 2, JSON.stringify(narrow));
+  check('T1-E2E.14', 'at 390 px neither Summary nor Configuration (opened in full) scrolls sideways, and the area tiles fold to at most two columns',
+    narrow.summary <= 1 && narrow.details <= 1 && narrow.cols <= 2, JSON.stringify(narrow));
   await shot('t1-report-390', { maxH: 2400 });
   await viewport(1280, 900, true);
   await go(`#/endpoints/${ids.broken}`);

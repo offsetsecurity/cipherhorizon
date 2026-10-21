@@ -24,6 +24,9 @@ var prdPaths = []string{
 	"../../docs/product/PRD-008-pq-signatures-and-ssh.md",
 	"../../docs/product/PRD-009-interactive-charts-motion-port-cbom.md",
 	"../../docs/product/PRD-010-classical-strength.md",
+	"../../docs/product/PRD-011-algorithm-classes-and-flow.md",
+	"../../docs/product/PRD-012-certificate-viewer.md",
+	"../../docs/product/PRD-013-visual-rebuild.md",
 }
 
 const (
