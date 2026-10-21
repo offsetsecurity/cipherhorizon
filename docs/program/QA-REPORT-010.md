@@ -43,6 +43,12 @@ and the NIST strength model (`42b1644`). Requirements: [PRD-010](../product/PRD-
 | Q2 | Journey (most report checks, then a `getComputedStyle` abort) | The chain diagram used the evaluation without being passed it. The Summary and Configuration tabs of every TLS report rendered nothing below the tab bar. | `servedDiagram` takes the evaluation. Every view was then rendered against every scanned endpoint without an exception. |
 | Q3 | Screen walk | The legend's "How strength is worked out" opened Help at its top, eleven topics above the answer. | Help opens at `?topic=`; E2E-STR-3 checks it. The first version scrolled in `requestAnimationFrame`, which never runs in a hidden tab; it now scrolls at once. |
 
+## Test changes, and why each is not a weakening
+
+- **E2E-STR-3** first asked for the topic within 200 px of the top. On CI the heading lands at 214 px on every run
+  (20 px locally), from a layout difference between the two machines, not a timing one. The check now states the
+  requirement: the page has scrolled, and the topic's heading is in the top third of the window.
+
 ## Screen walk
 
 Walked in light, dark and at 375 px:

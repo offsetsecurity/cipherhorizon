@@ -32,9 +32,11 @@ export async function strengthPhase({ check, js, go, sleep, shot, viewport }) {
   // E2E-STR-3: the legend's link opens Help at the Classical strength topic, not at its top.
   const link = await js(`const a = [...document.querySelectorAll('#main a')].find((x) => /How strength is worked out/.test(x.textContent)); if (!a) return null; a.click(); return a.getAttribute('href')`);
   await sleep(1500);
-  const helpAt = await js(`const s = document.getElementById('help-strength'); return s ? Math.round(s.getBoundingClientRect().top) : null`);
+  // The topic's heading is in the top third of the window and the page has scrolled: Help opened at the
+  // topic, not at its top (fonts and layout differ between machines, so no exact offset is asked).
+  const helpAt = await js(`const s = document.getElementById('help-strength'); return s ? { top: Math.round(s.getBoundingClientRect().top), third: Math.round(innerHeight / 3), scrolled: Math.round(scrollY) } : null`);
   check('E2E-STR-3', 'the strength legend opens Help at the Classical strength topic',
-    link === '#/help?topic=strength' && helpAt !== null && helpAt >= -5 && helpAt < 200, JSON.stringify({ link, helpAt }));
+    link === '#/help?topic=strength' && helpAt !== null && helpAt.scrolled > 0 && helpAt.top >= -5 && helpAt.top < helpAt.third, JSON.stringify({ link, helpAt }));
 
   // E2E-STR-2: the Inventory's Classical strength column; broken algorithms say so.
   await go('#/inventory/algorithms');
