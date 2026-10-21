@@ -229,9 +229,10 @@ func (p *progress) message(msg string) {
 	}
 	stage, pct, conns := p.stage, p.pctLocked(), p.conns
 	p.lastSent = time.Now()
-	p.mu.Unlock()
 	p.r.note(p.id, p.r.st.AddEvent(p.id, msg))
+	// Written under the lock that computed it, so two progress writes never land out of order.
 	p.r.note(p.id, p.r.st.UpdateProgress(p.id, stage, pct, conns))
+	p.mu.Unlock()
 }
 
 func (p *progress) tick(n int) {
@@ -239,15 +240,15 @@ func (p *progress) tick(n int) {
 		return
 	}
 	p.mu.Lock()
-	p.conns = n
+	defer p.mu.Unlock()
+	// Probe goroutines report counts they read at different moments; a count read earlier can
+	// arrive later. The counter only moves forward.
+	p.conns = max(p.conns, n)
 	if time.Since(p.lastSent) < 250*time.Millisecond {
-		p.mu.Unlock()
 		return
 	}
 	p.lastSent = time.Now()
-	stage, pct := p.stage, p.pctLocked()
-	p.mu.Unlock()
-	p.r.note(p.id, p.r.st.UpdateProgress(p.id, stage, pct, n))
+	p.r.note(p.id, p.r.st.UpdateProgress(p.id, p.stage, p.pctLocked(), p.conns))
 }
 
 // pctLocked is the stage's floor plus a creep toward the next floor as
