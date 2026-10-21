@@ -110,6 +110,34 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
     JSON.stringify({ versions: cfg.blocks.map((b) => b.v), versionsOn, banner: cfg.banner, wrong: wrongSuites.slice(0, 3) }).slice(0, 500));
   await shot('vis-configuration', { maxH: 5000 });
 
+  // E2E-VIS-FOLD: a version folds unless it needs a look (an old version on, a suite below Strong, or the only
+  // version); folded, its head says how its suites rate; one button shows or hides every version and says which.
+  const hybrid = tls.find((a) => a.port === 9440) || target;
+  const evH = await js(`return (await fetch('/api/v1/scans/${hybrid.lastDone.id}/evaluation')).json()`);
+  await go(`#/endpoints/${hybrid.id}?tab=configuration`);
+  await sleep(1500);
+  const fold = await js(`const blocks = [...document.querySelectorAll('#sec-protocols details.ver-block')];
+    const state = blocks.map((b) => ({ v: b.id.replace('ver-', ''), open: b.open, verdict: b.querySelector('.ver-verdict')?.textContent || '' }));
+    const btn = document.querySelector('#sec-protocols .ver-toggle');
+    const tick = () => new Promise((r) => setTimeout(r, 120));
+    const labels = [btn && btn.textContent];
+    const closed = blocks.find((b) => !b.open);
+    if (closed) { closed.querySelector('summary').click(); await tick(); }
+    labels.push(btn && btn.textContent);
+    if (btn) { btn.click(); await tick(); }
+    const afterHide = blocks.map((b) => b.open);
+    labels.push(btn && btn.textContent);
+    if (btn) { btn.click(); await tick(); }
+    return { state, labels, afterHide, afterShow: blocks.map((b) => b.open) }`);
+  const legacyV = (v) => ['SSLv2', 'SSLv3', 'TLSv1.0', 'TLSv1.1'].includes(v);
+  const wantOpen = (v) => legacyV(v) || fold.state.length === 1 || (evH.suiteStrength || []).some((x) => x.version === v && x.word !== 'strong');
+  const foldOk = fold.state.every((b) => b.open === wantOpen(b.v)) && fold.state.filter((b) => !b.open).every((b) => /^Strong all \d+$/.test(b.verdict));
+  check('E2E-VIS-FOLD', 'a TLS version is open only when it needs a look, folded ones say how their suites rate, and one button shows or hides every version and says which',
+    fold.state.length > 1 && fold.state.some((b) => !b.open) && foldOk && fold.labels.join('|') === 'Show every version|Hide every version|Show every version'
+      && fold.afterHide.every((o) => !o) && fold.afterShow.every((o) => o), JSON.stringify(fold).slice(0, 400));
+  await go(`#/endpoints/${target.id}?tab=configuration`);
+  await sleep(1500);
+
   // E2E-VIS-4: key exchange, revocation and features as chips and tiles: every feature the scan
   // records has a tile in the right state, and what was not probed says so.
   const feat = await js(`const tile = (sec, name) => [...document.querySelectorAll(sec + ' .stile')].find((t) => t.querySelector('b')?.textContent === name);
