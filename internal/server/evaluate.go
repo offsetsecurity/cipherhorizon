@@ -112,6 +112,7 @@ func resultOf(rep *tlsprobe.Report, ev eval.Evaluation) (store.Result, error) {
 		Report: repJSON, Evaluation: evJSON, Band: ev.Hygiene.Band, Score: ev.Hygiene.Score, ReadinessLevel: ev.Readiness.Level,
 		HNDLExposed: ev.Readiness.HNDLExposed, Critical: ev.Counts[eval.Critical], High: ev.Counts[eval.High],
 		Medium: ev.Counts[eval.Medium], Low: ev.Counts[eval.Low], Info: ev.Counts[eval.Info], Incomplete: rep.Incomplete,
+		CertNotAfter: leafNotAfter(rep),
 	}, nil
 }
 

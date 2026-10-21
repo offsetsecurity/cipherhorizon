@@ -69,7 +69,7 @@ export async function t1Phase(t) {
     /^post-quantum readiness\|tls hygiene\|weakest classical strength\|certificate(\|not checked)?$/.test(page.tiles.join('|').toLowerCase()), page.tiles.join('|'));
   check('T1-E2E.5', 'What to fix lists the actionable findings, at least one', page.fix >= 1, page.fix);
   check('T1-E2E.6', 'every check row states its status as a symbol and a word',
-    page.index.length === 8 && page.index.every((s) => /^[✖▲✔○?] (Problem|Needs attention|Good|Not checked|Not collected|Inconclusive)$/.test(s)), page.index.join(' / '));
+    page.index.length === 8 && page.index.every((s) => /^[✖▲✔○?] (Problem|Needs attention|Good|Not checked|Not collected|Inconclusive|Status unknown)$/.test(s)), page.index.join(' / '));
   // PRD-013 REQ-VIS-3..6: the reviewer's order, each section named, and a jump row to each with its state.
   const ORDER = ['sec-protocols', 'sec-certificates', 'sec-key-exchange', 'sec-revocation', 'sec-features', 'sec-algorithms'];
   check('T1-E2E.7', 'Configuration has its sections in the reviewer’s order, each with a heading, and the jump row leads to each with its state',

@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	"strings"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/certinfo"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/registry"
@@ -89,6 +90,8 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		byLeaf     = map[string]int{}
 		defaultFP  string
 		noSNI      string
+		noSNIState *tls.ConnectionState
+		noSNIKey   string
 	)
 	for i, a := range attempts {
 		if ctx.Err() != nil {
@@ -111,14 +114,8 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 			defaultFP = key
 		}
 		if a.source == "no-sni" {
-			if key == defaultFP {
-				noSNI = "same"
-				continue
-			}
-			noSNI = "different"
-			r := p.describeChain(a.source, state)
-			r.NoSNI = true
-			results = append(results, r)
+			// Judged after the raw chains are in: the default handshake may have failed.
+			noSNIState, noSNIKey = state, key
 			continue
 		}
 		if idx, seen := byLeaf[key]; seen {
@@ -128,6 +125,54 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		}
 		byLeaf[key] = len(results)
 		results = append(results, p.describeChain(a.source, state))
+	}
+
+	// Chains Go's TLS client could not reach (suites it does not offer, or a
+	// certificate the server keeps for clients that offer only RSA) are read from
+	// the raw flights of the suite enumeration, newest version first.
+	for _, v := range []wire.Version{wire.VersionTLS12, wire.VersionTLS11, wire.VersionTLS10, wire.VersionSSL30} {
+		e := legacy[v]
+		if e == nil {
+			continue
+		}
+		for _, rc := range e.chains {
+			fp := sha256.Sum256(rc.ders[0])
+			key := hex.EncodeToString(fp[:])
+			if _, seen := byLeaf[key]; seen {
+				continue
+			}
+			var certs []*x509.Certificate
+			for _, der := range rc.ders {
+				c, err := x509.ParseCertificate(der)
+				if err != nil {
+					break
+				}
+				certs = append(certs, c)
+			}
+			if len(certs) == 0 {
+				p.note("%s: a certificate in a raw flight could not be parsed", v)
+				continue
+			}
+			source := "raw-" + strings.ToLower(v.String())
+			if s, ok := registry.SuiteByID(rc.suite); ok {
+				source += ", " + s.Name
+			}
+			byLeaf[key] = len(results)
+			if defaultFP == "" {
+				defaultFP = key
+			}
+			results = append(results, p.describeChain(source, &tls.ConnectionState{PeerCertificates: certs}))
+		}
+	}
+	if noSNIState != nil {
+		if _, sameAsSNI := byLeaf[noSNIKey]; sameAsSNI || noSNIKey == defaultFP {
+			noSNI = "same"
+		} else {
+			noSNI = "different"
+			r := p.describeChain("no-sni", noSNIState)
+			r.NoSNI = true
+			results = append(results, r)
+		}
 	}
 
 	var requested *bool

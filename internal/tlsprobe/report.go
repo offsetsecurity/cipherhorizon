@@ -228,7 +228,14 @@ type DHResult struct {
 	PrimeBits     int    `json:"primeBits"`
 	GeneratorBits int    `json:"generatorBits"`
 	PrimeSHA256   string `json:"primeSha256"` // fingerprint of the prime, for matching known groups
-	Suite         string `json:"suite"`       // the suite the sample came from
+	// IsPrime: the modulus passed a Miller-Rabin and Baillie-PSW test. A composite modulus makes
+	// the discrete logarithm easy (badssl.com dh-composite). nil on reports from earlier versions.
+	IsPrime *bool `json:"isPrime,omitempty"`
+	// SafePrime: (p-1)/2 is prime too, so every element but 1 and p-1 generates a large subgroup;
+	// otherwise small subgroups exist and a server that reuses its exponent can leak it (RFC 7919
+	// section 1, RFC 8446 section 4.2.8.1). Only judged when IsPrime.
+	SafePrime *bool  `json:"safePrime,omitempty"`
+	Suite     string `json:"suite"` // the suite the sample came from
 }
 
 // Features are server behaviours read from hello messages.

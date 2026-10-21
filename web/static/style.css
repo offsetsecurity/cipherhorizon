@@ -1931,3 +1931,48 @@ details.ver-block[open] > summary .ver-chev { transform: rotate(90deg); }
 .ver-tally { display: inline-flex; align-items: center; gap: 4px; }
 details.ver-block[open] > summary .ver-verdict { display: none; }
 .ver-toggle { margin-left: 8px; vertical-align: middle; }
+
+/* Review of real scans (QA-REPORT-014): Fix first rows on one grid, top-aligned; one urgency chip
+   per row coloured by severity; the rest folded. Suite rows centre every cell on one line. */
+.fixlist .action.fixrow { display: grid; grid-template-columns: 28px 118px minmax(0, 1fr) auto; align-items: start; column-gap: 14px; padding: 14px 16px; }
+.fixrow > .fix-n { padding-top: 3px; text-align: right; }
+.fixrow > .action-more { padding-top: 2px; margin: 0; white-space: nowrap; }
+.fixwhen { justify-self: start; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 3px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.fixwhen-critical, .fixwhen-high { color: var(--bad); background: var(--bad-bg); }
+.fixwhen-medium { color: var(--warn); background: var(--warn-bg); }
+.fixwhen-low, .fixwhen-info { color: var(--text-2); background: var(--surface-2); }
+.fixrow .action-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.fixrow .action-fix { display: block; margin-top: 4px; }
+.fixtag { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; color: var(--text-2); background: var(--surface-2); }
+.fixtag-bad { color: var(--bad); background: var(--bad-bg); }
+.fixmore { margin-top: 8px; }
+.fixmore > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 4px; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.fixmore > summary::-webkit-details-marker { display: none; }
+.fixmore[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.fixmore[open] > summary .ver-chev { transform: rotate(90deg); }
+.fixmore-sum { margin-left: auto; font-weight: 400; color: var(--text-2); font-size: 12.5px; }
+.fixmore > .fixlist { border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+@media (max-width: 640px) {
+  .fixlist .action.fixrow { grid-template-columns: 22px minmax(0, 1fr); row-gap: 6px; }
+  .fixrow > .fixwhen { grid-column: 2; } .fixrow > .fix-main { grid-column: 2; } .fixrow > .action-more { grid-column: 2; }
+}
+table.suites tbody td, table.suites tbody th { vertical-align: middle; }
+table.suites .strength-cell { display: table-cell; white-space: nowrap; }
+table.suites .strength-cell > .schip { vertical-align: middle; }
+table.suites .strength-bits { display: inline-block; margin-left: 8px; vertical-align: middle; font-size: 12px; color: var(--text-2); font-family: var(--font-mono); }
+table.suites.unranked .num { display: none; }
+/* Version heads on one grid, so every version's title, facts and verdict line up down the section:
+   chevron, name and state, the facts, the verdict; the groups on a second line under the facts. */
+details.ver-block > summary.ver-head-row { display: grid; grid-template-columns: 12px 210px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 6px; align-items: center; }
+summary.ver-head-row > .ver-chev { grid-column: 1; grid-row: 1; }
+summary.ver-head-row > .ver-title { grid-column: 2; grid-row: 1; }
+summary.ver-head-row > .ver-meta { grid-column: 3; grid-row: 1; }
+summary.ver-head-row > .ver-verdict { grid-column: 4; grid-row: 1; margin-left: 0; justify-content: flex-end; }
+summary.ver-head-row > .ver-groups { grid-column: 3 / 5; grid-row: 2; }
+.ver-tally { min-width: 0; } .ver-tally .schip { min-width: 84px; justify-content: center; }
+@media (max-width: 860px) {
+  details.ver-block > summary.ver-head-row { grid-template-columns: 12px minmax(0, 1fr); }
+  summary.ver-head-row > .ver-meta, summary.ver-head-row > .ver-verdict, summary.ver-head-row > .ver-groups { grid-column: 2; grid-row: auto; justify-content: flex-start; }
+}
+@media (min-width: 521px) { .lane-row .bitsbar, .lane-axis .bb-axis-row { grid-template-columns: minmax(60px, 1fr) 13em; } }
+@media (max-width: 520px) { .bb-value { white-space: normal; overflow-wrap: anywhere; } .bb-weakest { display: inline-block; margin-left: 0; margin-top: 2px; } }

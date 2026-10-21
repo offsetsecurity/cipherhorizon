@@ -167,9 +167,9 @@ func (s *Store) ReplaceEvaluation(scanID int64, r Result, event string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`UPDATE scans SET eval_json = ?, band = ?, score = ?, readiness_level = ?, hndl_exposed = ?, crit = ?, high = ?, medium = ?, low = ?, info = ?,
-		baseline = ?, baseline_meets = ?, baseline_changes = ? WHERE id = ? AND status = 'done'`,
+		baseline = ?, baseline_meets = ?, baseline_changes = ?, cert_not_after = ? WHERE id = ? AND status = 'done'`,
 		r.Evaluation, r.Band, r.Score, r.ReadinessLevel, b2i(r.HNDLExposed), r.Critical, r.High, r.Medium, r.Low, r.Info,
-		r.Baseline, nullBool(r.BaselineMeets), r.BaselineChanges, scanID)
+		r.Baseline, nullBool(r.BaselineMeets), r.BaselineChanges, nullTS(r.CertNotAfter), scanID)
 	if err != nil {
 		return err
 	}

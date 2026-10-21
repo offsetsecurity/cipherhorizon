@@ -99,6 +99,22 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Fixed
 
+- **Reports on real servers say the right thing** ([PRD-015](docs/product/PRD-015-accuracy-on-real-scans.md),
+  [CRYPTO-REVIEW-003](docs/product/CRYPTO-REVIEW-003-real-scans.md); eval/12, stored scans are re-evaluated on start):
+  - a server whose only suites Go's TLS client will not offer (3DES, RC4, NULL, small DH) had its no-SNI fallback
+    certificate reported as its own; the served chain is now read from the scanner's raw TLS 1.2 handshakes, which
+    also finds an RSA certificate a server keeps for RSA-only clients. Scan such servers again;
+  - a leaf signed straight by an unknown root is no longer called a missing intermediate;
+  - a chain under Superfish, eDellRoot or DSDTestProvider is *The certificate chains to a root whose private key is
+    public* (critical);
+  - revocation reads *Status unknown*, not *Good*, unless a stapled OCSP response vouches for the certificate;
+  - an untrusted root is described as a private CA or a public root since removed, not only as a private one;
+  - a composite DH modulus is critical, and a DH prime that is not a safe prime is low;
+  - at equal bits, the weakest classical strength picks a disallowed algorithm (3DES) over an allowed one.
+- **Fix first** shows the three things to fix first, each with one chip saying when, and folds the rest under one
+  line that counts them by severity.
+- **Every TLS version on Configuration starts folded**, its head saying whether it should be on and how its suites
+  rate; version heads, suite rows and Fix first rows line up.
 - **SSH evaluation (eval/11; stored scans are re-evaluated on start):**
   - a truncated MAC is as strong as its tag: hmac-sha1-96 is 96 bits, not 128 (NIST SP 800-107 Rev. 1);
   - the next steps name OpenSSH releases only to a server that identifies as OpenSSH;

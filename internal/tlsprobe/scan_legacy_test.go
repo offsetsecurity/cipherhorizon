@@ -225,3 +225,20 @@ func TestHeartbeatIsProbed(t *testing.T) {
 		t.Errorf("a server that does not: Heartbeat = %v, want false", without.Features.Heartbeat)
 	}
 }
+
+// QA of real scans (badssl.com 3des, rc4, null): a server whose only suites crypto/tls will not
+// offer still has its certificate read, from the raw TLS 1.2 flight, and it is the chain the
+// server sends with SNI, not a fallback.
+func TestCertificateIsReadFromARawFlight(t *testing.T) {
+	_, rsaCert := testserver.Certificates(t)
+	order := []uint16{0x000A, 0x0005} // TLS_RSA_WITH_3DES_EDE_CBC_SHA, TLS_RSA_WITH_RC4_128_SHA
+	srv := testserver.StartScript(t, testserver.LegacyWithCertificate(0x0303, order, rsaCert.Certificate))
+	rep := scan(t, srv, opts())
+	if len(rep.Certificates) != 1 {
+		t.Fatalf("%d certificate results, want 1: %+v", len(rep.Certificates), rep.Certificates)
+	}
+	c := rep.Certificates[0]
+	if c.NoSNI || !strings.HasPrefix(c.Source, "raw-tlsv1.2") || len(c.Chain) == 0 || c.Chain[0].PublicKey.Algorithm != "RSA" {
+		t.Errorf("certificate %+v, want the RSA chain read from a raw TLS 1.2 flight", c)
+	}
+}

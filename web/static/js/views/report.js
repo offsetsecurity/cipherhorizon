@@ -23,7 +23,7 @@ export const SECTIONS = [
 const STATUS = {
   problem: ['✖', 'Problem'], attention: ['▲', 'Needs attention'], good: ['✔', 'Good'],
   'not-checked': ['○', 'Not checked'], 'not-collected': ['○', 'Not collected'], inconclusive: ['?', 'Inconclusive'],
-  'not-applicable': ['·', 'Not applicable'],
+  'not-applicable': ['·', 'Not applicable'], unknown: ['?', 'Status unknown'],
 };
 
 export function statusChip(st) {
@@ -149,25 +149,30 @@ export function summaryView(ctx) {
   if (!act.length && !extra) {
     items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
   } else {
-    // One numbered line per finding, worst first: what it is and what to do. Why it matters is in
-    // its evidence (UX-DESIGN-011 §3.1). A profile's own action (SSH: the baseline) is line 1.
-    const off = extra ? 1 : 0;
-    items.appendChild(h('ol', { class: 'fixlist actions' },
-      extra ? h('li', { class: 'action sev-medium', id: `issue-${extra.id}` },
-        h('span', { class: 'fix-n' }, '1'),
-        badge(extra.chip, 'warn'),
-        h('span', { class: 'fix-main' }, h('span', { class: 'action-head' }, h('span', { class: 'action-title' }, extra.title)),
-          h('span', { class: 'action-fix', title: extra.why || null }, extra.fix)),
-        h('a', { href: `#sec-${extra.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); extra.go(); } }, extra.link)) : null,
-      act.map((f, i) => h('li', { class: `action sev-${f.severity}`, id: `issue-${f.id}` },
-      h('span', { class: 'fix-n' }, String(i + 1 + off)),
-      sevBadge(f.severity),
-      h('span', { class: 'fix-main' },
-        h('span', { class: 'action-head' }, h('span', { class: 'action-title' }, f.title), h('span', { class: `urgency u-${f.severity}` }, URGENCY[f.severity]),
-          f.availability ? badge('clients fail to connect', 'bad', 'Clients that hit this refuse the connection') : null,
-          ctx.triage && ctx.triage[f.id] ? badge(ctx.triage[f.id].status === 'accepted-risk' ? 'accepted risk' : 'acknowledged', 'neutral') : null),
-        h('span', { class: 'action-fix', title: whyOf(f, profileOf(ctx)) }, f.remediation)),
-      h('a', { href: `#chk-${f.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); ctx.goIssue(f.id); } }, 'Evidence')))));
+    // One numbered row per finding, worst first: when to act (one chip, coloured by severity), what
+    // it is, and what to do; why it matters is in the row's tooltip and its evidence one click away
+    // (UX-DESIGN-011 §3.1). A profile's own action (SSH: the baseline) is row 1. The first three are
+    // what to fix first; the rest fold under one line, so the list stays a list of priorities.
+    const rows = [];
+    if (extra) {
+      rows.push(fixRow(rows.length + 1, extra.id, 'medium', extra.chip, extra.title, [], extra.fix, extra.why,
+        h('a', { href: `#sec-${extra.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); extra.go(); } }, extra.link)));
+    }
+    for (const f of act) {
+      const tags = [f.availability ? h('span', { class: 'fixtag fixtag-bad', title: 'Clients that hit this refuse the connection' }, 'clients fail to connect') : null,
+        ctx.triage && ctx.triage[f.id] ? h('span', { class: 'fixtag' }, ctx.triage[f.id].status === 'accepted-risk' ? 'accepted risk' : 'acknowledged') : null];
+      rows.push(fixRow(rows.length + 1, f.id, f.severity, URGENCY[f.severity], f.title, tags, f.remediation, whyOf(f, profileOf(ctx)),
+        h('a', { href: `#chk-${f.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); ctx.goIssue(f.id); } }, 'Evidence')));
+    }
+    const FIRST = 3;
+    items.appendChild(h('ol', { class: 'fixlist actions' }, rows.slice(0, FIRST)));
+    if (rows.length > FIRST) {
+      const more = rows.length - FIRST;
+      items.appendChild(h('details', { class: 'fixmore' },
+        h('summary', null, h('span', { class: 'ver-chev', 'aria-hidden': 'true' }), `${plural(more, 'more thing')} to fix`,
+          h('span', { class: 'fixmore-sum' }, tallyOf(act.slice(FIRST - (extra ? 1 : 0))))),
+        h('ol', { class: 'fixlist actions', start: String(FIRST + 1) }, rows.slice(FIRST))));
+    }
   }
   wrap.appendChild(items);
 
@@ -211,6 +216,23 @@ const VERSION_ORDER = ['TLSv1.3', 'TLSv1.2', 'TLSv1.1', 'TLSv1.0', 'SSLv3', 'SSL
 const versionLabel = (v) => v.replace('TLSv', 'TLS ').replace('SSLv', 'SSL ');
 
 
+
+/** One Fix first row: its number, when to act, what it is, what to do, and its evidence. */
+function fixRow(n, id, severity, when, title, tags, fix, why, link) {
+  return h('li', { class: `action fixrow sev-${severity}`, id: `issue-${id}` },
+    h('span', { class: 'fix-n' }, String(n)),
+    h('span', { class: `fixwhen fixwhen-${severity}`, title: `${capital(severity)} severity` }, when),
+    h('span', { class: 'fix-main' },
+      h('span', { class: 'action-head' }, h('span', { class: 'action-title' }, title), tags),
+      h('span', { class: 'action-fix', title: why || null }, fix)),
+    link);
+}
+
+/** The severities of the folded rows, as "2 medium · 3 low". */
+function tallyOf(list) {
+  const order = ['critical', 'high', 'medium', 'low'];
+  return order.map((s) => [s, list.filter((f) => f.severity === s).length]).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(' · ');
+}
 
 function versionState([tone, sym, state, judgement]) {
   return h('span', { class: `vstate vs-${tone}` }, h('span', { class: 'vs-sym', 'aria-hidden': 'true' }, sym),
@@ -429,6 +451,8 @@ function summaryStrip(ctx, sections) {
   const { ev } = ctx;
   const r = ev.readiness;
   const g = ev.hygiene;
+  // Revocation's 'unknown' is the same on every endpoint (the CA is never contacted): it is said in its
+  // area, not counted here as a gap in this scan.
   const notChecked = Object.values(sections).filter((s) => ['not-checked', 'not-collected', 'inconclusive'].includes(s.status));
   const pki = (ev.pki || []).find((v) => !v.noSni) || (ev.pki || [])[0];
   // Each instrument opens the section it summarises.
@@ -477,7 +501,7 @@ function summaryStrip(ctx, sections) {
 // ---- section anatomy ------------------------------------------------------------------------
 
 function notChecked(sec) {
-  if (!['not-checked', 'not-collected', 'inconclusive'].includes(sec.status)) return null;
+  if (!['not-checked', 'not-collected', 'inconclusive', 'unknown'].includes(sec.status)) return null;
   const how = {
     'option-off': sec.id === 'http' ? 'It is on by default; the server was started with --http-checks=false.' : 'An option turned it off for this scan.',
     'not-applicable': 'It does not apply to this service.',
@@ -533,8 +557,9 @@ function revocationBody(ctx) {
   const o = v.ocsp;
   let ocspLine;
   if (!o) {
+    // Nothing vouches for the certificate, and this scan never contacts the CA: say the status is unknown.
     ocspLine = leaf.ocspMustStaple ? 'No OCSP response was stapled, although the certificate requires one (Must-Staple).'
-      : (v.ocspUrls || []).length ? 'No OCSP response was stapled.' : 'No OCSP response was stapled, and the certificate names no OCSP responder.';
+      : 'Revocation status unknown: no OCSP response was stapled, and this scan does not contact the CA.';
   } else if (o.error) {
     ocspLine = `A stapled OCSP response was sent but is not usable: ${o.error}.`;
   } else if (!o.forThisCert) {
@@ -579,9 +604,9 @@ function protocolsBody(ctx) {
   const on = rep.protocols.filter((p) => p.supported).map((p) => p.version);
   const old = on.filter(legacyVersion);
   const facts = [
-    on.length ? `Accepts ${on.join(', ')}.` : 'No protocol version was accepted.',
-    old.length ? `${old.join(' and ')} ${old.length === 1 ? 'is' : 'are'} deprecated.` : on.length ? 'No deprecated version is accepted.' : null,
-    rep.negotiated && rep.negotiated.version ? `A current client negotiates ${rep.negotiated.version}.` : null,
+    on.length ? `Accepts ${on.map(versionLabel).join(', ')}.` : 'No protocol version was accepted.',
+    old.length ? `${old.map(versionLabel).join(' and ')} ${old.length === 1 ? 'is' : 'are'} deprecated.` : on.length ? 'No deprecated version is accepted.' : null,
+    rep.negotiated && rep.negotiated.version ? `A current client negotiates ${versionLabel(rep.negotiated.version)}.` : null,
   ];
   const lead = h('div', { class: 'pillrow', role: 'list' }, rep.protocols.map((p) => h('span', { role: 'listitem',
     class: `protopill ${p.evidence === 'inconclusive' ? 'p-unknown' : p.supported ? (legacyVersion(p.version) ? 'p-bad' : 'p-on') : 'p-off'}` },

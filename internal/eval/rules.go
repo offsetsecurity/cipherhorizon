@@ -263,6 +263,9 @@ var rules = []rule{
 			if c.rep.DH == nil || c.rep.DH.PrimeBits >= 2048 {
 				return nil
 			}
+			if d := c.rep.DH; d.IsPrime != nil && !*d.IsPrime {
+				return nil // not a prime at all: KX.DH-COMPOSITE says so
+			}
 			sev := Medium
 			if c.rep.DH.PrimeBits < 1024 {
 				sev = High

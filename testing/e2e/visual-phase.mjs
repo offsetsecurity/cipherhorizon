@@ -86,6 +86,48 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
       && sum.opened.tab === 'Configuration' && sum.opened.inView, JSON.stringify(sum));
   await shot('vis-summary');
 
+  // E2E-FIX-1 (QA-REPORT-014): Fix first is the three problems to fix first, one chip each saying when,
+  // and the rest folded under one line that counts them by severity; numbering runs on across both.
+  // (The tile VIS-2 opened left the page on Configuration: ask for the Summary by name.)
+  await go(`#/endpoints/${target.id}?tab=summary`);
+  await sleep(1500);
+  const fix = await js(`const first = [...document.querySelectorAll('#fix > ol.fixlist > li')];
+    const more = document.querySelector('#fix details.fixmore');
+    const rest = more ? [...more.querySelectorAll('ol.fixlist > li')] : [];
+    const all = [...first, ...rest];
+    return { first: first.length, rest: rest.length, closed: more ? !more.open : null, sum: more ? more.querySelector('summary').textContent : '',
+      nums: all.map((li) => li.querySelector('.fix-n').textContent), chips: all.map((li) => li.querySelectorAll('.fixwhen').length),
+      oldBadges: document.querySelectorAll('#fix .sev, #fix .urgency').length }`);
+  const actN = (ev.findings || []).filter((f) => f.severity !== 'info').reduce((m, f) => m.add(f.id), new Set()).size;
+  check('E2E-FIX-1', 'Fix first shows the three problems to fix first, one "when" chip each, and folds the rest under one line that counts them; numbering runs on',
+    fix.first === Math.min(3, actN) && fix.first + fix.rest === actN && (actN <= 3 || (fix.closed && new RegExp(`^${actN - 3} more`).test(fix.sum)))
+      && fix.nums.every((n, i) => n === String(i + 1)) && fix.chips.every((c) => c === 1) && fix.oldBadges === 0, JSON.stringify(fix).slice(0, 400));
+
+  // E2E-VIS-ALIGN (QA-REPORT-014): things that belong on one line are on one line. Fix first: each
+  // chip sits beside its title and every title starts at one x. Suites: each strength chip is centred
+  // on its row's part cells. Versions: every head's name, facts and verdict line up down the section.
+  const alignSummary = await js(`const rows = [...document.querySelectorAll('#fix ol.fixlist > li')].filter((li) => li.offsetParent);
+    return rows.map((li) => { const c = li.querySelector('.fixwhen').getBoundingClientRect(), t = li.querySelector('.action-title').getBoundingClientRect();
+      return { dy: Math.round(Math.abs((c.top + c.height / 2) - (t.top + Math.min(t.height, 22) / 2))), x: Math.round(t.left) }; })`);
+  await go(`#/endpoints/${target.id}?tab=configuration`);
+  await sleep(1500);
+  const alignCfg = await js(`document.querySelectorAll('#sec-protocols details.ver-block').forEach((d) => { d.open = true; });
+    await new Promise((r) => setTimeout(r, 200));
+    const rows = [...document.querySelectorAll('#sec-protocols table.suites tbody tr')].map((tr) => {
+      const chip = tr.querySelector('.strength-cell .schip').getBoundingClientRect(), cell = tr.querySelector('.pcell').getBoundingClientRect();
+      return Math.round(Math.abs((chip.top + chip.height / 2) - (cell.top + cell.height / 2))); });
+    document.querySelectorAll('#sec-protocols details.ver-block').forEach((d) => { d.open = false; });
+    await new Promise((r) => setTimeout(r, 200));
+    const heads = [...document.querySelectorAll('#sec-protocols details.ver-block > summary')].map((s) => ({
+      name: Math.round(s.querySelector('.ver-title').getBoundingClientRect().left), meta: Math.round(s.querySelector('.ver-meta').getBoundingClientRect().left),
+      right: Math.round((s.querySelector('.ver-verdict') || s).getBoundingClientRect().right) }));
+    return { rows, heads }`);
+  const same = (xs) => xs.every((x) => Math.abs(x - xs[0]) <= 1);
+  check('E2E-VIS-ALIGN', 'Fix first chips sit beside their titles, which share one column; every strength chip is centred on its suite row; every version head lines up',
+    alignSummary.length > 0 && alignSummary.every((r) => r.dy <= 4) && same(alignSummary.map((r) => r.x))
+      && alignCfg.rows.length > 0 && alignCfg.rows.every((d) => d <= 2) && same(alignCfg.heads.map((h) => h.name)) && same(alignCfg.heads.map((h) => h.meta)) && same(alignCfg.heads.map((h) => h.right)),
+    JSON.stringify({ alignSummary, rows: alignCfg.rows.filter((d) => d > 2).slice(0, 5), heads: alignCfg.heads }).slice(0, 400));
+
   // E2E-VIS-3: each version's suites are the report's, in the server's order, each with its five cells
   // and the evaluation's word; the banner is what a current client negotiates.
   await go(`#/endpoints/${target.id}?tab=configuration`);
@@ -121,8 +163,7 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
     const btn = document.querySelector('#sec-protocols .ver-toggle');
     const tick = () => new Promise((r) => setTimeout(r, 120));
     const labels = [btn && btn.textContent];
-    const closed = blocks.find((b) => !b.open);
-    if (closed) { closed.querySelector('summary').click(); await tick(); }
+    for (const b of blocks.filter((x) => !x.open)) { b.querySelector('summary').click(); await tick(); }
     labels.push(btn && btn.textContent);
     if (btn) { btn.click(); await tick(); }
     const afterHide = blocks.map((b) => b.open);
@@ -130,10 +171,18 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
     if (btn) { btn.click(); await tick(); }
     return { state, labels, afterHide, afterShow: blocks.map((b) => b.open) }`);
   const legacyV = (v) => ['SSLv2', 'SSLv3', 'TLSv1.0', 'TLSv1.1'].includes(v);
-  const wantOpen = (v) => legacyV(v) || fold.state.length === 1 || (evH.suiteStrength || []).some((x) => x.version === v && x.word !== 'strong');
-  const foldOk = fold.state.every((b) => b.open === wantOpen(b.v)) && fold.state.filter((b) => !b.open).every((b) => /^Strong all \d+$/.test(b.verdict));
-  check('E2E-VIS-FOLD', 'a TLS version is open only when it needs a look, folded ones say how their suites rate, and one button shows or hides every version and says which',
-    fold.state.length > 1 && fold.state.some((b) => !b.open) && foldOk && fold.labels.join('|') === 'Show every version|Hide every version|Show every version'
+  // Every version starts folded (owner request after PR #24), unless it is the only one; a folded head
+  // says how its suites rate, one chip per word with its count, as the evaluation states them.
+  const tallyOf = (v) => ['insecure', 'weak', 'acceptable', 'strong'].map((w) => [w, (evH.suiteStrength || []).filter((x) => x.version === v && x.word === w).length]).filter(([, n]) => n);
+  const verdictOk = (b) => {
+    const t = tallyOf(b.v);
+    if (t.length === 1 && t[0][0] === 'strong') return b.verdict === `Strong all ${t[0][1]}`;
+    return t.every(([w, n]) => b.verdict.includes(`${w[0].toUpperCase()}${w.slice(1)} ${n}`));
+  };
+  void legacyV;
+  const foldOk = fold.state.every((b) => b.open === (fold.state.length === 1)) && fold.state.every(verdictOk);
+  check('E2E-VIS-FOLD', 'every TLS version starts folded, its head says how its suites rate, and one button shows or hides every version and says which',
+    fold.state.length > 1 && foldOk && fold.labels.join('|') === 'Show every version|Hide every version|Show every version'
       && fold.afterHide.every((o) => !o) && fold.afterShow.every((o) => o), JSON.stringify(fold).slice(0, 400));
   await go(`#/endpoints/${target.id}?tab=configuration`);
   await sleep(1500);
@@ -273,7 +322,7 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
     }
     check('E2E-VIS-10', 'the SSH Summary has readiness with the stepper, the baseline, the weakest classical strength (the evaluation’s weakest) and the host key; the baseline is Fix first line 1 in the shared row shape, numbered on from it, with no “Why it matters” (PRD-014 REQ-SSV-7)',
       ss.labels.join() === 'Post-quantum readiness,Baseline,Weakest classical strength,Host key' && ss.stepper && !!w && ss.weakest === `${w.name}: ${words(w.strength)}`
-        && ss.first && ss.first.n === '1' && /^Meet /.test(ss.first.title) && /sshd_config/.test(ss.first.link) && ss.nums.every((x, i) => x === String(i + 1)) && ss.lists === 1 && !ss.prose
+        && ss.first && ss.first.n === '1' && /^Meet /.test(ss.first.title) && /sshd_config/.test(ss.first.link) && ss.nums.every((x, i) => x === String(i + 1)) && ss.lists <= 2 && !ss.prose
         && (!good || (/✓ Meets/.test(good.tile) && !/^Meet /.test(good.first))),
       JSON.stringify({ ss, weakest: w && w.name, good }).slice(0, 500));
     await shot('vis-ssh-summary');

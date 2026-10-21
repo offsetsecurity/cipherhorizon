@@ -4,6 +4,7 @@
 package pkitest
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -154,6 +155,11 @@ func (ca *CA) LeafKey(t testing.TB, o LeafOpts) (*x509.Certificate, crypto.Signe
 	if o.EKU == nil && !o.NoEKU {
 		o.EKU = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 	}
+	// A leaf from an intermediate names where its issuer can be downloaded (AIA caIssuers), as a
+	// public CA's leaves do; a leaf signed straight by a root names none.
+	if o.AIA == nil && !ca.selfSigned() {
+		o.AIA = []string{"http://ca.test/" + ca.Cert.Subject.CommonName + ".cer"}
+	}
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(serial.Add(1)), Subject: pkix.Name{CommonName: o.CN},
 		NotBefore: o.NotBefore, NotAfter: o.NotAfter, DNSNames: o.DNS, IPAddresses: o.IPs,
@@ -224,4 +230,9 @@ func DER(certs ...*x509.Certificate) [][]byte {
 		out[i] = c.Raw
 	}
 	return out
+}
+
+// selfSigned reports whether the CA is a root.
+func (ca *CA) selfSigned() bool {
+	return bytes.Equal(ca.Cert.RawIssuer, ca.Cert.RawSubject)
 }

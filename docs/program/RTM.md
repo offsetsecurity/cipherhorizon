@@ -421,6 +421,21 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-SSV-8 | P0 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-7, script:testing/e2e/visual-phase.mjs#E2E-VIS-9, script:testing/e2e/ssh-phase.mjs#E2E-H.2b | done | contrast measured on the SSH instruments too |
 | REQ-SSV-9 | P0 | — | UX-DESIGN-012 | — | report:docs/product/CRYPTO-REVIEW-002-ssh-instruments.md, report:docs/program/QA-REPORT-013.md | done |  |
 
+## PRD-015 · Accuracy on real scans ([PRD-015](../product/PRD-015-accuracy-on-real-scans.md); results in [QA-REPORT-014](QA-REPORT-014.md))
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-ACC-1 | P0 | — | owner review | — | TestCertificateIsReadFromARawFlight | done | badssl.com 3des, rc4, null; google.com's RSA certificate |
+| REQ-ACC-2 | P0 | — | owner review | — | TestDHPrimality, TestEveryRuleFiresAndIsCited | done | KX.DH-COMPOSITE, KX.DH-NOT-SAFE-PRIME |
+| REQ-ACC-3 | P0 | — | owner review | — | TestT1TrustMatrix | done | AIA caIssuers decides intermediate or root |
+| REQ-ACC-4 | P0 | — | owner review | — | TestCompromisedRootIsItsOwnFinding | done | Superfish, eDellRoot, DSDTestProvider |
+| REQ-ACC-5 | P0 | — | owner review | — | TestRevocationIsUnknownWithoutAStaple | done | the new section status unknown |
+| REQ-ACC-6 | P1 | — | owner review | — | TestT1TrustMatrix | done |  |
+| REQ-ACC-7 | P0 | — | owner review | — | script:testing/e2e/visual-phase.mjs#E2E-FIX-1 | done |  |
+| REQ-ACC-8 | P0 | — | owner review | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-FOLD | done | supersedes REQ-VIS-13's open-when-needed rule |
+| REQ-ACC-9 | P0 | — | owner review | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-ALIGN | done | measured in the browser |
+| REQ-ACC-10 | P0 | — | owner review | — | report:docs/product/CRYPTO-REVIEW-003-real-scans.md, report:docs/program/QA-REPORT-014.md | done | eval/12 |
+
 ## Security requirements (SECARCH-001) coverage
 
 Each SR must be exercised by at least one requirement above; `TestRequirementsTraceability` checks that every `SR-nn` in SECARCH-001 appears in the SR column at least once, except those listed here as cross-cutting.

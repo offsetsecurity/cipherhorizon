@@ -288,7 +288,9 @@ func TestT1TrustMatrix(t *testing.T) {
 	nb := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	pleaf := priv.Leaf(t, pkitest.LeafOpts{NotBefore: nb, NotAfter: nb.AddDate(2, 0, 0)})
 	rep := v2(chainResult("tls-default", pleaf))
-	expect(t, "private CA without the bundle", evalAt(rep, epoch, f.stores), "CERT.CHAIN-INCOMPLETE", "CERT.UNTRUSTED")
+	// A leaf signed straight by the root names no issuer URL: the root is unknown, not an
+	// intermediate missing (badssl.com superfish, preact-cli).
+	expect(t, "private CA without the bundle", evalAt(rep, epoch, f.stores), "CERT.UNTRUSTED")
 	anchors, _ := pki.NewStore("private", "", false, []pki.Root{{DER: priv.Cert.Raw}})
 	ev = eval.EvaluateWith(rep, eval.Input{Now: epoch, Stores: f.stores, Anchors: anchors})
 	expect(t, "private CA with the bundle", ev)
@@ -304,7 +306,7 @@ func TestT1TrustMatrix(t *testing.T) {
 	if m := ev.PKI[0].Served.Missing; m == nil || m.Likely != "root" {
 		t.Errorf("missing view %+v", m)
 	}
-	if fs := findID(ev, "CERT.UNTRUSTED"); !strings.Contains(fs[0].Detail, "private or unknown root") {
+	if fs := findID(ev, "CERT.UNTRUSTED"); !strings.Contains(fs[0].Detail, "either a private CA") {
 		t.Errorf("untrusted detail: %s", fs[0].Detail)
 	}
 
@@ -663,5 +665,58 @@ func t1Firing(t *testing.T) []eval.Evaluation {
 		}
 		out = append(out, evalAt(stapled(t, c.leaf, b), c.at, st))
 	}
+	// A root whose private key is public, and DH moduli that are not prime or not safe primes.
+	sf := pkitest.NewRoot(t, "Superfish, Inc.", pkitest.CAOpts{})
+	out = append(out, evalAt(v2(chainResult("tls-default", sf.Leaf(t, pkitest.LeafOpts{}))), epoch, f.stores))
+	no, yes := false, true
+	for _, d := range []*tlsprobe.DHResult{{PrimeBits: 2048, Suite: "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256", IsPrime: &no},
+		{PrimeBits: 2048, Suite: "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256", IsPrime: &yes, SafePrime: &no}} {
+		r := v2(chainResult("tls-default", leaf, in))
+		r.DH = d
+		out = append(out, evalAt(r, epoch, f.stores))
+	}
 	return out
+}
+
+// QA of real scans (badssl.com revoked): with no stapled response vouching for the certificate,
+// and the CA never contacted, revocation is "unknown", never "good"; its checks still count as run.
+// A good, verified staple makes it good.
+func TestRevocationIsUnknownWithoutAStaple(t *testing.T) {
+	f := newPKI(t)
+	sectionOf := func(ev eval.Evaluation) eval.Section {
+		for _, s := range ev.Sections {
+			if s.ID == eval.SecRevocation {
+				return s
+			}
+		}
+		return eval.Section{}
+	}
+	ev := evalAt(v2(chainResult("tls-default", f.inter.Leaf(t, pkitest.LeafOpts{SCTs: sctOK}), f.inter.Cert)), epoch, f.stores)
+	if s := sectionOf(ev); s.Status != eval.StatusUnknown || s.ReasonCode != "not-contacted" || !strings.Contains(s.Reason, "not known") {
+		t.Errorf("no staple: section %+v", s)
+	}
+	for _, c := range ev.Checks {
+		if c.Section == eval.SecRevocation && c.Result == "not-checked" {
+			t.Errorf("check %s reads not-checked; it ran", c.ID)
+		}
+	}
+	good := evalAt(stapled(t, "leaf.pem", osslStaple(t, "ocsp-good")), osslAt(t), osslStore(t))
+	if s := sectionOf(good); s.Status == eval.StatusUnknown {
+		t.Errorf("good staple: section %+v", s)
+	}
+}
+
+// QA of real scans (badssl.com superfish): a chain to a root whose private key is public is that
+// finding, critical and failing clients, not also "untrusted" for the same reason.
+func TestCompromisedRootIsItsOwnFinding(t *testing.T) {
+	f := newPKI(t)
+	sf := pkitest.NewRoot(t, "eDellRoot", pkitest.CAOpts{})
+	ev := evalAt(v2(chainResult("tls-default", sf.Leaf(t, pkitest.LeafOpts{}))), epoch, f.stores)
+	fs := findID(ev, "CERT.COMPROMISED-ROOT")
+	if len(fs) != 1 || fs[0].Severity != eval.Critical || !fs[0].Availability || !strings.Contains(fs[0].Detail, "eDellRoot") {
+		t.Fatalf("compromised root: %+v", fs)
+	}
+	if len(findID(ev, "CERT.UNTRUSTED")) != 0 || len(findID(ev, "CERT.CHAIN-INCOMPLETE")) != 0 {
+		t.Errorf("also untrusted or incomplete: %v", t1IDs(ev))
+	}
 }

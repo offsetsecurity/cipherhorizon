@@ -13,20 +13,31 @@ import (
 // the staple or the SCTs run only on tls-report/2 (v2Only).
 
 var (
-	citRFC5246  = rfc("5246", "The Transport Layer Security (TLS) Protocol Version 1.2")
-	citRFC6960  = rfc("6960", "X.509 Internet Public Key Infrastructure Online Certificate Status Protocol - OCSP")
-	citRFC7633  = rfc("7633", "X.509v3 Transport Layer Security (TLS) Feature Extension")
-	citRFC6066  = rfc("6066", "Transport Layer Security (TLS) Extensions: Extension Definitions")
-	citRFC6962  = rfc("6962", "Certificate Transparency")
-	citRFC7919  = rfc("7919", "Negotiated Finite Field Diffie-Hellman Ephemeral Parameters for TLS")
-	citSC081    = Citation{Title: "CA/Browser Forum Ballot SC-081v3: schedule of reducing validity periods (BR §6.3.2)", URL: "https://cabforum.org/2025/04/11/ballot-sc081v3-introduce-schedule-of-reducing-validity-and-data-reuse-periods/"}
-	citChromeRP = Citation{Title: "Chrome Root Program Policy (dedicated serverAuth hierarchies)", URL: "https://www.chromium.org/Home/chromium-security/root-ca-policy/"}
-	citChromeCT = Citation{Title: "Chrome Certificate Transparency Policy", URL: "https://googlechrome.github.io/CertificateTransparency/ct_policy.html"}
-	citLEOCSP   = Citation{Title: "Let's Encrypt: ending OCSP support (2025)", URL: "https://letsencrypt.org/2024/12/05/ending-ocsp/"}
-	citHSTSPre  = Citation{Title: "HSTS preload list submission requirements", URL: "https://hstspreload.org/"}
-	citLucky13  = cve("CVE-2013-0169", "Lucky Thirteen: CBC padding timing")
-	citDROWN    = cve("CVE-2016-0800", "DROWN: SSLv2 cross-protocol attack")
+	citRFC5246    = rfc("5246", "The Transport Layer Security (TLS) Protocol Version 1.2")
+	citRFC6960    = rfc("6960", "X.509 Internet Public Key Infrastructure Online Certificate Status Protocol - OCSP")
+	citRFC7633    = rfc("7633", "X.509v3 Transport Layer Security (TLS) Feature Extension")
+	citRFC6066    = rfc("6066", "Transport Layer Security (TLS) Extensions: Extension Definitions")
+	citRFC6962    = rfc("6962", "Certificate Transparency")
+	citRFC7919    = rfc("7919", "Negotiated Finite Field Diffie-Hellman Ephemeral Parameters for TLS")
+	citSC081      = Citation{Title: "CA/Browser Forum Ballot SC-081v3: schedule of reducing validity periods (BR §6.3.2)", URL: "https://cabforum.org/2025/04/11/ballot-sc081v3-introduce-schedule-of-reducing-validity-and-data-reuse-periods/"}
+	citChromeRP   = Citation{Title: "Chrome Root Program Policy (dedicated serverAuth hierarchies)", URL: "https://www.chromium.org/Home/chromium-security/root-ca-policy/"}
+	citChromeCT   = Citation{Title: "Chrome Certificate Transparency Policy", URL: "https://googlechrome.github.io/CertificateTransparency/ct_policy.html"}
+	citLEOCSP     = Citation{Title: "Let's Encrypt: ending OCSP support (2025)", URL: "https://letsencrypt.org/2024/12/05/ending-ocsp/"}
+	citHSTSPre    = Citation{Title: "HSTS preload list submission requirements", URL: "https://hstspreload.org/"}
+	citLucky13    = cve("CVE-2013-0169", "Lucky Thirteen: CBC padding timing")
+	citDROWN      = cve("CVE-2016-0800", "DROWN: SSLv2 cross-protocol attack")
+	citSP80056A   = Citation{Title: "NIST SP 800-56A Rev. 3: Pair-Wise Key-Establishment Using Discrete Logarithm Cryptography (domain parameters, section 5.5)", URL: "https://csrc.nist.gov/pubs/sp/800/56/a/r3/final"}
+	citDHSubgroup = cve("CVE-2016-0701", "OpenSSL: DH small-subgroup key recovery with primes that are not safe primes")
+	citSuperfish  = cve("CVE-2015-2077", "Superfish: a root certificate installed with its private key")
 )
+
+// compromisedRoots are roots whose private keys were published with the software that installed
+// them, matched by the issuer's common name: anyone can issue a certificate under them.
+var compromisedRoots = map[string]string{
+	"Superfish, Inc.": "Superfish, installed on Lenovo laptops in 2014 and 2015 with its private key",
+	"eDellRoot":       "eDellRoot, installed on Dell computers in 2015 with its private key",
+	"DSDTestProvider": "DSDTestProvider, installed by Dell System Detect in 2015 with its private key",
+}
 
 // chainRule runs fn on every analysed chain of a tls-report/2.
 func chainRule(id, title, category string, sev Severity, cites []Citation, remed string, fn func(c *ctx, ch *chain) (string, Severity, bool)) rule {
@@ -206,8 +217,8 @@ var t1Rules = []rule{
 		[]Citation{citRFC5280},
 		"Install a certificate from a CA your clients trust and serve the full chain, or add your private CA to this system's CA bundle if the certificate is meant to be private.",
 		func(c *ctx, ch *chain) (string, Severity, bool) {
-			if len(ch.trustedBy) > 0 || ch.private || ch.expired {
-				return "", "", false // trusted somewhere, or expiry has its own finding
+			if len(ch.trustedBy) > 0 || ch.private || ch.expired || compromisedRootOf(ch) != "" {
+				return "", "", false // trusted somewhere, or expiry or a compromised root has its own finding
 			}
 			why := ch.trustSummary()
 			m := ch.view.Served.Missing
@@ -215,7 +226,7 @@ var t1Rules = []rule{
 			case ch.missing:
 				why = "an intermediate is missing (see CERT.CHAIN-INCOMPLETE); " + why
 			case m != nil && m.Likely == "root":
-				why = fmt.Sprintf("the chain ends at a CA issued by %q, which no trusted store holds (a private or unknown root: add it to the system's CA bundle if it is yours); ", m.IssuerDN) + why
+				why = fmt.Sprintf("the chain ends at a certificate issued by %q, a root the stores checked do not hold: either a private CA (add it to this system's CA bundle if it is yours) or a public root since removed from them; ", m.IssuerDN) + why
 			case pki.SelfSigned(ch.served.Leaf()):
 				why = "self-signed; " + why
 			}
@@ -223,6 +234,15 @@ var t1Rules = []rule{
 				why = "no root store was available"
 			}
 			return ch.label() + ": " + why, "", true
+		}),
+	chainRule("CERT.COMPROMISED-ROOT", "The certificate chains to a root whose private key is public", "certificate", Critical,
+		[]Citation{citSuperfish, citRFC5280},
+		"Remove this root from every machine that trusts it and replace the certificate with one from a CA your clients trust. Anyone can issue certificates under this root, so a client that trusts it can be intercepted.",
+		func(c *ctx, ch *chain) (string, Severity, bool) {
+			if what := compromisedRootOf(ch); what != "" {
+				return fmt.Sprintf("%s: issued under %s; no root store trusts it, but any machine that installed it does", ch.label(), what), "", true
+			}
+			return "", "", false
 		}),
 	chainRule("CERT.WEAK-EXPONENT", "RSA public exponent is smaller than 65537", "certificate", Low,
 		[]Citation{citCABF},
@@ -353,6 +373,33 @@ var t1Rules = []rule{
 		},
 	},
 
+	{
+		id: "KX.DH-COMPOSITE", title: "The Diffie-Hellman modulus is not a prime", category: "key-exchange", severity: Critical, evidence: Observed,
+		citations:   []Citation{citRFC7919, citSP80056A},
+		remediation: "Replace the DH parameters with an RFC 7919 group (ffdhe2048 or larger), or drop DHE in favour of ECDHE. Treat every session made with these parameters as exposed.",
+		check: func(c *ctx) []hit {
+			if c.rep.DH == nil || c.rep.DH.IsPrime == nil || *c.rep.DH.IsPrime {
+				return nil
+			}
+			return one(fmt.Sprintf("the %d-bit modulus the server sent with %s failed a primality test: the discrete logarithm modulo a composite is far easier than its size suggests", c.rep.DH.PrimeBits, c.rep.DH.Suite))
+		},
+	},
+	{
+		id: "KX.DH-NOT-SAFE-PRIME", title: "The Diffie-Hellman prime is not a safe prime", category: "key-exchange", severity: Low, evidence: Observed,
+		citations:   []Citation{citRFC7919, citDHSubgroup},
+		remediation: "Use an RFC 7919 group (its primes are safe primes), or make sure the server uses a fresh exponent for every handshake and checks the peer's public value.",
+		check: func(c *ctx) []hit {
+			d := c.rep.DH
+			if d == nil || d.IsPrime == nil || !*d.IsPrime || d.SafePrime == nil || *d.SafePrime {
+				return nil
+			}
+			if _, known := refdata.LookupDHPrime(d.PrimeSHA256); known {
+				return nil // a published group (RFC 5114's come with their subgroup order)
+			}
+			return one(fmt.Sprintf("(p-1)/2 is not prime for the %d-bit prime sent with %s, so small subgroups exist; a server that reuses its exponent can leak it to a client that sends a value in one (small-subgroup attack)", d.PrimeBits, d.Suite))
+		},
+	},
+
 	// ---- HTTP ----
 	{
 		id: "HTTP.HSTS-DISABLED", title: "HSTS is switched off (max-age=0)", category: "http", severity: Medium, evidence: Observed,
@@ -435,4 +482,50 @@ var t1Rules = []rule{
 			return hits
 		},
 	},
+}
+
+// commonName is the CN of an RFC 4514 distinguished name ("CN=Superfish\, Inc.,O=..." gives
+// "Superfish, Inc."), unescaped.
+func commonName(dn string) string {
+	var cur strings.Builder
+	esc := false
+	var parts []string
+	for _, r := range dn {
+		switch {
+		case esc:
+			cur.WriteRune(r)
+			esc = false
+		case r == '\\':
+			esc = true
+		case r == ',':
+			parts = append(parts, cur.String())
+			cur.Reset()
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	parts = append(parts, cur.String())
+	for _, p := range parts {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(p), "CN="); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// compromisedRootOf names the compromised root a chain ends at, or "".
+func compromisedRootOf(ch *chain) string {
+	var dns []string
+	if m := ch.view.Served.Missing; m != nil {
+		dns = append(dns, m.IssuerDN)
+	}
+	for _, x := range ch.cr.Chain {
+		dns = append(dns, x.Issuer, x.Subject)
+	}
+	for _, dn := range dns {
+		if what, ok := compromisedRoots[commonName(dn)]; ok {
+			return what
+		}
+	}
+	return ""
 }
