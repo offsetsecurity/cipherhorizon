@@ -157,6 +157,11 @@ export async function render(root) {
   root.appendChild(h('div', { class: 'help-layout' }, toc, body));
   // #/help?topic=strength opens at that topic (links from the report's legends).
   const topic = new URLSearchParams(location.hash.split('?')[1] || '').get('topic');
-  if (topic && TOPICS.some(([id]) => id === topic)) setTimeout(() => document.getElementById(`help-${topic}`)?.scrollIntoView({ block: 'start' }), 0);
+  // Scroll once now and again when the web fonts are in: their metrics move the sections down.
+  if (topic && TOPICS.some(([id]) => id === topic)) {
+    const go = () => document.getElementById(`help-${topic}`)?.scrollIntoView({ block: 'start' });
+    setTimeout(go, 0);
+    if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(go);
+  }
   return null;
 }
