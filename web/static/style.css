@@ -1884,6 +1884,41 @@ td.invpq { width: 1%; text-align: center; }
 @media (max-width: 520px) { .lane-axis, .lane-row { grid-template-columns: minmax(96px, 120px) minmax(0, 1fr) 22px; } }
 .suite-strength-narrow { display: none; }
 @media (max-width: 520px) { .suite-strength-narrow { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); } table.suites th.suite { position: sticky; left: 0; background: var(--surface); z-index: 1; max-width: 230px; } }
+/* ---- UX-DESIGN-012: the SSH Configuration ------------------------------------------------------ */
+.sshalgs { display: flex; flex-direction: column; gap: 2px; }
+.sshrow { display: grid; grid-template-columns: minmax(170px, 300px) minmax(0, 1fr) 28px 160px; column-gap: 14px; align-items: center; padding: 5px 8px; border-radius: 3px; }
+.sshrow-axis { font-size: 12px; padding-bottom: 2px; }
+.sshrow-alg { display: flex; flex-direction: column; min-width: 0; } .sshrow-alg code { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.sshrow-alg > span { font-size: 11.5px; color: var(--muted); }
+.sshrow-pq { display: flex; justify-content: center; }
+.sshrow.is-used { background: var(--primary-soft); }
+.sshrow.is-off { box-shadow: inset 3px 0 0 var(--bad); }
+.usedchip { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--link); background: var(--surface); border-radius: 3px; padding: 1px 6px; }
+.bmark { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.bmark-ok { color: var(--good); } .bmark-off { color: var(--bad); } .bmark-na { color: var(--muted); }
+@media (min-width: 521px) { .sshrow .bitsbar, .sshrow-axis .bb-axis-row { grid-template-columns: minmax(60px, 1fr) 9.5em; } }
+.nchip-none { color: var(--text-2); }
+.cfg-sub { margin: 4px 0 -4px; font-size: 13.5px; font-weight: 600; }
+.reqtile { color: var(--text); } a.reqtile:hover { border-color: var(--border-strong); text-decoration: none; }
+.chg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; }
+.detcard-issues > p { margin: 0; } .detcard-issues > p + p { margin-top: 6px; }
+.chg { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; border-radius: 3px; padding: 2px 8px; background: var(--surface); border: 1px solid var(--border); overflow-wrap: anywhere; }
+.chg code { font-size: 12px; }
+.chg-glyph { font-weight: 700; } .chg-remove .chg-glyph, .chg-replace-key .chg-glyph { color: var(--bad); } .chg-add .chg-glyph, .chg-upgrade .chg-glyph { color: var(--good); }
+.chg-where { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 13px; }
+.keyribbon { gap: 16px; } .keyribbon .chaincard + .chaincard::before { content: none; }
+.keycard { flex-basis: 300px; } .keycard .bitsbar { margin-top: 2px; }
+.keycard-name { display: inline-flex; align-items: center; gap: 6px; }
+.keycard-fp { font-family: var(--font-mono); word-break: break-all; }
+@media (max-width: 1100px) { .sshrow { grid-template-columns: minmax(140px, 220px) minmax(0, 1fr) 24px 150px; column-gap: 10px; } }
+@media (max-width: 860px) {
+  .sshrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 22px; row-gap: 2px; }
+  .sshrow > .bmark { grid-column: 1; grid-row: 2; } .sshrow-axis > span:last-child { display: none; }
+}
+@media (max-width: 520px) { .sshrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 22px; column-gap: 8px; padding: 5px 4px; } .keycard { flex-basis: 260px; } }
+@media (min-width: 521px) { .stile-verdict { grid-column: span 2; } }
+.bmark-why { display: block; font-size: 11.5px; font-weight: 400; color: var(--text-2); white-space: normal; }
+.sshrow .bmark { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; } .sshrow .bmark-why { flex-basis: 100%; }
 
 /* Folding versions: a version opens when it needs a look; folded, its head says how its suites rate. */
 details.ver-block > summary { list-style: none; cursor: pointer; border-radius: 4px; padding: 2px 0; }

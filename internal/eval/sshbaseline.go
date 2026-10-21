@@ -199,11 +199,14 @@ const (
 
 // RequireView is one requirement and whether the server meets it.
 type RequireView struct {
-	ID     string   `json:"id"`
-	Text   string   `json:"text"`
-	Met    bool     `json:"met"`
-	Detail string   `json:"detail,omitempty"`
-	Cite   Citation `json:"cite"`
+	ID   string `json:"id"`
+	Text string `json:"text"`
+	Met  bool   `json:"met"`
+	// NotApplicable: there was nothing to judge (no RSA host key for an RSA size rule). Met stays
+	// true, so the verdict is unchanged; the page says "does not apply" instead of "met".
+	NotApplicable bool     `json:"notApplicable,omitempty"`
+	Detail        string   `json:"detail,omitempty"`
+	Cite          Citation `json:"cite"`
 }
 
 // baselineKinds are the kinds a baseline judges, in sshd_config order.
@@ -324,9 +327,19 @@ func sshConformance(c *sshCtx, b *SSHBaseline) *Conformance {
 			v.Met = c.alg.StrictKex
 			if !v.Met {
 				v.Detail = "kex-strict-s-v00@openssh.com is not offered."
-				out.Changes = append(out.Changes, BaselineChange{Action: ChangeUpgrade, Text: "Upgrade to OpenSSH " + r.Since + " or later for strict key exchange.", Cite: r.Cite})
+				out.Changes = append(out.Changes, BaselineChange{Action: ChangeUpgrade, Text: pick2(isOpenSSH(rep), "Upgrade to OpenSSH "+r.Since+" or later for strict key exchange.",
+					"Offer strict key exchange (kex-strict-s-v00@openssh.com; OpenSSH has it from "+r.Since+")."), Cite: r.Cite})
 			}
 		case ReqRSASize:
+			rsa := 0
+			for _, hk := range rep.HostKeys {
+				if hk.Algorithm == "RSA" {
+					rsa++
+				}
+			}
+			if rsa == 0 {
+				v.NotApplicable, v.Detail = true, "The server has no RSA host key."
+			}
 			for _, hk := range rep.HostKeys {
 				if hk.Algorithm == "RSA" && hk.Bits > 0 && hk.Bits < b.MinRSABits {
 					v.Met = false

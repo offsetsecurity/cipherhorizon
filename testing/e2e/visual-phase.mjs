@@ -1,8 +1,9 @@
 // PRD-013 (instruments, not paragraphs), driven through the browser on the other phases' data: the
 // shared instruments carry their meaning in words; the Summary is instruments, Fix first, the checks
 // bar and area tiles; the Configuration's suites, features and revocation agree with the API; the
-// Inventory's charts open the lists they count; the SSH tables use the same instruments; and every
-// rebuilt screen fits 1440, 1100, 860 and 375 px, in light and dark, with readable contrast.
+// Inventory's charts open the lists they count; the SSH report (PRD-014) is the same one-stop page,
+// its rows, banner, key cards, baseline tiles and Summary agreeing with the API; and every rebuilt
+// screen fits 1440, 1100, 860 and 375 px, in light and dark, with readable contrast.
 
 const words = (st) => (!st ? 'not rated' : st.status === 'rated' ? `${st.bits} bits` : st.status === 'disallowed' ? `${st.bits} bits, disallowed`
   : st.status === 'broken' ? 'broken' : 'not rated');
@@ -13,7 +14,7 @@ const CONTRAST = `
   const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
   const bgOf = (el) => { for (let e = el; e; e = e.parentElement) { const c = rgb(getComputedStyle(e).backgroundColor); if (c[3] === undefined || c[3] > 0.5) return c; } return rgb(getComputedStyle(document.body).backgroundColor); };
   const ratio = (el) => { const a = lum(rgb(getComputedStyle(el).color)), b = lum(bgOf(el)); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
-  const SEL = '.bb-value, .pcell, .schip, .stile b, .stile-state, .gchip, .tchip, .cchip, .jump-chip, .vchip, .lstep-l, .hist-n, .hist-label, .fix-n, .action-title, .cfg-aside, .lane-alg, .lane-uses, .xid-v, .specval, .nmchip, .usechip';
+  const SEL = '.bb-value, .pcell, .schip, .stile b, .stile-state, .gchip, .tchip, .cchip, .jump-chip, .vchip, .lstep-l, .hist-n, .hist-label, .fix-n, .action-title, .cfg-aside, .lane-alg, .lane-uses, .xid-v, .specval, .nmchip, .usechip, .sshrow-alg code, .sshrow-alg > span, .usedchip, .bmark, .chg, .nchip, .keycard-fp, .dimchip';
   const low = [...document.querySelectorAll(SEL)].filter((el) => el.offsetParent !== null && el.textContent.trim())
     .map((el) => ({ el: el.className.baseVal ?? el.className, text: el.textContent.trim().slice(0, 24), r: Math.round(ratio(el) * 100) / 100 }))
     .filter((x) => x.r < 4.5);`;
@@ -22,7 +23,12 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
   await viewport(1440, 900, false);
   const endpoints = await js(`return (await (await fetch('/api/v1/assets?kind=endpoint')).json()).filter((a) => a.lastDone)`);
   const tls = endpoints.filter((a) => a.protocol !== 'ssh');
-  const ssh = endpoints.find((a) => a.protocol === 'ssh');
+  // The SSH reports: the legacy server (every kind of mark, a broken host-key algorithm, many changes),
+  // the SSH-1-only one (nothing negotiated) and the hardened one (meets the baseline).
+  const sshAll = endpoints.filter((a) => a.protocol === 'ssh');
+  const ssh = sshAll.find((a) => a.port === 9462) || sshAll[0];
+  const ssh1 = sshAll.find((a) => a.port === 9465);
+  const sshGood = sshAll.find((a) => a.port === 9467);
   // The richest TLS report: the most suites (a legacy server shows every instrument).
   let target = tls[0], most = -1;
   for (const a of tls.slice(0, 8)) {
@@ -42,7 +48,7 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
     others: [...document.querySelectorAll('#main .ltbar, #main .lstep, #main .stackbar, #main svg.gauge')].map((x) => x.getAttribute('role') === 'img' && (x.getAttribute('aria-label') || '').length > 2) }`);
   const tally = {};
   const pages = [['summary', `#/endpoints/${target.id}`], ['configuration', `#/endpoints/${target.id}?tab=configuration`], ['inventory', '#/inventory/algorithms']];
-  if (ssh) pages.push(['ssh', `#/endpoints/${ssh.id}?tab=configuration`]);
+  if (ssh) pages.push(['ssh', `#/ssh/${ssh.id}?tab=configuration`], ['ssh-summary', `#/ssh/${ssh.id}`]);
   const leaf = ((rep.certificates || [])[0] || { chain: [] }).chain[0];
   if (leaf) pages.push(['certificate', `#/certificates/${leaf.sha256}?scan=${scan}`]);
   for (const [name, hash] of pages) {
@@ -174,26 +180,112 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
     JSON.stringify({ cols: inv.cols.map((c) => c.n), rows: inv.rows, opened, sorted: ranks.slice(0, 12) }).slice(0, 500));
   await shot('vis-inventory');
 
-  // E2E-VIS-6: the SSH report's algorithm tables use the bits bar and the post-quantum glyph.
+  // E2E-VIS-6: the SSH algorithm rows are the evaluation's sshAlgorithms, kind by kind in the server's
+  // order, each with its bits bar, its post-quantum glyph (key exchange and host keys) and its baseline
+  // mark (PRD-014 REQ-SSV-2; was PRD-013 REQ-VIS-10, which read the old tables' cells).
   if (ssh) {
     const sev = await js(`return (await fetch('/api/v1/scans/${ssh.lastDone.id}/evaluation')).json()`);
-    await go(`#/endpoints/${ssh.id}?tab=configuration`);
+    await go(`#/ssh/${ssh.id}?tab=configuration`);
     await sleep(1600);
-    const s = await js(`return { bars: [...document.querySelectorAll('#main td.invbits .bitsbar')].map((b) => b.getAttribute('aria-label')),
-      pq: [...document.querySelectorAll('#main td.invpq')].map((c) => c.querySelector('svg.pqg-safe') ? 'safe' : c.querySelector('svg.pqg-vuln') ? 'vulnerable' : 'none') }`);
-    const rated = (sev.sshAlgorithms || []).filter((a) => a.kind !== 'compression' && a.strength);
-    const wrongBars = rated.filter((a) => !s.bars.includes(`${a.name}: ${words(a.strength)}`)).map((a) => a.name);
-    const kexPq = (sev.sshAlgorithms || []).filter((a) => a.kind === 'kex' && a.verdict === 'post-quantum').length;
-    check('E2E-VIS-6', 'the SSH report’s algorithm tables show each strength as the bits bar and key exchange and host keys with the post-quantum glyph (PRD-013 REQ-VIS-10)',
-      rated.length > 0 && wrongBars.length === 0 && s.pq.filter((p) => p === 'safe').length >= kexPq && s.pq.includes('vulnerable'),
-      JSON.stringify({ rated: rated.length, wrongBars: wrongBars.slice(0, 4), pq: s.pq.join('').length ? s.pq.slice(0, 12) : [] }));
-    await shot('vis-ssh');
-  } else check('E2E-VIS-6', 'the SSH report’s algorithm tables use the bits bar and the post-quantum glyph', false, 'no SSH endpoint was scanned');
+    const got = await js(`return [...document.querySelectorAll('.sshrow[data-kind]')].map((r) => ({ kind: r.dataset.kind, name: r.dataset.name,
+      bar: r.querySelector('.bitsbar')?.getAttribute('aria-label') || '', pq: r.querySelector('svg.pqg-safe') ? 'quantum-safe' : r.querySelector('svg.pqg-vuln') ? 'quantum-vulnerable' : 'none',
+      mark: r.querySelector('.bmark-off') ? 'off' : r.querySelector('.bmark-ok') ? 'allowed' : '', used: r.classList.contains('is-used') }))`);
+    const want = (sev.sshAlgorithms || []).filter((a) => a.kind !== 'compression');
+    const pqWant = (a) => (a.kind === 'kex' || a.kind === 'host-key' ? (a.verdict === 'post-quantum' ? 'quantum-safe' : a.verdict === 'unknown' ? 'none' : 'quantum-vulnerable') : 'none');
+    const wrong = want.map((a, i) => [a, got[i] || {}]).filter(([a, g]) => g.kind !== a.kind || g.name !== a.name || g.bar !== `${a.name}: ${words(a.strength)}`
+      || g.pq !== pqWant(a) || g.mark !== (a.baseline || '') || g.used !== !!a.used).map(([a, g]) => ({ want: a.name, got: g }));
+    check('E2E-VIS-6', 'the SSH algorithm rows equal the evaluation’s algorithms in the server’s order, each with its bits bar, post-quantum glyph, baseline mark and in-use mark (PRD-014 REQ-SSV-2)',
+      want.length > 0 && got.length === want.length && wrong.length === 0 && got.some((g) => g.mark === 'off') && got.some((g) => g.pq === 'quantum-vulnerable'),
+      JSON.stringify({ want: want.length, got: got.length, wrong: wrong.slice(0, 3) }).slice(0, 500));
+    await shot('vis-ssh', { maxH: 5000 });
+
+    // E2E-VIS-8: one Configuration page in a reviewer's order, a jump row leading to each part, every
+    // finding named once under its own part, the baseline as tiles and chips, and no list of sources.
+    const ids = ['sec-ssh-version', 'sec-key-exchange', 'sec-host-keys', 'sec-encryption', 'sec-integrity', 'sec-baseline'];
+    const cfg = await js(`const parts = [...document.querySelectorAll('.ssh-config > section.cfg')];
+      const issueAt = {};
+      for (const p of parts) for (const a of p.querySelectorAll('.detcard-issues a[href^="#chk-"]')) (issueAt[a.getAttribute('href').slice(5)] = issueAt[a.getAttribute('href').slice(5)] || []).push(p.id);
+      const jump = [...document.querySelectorAll('.ssh-config nav.jump a')].map((a) => ({ href: a.getAttribute('href'), dot: !!a.querySelector('.jump-dot') }));
+      const reqs = [...document.querySelectorAll('#sec-baseline .reqtile')].map((t) => ({ href: t.getAttribute('href'), title: t.title, target: t.target }));
+      const chips = [...document.querySelectorAll('.ssh-config .chg')].map((c) => c.title.split(String.fromCharCode(10))[0]);
+      const last = document.querySelector('.ssh-config > :last-child');
+      const p = document.getElementById('sec-integrity');
+      p.scrollIntoView({ block: 'start' });
+      window.scrollTo(0, 0);
+      document.querySelector('.ssh-config nav.jump a[href="#sec-integrity"]').click();
+      await new Promise((r) => setTimeout(r, 400));
+      const t = p.getBoundingClientRect().top;
+      return { order: parts.map((x) => x.id), jump, issueAt, reqs, chips, cites: document.querySelectorAll('.ssh-config ul.cites').length,
+        lastIsAbout: !!last && last.id === 'sec-details', jumped: t >= -2 && t < innerHeight / 2, sticky: getComputedStyle(document.querySelector('.ssh-config nav.jump')).position }`);
+    const findings = [...new Map((sev.findings || []).filter((f) => f.section !== 'vulnerabilities').map((f) => [f.id, f])).values()];
+    const misplaced = findings.filter((f) => (cfg.issueAt[f.id] || []).join() !== `sec-${f.section}`).map((f) => ({ id: f.id, at: cfg.issueAt[f.id] }));
+    const b = sev.baseline || { requires: [], changes: [] };
+    const reqsOk = cfg.reqs.length === (b.requires || []).length && (b.requires || []).every((r, i) => cfg.reqs[i] && cfg.reqs[i].href === r.cite.url && cfg.reqs[i].title === `Source: ${r.cite.title}` && cfg.reqs[i].target === '_blank');
+    const chipsOk = cfg.chips.length === (b.changes || []).length && (b.changes || []).every((c) => cfg.chips.includes(c.text));
+    check('E2E-VIS-8', 'the SSH Configuration is six parts in a reviewer’s order under a sticky jump row that leads to each; every finding is named once under its own part; each requirement is a tile linking to its source; each baseline change a chip; no list of sources; About last (PRD-014 REQ-SSV-1, 4, 5, 6)',
+      cfg.order.join() === ids.join() && cfg.jump.map((j) => j.href).join() === ids.map((x) => `#${x}`).join() && cfg.jump.every((j) => j.dot) && cfg.sticky === 'sticky' && cfg.jumped
+        && findings.length > 0 && misplaced.length === 0 && reqsOk && chipsOk && cfg.cites === 0 && cfg.lastIsAbout,
+      JSON.stringify({ order: cfg.order, jumped: cfg.jumped, misplaced, reqs: cfg.reqs.length, chips: cfg.chips.length, changes: (b.changes || []).length, cites: cfg.cites }).slice(0, 500));
+
+    // E2E-VIS-9: version, key exchange and host keys as instruments that agree with the report.
+    const srep = await js(`return (await fetch('/api/v1/scans/${ssh.lastDone.id}/report')).json()`);
+    const inst = await js(`const tile = (sec, name) => { const t = [...document.querySelectorAll(sec + ' .stile')].find((x) => x.querySelector('b')?.textContent === name); return t ? { tone: [...t.classList].find((c) => /^stile-(good|attention|problem|na)$/.test(c)), state: t.querySelector('.stile-state').textContent, detail: t.querySelector('.stile-detail')?.textContent || '' } : null; };
+      return { banner: [...document.querySelectorAll('#sec-ssh-version .negotiated .nchip')].map((c) => c.textContent), protocol: tile('#sec-ssh-version', 'Protocol'), strict: tile('#sec-key-exchange', 'Strict key exchange'),
+        level: document.querySelector('#sec-key-exchange .readyrow-level b')?.textContent, steps: document.querySelectorAll('#sec-key-exchange .lstep-seg.on').length,
+        cards: [...document.querySelectorAll('#sec-host-keys .keycard')].map((c) => ({ missing: c.classList.contains('is-missing'), fp: c.querySelector('.keycard-fp')?.textContent || '', verified: /verified ✓/.test(c.textContent), bar: !!c.querySelector('.bitsbar') })) }`);
+    const n = srep.negotiated || {};
+    const keys = srep.hostKeys || [];
+    const failed = (srep.hostKeyAttempts || []).filter((x) => x.outcome !== 'key').length;
+    const r = sev.readiness || {};
+    let ssh1View = null;
+    if (ssh1) {
+      await go(`#/ssh/${ssh1.id}?tab=configuration`);
+      await sleep(1400);
+      ssh1View = await js(`return { parts: document.querySelectorAll('.ssh-config > section.cfg').length, protocol: [...document.querySelectorAll('#sec-ssh-version .stile')].find((t) => t.querySelector('b')?.textContent === 'Protocol')?.querySelector('.stile-state').textContent,
+        na: [...document.querySelectorAll('#sec-ciphers p.muted, #sec-encryption p.muted')].map((p) => p.textContent).join(' '), rows: document.querySelectorAll('.sshrow[data-kind]').length }`);
+    }
+    check('E2E-VIS-9', 'the SSH banner is what a current client negotiates; the protocol and strict key exchange tiles, the readiness level and stepper, and a card per host key (verified as the scan says) agree with the report; an SSH-1-only server still draws every part (PRD-014 REQ-SSV-3, 8)',
+      inst.banner.slice(0, 3).join() === [n.kex, n.hostKey, n.cipher].join() && inst.banner[3] === (n.mac || 'no MAC')
+        && inst.protocol && inst.protocol.detail === srep.identification.raw && inst.protocol.tone === (srep.identification.ssh1 ? 'stile-problem' : 'stile-good')
+        && inst.strict && inst.strict.tone === (srep.algorithms.strictKex ? 'stile-good' : inst.strict.tone) && /^On/.test(inst.strict.state) === !!srep.algorithms.strictKex
+        && inst.level === (r.level < 0 ? '?' : `L${r.level}`) && inst.steps === Math.max(0, r.level + 1)
+        && inst.cards.filter((c) => !c.missing).length === keys.length && inst.cards.filter((c) => c.missing).length === failed
+        && keys.every((k) => inst.cards.some((c) => c.fp === k.fingerprint && c.verified === !!k.verified && c.bar))
+        && (!ssh1 || (ssh1View.parts === 6 && ssh1View.protocol === 'SSH-1 only' && /Does not apply/.test(ssh1View.na) && ssh1View.rows === 0)),
+      JSON.stringify({ banner: inst.banner, n, protocol: inst.protocol, strict: inst.strict, level: inst.level, cards: inst.cards.length, keys: keys.length, ssh1View }).slice(0, 600));
+
+    // E2E-VIS-10: the SSH Summary is four instruments; the weakest strength is the evaluation's weakest
+    // rated algorithm; the baseline is line 1 of Fix first in the shared row shape, with no prose block.
+    await go(`#/ssh/${ssh.id}`);
+    await sleep(1400);
+    const ss = await js(`return { labels: [...document.querySelectorAll('.sumstrip .sumtile')].map((t) => t.querySelector('.sumtile-label')?.textContent),
+      weakest: document.querySelector('.sumtile-strength .bitsbar')?.getAttribute('aria-label') || '', stepper: !!document.querySelector('.sumstrip .lstep'),
+      first: (() => { const li = document.querySelector('#fix ol.fixlist > li'); return li ? { n: li.querySelector('.fix-n')?.textContent, title: li.querySelector('.action-title')?.textContent, link: li.querySelector('.action-more')?.textContent } : null; })(),
+      nums: [...document.querySelectorAll('#fix ol.fixlist > li .fix-n')].map((x) => x.textContent), prose: /Why it matters/.test(document.querySelector('.report.summary').innerText), lists: document.querySelectorAll('#fix ol').length }`);
+    const rank = { broken: 0, weak: 1, acceptable: 2, strong: 3 };
+    const band = (st) => (!st ? 'na' : st.status === 'broken' ? 'broken' : st.status !== 'rated' && st.status !== 'disallowed' ? 'na' : st.bits < 80 ? 'broken' : st.bits < 112 ? 'weak' : st.bits < 128 ? 'acceptable' : 'strong');
+    const w = (sev.sshAlgorithms || []).filter((a) => band(a.strength) !== 'na').sort((x, y) => (rank[band(x.strength)] - rank[band(y.strength)]) || ((x.strength.bits || 0) - (y.strength.bits || 0)))[0];
+    let good = null;
+    if (sshGood) {
+      await go(`#/ssh/${sshGood.id}`);
+      await sleep(1200);
+      good = await js(`return { first: document.querySelector('#fix ol.fixlist > li .action-title')?.textContent || '', tile: document.querySelectorAll('.sumstrip .sumtile')[1]?.innerText || '' }`);
+    }
+    check('E2E-VIS-10', 'the SSH Summary has readiness with the stepper, the baseline, the weakest classical strength (the evaluation’s weakest) and the host key; the baseline is Fix first line 1 in the shared row shape, numbered on from it, with no “Why it matters” (PRD-014 REQ-SSV-7)',
+      ss.labels.join() === 'Post-quantum readiness,Baseline,Weakest classical strength,Host key' && ss.stepper && !!w && ss.weakest === `${w.name}: ${words(w.strength)}`
+        && ss.first && ss.first.n === '1' && /^Meet /.test(ss.first.title) && /sshd_config/.test(ss.first.link) && ss.nums.every((x, i) => x === String(i + 1)) && ss.lists === 1 && !ss.prose
+        && (!good || (/✓ Meets/.test(good.tile) && !/^Meet /.test(good.first))),
+      JSON.stringify({ ss, weakest: w && w.name, good }).slice(0, 500));
+    await shot('vis-ssh-summary');
+  } else {
+    for (const id of ['E2E-VIS-6', 'E2E-VIS-8', 'E2E-VIS-9', 'E2E-VIS-10']) check(id, 'the SSH report’s instruments', false, 'no SSH server was scanned');
+  }
 
   // E2E-VIS-7: every rebuilt screen fits 1440, 1100, 860 and 375 px with no sideways scroll, every
   // control is reachable by Tab, and instrument text meets AA contrast in light and dark.
   const screens = [['summary', `#/endpoints/${target.id}`], ['configuration', `#/endpoints/${target.id}?tab=configuration`], ['inventory', '#/inventory/algorithms']];
   if (leaf) screens.push(['certificate', `#/certificates/${leaf.sha256}?scan=${scan}`]);
+  if (ssh) screens.push(['ssh-summary', `#/ssh/${ssh.id}`], ['ssh-configuration', `#/ssh/${ssh.id}?tab=configuration`]);
   const fit = [];
   for (const [w, h, mobile] of [[1440, 900, false], [1100, 900, false], [860, 1000, false], [375, 812, true]]) {
     await viewport(w, h, false, mobile);
@@ -220,6 +312,6 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
   await viewport(1440, 900, false);
   const bad = fit.filter((x) => x.over > 1 || x.unreachable > 0);
   const lowC = contrast.filter((c) => c.low.length);
-  check('E2E-VIS-7', 'Summary, Configuration, the Inventory and the certificate page fit 1440, 1100, 860 and 375 px, every control is reachable by Tab, and instrument text meets 4.5:1 contrast in light and dark (PRD-013 REQ-VIS-11)',
+  check('E2E-VIS-7', 'Summary, Configuration, the Inventory, the certificate page and the SSH Summary and Configuration fit 1440, 1100, 860 and 375 px, every control is reachable by Tab, and instrument text meets 4.5:1 contrast in light and dark (PRD-013 REQ-VIS-11, PRD-014 REQ-SSV-8)',
     bad.length === 0 && lowC.length === 0, JSON.stringify({ bad, lowContrast: lowC }).slice(0, 700));
 }

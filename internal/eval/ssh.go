@@ -582,7 +582,7 @@ func sshReadiness(c *sshCtx) Readiness {
 	r.KeyEstablishment = ke
 	r.Authentication = sshAuthDimension(rep, pqKeys)
 	r.Symmetric = sshSymmetric(c)
-	r.Summary, r.NextSteps = sshNarrative(r.Level)
+	r.Summary, r.NextSteps = sshNarrative(r.Level, isOpenSSH(rep))
 	r.Citations = []Citation{citHNDL, citSSHMLKEM, citFIPS203, citFIPS204, citIR8547, citOpenSSH100, citOpenSSH106}
 	return r
 }
@@ -663,7 +663,14 @@ func sshSymmetric(c *sshCtx) Dimension {
 	return d
 }
 
-func sshNarrative(level int) (string, []string) {
+// isOpenSSH reports whether the server identifies as OpenSSH, whose releases the next steps can name.
+func isOpenSSH(rep *sshprobe.Report) bool {
+	return rep != nil && rep.Identification != nil && strings.HasPrefix(rep.Identification.Software, "OpenSSH")
+}
+
+// sshNarrative is the readiness summary and next steps. OpenSSH servers are told which release does
+// what; any other server is told what to offer, with OpenSSH as the reference point.
+func sshNarrative(level int, openssh bool) (string, []string) {
 	switch level {
 	case LevelUndetermined:
 		return "The scan could not read the server's algorithm lists, so readiness is unknown.",
@@ -673,7 +680,8 @@ func sshNarrative(level int) (string, []string) {
 			[]string{"Replace the server software with a current SSH-2 implementation (OpenSSH 10 or later)."}
 	case LevelExposed:
 		return "Only classical key exchange: recorded sessions could be decrypted by a future quantum computer.",
-			[]string{"Upgrade to OpenSSH 9.9 or later and put mlkem768x25519-sha256 first in KexAlgorithms (the default from OpenSSH 10.0).",
+			[]string{pick2(openssh, "Upgrade to OpenSSH 9.9 or later and put mlkem768x25519-sha256 first in KexAlgorithms (the default from OpenSSH 10.0).",
+				"Offer mlkem768x25519-sha256 first in the key exchange list: a server library or release that has it is needed (OpenSSH has it from 9.9, by default from 10.0)."),
 				"Keep curve25519-sha256 for clients that are not ready."}
 	case LevelHybridAvail:
 		return "A post-quantum hybrid key exchange is offered, but a current client does not end up using it.",
@@ -681,7 +689,7 @@ func sshNarrative(level int) (string, []string) {
 	case LevelHybridNeg:
 		return "A current client gets a post-quantum hybrid key exchange: recorded sessions are protected.",
 			[]string{"Keep the hybrid method first; remove classical-only methods as clients allow.",
-				"Plan post-quantum host keys (ssh-mldsa44-ed25519, enabled in OpenSSH 10.6)."}
+				pick2(openssh, "Plan post-quantum host keys (ssh-mldsa44-ed25519, enabled in OpenSSH 10.6).", "Plan post-quantum host keys (ssh-mldsa44-ed25519; OpenSSH enables it from 10.6) once your server software supports them.")}
 	}
 	return "Post-quantum key exchange and a post-quantum host key.",
 		[]string{"Maintain; keep classical host keys only while clients need them."}
@@ -709,7 +717,8 @@ func sshPQCFindings(c *sshCtx, r Readiness) []Finding {
 		if len(fips) == 0 && len(sntrup) > 0 {
 			add("SSH.PQ-NOT-FIPS", "The post-quantum key exchange is not a NIST-standardised one", Low,
 				"Offered post-quantum methods: "+strings.Join(sntrup, ", ")+". Streamlined NTRU Prime is not a NIST standard; ML-KEM (FIPS 203) is.",
-				"Upgrade to OpenSSH 9.9 or later and offer mlkem768x25519-sha256 first; programmes bound to FIPS 203 need ML-KEM.",
+				pick2(isOpenSSH(c.rep), "Upgrade to OpenSSH 9.9 or later and offer mlkem768x25519-sha256 first; programmes bound to FIPS 203 need ML-KEM.",
+					"Offer mlkem768x25519-sha256 first (OpenSSH has it from 9.9); programmes bound to FIPS 203 need ML-KEM."),
 				citSSHSntrup, citFIPS203, citSSHMLKEM)
 		}
 	}
@@ -775,4 +784,12 @@ func sshAlgorithmViews(c *sshCtx, b *SSHBaseline) []SSHAlgorithm {
 		}
 	}
 	return out
+}
+
+// pick2 is a when the condition holds, else b.
+func pick2(cond bool, a, b string) string {
+	if cond {
+		return a
+	}
+	return b
 }

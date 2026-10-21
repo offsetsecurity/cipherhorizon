@@ -65,7 +65,13 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
     each part ends with the issues found in it. HSTS shows the header as sent.
   - **Inventory:** algorithms *By class* and *By classical strength* (`?strength=`: broken, below-112, 112, 128,
     192, 256, not-rated), each bar opening its list; the list is weakest first, with a bits bar.
-  - **SSH reports:** the algorithm tables use the bits bar and a post-quantum column.
+  - **SSH reports** ([PRD-014](docs/product/PRD-014-ssh-instruments.md),
+    [UX-DESIGN-012](docs/product/UX-DESIGN-012-ssh-instruments.md)) get the same one-stop Configuration: version and
+    software (what a current client gets, as a banner), key exchange (readiness, then each method as a row with its
+    bits bar, post-quantum glyph and baseline mark), host keys (a card per key), ciphers, MACs and compression, and
+    the baseline (a tile per requirement linking to its source, the changes as chips in their parts, the
+    `sshd_config` lines). The Summary has the same four-figure strip, and the baseline is line 1 of *Fix first*.
+    Checked by [CRYPTO-REVIEW-002](docs/product/CRYPTO-REVIEW-002-ssh-instruments.md).
   - **Scanner:** a TLS scan records whether the server negotiates the heartbeat extension (RFC 6520).
   - Every number and claim on these screens was checked against its source
     ([CRYPTO-REVIEW-001](docs/product/CRYPTO-REVIEW-001-visual-rebuild.md)).
@@ -93,6 +99,11 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Fixed
 
+- **SSH evaluation (eval/11; stored scans are re-evaluated on start):**
+  - a truncated MAC is as strong as its tag: hmac-sha1-96 is 96 bits, not 128 (NIST SP 800-107 Rev. 1);
+  - the next steps name OpenSSH releases only to a server that identifies as OpenSSH;
+  - a baseline rule with nothing to judge (the RSA size rule on a server with no RSA key) says it does not apply
+    instead of *Met*.
 - **Single-DES suites (56-bit key) are Insecure, not Weak** (#18).
 - **The TLS hygiene figure on a report's Summary opened *About this report*.** It now opens how the score was worked
   out, on Weaknesses.

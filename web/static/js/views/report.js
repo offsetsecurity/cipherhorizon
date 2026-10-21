@@ -146,14 +146,21 @@ export function summaryView(ctx) {
   const items = h('section', { class: 'card fixcard', id: 'fix', 'aria-labelledby': 'fix-h' },
     h('div', { class: 'cfg-head' }, h('h2', { id: 'fix-h' }, 'Fix first'),
       h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goTab('weaknesses'); } }, 'Every check')));
-  if (extra) items.appendChild(extra);
-  if (!act.length) {
-    if (!extra) items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
+  if (!act.length && !extra) {
+    items.appendChild(h('p', { class: 'muted' }, 'Nothing needs fixing. The checks that found nothing are listed under Weaknesses.'));
   } else {
     // One numbered line per finding, worst first: what it is and what to do. Why it matters is in
-    // its evidence (UX-DESIGN-011 §3.1).
-    items.appendChild(h('ol', { class: 'fixlist actions' }, act.map((f, i) => h('li', { class: `action sev-${f.severity}`, id: `issue-${f.id}` },
-      h('span', { class: 'fix-n' }, String(i + 1)),
+    // its evidence (UX-DESIGN-011 §3.1). A profile's own action (SSH: the baseline) is line 1.
+    const off = extra ? 1 : 0;
+    items.appendChild(h('ol', { class: 'fixlist actions' },
+      extra ? h('li', { class: 'action sev-medium', id: `issue-${extra.id}` },
+        h('span', { class: 'fix-n' }, '1'),
+        badge(extra.chip, 'warn'),
+        h('span', { class: 'fix-main' }, h('span', { class: 'action-head' }, h('span', { class: 'action-title' }, extra.title)),
+          h('span', { class: 'action-fix', title: extra.why || null }, extra.fix)),
+        h('a', { href: `#sec-${extra.id}`, class: 'xlink action-more', onclick: (e) => { e.preventDefault(); extra.go(); } }, extra.link)) : null,
+      act.map((f, i) => h('li', { class: `action sev-${f.severity}`, id: `issue-${f.id}` },
+      h('span', { class: 'fix-n' }, String(i + 1 + off)),
       sevBadge(f.severity),
       h('span', { class: 'fix-main' },
         h('span', { class: 'action-head' }, h('span', { class: 'action-title' }, f.title), h('span', { class: `urgency u-${f.severity}` }, URGENCY[f.severity]),

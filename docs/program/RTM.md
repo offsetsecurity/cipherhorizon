@@ -402,10 +402,24 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-VIS-7 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/x509-phase.mjs#E2E-XV-2 | done | an EC key with key encipherment is marked (RFC 8813) |
 | REQ-VIS-8 | P1 | — | UX-DESIGN-011 | — | TestInventoryFiltersByStrength, script:testing/e2e/visual-phase.mjs#E2E-VIS-5 | done |  |
 | REQ-VIS-9 | P2 | — | UX-DESIGN-011 | — | TestHeartbeatIsProbed | done | 0-RTT stays not probed |
-| REQ-VIS-10 | P2 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-6 | done | the rest of the SSH report keeps its PRD-008 layout |
+| REQ-VIS-10 | P2 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-6 | done | the whole SSH report was rebuilt in PRD-014 (REQ-SSV-2) |
 | REQ-VIS-11 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-7, script:testing/e2e/x509-phase.mjs#E2E-XV-5 | done | contrast measured on instrument text, light and dark |
 | REQ-VIS-12 | P0 | — | UX-DESIGN-011 | — | report:docs/product/CRYPTO-REVIEW-001-visual-rebuild.md, report:docs/program/QA-REPORT-012.md | done |  |
 | REQ-VIS-13 | P1 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-FOLD | done | owner request after PR #23 opened |
+
+## PRD-014 · The SSH report, as instruments ([PRD-014](../product/PRD-014-ssh-instruments.md); results in [QA-REPORT-013](QA-REPORT-013.md))
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-SSV-1 | P0 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-8 | done | six parts; About this report last |
+| REQ-SSV-2 | P0 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-6, script:testing/e2e/ssh-phase.mjs#E2E-H.2 | done | no rank numbers: in SSH the client's order decides (RFC 4253 §7.1) |
+| REQ-SSV-3 | P0 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-9 | done | a host key is drawn at the strength of its best signature |
+| REQ-SSV-4 | P0 | — | UX-DESIGN-012 | — | script:testing/e2e/ssh-phase.mjs#E2E-H.2, script:testing/e2e/ssh-phase.mjs#E2E-H.2c, script:testing/e2e/visual-phase.mjs#E2E-VIS-8 | done | the change chips sit in their parts; the Baseline part leads to them |
+| REQ-SSV-5 | P0 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-8 | done |  |
+| REQ-SSV-6 | P1 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-8 | done | requirement tiles link to their source |
+| REQ-SSV-7 | P1 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-10 | done | the host key tile's tone follows its strength (CRYPTO-REVIEW-002 fix 1) |
+| REQ-SSV-8 | P0 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-7, script:testing/e2e/visual-phase.mjs#E2E-VIS-9, script:testing/e2e/ssh-phase.mjs#E2E-H.2b | done | contrast measured on the SSH instruments too |
+| REQ-SSV-9 | P0 | — | UX-DESIGN-012 | — | report:docs/product/CRYPTO-REVIEW-002-ssh-instruments.md, report:docs/program/QA-REPORT-013.md | done |  |
 
 ## Security requirements (SECARCH-001) coverage
 

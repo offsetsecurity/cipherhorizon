@@ -102,12 +102,26 @@ export async function sshPhase({ check, js, go, sleep, shot, viewport, clickText
   }
   const noTLS = Object.values(tabs).every((x) => !/TLS hygiene|cipher suite|certificate chain/i.test(x));
   const noScore = Object.values(tabs).every((x) => !/hygiene|out of 100/i.test(x));
-  check('E2E-H.2', 'an SSH report: the Baseline tile and action, the sshd_config lines and requirements, per-algorithm baseline verdicts, every check, an ssh CBOM; no score and no TLS words',
+  // PRD-014 (UX-DESIGN-012 §3.1) draws each algorithm's baseline verdict as a mark, its post-quantum
+  // status as the glyph and the one a current client uses as an "in use" chip, in place of the words
+  // "Should be off", "Allowed · post-quantum" and "used by OpenSSH 10.6". The check reads those
+  // instruments instead: the hybrid key exchange is allowed, post-quantum and in use; something
+  // should be off; and the in-use row of each kind is what the scan negotiated (stricter than the words).
+  await go(`#/ssh/${by[9460].id}?tab=configuration`);
+  await sleep(1200);
+  const neg = (await js(`return (await fetch('/api/v1/scans/${d(9460).id}/report')).json()`)).negotiated || {};
+  const rows = await js(`return [...document.querySelectorAll('.sshrow[data-kind]')].map((r) => ({ kind: r.dataset.kind, name: r.dataset.name,
+    used: r.classList.contains('is-used') && !!r.querySelector('.usedchip'), mark: r.querySelector('.bmark')?.textContent || '', safe: !!r.querySelector('svg.pqg-safe') }))`);
+  const hybrid = rows.find((r) => r.name === 'mlkem768x25519-sha256');
+  const usedOf = (k) => rows.filter((r) => r.kind === k && r.used).map((r) => r.name).join();
+  check('E2E-H.2', 'an SSH report: the Baseline tile and action, the sshd_config lines and requirements, per-algorithm baseline marks, the post-quantum glyph and the in-use rows, every check, an ssh CBOM; no score and no TLS words',
     /Baseline/.test(tabs.summary) && /2 changes/.test(tabs.summary) && /Meet CipherHorizon SSH baseline 2026/.test(tabs.summary) && /\d+ things? to fix/.test(tabs.summary) &&
     /Make this server meet the baseline/.test(tabs.configuration) && /MACs hmac-sha2-256-etm@openssh\.com/.test(tabs.configuration) &&
-    /What the baseline requires/.test(tabs.configuration) && /Should be off/.test(tabs.configuration) && /Allowed\s*· post-quantum/.test(tabs.configuration) &&
-    /used by OpenSSH 10\.6/.test(tabs.configuration) && /checks run/.test(tabs.weaknesses) && /SSH-2\.0/.test(tabs.cbom) && noTLS && noScore,
-    JSON.stringify({ summary: tabs.summary.slice(0, 220), noTLS, noScore }));
+    /What the baseline requires/.test(tabs.configuration) && rows.some((r) => /should be off/.test(r.mark)) &&
+    !!hybrid && /allowed/.test(hybrid.mark) && hybrid.safe && hybrid.used &&
+    usedOf('kex') === neg.kex && usedOf('host-key') === neg.hostKey && usedOf('cipher') === neg.cipher && usedOf('mac') === (neg.mac || '') &&
+    /checks run/.test(tabs.weaknesses) && /SSH-2\.0/.test(tabs.cbom) && noTLS && noScore,
+    JSON.stringify({ summary: tabs.summary.slice(0, 220), hybrid, used: ['kex', 'host-key', 'cipher', 'mac'].map(usedOf), neg, noTLS, noScore }));
 
   await go(`#/ssh/${by[9467].id}?tab=configuration`);
   await sleep(1200);
