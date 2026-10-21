@@ -405,6 +405,7 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-VIS-10 | P2 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-6 | done | the rest of the SSH report keeps its PRD-008 layout |
 | REQ-VIS-11 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-7, script:testing/e2e/x509-phase.mjs#E2E-XV-5 | done | contrast measured on instrument text, light and dark |
 | REQ-VIS-12 | P0 | — | UX-DESIGN-011 | — | report:docs/product/CRYPTO-REVIEW-001-visual-rebuild.md, report:docs/program/QA-REPORT-012.md | done |  |
+| REQ-VIS-13 | P1 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-FOLD | done | owner request after PR #23 opened |
 
 ## Security requirements (SECARCH-001) coverage
 

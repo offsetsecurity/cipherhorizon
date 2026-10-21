@@ -103,17 +103,28 @@ function protocolsSection(ctx, tone) {
       .slice().sort((a, b) => (a.rank || 99) - (b.rank || 99));
     const fs = suites.filter((s) => s.version === 'TLSv1.3' || s.ephemeral).length;
     const bad = legacyVersion(v);
-    const head = h('div', { class: `ver-head-row${bad ? ' is-bad' : ''}` },
+    // The words of this version's suites, worst first, for its one-line verdict when folded.
+    const words = suites.map((x) => (((ev.suiteStrength || []).find((r) => r.version === x.version && r.id === x.id)) || {}).word || '');
+    const order = ['insecure', 'weak', 'acceptable', 'strong', ''];
+    const tally = order.map((w) => [w, words.filter((x) => x === w).length]).filter(([, c]) => c);
+    // Open when it needs a look: an old version that is on, or any suite below Strong; folded when
+    // every suite is Strong, so the page shows first what there is to do (owner request, PRD-013).
+    const needsLook = bad || words.some((w) => w !== 'strong') || on.length === 1;
+    const verdict = h('span', { class: 'ver-verdict' }, tally.length === 1 && tally[0][0] === 'strong' ? [strengthChip('strong'), ` all ${suites.length}`]
+      : tally.map(([w, c]) => h('span', { class: 'ver-tally' }, strengthChip(w), ` ${c}`)));
+    const head = h('summary', { class: `ver-head-row${bad ? ' is-bad' : ''}`, title: 'Show or hide this version’s suites' },
+      h('span', { class: 'ver-chev', 'aria-hidden': 'true' }),
       h('span', { class: 'ver-title' }, h('span', { class: `vglyph ${bad ? 'vg-bad' : 'vg-good'}`, 'aria-hidden': 'true' }, bad ? '✕' : '✓'),
         h('b', { class: 'ver-name' }, versionLabel(v)), bad ? h('span', { class: 'ver-bad' }, 'On · should be off') : null),
       h('span', { class: 'ver-meta' }, [plural(suites.length, 'suite'), ORDER_WORD[pref(v)] || null,
         suites.length ? (fs === suites.length ? 'forward secrecy on all' : `forward secrecy on ${fs} of ${suites.length}`) : null].filter(Boolean).join(' · ')),
-      groups.length ? h('span', { class: 'ver-groups' }, h('span', { class: 'muted' }, 'Groups'), groups.map((g) => groupChip(ev, g))) : null);
+      groups.length ? h('span', { class: 'ver-groups' }, h('span', { class: 'muted' }, 'Groups'), groups.map((g) => groupChip(ev, g))) : null,
+      suites.length ? verdict : null);
     const table = suites.length ? h('div', { class: 'tablewrap ver-body' }, h('table', { class: 'suites' },
       h('thead', null, h('tr', null, h('th', { scope: 'col', class: 'num' }, '#'), h('th', { scope: 'col' }, 'Cipher suite'),
         PART_COLUMNS.map(([, w]) => h('th', { scope: 'col', class: 'pcol' }, w)), h('th', { scope: 'col' }, 'Strength'))),
       h('tbody', null, suites.map((s) => suiteRow(ev, s, rep))))) : h('p', { class: 'muted' }, 'No cipher suites were recorded for this version.');
-    return h('div', { class: `ver-block${bad ? ' is-bad' : ''}`, id: `ver-${v}` }, head, table);
+    return h('details', { class: `ver-block${bad ? ' is-bad' : ''}`, id: `ver-${v}`, open: needsLook }, head, table);
   });
 
   const offLine = (off.length || unknown.length) ? h('div', { class: 'ver-off' },
@@ -123,8 +134,15 @@ function protocolsSection(ctx, tone) {
         v === 'TLSv1.3' || (v === 'TLSv1.2' && !modernOn) ? h('span', { class: 'vchip-why' }, 'should be on') : null))] : null,
     unknown.map((v) => h('span', { class: 'vchip vchip-warn' }, h('span', { 'aria-hidden': 'true' }, '?'), versionLabel(v), h('span', { class: 'vchip-why' }, 'not determined')))) : null;
 
+  const toggle = blocks.length > 1 ? h('button', { type: 'button', class: 'btn btn-secondary btn-sm ver-toggle', onclick: (e) => {
+    const all = [...e.currentTarget.closest('section').querySelectorAll('details.ver-block')];
+    const open = !all.every((d) => d.open);
+    for (const d of all) d.open = open;
+  } }, blocks.length && blocks.every((b) => b.open) ? 'Hide every version' : 'Show every version') : null;
+  // The button says what it will do, whichever way a version was last opened or closed.
+  if (toggle) for (const b of blocks) b.addEventListener('toggle', () => { toggle.textContent = blocks.every((x) => x.open) ? 'Hide every version' : 'Show every version'; });
   return section('sec-protocols', 'Protocols and cipher suites', tone,
-    h('span', { class: 'cfg-aside' }, 'Suites in the server’s order. A suite is as strong as its weakest part, ringed. ', h('a', { href: '#/help?topic=strength' }, 'How strength is worked out')),
+    h('span', { class: 'cfg-aside' }, 'Suites in the server’s order. A suite is as strong as its weakest part, ringed. ', h('a', { href: '#/help?topic=strength' }, 'How strength is worked out'), toggle ? ' ' : null, toggle),
     h('span', { id: 'sec-suites' }), banner, blocks, offLine);
 }
 

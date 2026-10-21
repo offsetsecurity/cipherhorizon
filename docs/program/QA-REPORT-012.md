@@ -11,12 +11,12 @@ Requirements: [PRD-013](../product/PRD-013-visual-rebuild.md), [RTM](RTM.md) §P
 | Gate | Command | Result |
 |---|---|---|
 | Unit and integration | `go test ./...` | pass |
-| Traceability | `TestRequirementsTraceability` | 12 new rows (REQ-VIS-1 to 12), all done, each with evidence |
+| Traceability | `TestRequirementsTraceability` | 13 new rows (REQ-VIS-1 to 13), all done, each with evidence |
 | Instruments | `TestInstrumentsAreSharedAndLabelled` | every instrument exported from `viz.js` with a text alternative; the five rebuilt views draw with it and keep no screen-local drawing |
 | Copy rules | `TestUICopyRules` | pass (three en-dash glyphs in `viz.js` replaced by `·`) |
 | Lint | `golangci-lint run ./...`, and with `GOOS=linux` | 0 issues, 0 issues |
 | UI scripts parse | `node --check` on every module | all parse |
-| Browser journey | `testing/e2e/journey.mjs`, the CI setup (fresh database, fresh demo targets) | **234 passed, 0 failed** |
+| Browser journey | `testing/e2e/journey.mjs`, the CI setup (fresh database, fresh demo targets) | **235 passed, 0 failed** (with E2E-VIS-FOLD) |
 | Screen walk | below | done, 14 defects found and fixed |
 | Cryptography | CRYPTO-REVIEW-001 | signed off, 6 defects fixed, 3 notes kept |
 
@@ -37,6 +37,11 @@ Requirements: [PRD-013](../product/PRD-013-visual-rebuild.md), [RTM](RTM.md) §P
 - **E2E-VIS-7** Summary, Configuration, the Inventory and the certificate page at 1440, 1100, 860 and 375 px: no
   sideways scroll, every control reachable by Tab; instrument text at 4.5:1 or better in light and dark. (Checked by
   hand that the contrast check measures: 166 text elements on one Configuration, lowest 4.71:1.)
+
+- **E2E-VIS-FOLD** (REQ-VIS-13, the owner's request after the PR opened) On the hybrid target, a TLS version is open
+  only when it needs a look (an old version on, a suite below Strong, or the only version); a folded one says
+  *Strong · all N*; the button shows or hides every version and its label follows the versions as they are
+  opened by hand (the first build kept a stale label: fixed).
 
 ## Checks rewritten for the new structure, and why each is not a weakening
 
@@ -104,6 +109,6 @@ a certificate page, the Inventory, and an SSH report: by eye at 1440, 1100 (ligh
 - **QA:** all gates above pass on this build. Signed off.
 - **Design:** the walk's defects 1 to 8 are fixed and re-shot at every width. Signed off.
 - **Cryptography:** CRYPTO-REVIEW-001. Signed off.
-- **PM:** PRD-013 REQ-VIS-1 to 12 are met, the owner's three comments on the concept are answered (versions and
+- **PM:** PRD-013 REQ-VIS-1 to 13 are met (13: versions fold, so a reviewer sees first what needs a look), the owner's three comments on the concept are answered (versions and
   suites first, in suite order with each suite's information; certificates present; one place to check the
   configuration). Signed off for merge. **Not released:** a release needs the owner's go-ahead.

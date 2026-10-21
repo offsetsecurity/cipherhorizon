@@ -60,7 +60,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - **Configuration** is one place to check the whole setup, in a reviewer's order: protocols and cipher suites
     (what a current client gets, then each version with its groups and its suites in the server's order), the
     certificate chain (each card opens its certificate; a missing issuer is drawn), key exchange and signatures,
-    revocation, protocol features, and every algorithm by class. A row of chips at the top jumps to each part, and
+    revocation, protocol features, and every algorithm by class. Each version folds to one line when all its
+    suites are Strong, and opens when it needs a look. A row of chips at the top jumps to each part, and
     each part ends with the issues found in it. HSTS shows the header as sent.
   - **Inventory:** algorithms *By class* and *By classical strength* (`?strength=`: broken, below-112, 112, 128,
     192, 256, not-rated), each bar opening its list; the list is weakest first, with a bits bar.
