@@ -239,3 +239,37 @@ func encode17(t *testing.T, assets []collector.CryptoAsset) string {
 	schematest.Validate(t, buf.Bytes())
 	return buf.String()
 }
+
+// PRD-010 REQ-STR-8: every algorithm with a NIST-derived strength carries it as
+// classicalSecurityLevel, in 1.6 and 1.7 alike; a broken one carries none.
+func TestCBOMCarriesClassicalSecurityLevel(t *testing.T) {
+	assets := tlscbom.FromTLSReport(sampleReport())
+	assets = append(assets, tlscbom.FromTLSReport(legacyReport())...)
+	bom := build(t, assets)
+	want := map[string]int{"AES-128-GCM": 128, "X25519": 128, "RSA-2048": 112, "ChaCha20-Poly1305": 256, "ECDH-P256": 128,
+		"X25519MLKEM768": 192, "3DES": 112, "sha256WithRSAEncryption": 128}
+	none := map[string]bool{"RC4": true, "DES": true, "RSA": true}
+	for _, c := range *bom.Components {
+		if c.CryptoProperties == nil || c.CryptoProperties.AlgorithmProperties == nil {
+			continue
+		}
+		lvl := c.CryptoProperties.AlgorithmProperties.ClassicalSecurityLevel
+		if w, ok := want[c.Name]; ok && (lvl == nil || *lvl != w) {
+			t.Errorf("%s: classicalSecurityLevel %v, want %d", c.Name, lvl, w)
+		}
+		if none[c.Name] && lvl != nil {
+			t.Errorf("%s: classicalSecurityLevel %d, want none (broken or size unknown)", c.Name, *lvl)
+		}
+		delete(want, c.Name)
+	}
+	if len(want) > 0 {
+		t.Errorf("components missing from the test document: %v", want)
+	}
+	for _, spec := range []string{cbom.Spec16, cbom.Spec17} {
+		var buf bytes.Buffer
+		if err := cbom.EncodeSpec(&buf, bom, spec, true); err != nil {
+			t.Fatal(err)
+		}
+		schematest.Validate(t, buf.Bytes())
+	}
+}

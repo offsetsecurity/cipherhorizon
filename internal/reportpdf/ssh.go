@@ -237,10 +237,16 @@ func (x *endpoint) algoTable(kind string, names []string, used string) {
 		if n == used {
 			what += "  (used by " + sshprobe.CurrentClient + ")"
 		}
-		rows = append(rows, []pdf.Cell{monoCell(n), chipCell(word, t), txt(what, pdf.Regular, text2)})
+		strength := "-"
+		for _, ea := range x.ev.SSHAlgorithms {
+			if ea.Kind == kind && ea.Name == n && ea.Strength != nil {
+				strength = ea.Strength.Words()
+			}
+		}
+		rows = append(rows, []pdf.Cell{monoCell(n), chipCell(word, t), txt(strength, pdf.Regular, ink), txt(what, pdf.Regular, text2)})
 	}
 	if len(rows) > 0 {
-		x.table([]pdf.Col{{Title: "Name", W: 2.5}, {Title: "Status", W: 1.9}, {Title: "What it is", W: 2.4}}, rows)
+		x.table([]pdf.Col{{Title: "Name", W: 2.3}, {Title: "Status", W: 1.7}, {Title: "Classical strength", W: 1.2}, {Title: "What it is", W: 2.1}}, rows)
 	}
 }
 

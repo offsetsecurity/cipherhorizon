@@ -1,6 +1,7 @@
 package reportpdf
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -28,8 +29,8 @@ func legacyServer() *tlsprobe.Report {
 			{Version: "SSLv3", Supported: true, Evidence: "server-hello"},
 		},
 		Suites: []tlsprobe.SuiteResult{
-			{Version: "TLSv1.2", Name: "TLS_RSA_WITH_RC4_128_SHA", Cipher: "RC4", KeyBits: 128, Mode: "STREAM", Kx: "RSA", IANARecommended: "D", Rank: 1},
-			{Version: "TLSv1.2", Name: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", Cipher: "AES", KeyBits: 128, Mode: "GCM", Kx: "ECDHE", Ephemeral: true, AEAD: true, IANARecommended: "Y", Rank: 2},
+			{Version: "TLSv1.2", ID: 0x0005, Auth: "RSA", MAC: "SHA1", Name: "TLS_RSA_WITH_RC4_128_SHA", Cipher: "RC4", KeyBits: 128, Mode: "STREAM", Kx: "RSA", IANARecommended: "D", Rank: 1},
+			{Version: "TLSv1.2", ID: 0xC02F, Auth: "RSA", MAC: "AEAD", Name: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", Cipher: "AES", KeyBits: 128, Mode: "GCM", Kx: "ECDHE", Ephemeral: true, AEAD: true, IANARecommended: "Y", Rank: 2},
 		},
 		Groups:   []tlsprobe.GroupResult{{Version: "TLSv1.2", Name: "secp256r1", IANARecommended: "Y", Rank: 1}},
 		Features: tlsprobe.Features{SecureRenegotiation: &yes, Compression: &no, FallbackSCSV: &no},
@@ -166,5 +167,35 @@ func TestPDFCarriesTheLockup(t *testing.T) {
 		if !strings.Contains(info.Text, want) {
 			t.Errorf("the cover lacks %q", want)
 		}
+	}
+}
+
+// PRD-010 REQ-STR-4: the PDF shows each suite's strength exactly as the evaluation (and so the API
+// and the web report) states it, and each group's strength.
+func TestPDFAndEvaluationAgreeOnStrength(t *testing.T) {
+	info := render(t, KindFull)
+	ev := eval.Evaluate(legacyServer(), now)
+	if len(ev.SuiteStrength) != 2 {
+		t.Fatalf("suiteStrength: %+v", ev.SuiteStrength)
+	}
+	for _, s := range ev.SuiteStrength {
+		want := s.Word
+		if s.Bits > 0 {
+			want = fmt.Sprintf("%s, %d bits (%s)", s.Word, s.Bits, s.Weakest)
+		}
+		if !strings.Contains(strings.Join(strings.Fields(info.Text), ""), strings.Join(strings.Fields(want), "")) {
+			t.Errorf("the PDF lacks %s's strength %q", s.Name, want)
+		}
+	}
+	// RC4 is insecure; the GCM suite is held down by the 1024-bit RSA certificate key (80 bits).
+	got := map[string]string{}
+	for _, s := range ev.SuiteStrength {
+		got[s.Name] = s.Word
+	}
+	if got["TLS_RSA_WITH_RC4_128_SHA"] != eval.StrengthInsecure || got["TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"] != eval.StrengthWeak {
+		t.Errorf("words: %v", got)
+	}
+	if !strings.Contains(strings.ToLower(info.Text), "classical strength") || !strings.Contains(info.Text, "secp256r1 128 bits") {
+		t.Error("the PDF's group table lacks the classical strength")
 	}
 }

@@ -60,21 +60,40 @@ func FFCStrength(bits int) int { return min(RoundToEight(GNFSEstimate(bits)), Ma
 // MaxStrength is the largest security strength NIST assigns (SP 800-57 Part 1 Table 2).
 const MaxStrength = 256
 
+// eccLevels are the security strengths SP 800-186 Table 1 assigns to elliptic curves.
+var eccLevels = []int{80, 112, 128, 192, 224, 256}
+
 // ECCStrength is the classical security strength of elliptic-curve cryptography whose base point
-// has an order of orderBits bits: half the bit length (SP 800-186 section 3), rounded to a multiple
-// of eight like the other estimates, and at most 256 (SP 800-57 Part 1 Table 2, "f = 512+").
-// Curve25519's order is 253 bits (126.5 → 128) and Curve448's 446 bits (223 → 224), as SP 800-186
-// Table 1 lists them; P-521's 521 bits (260.5) is held to 256.
+// has an order of orderBits bits: about half the bit length (SP 800-186 section 3; the work of
+// Pollard's rho), taken to the nearest of the strengths SP 800-186 Table 1 assigns. That reproduces
+// every row of the table: P-224 (224 → 112), K-233 (232 → 116 → 112), P-256 (128), Curve25519
+// (253 → 126.5 → 128), K-283 (281 → 140.5 → 128), P-384 (192), K-409 (407 → 203.5 → 192),
+// Curve448 (446 → 223 → 224), P-521 (521 → 260.5 → 256), K-571 (570 → 285 → 256). Rounding to a
+// multiple of eight, as for RSA, would not: K-233 would read 120.
 func ECCStrength(orderBits int) int {
-	return min(RoundToEight(float64(orderBits)/2), MaxStrength)
+	if orderBits <= 0 {
+		return 0
+	}
+	half := float64(orderBits) / 2
+	best := eccLevels[0]
+	for _, l := range eccLevels {
+		if math.Abs(half-float64(l)) < math.Abs(half-float64(best)) {
+			best = l
+		}
+	}
+	return best
 }
 
 // curveOrderBits are the bit lengths of the base-point orders of the curves this program names,
-// from their defining documents (SP 800-186 for the NIST and Edwards curves, RFC 7748 for
-// Curve25519 and Curve448: order 2^252 + … and 2^446 − …).
+// from their defining documents: SP 800-186 for the NIST, binary and Edwards curves; RFC 7748 for
+// Curve25519 and Curve448 (orders 2^252 + … and 2^446 − …); RFC 5639 for the Brainpool curves.
 var curveOrderBits = map[string]int{
 	"secp224r1": 224, "secp256r1": 256, "secp384r1": 384, "secp521r1": 521,
 	"Curve25519": 253, "Ed25519": 253, "Curve448": 446, "Ed448": 446,
+	"sect233k1": 232, "sect233r1": 233, "sect283k1": 281, "sect283r1": 282, "sect409k1": 407, "sect409r1": 409,
+	"sect571k1": 570, "sect571r1": 570,
+	"brainpoolP256r1": 256, "brainpoolP384r1": 384, "brainpoolP512r1": 512,
+	"brainpoolP256r1tls13": 256, "brainpoolP384r1tls13": 384, "brainpoolP512r1tls13": 512,
 }
 
 // CurveStrength is ECCStrength for a named curve; false when the curve is not one listed above.

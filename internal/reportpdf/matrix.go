@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/pdf"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
@@ -17,17 +18,25 @@ func versionLabel(v string) string {
 	return strings.NewReplacer("TLSv", "TLS ", "SSLv", "SSL ").Replace(v)
 }
 
-// suiteStrength matches the web report's four words.
-func suiteStrength(s tlsprobe.SuiteResult) string {
-	switch {
-	case s.Cipher == "NULL" || s.Export || s.Anon || s.Cipher == "RC4":
-		return "insecure"
-	case s.BlockBits == 64 || (s.Kx != "" && !s.Ephemeral && (s.Kx == "RSA" || s.Kx == "DH" || s.Kx == "ECDH")):
-		return "weak"
-	case !s.AEAD && s.Version != "TLSv1.3":
-		return "acceptable"
+// suiteRating is a suite's classical strength from the evaluation (PRD-010), the same the web
+// report and the API show; "not rated" for a result evaluated before eval/9.
+func (x *endpoint) suiteRating(s tlsprobe.SuiteResult) eval.SuiteStrength {
+	for _, r := range x.ev.SuiteStrength {
+		if r.Version == s.Version && r.ID == s.ID {
+			return r
+		}
 	}
-	return "strong"
+	return eval.SuiteStrength{Word: "not rated"}
+}
+
+// keyBits is the strength of a group or a certificate key in words, from the evaluation.
+func (x *endpoint) keyBits(kind, name string) string {
+	for _, k := range x.ev.KeyStrength {
+		if k.Kind == kind && k.Name == name {
+			return k.Strength.Words()
+		}
+	}
+	return "-"
 }
 
 // matrix draws one row per protocol version: accepted or not, and what the version ran.
@@ -57,7 +66,7 @@ func (x *endpoint) matrix() {
 				continue
 			}
 			n++
-			counts[suiteStrength(s)]++
+			counts[x.suiteRating(s).Word]++
 			if s.Version == "TLSv1.3" || s.Ephemeral {
 				fs++
 			}

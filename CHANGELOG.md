@@ -10,6 +10,45 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Classical strength for every detected algorithm** ([PRD-010](docs/product/PRD-010-classical-strength.md),
+  [ENH-001](docs/product/ENH-001-cipher-strength.md)). Strengths are computed with NIST's own methods, and the tests
+  reproduce NIST's published tables:
+  - RSA and finite-field DH by the General Number Field Sieve estimate (FIPS 140-3 IG D.B, SP 800-56B Rev. 2
+    Appendix D);
+  - elliptic curves at half the order (SP 800-186);
+  - ciphers and hashes by SP 800-57 Part 1 Tables 2 and 3;
+  - post-quantum algorithms by their NIST category.
+
+  Where it shows:
+  - **TLS report and PDF:** each cipher suite's word now comes from the server and is as strong as its weakest
+    part (cipher, key exchange, certificate key, MAC), with its bits and that part named. Groups and certificate
+    keys show their bits.
+  - **API:** the evaluation (`eval/9`) carries `suiteStrength` and `keyStrength`; stored scans are re-evaluated
+    on start.
+  - **CLI:** `tls scan --details` prints each suite's and group's strength.
+  - **Inventory:** a *Classical strength* column, and `classicalStrength` on every algorithm and key row of
+    `/api/v1/inventory`.
+  - **SSH reports** (page and PDF): a strength for every key exchange, host key (by the presented key's size),
+    cipher and MAC.
+  - **CBOM:** `classicalSecurityLevel` on every algorithm with a strength (1.6 and 1.7).
+
+### Changed
+
+- **Suite strength words follow the weakest-part rule**, so some suites read differently:
+  - a suite authenticated by an RSA-2048 certificate (112 bits) is now *Acceptable*, not *Strong*;
+  - a suite with a 1024-bit DH prime is *Weak*.
+
+  The words are defined in docs/methodology.md and explained in Help.
+
+### Fixed
+
+- **Single-DES suites (56-bit key) are Insecure, not Weak** (#18).
+- **A running scan's connection count could go backwards.** Concurrent probes reported counts out of order, and
+  progress writes could land out of order. The count now only moves forward, and writes are serialised. This was
+  found by a CI run of the workflow test.
+
 ## [0.3.0] - 2026-10-17
 
 ### Changed

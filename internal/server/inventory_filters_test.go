@@ -55,3 +55,46 @@ func TestInventoryFiltersByQuantumAndPurpose(t *testing.T) {
 		}
 	}
 }
+
+// PRD-010 REQ-STR-6: inventory rows carry their classical strength: bits with a source, or a
+// cited broken status; a key takes the strength of its algorithm at its size.
+func TestInventoryRowsCarryClassicalStrength(t *testing.T) {
+	e := newEnv(t)
+	if sc := e.scanAndWait(e.addAsset(hybridServer(t).Addr).ID); sc.Status != "done" {
+		t.Fatalf("scan %+v", sc)
+	}
+	type row struct {
+		Name     string `json:"name"`
+		Strength *struct {
+			Bits   int    `json:"bits"`
+			Status string `json:"status"`
+			Basis  string `json:"basis"`
+		} `json:"classicalStrength"`
+	}
+	var out struct {
+		Rows []row `json:"rows"`
+	}
+	for _, kind := range []string{"algorithm", "key"} {
+		if s := e.call("GET", "/api/v1/inventory?kind="+kind, nil, &out); s != 200 {
+			t.Fatalf("%s: %d", kind, s)
+		}
+		if len(out.Rows) == 0 {
+			t.Fatalf("no %s rows", kind)
+		}
+		for _, r := range out.Rows {
+			if r.Strength == nil || r.Strength.Status == "" || r.Strength.Basis == "" {
+				t.Errorf("%s %s has no classical strength", kind, r.Name)
+			}
+		}
+	}
+	e.call("GET", "/api/v1/inventory?kind=algorithm", nil, &out)
+	got := map[string]int{}
+	for _, r := range out.Rows {
+		got[r.Name] = r.Strength.Bits
+	}
+	for name, want := range map[string]int{"X25519": 128, "X25519MLKEM768": 192, "AES-128-GCM": 128} {
+		if got[name] != want {
+			t.Errorf("%s: %d bits, want %d (rows: %v)", name, got[name], want, got)
+		}
+	}
+}

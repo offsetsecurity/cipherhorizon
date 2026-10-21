@@ -13,6 +13,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
+	"github.com/offsetsecurity/cipherhorizon/internal/algo"
 	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
@@ -49,6 +50,9 @@ type inventoryRow struct {
 	Places  []sourceLabel `json:"places"`
 	Refs    []string      `json:"refs"`               // bom-refs merged into this row
 	Seen    *time.Time    `json:"lastSeen,omitempty"` // when the most recent of its places last reported
+	// Strength is the classical security strength (PRD-010 REQ-STR-6): bits from NIST's methods, or a
+	// cited broken status, or why it is not rated. Algorithms and keys only.
+	Strength *algo.Strength `json:"classicalStrength,omitempty"`
 }
 
 func property(c cdx.Component, name string) string {
@@ -121,12 +125,15 @@ func inventoryRows(inv *mergedInventory, tab string) []inventoryRow {
 		q := "not-applicable"
 		key := string(assetType(c)) + "\x00" + c.Name
 		detail := detailOf(c)
+		var strength *algo.Strength
 		switch assetType(c) {
 		case cdx.CryptoAssetTypeAlgorithm:
 			q = "unknown"
 			if st := status[c.BOMRef]; st != "" {
 				q = st
 			}
+			st := algo.StrengthOf(c.Name)
+			strength = &st
 		case cdx.CryptoAssetTypeRelatedCryptoMaterial:
 			// A key takes the status of its algorithm. Keys are named by their certificate's
 			// subject, and two certificates may share a subject while holding different keys (an
@@ -143,13 +150,16 @@ func inventoryRows(inv *mergedInventory, tab string) []inventoryRow {
 			if len(algs) > 0 {
 				key += "\x00" + strings.Join(algs, "+")
 				detail = strings.TrimPrefix(detail+" · "+strings.Join(algs, " + "), " · ")
+				// A key is as strong as its algorithm at its size (RSA-2048, ECDSA-P256).
+				st := algo.StrengthOf(algs[0])
+				strength = &st
 			}
 		}
 		i, ok := byName[key]
 		if !ok {
 			i = len(out)
 			byName[key] = i
-			out = append(out, inventoryRow{Name: c.Name, Kind: tab, Detail: detail, Quantum: q, Places: []sourceLabel{}})
+			out = append(out, inventoryRow{Name: c.Name, Kind: tab, Detail: detail, Quantum: q, Places: []sourceLabel{}, Strength: strength})
 		}
 		row := &out[i]
 		row.Refs = append(row.Refs, c.BOMRef)

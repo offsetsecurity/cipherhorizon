@@ -1095,11 +1095,20 @@ func (x *endpoint) suites() sectionContent {
 			if s.Rank > 0 {
 				rank = fmt.Sprint(s.Rank)
 			}
+			sr := x.suiteRating(s)
+			strength := sr.Word
+			if sr.Bits > 0 {
+				strength = fmt.Sprintf("%s, %d bits (%s)", sr.Word, sr.Bits, sr.Weakest)
+			}
+			st := ink
+			if sr.Word == eval.StrengthWeak || sr.Word == eval.StrengthInsecure {
+				st = toneBad.fg
+			}
 			rows = append(rows, []pdf.Cell{txt(s.Version, pdf.Regular, text2), txt(rank, pdf.Regular, text2), monoCell(s.Name), txt(cipher, pdf.Regular, ink),
-				txt(kx, pdf.Regular, ink), txt(strings.Join(flags, ", "), pdf.Bold, fc), txt(iana, pdf.Bold, it.fg)})
+				txt(kx, pdf.Regular, ink), txt(strength, pdf.Regular, st), txt(strings.Join(flags, ", "), pdf.Bold, fc), txt(iana, pdf.Bold, it.fg)})
 		}
-		x.table([]pdf.Col{{Title: "Version", W: 0.85}, {Title: "#", W: 0.3}, {Title: "Suite", W: 3.1}, {Title: "Cipher", W: 1.3}, {Title: "Key exchange", W: 0.9},
-			{Title: "Flags", W: 1.3}, {Title: "IANA", W: 1}}, rows)
+		x.table([]pdf.Col{{Title: "Version", W: 0.7}, {Title: "#", W: 0.25}, {Title: "Suite", W: 2.6}, {Title: "Cipher", W: 1.1}, {Title: "Key exchange", W: 0.8},
+			{Title: "Strength", W: 1.5}, {Title: "Flags", W: 1.1}, {Title: "IANA", W: 0.85}}, rows)
 	}}
 }
 
@@ -1175,9 +1184,9 @@ func (x *endpoint) keyExchange() sectionContent {
 					rank = fmt.Sprint(g.Rank)
 				}
 				iana := map[string]string{"Y": "Recommended", "N": "Not recommended", "D": "Discouraged"}[g.IANARecommended]
-				gr = append(gr, []pdf.Cell{txt(g.Version, pdf.Regular, text2), txt(rank, pdf.Regular, text2), monoCell(g.Name), pqc, txt(iana, pdf.Regular, text2)})
+				gr = append(gr, []pdf.Cell{txt(g.Version, pdf.Regular, text2), txt(rank, pdf.Regular, text2), monoCell(g.Name), txt(x.keyBits("group", g.Name), pdf.Regular, ink), pqc, txt(iana, pdf.Regular, text2)})
 			}
-			x.table([]pdf.Col{{Title: "Version", W: 0.9}, {Title: "#", W: 0.35}, {Title: "Group", W: 2.4}, {Title: "Post-quantum", W: 1.9}, {Title: "IANA", W: 1.2}}, gr)
+			x.table([]pdf.Col{{Title: "Version", W: 0.8}, {Title: "#", W: 0.3}, {Title: "Group", W: 2.1}, {Title: "Classical strength", W: 1.3}, {Title: "Post-quantum", W: 1.7}, {Title: "IANA", W: 1}}, gr)
 		}
 		x.signatureSchemes()
 		if len(r.Citations) > 0 {

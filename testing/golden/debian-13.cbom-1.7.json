@@ -293,6 +293,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "ML-DSA",
+          "classicalSecurityLevel": 128,
           "nistQuantumSecurityLevel": 2
         },
         "oid": "2.16.840.1.101.3.4.3.17"
@@ -329,6 +330,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "ML-DSA",
+          "classicalSecurityLevel": 192,
           "nistQuantumSecurityLevel": 3
         },
         "oid": "2.16.840.1.101.3.4.3.18"
@@ -365,6 +367,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "ML-DSA",
+          "classicalSecurityLevel": 256,
           "nistQuantumSecurityLevel": 5
         },
         "oid": "2.16.840.1.101.3.4.3.19"
@@ -401,6 +404,7 @@
         "algorithmProperties": {
           "primitive": "kem",
           "algorithmFamily": "ML-KEM",
+          "classicalSecurityLevel": 256,
           "nistQuantumSecurityLevel": 5
         },
         "oid": "2.16.840.1.101.3.4.4.3"
@@ -437,6 +441,7 @@
         "algorithmProperties": {
           "primitive": "kem",
           "algorithmFamily": "ML-KEM",
+          "classicalSecurityLevel": 128,
           "nistQuantumSecurityLevel": 1
         },
         "oid": "2.16.840.1.101.3.4.4.1"
@@ -473,6 +478,7 @@
         "algorithmProperties": {
           "primitive": "kem",
           "algorithmFamily": "ML-KEM",
+          "classicalSecurityLevel": 192,
           "nistQuantumSecurityLevel": 3
         },
         "oid": "2.16.840.1.101.3.4.4.2"
@@ -550,7 +556,8 @@
         "assetType": "algorithm",
         "algorithmProperties": {
           "primitive": "hash",
-          "algorithmFamily": "SHA-2"
+          "algorithmFamily": "SHA-2",
+          "classicalSecurityLevel": 128
         },
         "oid": "2.16.840.1.101.3.4.2.1"
       }
@@ -589,7 +596,8 @@
         "assetType": "algorithm",
         "algorithmProperties": {
           "primitive": "hash",
-          "algorithmFamily": "SHA-2"
+          "algorithmFamily": "SHA-2",
+          "classicalSecurityLevel": 192
         },
         "oid": "2.16.840.1.101.3.4.2.2"
       }
@@ -628,7 +636,8 @@
         "assetType": "algorithm",
         "algorithmProperties": {
           "primitive": "hash",
-          "algorithmFamily": "SHA-2"
+          "algorithmFamily": "SHA-2",
+          "classicalSecurityLevel": 256
         },
         "oid": "2.16.840.1.101.3.4.2.3"
       }
@@ -664,6 +673,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 128,
           "nistQuantumSecurityLevel": 1
         },
         "oid": "2.16.840.1.101.3.4.3.21"
@@ -700,6 +710,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 128,
           "nistQuantumSecurityLevel": 1
         },
         "oid": "2.16.840.1.101.3.4.3.20"
@@ -736,6 +747,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 192,
           "nistQuantumSecurityLevel": 3
         },
         "oid": "2.16.840.1.101.3.4.3.23"
@@ -772,6 +784,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 192,
           "nistQuantumSecurityLevel": 3
         },
         "oid": "2.16.840.1.101.3.4.3.22"
@@ -808,6 +821,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 256,
           "nistQuantumSecurityLevel": 5
         },
         "oid": "2.16.840.1.101.3.4.3.25"
@@ -844,6 +858,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 256,
           "nistQuantumSecurityLevel": 5
         },
         "oid": "2.16.840.1.101.3.4.3.24"
@@ -880,6 +895,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 128,
           "nistQuantumSecurityLevel": 1
         },
         "oid": "2.16.840.1.101.3.4.3.27"
@@ -916,6 +932,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 128,
           "nistQuantumSecurityLevel": 1
         },
         "oid": "2.16.840.1.101.3.4.3.26"
@@ -952,6 +969,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 192,
           "nistQuantumSecurityLevel": 3
         },
         "oid": "2.16.840.1.101.3.4.3.29"
@@ -988,6 +1006,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 192,
           "nistQuantumSecurityLevel": 3
         },
         "oid": "2.16.840.1.101.3.4.3.28"
@@ -1024,6 +1043,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 256,
           "nistQuantumSecurityLevel": 5
         },
         "oid": "2.16.840.1.101.3.4.3.31"
@@ -1060,6 +1080,7 @@
         "algorithmProperties": {
           "primitive": "signature",
           "algorithmFamily": "SLH-DSA",
+          "classicalSecurityLevel": 256,
           "nistQuantumSecurityLevel": 5
         },
         "oid": "2.16.840.1.101.3.4.3.30"
