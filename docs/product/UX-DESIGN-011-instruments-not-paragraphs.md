@@ -131,7 +131,8 @@ Top to bottom:
 
 ### 3.5 SSH report
 
-The algorithm tables use `bitsBar` and `pqGlyph` in place of the words column. No other change.
+The algorithm tables use `bitsBar` and `pqGlyph` in place of the words column. Superseded by
+[UX-DESIGN-012](UX-DESIGN-012-ssh-instruments.md) (PRD-014), which rebuilds the whole SSH report.
 
 ## 4. Responsive and accessible
 

@@ -27,6 +27,7 @@ var prdPaths = []string{
 	"../../docs/product/PRD-011-algorithm-classes-and-flow.md",
 	"../../docs/product/PRD-012-certificate-viewer.md",
 	"../../docs/product/PRD-013-visual-rebuild.md",
+	"../../docs/product/PRD-014-ssh-instruments.md",
 }
 
 const (
