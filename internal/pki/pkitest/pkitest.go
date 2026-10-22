@@ -93,6 +93,36 @@ func (ca *CA) Intermediate(t testing.TB, name string, o CAOpts) *CA {
 	return &CA{Cert: create(t, caTemplate(name, o), ca.Cert, &k.PublicKey, ca.Key), Key: k}
 }
 
+// IntermediateWithKey issues a subordinate CA for a key the test chose, for
+// example a deliberately weak one from SmallScalarKey.
+func (ca *CA) IntermediateWithKey(t testing.TB, name string, o CAOpts, k *ecdsa.PrivateKey) *CA {
+	t.Helper()
+	return &CA{Cert: create(t, caTemplate(name, o), ca.Cert, &k.PublicKey, ca.Key), Key: k}
+}
+
+// CrossSign issues a second certificate for sub's name and key under ca: the
+// same CA reachable through another issuer.
+func (ca *CA) CrossSign(t testing.TB, sub *CA, o CAOpts) *x509.Certificate {
+	t.Helper()
+	tmpl := caTemplate(sub.Cert.Subject.CommonName, o)
+	tmpl.Subject = sub.Cert.Subject
+	return create(t, tmpl, ca.Cert, sub.Cert.PublicKey, ca.Key)
+}
+
+// SmallScalarKey returns the ECDSA key whose private scalar is d on curve: the
+// class of key behind the eMudhra compromise (P-384, d < 256), where the
+// public key is d·G and anyone can recover d by counting.
+func SmallScalarKey(t testing.TB, curve elliptic.Curve, d int64) *ecdsa.PrivateKey {
+	t.Helper()
+	b := make([]byte, (curve.Params().BitSize+7)/8)
+	big.NewInt(d).FillBytes(b)
+	k, err := ecdsa.ParseRawPrivateKey(curve, b)
+	if err != nil {
+		t.Fatalf("pkitest: small scalar %d: %v", d, err)
+	}
+	return k
+}
+
 // SCTSpec is one SCT to embed in a leaf.
 type SCTSpec struct {
 	LogID     [32]byte

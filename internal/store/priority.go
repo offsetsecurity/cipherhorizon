@@ -3,16 +3,21 @@ package store
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 )
 
 // Facts describes the certificate for the certificate rules.
-func (c CertificateRow) Facts() eval.CertificateFacts { return certFacts(c.Attrs) }
+func (c CertificateRow) Facts() eval.CertificateFacts {
+	f := certFacts(c.Attrs)
+	f.SHA256 = c.Fingerprint
+	return f
+}
 
 func certFacts(a map[string]string) eval.CertificateFacts {
-	f := eval.CertificateFacts{Subject: a["subject"], KeyAlgorithm: a["keyAlg"], SigName: a["sigAlg"], IsCA: a["isCA"] == "true", SelfSigned: a["selfSigned"] == "true"}
+	f := eval.CertificateFacts{Subject: a["subject"], KeyAlgorithm: a["keyAlg"], SigName: a["sigAlg"], IsCA: a["isCA"] == "true", SelfSigned: a["selfSigned"] == "true", SPKISHA256: a["spkiSha256"]}
 	if t, err := time.Parse("2006-01-02T15:04:05Z", a["notBefore"]); err == nil {
 		f.NotBefore = t
 	}
@@ -70,7 +75,9 @@ func (s *Store) PriorityInputs() ([]eval.PriorityInput, error) {
 		var a map[string]string
 		_ = json.Unmarshal([]byte(attrs), &a)
 		if in := byID[sid]; in != nil && a["isCA"] != "true" {
-			in.Certs = append(in.Certs, certFacts(a))
+			f := certFacts(a)
+			f.SHA256 = strings.TrimPrefix(key, "cert:")
+			in.Certs = append(in.Certs, f)
 		}
 	}
 	_ = rows.Close()

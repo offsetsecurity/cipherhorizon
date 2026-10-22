@@ -191,7 +191,7 @@ func TestReferenceDataAndServerBundle(t *testing.T) {
 		} `json:"lists"`
 		Attribution string `json:"attribution"`
 	}
-	if s := e.call("GET", "/api/v1/reference-data", nil, &ref); s != 200 || len(ref.Lists) != 5 || !strings.Contains(ref.Attribution, "CCADB") {
+	if s := e.call("GET", "/api/v1/reference-data", nil, &ref); s != 200 || len(ref.Lists) != 6 || !strings.Contains(ref.Attribution, "CCADB") {
 		t.Fatalf("reference data: %d %+v", s, ref)
 	}
 	for _, l := range ref.Lists {

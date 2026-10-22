@@ -102,6 +102,24 @@ chain. For internal endpoints, add the private CA to the system's CA bundle (or 
 result is re-evaluated at once and reads "trusted by your CA bundle". Private chains are exempt from the public
 lifetime limit and the CT requirement. The readiness level is unaffected by trust.
 
+### Rules and changes in eval/13 (CRYPTO-REVIEW-004)
+
+| Rule | Severity | Fires when | Source |
+|---|---|---|---|
+| `CERT.DISTRUSTED-KEY` | critical (high for a CA root programs blocked without a key compromise) | a certificate on the served chain, or a root a path reaches, has a key or fingerprint on the bundled distrust list; also raised on certificates found on hosts, in files and in imports | CA/B Forum BR §4.9.1.2, RFC 5280, and the incident's own sources |
+
+- **A distrusted key is a finding, not a gate.** The chain is still validated and every other rule still runs. Each
+  store's result keeps the signature-valid path through the listed key, names the listed certificate and its
+  position, and says why the store does not trust it ("the path goes through "EM OV TLS CA - G3C" whose private key
+  is public …"). `CERT.UNTRUSTED` and `CERT.PARTIAL-TRUST` fire as usual alongside it.
+- **Independent of the Go version.** Go 1.27.3 and later drop paths through a few hardcoded keys inside
+  `crypto/x509` without saying why. When that happens the evaluation builds the paths itself (names chain, each
+  signature verifies, served certificates as the only intermediates) and reports the listed key on them. A build
+  with an older Go gives the same result.
+- **The list** is matched by the SHA-256 of the SubjectPublicKeyInfo, which covers every certificate for the key
+  (cross-signs, reissues), and by certificate SHA-256 for certificates known only by fingerprint (host collectors).
+  First entry: the eight eMudhra intermediate CAs of October 2026, whose P-384 private keys are below 256.
+
 ### Rules and changes in eval/12 (PRD-015)
 
 | Rule | Severity | Fires when | Source |

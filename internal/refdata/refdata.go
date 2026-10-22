@@ -175,5 +175,5 @@ func LookupDHPrime(sha string) (DHPrime, bool) {
 func Sources() []Source {
 	m, c, d, l, t := mozillaSource, chromeSource, dhSource, ctSource, lifetimeSource
 	m.Count, c.Count, d.Count, l.Count, t.Count = len(mozillaRoots), len(chromeRoots), len(dhPrimes), len(ctLogs), len(lifetimeLimits)
-	return []Source{m, c, l, d, t}
+	return []Source{m, c, l, d, t, distrustSource()}
 }

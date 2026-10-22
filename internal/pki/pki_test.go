@@ -127,65 +127,65 @@ func TestValidate(t *testing.T) {
 	now := epoch
 
 	plain := store(t, "Plain", true, rootOf(root))
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), plain, now, nil); !r.Trusted || len(r.Path) != 3 {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), plain, now, nil, nil); !r.Trusted || len(r.Path) != 3 {
 		t.Errorf("clean chain: %+v", r)
 	}
-	if r := pki.Validate(analyze(t, leaf), plain, now, nil); r.Trusted || r.Error == "" {
+	if r := pki.Validate(analyze(t, leaf), plain, now, nil, nil); r.Trusted || r.Error == "" {
 		t.Errorf("missing intermediate validated (no AIA allowed): %+v", r)
 	}
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Empty", true, rootOf(pkitest.NewRoot(t, "Else", pkitest.CAOpts{}))), now, nil); r.Trusted {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Empty", true, rootOf(pkitest.NewRoot(t, "Else", pkitest.CAOpts{}))), now, nil, nil); r.Trusted {
 		t.Errorf("trusted by a store without its root: %+v", r)
 	}
 
 	// Mozilla-style distrust after a date.
 	distrusted := rootOf(root)
 	distrusted.DistrustAfter = leaf.NotBefore.Add(-48 * time.Hour)
-	r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Mozilla", true, distrusted), now, nil)
+	r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Mozilla", true, distrusted), now, nil, nil)
 	if r.Trusted || !strings.Contains(r.Distrust, "distrusted for certificates issued after") {
 		t.Errorf("distrust-after ignored: %+v", r)
 	}
 	// Unconstrained (private) stores do not apply constraints.
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "private", false, distrusted), now, nil); !r.Trusted {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "private", false, distrusted), now, nil, nil); !r.Trusted {
 		t.Errorf("private store applied a constraint: %+v", r)
 	}
 	// Issued on the cut-off date itself: still trusted.
 	onDay := rootOf(root)
 	onDay.DistrustAfter = leaf.NotBefore
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Mozilla", true, onDay), now, nil); !r.Trusted {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Mozilla", true, onDay), now, nil, nil); !r.Trusted {
 		t.Errorf("issued on the cut-off: %+v", r)
 	}
 
 	// Chrome-style sct_not_after.
 	sctRoot := rootOf(root)
 	sctRoot.SCTNotAfter = leaf.NotBefore.Add(-time.Hour)
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Chrome", true, sctRoot), now, []time.Time{leaf.NotBefore}); r.Trusted || r.Distrust == "" {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Chrome", true, sctRoot), now, []time.Time{leaf.NotBefore}, nil); r.Trusted || r.Distrust == "" {
 		t.Errorf("late SCT accepted: %+v", r)
 	}
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Chrome", true, sctRoot), now, []time.Time{leaf.NotBefore, sctRoot.SCTNotAfter}); !r.Trusted {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Chrome", true, sctRoot), now, []time.Time{leaf.NotBefore, sctRoot.SCTNotAfter}, nil); !r.Trusted {
 		t.Errorf("one SCT in time should satisfy the constraint: %+v", r)
 	}
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Chrome", true, sctRoot), now, nil); r.Trusted {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Chrome", true, sctRoot), now, nil, nil); r.Trusted {
 		t.Errorf("no SCTs and notBefore after the limit: %+v", r)
 	}
 
 	// Root-program name constraints.
 	named := rootOf(root)
 	named.PermittedDNS = []string{"tr"}
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Mozilla", true, named), now, nil); r.Trusted {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "Mozilla", true, named), now, nil, nil); r.Trusted {
 		t.Errorf("name constraint ignored: %+v", r)
 	}
 	trLeaf := inter.Leaf(t, pkitest.LeafOpts{DNS: []string{"www.example.com.tr"}})
-	if r := pki.Validate(analyze(t, trLeaf, inter.Cert), store(t, "Mozilla", true, named), now, nil); !r.Trusted {
+	if r := pki.Validate(analyze(t, trLeaf, inter.Cert), store(t, "Mozilla", true, named), now, nil, nil); !r.Trusted {
 		t.Errorf("name inside the constraint: %+v", r)
 	}
 
 	// Expired: the path holds, only time is wrong.
-	if r := pki.Validate(analyze(t, leaf, inter.Cert), plain, leaf.NotAfter.Add(time.Hour), nil); r.Trusted || !r.ExpiredOnly {
+	if r := pki.Validate(analyze(t, leaf, inter.Cert), plain, leaf.NotAfter.Add(time.Hour), nil, nil); r.Trusted || !r.ExpiredOnly {
 		t.Errorf("expired leaf: %+v", r)
 	}
 	// No serverAuth.
 	client := inter.Leaf(t, pkitest.LeafOpts{EKU: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}})
-	if r := pki.Validate(analyze(t, client, inter.Cert), plain, now, nil); r.Trusted || !strings.Contains(r.Error, "server authentication") {
+	if r := pki.Validate(analyze(t, client, inter.Cert), plain, now, nil, nil); r.Trusted || !strings.Contains(r.Error, "server authentication") {
 		t.Errorf("clientAuth-only leaf: %+v", r)
 	}
 }

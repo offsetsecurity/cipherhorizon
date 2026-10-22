@@ -172,7 +172,7 @@ func TestCTLookup(t *testing.T) {
 
 func TestSourcesRecorded(t *testing.T) {
 	src := Sources()
-	if len(src) != 5 {
+	if len(src) != 6 {
 		t.Fatalf("%d sources", len(src))
 	}
 	for _, s := range src {

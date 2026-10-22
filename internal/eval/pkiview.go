@@ -29,6 +29,10 @@ type Input struct {
 	// SSHBaseline is the id of the baseline an SSH server is judged against; empty means
 	// BaselineDefault.
 	SSHBaseline string
+	// Distrust lists keys and certificates no path should rely on; nil means the bundled
+	// list (refdata.Distrust). A listed key is reported on the path it sits on, never used
+	// to stop evaluating it.
+	Distrust *pki.Distrust
 }
 
 // ChainView is the evaluation's reading of one served chain: how it was
@@ -208,7 +212,7 @@ func (c *ctx) analyseChains() {
 
 		expiredOnly := true
 		for _, st := range stores {
-			r := pki.Validate(s, st, c.now, times)
+			r := pki.Validate(s, st, c.now, times, c.in.Distrust)
 			ch.view.Trust = append(ch.view.Trust, r)
 			switch {
 			case r.Trusted:
@@ -228,7 +232,7 @@ func (c *ctx) analyseChains() {
 			}
 		}
 		if c.in.Anchors != nil {
-			r := pki.Validate(s, c.in.Anchors, c.now, times)
+			r := pki.Validate(s, c.in.Anchors, c.now, times, c.in.Distrust)
 			r.Store = "your CA bundle"
 			ch.view.Private = &r
 			ch.private = r.Trusted
@@ -412,9 +416,12 @@ func (ch *chain) trustSummary() string {
 		}
 	}
 	if p := ch.view.Private; p != nil {
-		if p.Trusted {
+		switch {
+		case p.Trusted:
 			parts = append(parts, "your CA bundle: trusted")
-		} else {
+		case p.Distrust != "":
+			parts = append(parts, "your CA bundle: "+p.Distrust)
+		default:
 			parts = append(parts, "your CA bundle: "+p.Error)
 		}
 	}

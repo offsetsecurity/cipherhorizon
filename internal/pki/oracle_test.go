@@ -75,7 +75,7 @@ func TestWriteOracleFixtures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := pki.Validate(s, st, c.at, nil)
+		r := pki.Validate(s, st, c.at, nil, nil)
 		verdict := "untrusted"
 		if r.Trusted {
 			verdict = "trusted"

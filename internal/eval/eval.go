@@ -18,7 +18,7 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/12"
+const Version = "eval/13"
 
 // eval/7 (PRD-008): a post-quantum signature scheme proved accepted by the signature stage counts
 // toward L4, and SSH endpoints are judged into the same shape (Protocol "ssh").
@@ -173,6 +173,9 @@ func Evaluate(rep *tlsprobe.Report, now time.Time) Evaluation {
 func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	if in.Stores == nil {
 		in.Stores = refdata.Stores()
+	}
+	if in.Distrust == nil {
+		in.Distrust = refdata.Distrust()
 	}
 	c := newContext(rep, in.Now)
 	c.in = in

@@ -28,6 +28,7 @@ var passText = map[string]string{
 	"KX.DH-COMPOSITE":       "The Diffie-Hellman modulus is a prime",
 	"KX.DH-NOT-SAFE-PRIME":  "The Diffie-Hellman prime is a safe prime or a published group",
 	"CERT.COMPROMISED-ROOT": "The chain does not end at a root whose private key is public",
+	"CERT.DISTRUSTED-KEY":   "No certificate on the chain uses a key on the distrust list",
 
 	"CERT.EXPIRED":              "The certificate has not expired",
 	"CERT.NOT-YET-VALID":        "The certificate is already valid",
