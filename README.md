@@ -56,9 +56,11 @@ rules. Systems are ranked for migration by exposure and by how long their data m
 
 **Scanners that show their work.** The TLS scanner is its own wire implementation: every protocol from SSLv2 to
 TLS 1.3, every cipher suite and key-exchange group (including `X25519MLKEM768`), the signature schemes (ML-DSA
-included), the certificate chain against the bundled root stores, OCSP stapling, CT and HSTS. Its 55 checks each say
-what they found or that they passed, why it matters, what to do and their sources; the TLS hygiene score (0 to 100)
-shows its arithmetic. The SSH auditor reads what a server offers, negotiates as OpenSSH 10.6 would (ML-KEM hybrid
+included), the certificate chain against the bundled root stores, OCSP stapling, CT and HSTS. It reads the certificate
+a server really serves even when only legacy suites reach it, names a root whose private key is public, and says
+*unknown* for what it cannot know (revocation, without contacting the CA) instead of guessing. Its 58 checks each
+say what they found or that they passed, why it matters, what to do and their sources; the TLS hygiene score (0 to
+100) shows its arithmetic. The SSH auditor reads what a server offers, negotiates as OpenSSH 10.6 would (ML-KEM hybrid
 included), verifies every host key, and never logs in. It judges the server against a cited baseline and writes the
 `sshd_config` lines that would make it meet it. Both are checked against real servers: OpenSSL for trust, OpenSSH
 9.2 and 10.0 for SSH.
@@ -67,7 +69,7 @@ included), verifies every host key, and never logs in. It judges the server agai
 installing anything; CBOMs from other tools can be imported. TLS endpoints, SSH servers and machines merge into one
 CycloneDX 1.7 CBOM, with PDF reports for each endpoint and for the whole inventory, and the OMB M-23-02 items per system.
 
-| A TLS endpoint: verdict first, then every check | STARTTLS services, the same depth |
+| A TLS endpoint: where it stands, then the three things to fix first | STARTTLS services, the same depth |
 |---|---|
 | ![A TLS endpoint report: readiness L3, the TLS hygiene score, what to fix](docs/img/report-hybrid.png) | ![An SMTP endpoint scanned through STARTTLS](docs/img/report-starttls.png) |
 | **SSH servers: readiness and the baseline, never a score** | **The `sshd_config` lines that meet the baseline** |
@@ -77,9 +79,10 @@ CycloneDX 1.7 CBOM, with PDF reports for each endpoint and for the whole invento
 
 | | |
 |---|---|
-| **TLS endpoints** | Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group (hybrids such as `X25519MLKEM768` included), the TLS 1.3 signature schemes (ML-DSA included), the certificate chain against the Mozilla and Chrome root stores or your own CA, OCSP stapling, Certificate Transparency and HSTS. STARTTLS for SMTP, IMAP, POP3, FTP, XMPP, LDAP and PostgreSQL. 55 cited checks and the TLS hygiene score. |
+| **TLS endpoints** | Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group (hybrids such as `X25519MLKEM768` included), the TLS 1.3 signature schemes (ML-DSA included), the certificate chain against the Mozilla and Chrome root stores or your own CA, OCSP stapling, Certificate Transparency and HSTS; DH parameters tested for primality. STARTTLS for SMTP, IMAP, POP3, FTP, XMPP, LDAP and PostgreSQL. 58 cited checks and the TLS hygiene score. |
 | **SSH servers** | Identification and algorithm lists, negotiation as OpenSSH 10.6 would (the ML-KEM hybrid included), every host key fetched and verified (Ed25519, ECDSA, RSA, ML-DSA and the composite `ssh-mldsa44-ed25519`), 18 cited checks, and the CipherHorizon SSH baseline 2026 with the `sshd_config` lines to meet it. It never logs in. |
 | **Classical strength** | Every algorithm, key and cipher suite in bits, computed with NIST's own methods (the GNFS estimate for RSA and DH, half the order for curves, SP 800-57 for ciphers and hashes). A suite is as strong as its weakest part and names it, on the report, the PDF, the CLI, the Inventory, SSH reports and the CBOM (`classicalSecurityLevel`). Every algorithm is classed as asymmetric, symmetric or hash; each report shows every suite part by part and every algorithm by class, drawn as bits bars on one scale. |
+| **One page to check a setup** | Each report has a Summary (readiness, hygiene, the weakest strength and the certificate as figures, then the three things to fix first) and a Configuration that reads in a reviewer's order: every TLS version folded to one line that says whether it should be on and how its suites rate, opening to its suites part by part; the certificate chain; key exchange and signatures; revocation; protocol features; every algorithm by class. SSH reports read the same way, ending with the baseline and its `sshd_config` lines. |
 | **Certificates** | Open any certificate in a chain to read the whole X.509 document: its chain, validity, key and signature with their strengths, names and uses, every extension decoded, fingerprints, and the PEM to copy or download. |
 | **Post-quantum readiness** | L0 to L4 for every TLS endpoint and SSH server, each protocol by its own stated rules, with harvest-now-decrypt-later exposure. |
 | **Machines** | Two readable inventory scripts (PowerShell, shell) list a machine's cryptographic software and certificates; nothing is installed and no key material is read. |

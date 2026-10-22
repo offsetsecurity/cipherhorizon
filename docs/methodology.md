@@ -206,17 +206,19 @@ Every algorithm belongs to one class, from its CycloneDX primitive, and has a ro
 A TLS evaluation lists every algorithm the endpoint uses (`algorithms` in the API): its class, role, strength and
 post-quantum status, the suites or certificates that use it, and the weakest of each class. A hash is listed once per
 use, because its strength depends on the use: SHA-256 deriving keys is 256 bits, signing it is 128. The report's
-Configuration opens with this list (*Algorithms in use*); the PDF, `tls scan --details` and the Inventory's *Class*
-filter show the same classes.
+Configuration ends with this list (*Every algorithm, by class*: a lane per class, a bits bar per algorithm, the weakest
+ringed); the PDF, `tls scan --details` and the Inventory's *Class* filter show the same classes.
 
 ### One certificate, decoded (PRD-012)
 
-Every certificate in a report's *Chain as served*, its quick look and the CBOM tab opens the certificate's page,
+Every certificate in a report's certificate chain and the CBOM tab opens the certificate's page,
 `#/certificates/{sha256}`. The page is decoded from the DER the scan kept (`GET /api/v1/certificates/{sha256}/x509`), so
-an older scan gains it without a rescan. In order, it shows: identity, names, the public key (with its classical
-strength and post-quantum status), the signature (the weaker of its hash and the issuer's key), every extension with
-its criticality and decoded value (one this program does not decode is shown as OID and hex), the fingerprints (SHA-1
-as an identifier only) and the PEM, to copy or download. A certificate known only from a machine inventory or an
+an older scan gains it without a rescan. In order, it shows: the chain it was served in, its validity (days
+left on a lifetime bar), the public key and the issuer's signature as bits bars (the signature is the weaker of its hash
+and the issuer's key) with their post-quantum status, the names it is valid for and what it may be used for (an
+elliptic-curve key that claims key encipherment is marked, RFC 8813), every extension with its criticality and decoded
+value (one this program does not decode is shown as OID and hex), the identifiers to copy (SHA-256, the SPKI
+fingerprint, the serial, and SHA-1 as an identifier only) and the PEM, folded, to copy or download. A certificate known only from a machine inventory or an
 imported CBOM keeps no DER; its page shows the fields that source gave and says so. Every value comes from the
 certificate and is rendered as text.
 

@@ -21,11 +21,11 @@ CSVs), not from what a library happens to implement.
 | **Cipher suites** | Offer every candidate, note the server's pick, remove it, ask again until the server refuses. Yields the full set for each version. |
 | **Preference** | Adjacent pairs offered in reverse order. Same pick regardless of order → `server` (and ranks are reported); follows the client → `client`; both → `mixed`. No ranking is ever invented. |
 | **TLS 1.3 groups, incl. post-quantum** | A hello with an **empty `key_share`**: a supporting server must answer with a HelloRetryRequest that *names* its chosen group (and cipher suite). No key material is generated. Repeating with the pick removed enumerates every group, including `X25519MLKEM768`, the other ML-KEM hybrids, pure ML-KEM and the obsolete Kyber drafts. |
-| **TLS ≤1.2 key exchange** | ECDHE curves the same way, from the ServerKeyExchange; DHE prime size and a fingerprint of the prime. |
+| **TLS ≤1.2 key exchange** | ECDHE curves the same way, from the ServerKeyExchange; the DHE prime's size, a fingerprint of it, and whether it is prime and a safe prime (Miller-Rabin with 20 bases plus Baillie-PSW). |
 | **Signature schemes (TLS 1.3)** | One hello per scheme (ECDSA P-256/384/521, RSA-PSS, Ed25519, Ed448, ML-DSA-44/65/87), each offering only that scheme and carrying real key shares, so the server must pick a certificate before it answers: a ServerHello means it holds a key for that scheme. A control hello offering only a private-use code point must be refused; a server that answers it does not choose by scheme, and the stage is inconclusive. Every TLS 1.3 hello also offers ML-DSA, so a server whose only certificate is ML-DSA is seen. 15 connections. |
 | **Server features** | Read from hello extensions: secure renegotiation, extended master secret, tickets, encrypt-then-MAC, OCSP stapling; TLS compression; `TLS_FALLBACK_SCSV` enforcement. |
-| **Certificates & "what a real client gets"** | A full handshake with Go's `crypto/tls` (TLS 1.3 encrypts the Certificate message, so raw probes cannot see it), plus ECDSA-only and RSA-only TLS 1.2 handshakes to surface dual certificates, plus one handshake **without SNI** for a named target. Each chain is kept exactly as served (the DER of every certificate, in order), with the stapled OCSP response and the SCTs from the TLS extension. Trust is decided in evaluation, not here (see below). |
-| **Revocation & transparency** | No extra connection: the stapled OCSP response and the SCTs ride on the certificate handshakes. No OCSP responder, CRL or CT log is contacted. |
+| **Certificates & "what a real client gets"** | A full handshake with Go's `crypto/tls` (TLS 1.3 encrypts the Certificate message, so raw probes cannot see it), plus ECDSA-only and RSA-only TLS 1.2 handshakes to surface dual certificates, plus one handshake **without SNI** for a named target. A server whose only suites `crypto/tls` will not offer (3DES, RC4, NULL, small DH), or that keeps an RSA certificate for clients that offer only RSA, has its chain read instead from the plaintext Certificate message of the raw TLS 1.2-and-earlier hellos the suite enumeration already sends (source `raw-tlsv1.2`). Each chain is kept exactly as served (the DER of every certificate, in order), with the stapled OCSP response and the SCTs from the TLS extension. The no-SNI chain is described, never taken for the endpoint's certificate. Trust is decided in evaluation, not here (see below). |
+| **Revocation & transparency** | No extra connection: the stapled OCSP response and the SCTs ride on the certificate handshakes. No OCSP responder, CRL or CT log is contacted, so without a verified stapled response saying *good* the report says the revocation status is **unknown**, never *good*. |
 | **HTTP** | One `GET /` over a fresh TLS connection; the `Strict-Transport-Security` header is parsed (RFC 6797 §6.1). On by default; `--http-checks=false` turns it off. |
 
 Each stage is recorded in the report (`stages[]`): `done`, `skipped` (with a reason code: `option-off`,
@@ -44,13 +44,13 @@ when a CA bundle or the reference data changes, without a rescan. The stored rep
 
 | What | How |
 |---|---|
-| **Chain as served** | Analysed in served order: certificates out of order (TLS 1.2 requires the order, TLS 1.3 tolerates it), a root, duplicate or unrelated certificate sent, size in bytes. A **missing intermediate** is reported when only the leaf was served and its issuer is in no store; the AIA URL the certificate names is shown, never fetched. When the served path already ends at a CA certificate, the unknown issuer is reported as an unknown (often private) root instead. |
+| **Chain as served** | Analysed in served order: certificates out of order (TLS 1.2 requires the order, TLS 1.3 tolerates it), a root, duplicate or unrelated certificate sent, size in bytes. A **missing intermediate** is reported when the served path stops at a certificate that names where its issuer can be downloaded (AIA caIssuers, as public CAs' leaves do) and that issuer is in no store; the URL is shown, never fetched. When the path already ends at a CA certificate, or the leaf names no issuer URL (a leaf signed straight by a root), the issuer is reported as a root the stores do not hold: a private CA, or a public root since removed. A chain under a root whose private key is public (Superfish, eDellRoot, DSDTestProvider) is reported as such, critical. |
 | **Trust per store** | Path validation against bundled, dated snapshots of the **Mozilla** and **Chrome** root stores (CCADB), each reported separately, with the stores' own constraints: Mozilla's *distrust for TLS after*, Chrome's `sct_not_after`, program name constraints. Only the served certificates are intermediates: no AIA fetching, no system pool. A **private CA bundle** (server-wide `--ca-bundle FILE`, and per system on the system page) adds a "your CA bundle" row. The machine's own store is an optional extra (`--os-trust` on the CLI), off by default because some OS verifiers fetch missing intermediates from the network. |
 | **Names** | The host against the DNS and IP SANs (never the CN, RFC 9525), stating which SAN matched. |
 | **Lifetime** | Against the limit in force on the issue date (SC-081v3: 398 days, 200 from 2026-03-15, 100 from 2027-03-15, 47 from 2029-03-15), for publicly trusted chains only. The expiry warning scales with the lifetime. |
 | **OCSP staple** | Decoded by our own bounded parser: response and certificate status, revocation time and reason, this/next update, responder; the signature is checked against the issuer or a delegated responder; the response must be for this certificate (serial and issuer hashes). |
 | **CT** | SCTs from all three places (embedded, TLS extension, OCSP), each with its log named from the bundled CT log list. Signatures are not verified in this version. |
-| **DH groups** | The DHE prime fingerprint is matched against the RFC 2409, 3526, 5114 and 7919 groups. |
+| **DH groups** | The DHE prime fingerprint is matched against the RFC 2409, 3526, 5114 and 7919 groups. A modulus that is not prime is critical; a prime that is not a safe prime and not a published group is low (small subgroups exist). |
 | **Attack names** | Published attacks are labels on the finding that enables them (FREAK, Logjam, DROWN, POODLE, BEAST, SWEET32, CRIME, LUCKY13, RC4), never second findings. A key served on an SSLv2 endpoint anywhere in the estate is reported on every endpoint that serves it (DROWN). Active-only attacks (Heartbleed, CCS injection, ROBOT, Ticketbleed, padding oracles) are listed as *not tested by design*. |
 
 The reference lists, their sources, dates and licences are in [reference-data.md](reference-data.md).
@@ -115,8 +115,11 @@ rather than an invented one.
   OID when parseable, but a server presenting only such a chain will not yield a certificate result yet.
 - DH: the prime is matched against the RFC-published groups only; widely shipped non-RFC defaults are not
   recognised (no licence-clear list of them exists).
-- Revocation and CT are judged from what the server sends: no live OCSP/CRL lookup, no SCT signature check, no
-  count against a browser CT policy. These are planned as options, off by default.
+- Revocation and CT are judged from what the server sends: no live OCSP/CRL lookup (so revocation reads *unknown*
+  unless a stapled response vouches for the certificate), no SCT signature check, no count against a browser CT
+  policy. These are planned as options, off by default.
+- A scan made before 0.4.0 of a server Go's TLS client cannot reach recorded only the no-SNI certificate; scan it
+  again to read the served one.
 - Behavioural vulnerability probes (Heartbleed, ROBOT, CCS injection) are not implemented; when they are,
   they will be off by default.
 

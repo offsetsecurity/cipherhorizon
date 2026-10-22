@@ -86,7 +86,12 @@ not on the list, so they should be off. A server whose lists couldn't be read is
 1. **A post-quantum hybrid key exchange is offered** (RFC 10042, RFC 9941).
 2. **Strict key exchange is offered.** This is OpenSSH's countermeasure to Terrapin (CVE-2023-48795), in OpenSSH 9.6
    and later.
-3. **RSA host keys are at least 3072 bits** (NIST SP 800-57 Part 1: 128-bit security).
+3. **RSA host keys are at least 3072 bits** (NIST SP 800-57 Part 1: 128-bit security). On a server with no RSA host
+   key this rule *does not apply*, rather than reading as met.
+
+A truncated MAC is rated by its tag: `hmac-sha1-96` is 96 bits, not HMAC-SHA-1's 128 (NIST SP 800-107 Rev. 1). The
+next steps and the changes name OpenSSH releases only to a server that identifies as OpenSSH; any other server is told
+what to offer.
 
 **What it leaves out, and why:**
 
