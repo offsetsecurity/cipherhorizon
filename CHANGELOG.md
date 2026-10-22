@@ -10,6 +10,13 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-22
+
+### Security
+
+- Built with Go 1.27.3 (GO-2026-6809). `crypto/x509` now distrusts compromised intermediate certificates, and the
+  trust check uses it.
+
 ### Added
 
 - **Classical strength for every detected algorithm** ([PRD-010](docs/product/PRD-010-classical-strength.md),
@@ -56,12 +63,12 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   strength bands, a strength chip, a part cell, a post-quantum glyph, a status tile, a validity bar, the hygiene
   gauge and the readiness stepper. Each says in words what it shows.
   - **Summary:** four figures (readiness, hygiene, the weakest classical strength, the certificate), *Fix first* as
-    one numbered line per problem, one bar of every check's result, and a tile per area that opens it.
+    the three things to fix first, each with one chip saying when, the rest folded under a line that counts them, one bar of every check's result, and a tile per area that opens it.
   - **Configuration** is one place to check the whole setup, in a reviewer's order: protocols and cipher suites
     (what a current client gets, then each version with its groups and its suites in the server's order), the
     certificate chain (each card opens its certificate; a missing issuer is drawn), key exchange and signatures,
-    revocation, protocol features, and every algorithm by class. Each version folds to one line when all its
-    suites are Strong, and opens when it needs a look. A row of chips at the top jumps to each part, and
+    revocation, protocol features, and every algorithm by class. Every TLS version starts folded to one line that
+    says whether it should be on and how its suites rate. A row of chips at the top jumps to each part, and
     each part ends with the issues found in it. HSTS shows the header as sent.
   - **Inventory:** algorithms *By class* and *By classical strength* (`?strength=`: broken, below-112, 112, 128,
     192, 256, not-rated), each bar opening its list; the list is weakest first, with a bits bar.
@@ -78,6 +85,9 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Changed
 
+- **Breaking (API):** the evaluation is now `eval/12`, and stored scans are re-evaluated on start. The `band` field
+  uses the new hygiene band names (below), and a section's `status` can be `unknown` (revocation, when nothing
+  vouches for the certificate). Integrations that match on band names or on the set of statuses must be updated.
 - **The TLS hygiene bands have new names:** Excellent, Good, Fair, Poor, Failing (they were Strong, Sound, Fair,
   Weak, Broken). *Strong* and *Weak* now mean only a suite's strength (UX-REVIEW-010, #22). The scores and the
   thresholds are unchanged. Stored scans are migrated, and the API's `band` field uses the new names.
@@ -111,10 +121,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - an untrusted root is described as a private CA or a public root since removed, not only as a private one;
   - a composite DH modulus is critical, and a DH prime that is not a safe prime is low;
   - at equal bits, the weakest classical strength picks a disallowed algorithm (3DES) over an allowed one.
-- **Fix first** shows the three things to fix first, each with one chip saying when, and folds the rest under one
-  line that counts them by severity.
-- **Every TLS version on Configuration starts folded**, its head saying whether it should be on and how its suites
-  rate; version heads, suite rows and Fix first rows line up.
 - **SSH evaluation (eval/11; stored scans are re-evaluated on start):**
   - a truncated MAC is as strong as its tag: hmac-sha1-96 is 96 bits, not 128 (NIST SP 800-107 Rev. 1);
   - the next steps name OpenSSH releases only to a server that identifies as OpenSSH;
@@ -123,15 +129,9 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Single-DES suites (56-bit key) are Insecure, not Weak** (#18).
 - **The TLS hygiene figure on a report's Summary opened *About this report*.** It now opens how the score was worked
   out, on Weaknesses.
-- **The browser journey retries a browser that does not start**, instead of failing the whole run.
 - **A running scan's connection count could go backwards.** Concurrent probes reported counts out of order, and
   progress writes could land out of order. The count now only moves forward, and writes are serialised. This was
   found by a CI run of the workflow test.
-
-### Security
-
-- Built with Go 1.27.3 (GO-2026-6809). `crypto/x509` now distrusts compromised intermediate certificates, and the
-  trust check uses it.
 
 ## [0.3.0] - 2026-10-17
 
@@ -874,7 +874,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Storage:** SQLite only. Up to 50 snapshots of up to 32 MiB are kept per machine; there is no overall storage
   budget yet.
 
-[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.0...v0.1.1
