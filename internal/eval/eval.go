@@ -18,7 +18,7 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/11"
+const Version = "eval/12"
 
 // eval/7 (PRD-008): a post-quantum signature scheme proved accepted by the signature stage counts
 // toward L4, and SSH endpoints are judged into the same shape (Protocol "ssh").

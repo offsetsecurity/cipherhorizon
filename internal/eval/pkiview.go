@@ -69,10 +69,12 @@ type ServedView struct {
 type MissingView struct {
 	IssuerDN string   `json:"issuer"`
 	AIA      []string `json:"aia,omitempty"` // caIssuers URLs, not fetched
-	// Likely is "intermediate" when only the leaf was served (a server that
-	// forgot its intermediate), and "root" when the served path already ends at
-	// a CA certificate: then the unknown issuer is most likely a root no store
-	// holds (a private CA), which servers do not send anyway.
+	// Likely is "intermediate" when the served path stops at a certificate that
+	// names where its issuer can be downloaded (AIA caIssuers, as public CAs'
+	// leaves do): a server that forgot its intermediate. It is "root" when the
+	// path already ends at a CA certificate, or the leaf names no issuer URL (a
+	// leaf signed straight by a root): then the unknown issuer is most likely a
+	// root no store holds, which servers do not send anyway.
 	Likely string `json:"likely"`
 }
 
@@ -190,7 +192,7 @@ func (c *ctx) analyseChains() {
 		ch.view.Served.ExpiresFirst = s.ExpiresFirst()
 		if m, dn, aia := s.MissingIssuer(all...); m {
 			likely := "intermediate"
-			if top := s.Top(); top != leaf && top.IsCA {
+			if top := s.Top(); (top != leaf && top.IsCA) || len(aia) == 0 {
 				likely = "root"
 			}
 			ch.missing = likely == "intermediate"

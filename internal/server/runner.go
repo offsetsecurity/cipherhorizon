@@ -373,9 +373,6 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 	}
 	res.FinalEvent = fmt.Sprintf("done: TLS hygiene %s (%d), PQC readiness L%d (%s), %d connections",
 		ev.Hygiene.Band, ev.Hygiene.Score, ev.Readiness.Level, ev.Readiness.Label, rep.Connections)
-	if na := leafNotAfter(rep); na != nil {
-		res.CertNotAfter = na
-	}
 	switch err := r.st.FinishScan(sc.ID, res); {
 	case errors.Is(err, store.ErrNotFound):
 		// canceled while evaluating: nothing to add
@@ -394,7 +391,9 @@ func (r *Runner) canceledByUser(id int64) bool {
 func leafNotAfter(rep *tlsprobe.Report) *time.Time {
 	var earliest *time.Time
 	for _, cr := range rep.Certificates {
-		if len(cr.Chain) == 0 {
+		// The no-SNI chain is what clients that send no server name get, often a placeholder
+		// (badssl.com's expired 2018 fallback): it is not the endpoint's certificate.
+		if len(cr.Chain) == 0 || cr.NoSNI {
 			continue
 		}
 		t := cr.Chain[0].NotAfter

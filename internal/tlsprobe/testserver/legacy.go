@@ -209,3 +209,29 @@ func AnswerAnyTLS13() func([]byte) []byte {
 		return append(rec, msg...)
 	}
 }
+
+// LegacyWithCertificate is Legacy (server order), but its flight carries the certificate chain
+// (DER, leaf first) between the ServerHello and the ServerHelloDone: a server whose only suites
+// crypto/tls will not offer (3DES, RC4, NULL), so its certificate is seen only in raw flights.
+func LegacyWithCertificate(version uint16, order []uint16, chain [][]byte) func([]byte) []byte {
+	plain := Legacy(version, order, false)
+	return func(in []byte) []byte {
+		out := plain(in)
+		if len(out) < 9 || out[0] != 22 {
+			return out
+		}
+		// Rebuild the handshake messages: the ServerHello, the Certificate, the ServerHelloDone.
+		msgs := out[5 : len(out)-4]
+		var list []byte
+		for _, der := range chain {
+			list = append(list, byte(len(der)>>16), byte(len(der)>>8), byte(len(der))) //nolint:gosec // 24-bit TLS lengths of a test chain
+			list = append(list, der...)
+		}
+		body := append([]byte{byte(len(list) >> 16), byte(len(list) >> 8), byte(len(list))}, list...)     //nolint:gosec // as above
+		cert := append([]byte{11, byte(len(body) >> 16), byte(len(body) >> 8), byte(len(body))}, body...) //nolint:gosec // as above
+		all := append(append(append([]byte(nil), msgs...), cert...), 14, 0, 0, 0)
+		rec := binary.BigEndian.AppendUint16([]byte{22}, version)
+		rec = binary.BigEndian.AppendUint16(rec, uint16(len(all))) //nolint:gosec // a test chain of a few KiB
+		return append(rec, all...)
+	}
+}

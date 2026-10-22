@@ -193,6 +193,8 @@ func statusOf(st string) (string, tone) {
 		return "Not applicable", toneInfo
 	case "inconclusive":
 		return "Inconclusive", toneWarn
+	case "unknown":
+		return "Status unknown", toneInfo
 	}
 	return capitalise(st), toneInfo
 }

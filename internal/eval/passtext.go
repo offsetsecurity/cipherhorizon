@@ -23,8 +23,11 @@ var passText = map[string]string{
 	"CIPHER.IANA-DISCOURAGED": "No accepted suite is marked Discouraged by IANA",
 	"CIPHER.CBC":              "No CBC-mode suite is accepted",
 
-	"KX.DH-SMALL":        "No small Diffie-Hellman prime is used",
-	"KX.DH-COMMON-PRIME": "No small, widely shared Diffie-Hellman prime is used",
+	"KX.DH-SMALL":           "No small Diffie-Hellman prime is used",
+	"KX.DH-COMMON-PRIME":    "No small, widely shared Diffie-Hellman prime is used",
+	"KX.DH-COMPOSITE":       "The Diffie-Hellman modulus is a prime",
+	"KX.DH-NOT-SAFE-PRIME":  "The Diffie-Hellman prime is a safe prime or a published group",
+	"CERT.COMPROMISED-ROOT": "The chain does not end at a root whose private key is public",
 
 	"CERT.EXPIRED":              "The certificate has not expired",
 	"CERT.NOT-YET-VALID":        "The certificate is already valid",

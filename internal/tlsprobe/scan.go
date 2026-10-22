@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
 	"sort"
 	"strconv"
@@ -477,7 +478,19 @@ type legacyEnum struct {
 	pref   string   // "server" | "client" | "unknown"
 	first  *wire.ServerHello
 	small  bool
+	// chains are the distinct certificate chains the server sent in these
+	// plaintext flights (DER, leaf first), with the suite that drew each.
+	chains []rawChain
 }
+
+// rawChain is a certificate chain read from a raw TLS 1.2-and-earlier flight.
+type rawChain struct {
+	suite uint16
+	ders  [][]byte
+}
+
+// maxRawChains bounds how many distinct chains one version's enumeration keeps.
+const maxRawChains = 4
 
 func (p *prober) legacyGroups(small bool) []uint16 {
 	if small {
@@ -518,6 +531,7 @@ func (p *prober) enumerateLegacy(ctx context.Context, v wire.Version, small bool
 		if e.first == nil {
 			e.first = sh
 		}
+		e.keepChain(sh.Suite, o.flight.Certificates)
 		e.suites = append(e.suites, sh.Suite)
 		remaining = without(remaining, sh.Suite)
 	}
@@ -534,6 +548,19 @@ func (p *prober) enumerateLegacy(ctx context.Context, v wire.Version, small bool
 		return sh.Suite, true
 	})
 	return e
+}
+
+// keepChain records a chain the first time its leaf is seen.
+func (e *legacyEnum) keepChain(suite uint16, ders [][]byte) {
+	if len(ders) == 0 || len(e.chains) >= maxRawChains {
+		return
+	}
+	for _, c := range e.chains {
+		if string(c.ders[0]) == string(ders[0]) {
+			return
+		}
+	}
+	e.chains = append(e.chains, rawChain{suite: suite, ders: ders})
 }
 
 // preference asks who decides between accepted items. For adjacent pairs
@@ -684,7 +711,28 @@ func (p *prober) sampleDH(ctx context.Context, v wire.Version, s registry.Suite,
 		return nil
 	}
 	sum := sha256.Sum256(ke.Prime)
-	return &DHResult{PrimeBits: ke.PrimeBits, GeneratorBits: ke.GeneratorBits, PrimeSHA256: hex.EncodeToString(sum[:]), Suite: s.Name}
+	r := &DHResult{PrimeBits: ke.PrimeBits, GeneratorBits: ke.GeneratorBits, PrimeSHA256: hex.EncodeToString(sum[:]), Suite: s.Name}
+	r.IsPrime, r.SafePrime = primality(ke.Prime)
+	return r
+}
+
+// maxPrimalityBits bounds the moduli tested for primality (a few milliseconds at 8192 bits).
+const maxPrimalityBits = 8192
+
+// primality says whether p is prime and, if so, whether it is a safe prime. ProbablyPrime(20) is
+// Miller-Rabin with 20 random bases plus Baillie-PSW, which has no known counterexample.
+func primality(b []byte) (isPrime, safe *bool) {
+	p := new(big.Int).SetBytes(b)
+	if p.BitLen() < 2 || p.BitLen() > maxPrimalityBits {
+		return nil, nil
+	}
+	ip := p.ProbablyPrime(20)
+	if !ip {
+		return &ip, nil
+	}
+	q := new(big.Int).Rsh(new(big.Int).Sub(p, big.NewInt(1)), 1)
+	sp := q.ProbablyPrime(20)
+	return &ip, &sp
 }
 
 // ---- stage 4: features ---------------------------------------------------------------------

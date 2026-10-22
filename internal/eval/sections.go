@@ -35,6 +35,9 @@ const (
 	// or LDAP endpoint), so there was nothing to check; it is not a gap in the scan.
 	StatusNotApplicable = "not-applicable"
 	StatusInconclusive  = "inconclusive"
+	// StatusUnknown: every check in the area ran, but the property the area is about cannot be
+	// known from the endpoint alone (revocation, without contacting the CA). Its checks still count.
+	StatusUnknown = "unknown"
 )
 
 // Section is one part of the endpoint page with its status.
@@ -100,13 +103,13 @@ func sectionOf(f Finding) string {
 // availabilityRules make clients fail to connect (REQ-TUI-2).
 var availabilityRules = map[string]bool{
 	"CERT.EXPIRED": true, "CERT.UNTRUSTED": true, "CERT.NAME-MISMATCH": true, "CERT.CHAIN-INCOMPLETE": true,
-	"CERT.NO-SERVERAUTH": true, "OCSP.MUST-STAPLE-MISSING": true, "OCSP.REVOKED": true,
+	"CERT.NO-SERVERAUTH": true, "OCSP.MUST-STAPLE-MISSING": true, "OCSP.REVOKED": true, "CERT.COMPROMISED-ROOT": true,
 }
 
 // attackLabels name the attacks a finding enables (REQ-TVLN-1). The detail
 // decides between FREAK and Logjam for export suites.
 var attackLabels = map[string][]string{
-	"KX.DH-SMALL": {"Logjam"}, "KX.DH-COMMON-PRIME": {"Logjam"}, "PROTO.SSL2": {"DROWN"},
+	"KX.DH-SMALL": {"Logjam"}, "KX.DH-COMMON-PRIME": {"Logjam"}, "PROTO.SSL2": {"DROWN"}, "KX.DH-COMPOSITE": {"Logjam"},
 	"FEAT.COMPRESSION": {"CRIME"}, "CIPHER.SWEET32": {"SWEET32"}, "CIPHER.RC4": {"RC4 biases"},
 	"VULN.POODLE": {"POODLE"}, "VULN.BEAST": {"BEAST"}, "CIPHER.CBC": {"LUCKY13"}, "VULN.DROWN-SHARED-KEY": {"DROWN"},
 }
@@ -177,6 +180,10 @@ func sections(c *ctx, findings []Finding) []Section {
 			s.Status = StatusAttention
 		}
 
+		if id == SecRevocation && s.Status == StatusGood && !c.legacy && !c.revocationVouched() {
+			s.Status, s.ReasonCode = StatusUnknown, "not-contacted"
+			s.Reason = "No stapled OCSP response vouches for the certificate, and this scan does not contact the CA's OCSP responder or CRL, so whether it has been revoked is not known."
+		}
 		if c.legacy {
 			switch id {
 			case SecRevocation:
@@ -318,4 +325,18 @@ func referenceData(now time.Time) []RefInfo {
 			AgeDays: age, Stale: age > refdata.StaleAfterDays, Licence: s.Licence})
 	}
 	return out
+}
+
+// revocationVouched reports whether a stapled OCSP response that verifies says the served leaf is
+// good: the only revocation status this scan can know without contacting the CA.
+func (c *ctx) revocationVouched() bool {
+	for _, ch := range c.chains {
+		if ch.cr.NoSNI {
+			continue
+		}
+		if o := ch.view.OCSP; o != nil && o.ForThisCert && o.Error == "" && o.Status == "good" && o.Signature == "valid" {
+			return true
+		}
+	}
+	return false
 }

@@ -107,9 +107,9 @@ function protocolsSection(ctx, tone) {
     const words = suites.map((x) => (((ev.suiteStrength || []).find((r) => r.version === x.version && r.id === x.id)) || {}).word || '');
     const order = ['insecure', 'weak', 'acceptable', 'strong', ''];
     const tally = order.map((w) => [w, words.filter((x) => x === w).length]).filter(([, c]) => c);
-    // Open when it needs a look: an old version that is on, or any suite below Strong; folded when
-    // every suite is Strong, so the page shows first what there is to do (owner request, PRD-013).
-    const needsLook = bad || words.some((w) => w !== 'strong') || on.length === 1;
+    // Every version starts folded (owner request): its head already says whether it should be on
+    // and how its suites rate, and a click opens its suites. The only version opens by itself.
+    const needsLook = on.length === 1;
     const verdict = h('span', { class: 'ver-verdict' }, tally.length === 1 && tally[0][0] === 'strong' ? [strengthChip('strong'), ` all ${suites.length}`]
       : tally.map(([w, c]) => h('span', { class: 'ver-tally' }, strengthChip(w), ` ${c}`)));
     const head = h('summary', { class: `ver-head-row${bad ? ' is-bad' : ''}`, title: 'Show or hide this version’s suites' },
@@ -120,8 +120,9 @@ function protocolsSection(ctx, tone) {
         suites.length ? (fs === suites.length ? 'forward secrecy on all' : `forward secrecy on ${fs} of ${suites.length}`) : null].filter(Boolean).join(' · ')),
       groups.length ? h('span', { class: 'ver-groups' }, h('span', { class: 'muted' }, 'Groups'), groups.map((g) => groupChip(ev, g))) : null,
       suites.length ? verdict : null);
-    const table = suites.length ? h('div', { class: 'tablewrap ver-body' }, h('table', { class: 'suites' },
-      h('thead', null, h('tr', null, h('th', { scope: 'col', class: 'num' }, '#'), h('th', { scope: 'col' }, 'Cipher suite'),
+    const ranked = suites.some((s) => s.rank);
+    const table = suites.length ? h('div', { class: 'tablewrap ver-body' }, h('table', { class: `suites${ranked ? '' : ' unranked'}` },
+      h('thead', null, h('tr', null, h('th', { scope: 'col', class: 'num', title: 'The server\u2019s order' }, '#'), h('th', { scope: 'col' }, 'Cipher suite'),
         PART_COLUMNS.map(([, w]) => h('th', { scope: 'col', class: 'pcol' }, w)), h('th', { scope: 'col' }, 'Strength'))),
       h('tbody', null, suites.map((s) => suiteRow(ev, s, rep))))) : h('p', { class: 'muted' }, 'No cipher suites were recorded for this version.');
     return h('details', { class: `ver-block${bad ? ' is-bad' : ''}`, id: `ver-${v}`, open: needsLook }, head, table);
@@ -268,7 +269,7 @@ function revocationSection(ctx, tone) {
       : o.error || !o.forThisCert ? statusTile('OCSP stapling', o.error ? `Stapled but unusable: ${o.error}` : 'Stapled, for another certificate', 'problem')
         : statusTile('OCSP stapling', `Stapled: ${o.status}${o.nextUpdate ? `, until ${fmtDay(o.nextUpdate)}` : ''}`, o.status === 'good' && o.signature === 'valid' ? 'good' : 'problem'),
     statusTile('Must-staple', leaf.ocspMustStaple ? 'Required by the certificate' : 'Not set', 'na'),
-    statusTile('OCSP and CRL', urls.length ? `${plural(urls.length, 'pointer')}: ${urls.join(', ')}` : 'The certificate names none', urls.length ? 'good' : (v.public ? 'attention' : 'na')),
+    statusTile('OCSP and CRL', urls.length ? 'Named by the certificate, not contacted: revocation status unknown' : 'The certificate names none', urls.length ? 'na' : (v.public ? 'attention' : 'na'), null, null, urls.length ? urls.join('\n') : null),
     statusTile('Certificate Transparency', scts.length ? `${plural(scts.length, 'SCT')}: ${scts.map((s) => s.logName || 'unknown log').join(', ')}`
       : v.public ? 'No SCT in any of the three places' : 'No SCT: not needed for a private certificate', scts.length ? 'good' : v.public ? 'problem' : 'na'),
   ];
@@ -384,6 +385,9 @@ export function tlsConfiguration(ctx, about) {
 export function weakestAlgorithm(ev) {
   const rank = { broken: 0, weak: 1, acceptable: 2, strong: 3 };
   const list = (ev.algorithms || []).filter((a) => bandOf(a.strength) !== 'na');
-  return list.slice().sort((a, b) => (rank[bandOf(a.strength)] - rank[bandOf(b.strength)]) || ((a.strength.bits || 0) - (b.strength.bits || 0)))[0] || null;
+  // At equal bits, one NIST no longer allows (3DES at 112) is weaker than one it does (RSA-2048).
+  const allowed = (a) => (a.strength.status === 'disallowed' ? 0 : 1);
+  return list.slice().sort((a, b) => (rank[bandOf(a.strength)] - rank[bandOf(b.strength)]) || ((a.strength.bits || 0) - (b.strength.bits || 0))
+    || (allowed(a) - allowed(b)))[0] || null;
 }
 

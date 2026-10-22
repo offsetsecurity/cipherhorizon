@@ -102,6 +102,23 @@ chain. For internal endpoints, add the private CA to the system's CA bundle (or 
 result is re-evaluated at once and reads "trusted by your CA bundle". Private chains are exempt from the public
 lifetime limit and the CT requirement. The readiness level is unaffected by trust.
 
+### Rules and changes in eval/12 (PRD-015)
+
+| Rule | Severity | Fires when | Source |
+|---|---|---|---|
+| `KX.DH-COMPOSITE` | critical | the DHE modulus fails a primality test (Miller-Rabin with 20 bases plus Baillie-PSW); `KX.DH-SMALL` is then not raised | RFC 7919, NIST SP 800-56A Rev. 3 |
+| `KX.DH-NOT-SAFE-PRIME` | low | the DHE prime is not a safe prime ((p-1)/2 not prime) and is not a published group | RFC 7919, CVE-2016-0701 |
+| `CERT.COMPROMISED-ROOT` | critical | the chain is issued under Superfish, eDellRoot or DSDTestProvider, roots installed with their private keys; `CERT.UNTRUSTED` is then not raised | CVE-2015-2077, RFC 5280 |
+
+- **The certificate a server serves is always read.** When Go's TLS client cannot complete a handshake (3DES, RC4,
+  NULL or small-DH suites only; an RSA certificate a server keeps for RSA-only clients), the chain is read from the
+  plaintext Certificate message of the scanner's own TLS 1.2-and-earlier handshakes (source `raw-tlsv1.2`).
+- **A missing issuer** is called a missing intermediate only when the served path stops at a certificate that names
+  where its issuer can be downloaded (AIA caIssuers); otherwise it is a root the stores checked do not hold: a
+  private CA, or a public root since removed.
+- **Revocation** is *good* only when a verified stapled OCSP response says so. Otherwise its status is *unknown*: the
+  scan does not contact the CA's OCSP responder or CRL. The revocation checks still count as run.
+
 ### Rules added in eval/3 (PRD-004)
 
 | Rule | Severity | Fires when | Source |
