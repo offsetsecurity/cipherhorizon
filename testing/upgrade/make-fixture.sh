@@ -57,8 +57,13 @@ for _ in $(seq 1 100); do
 done
 curl -sf "http://127.0.0.1:$port/api/v1/health" >/dev/null || { cat "$work/serve.log" >&2; exit 1; }
 
-node "$root/testing/upgrade/seed.mjs" --base "http://127.0.0.1:$port" --token "$token" \
-  --demo-base "$demo_base" --cbom "$src/testing/golden/debian-13.cbom.json"
+node "$root/testing/upgrade/seed.mjs" --base "http://127.0.0.1:$port" --token "$token" --demo-base "$demo_base"
+
+# A host inventory, uploaded as the collector would: the release's own sample (testing/golden), to this
+# local server only.
+curl -sf -o /dev/null -X POST "http://127.0.0.1:$port/api/v1/hosts/ingest" \
+  -H "Authorization: Bearer $token" -H "X-Requested-With: cipherhorizon" -H "Content-Type: application/json" \
+  --data-binary "@$src/testing/golden/debian-13.cbom.json" || { echo "uploading the host inventory failed" >&2; exit 1; }
 
 kill "$serve_pid"
 wait "$serve_pid" 2>/dev/null || true

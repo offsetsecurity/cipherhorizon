@@ -2,22 +2,28 @@
 // every release since 0.1.0 serves. make-fixture.sh runs it against a *released* version so the
 // database it leaves is exactly what that release writes (PRD-016 U-02).
 //
-//   node testing/upgrade/seed.mjs --base http://127.0.0.1:18090 --token T --demo-base 19440 --cbom host.cbom.json
+//   node testing/upgrade/seed.mjs --base http://127.0.0.1:18090 --token T --demo-base 19440
 //
 // Every step must succeed: a fixture missing a kind of data would test less than it claims.
-
-import { readFileSync } from "node:fs";
+// It talks only to a server on this machine (the throwaway one make-fixture.sh starts), and reads
+// no files: the host inventory is uploaded by make-fixture.sh itself.
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1]]] : acc), []),
 );
-const base = args.base;
 const token = args.token;
 const demo = Number(args["demo-base"] || 19440);
-if (!base || !token || !args.cbom) {
-  console.error("usage: seed.mjs --base URL --token TOKEN --demo-base PORT --cbom FILE");
+if (!args.base || !token) {
+  console.error("usage: seed.mjs --base http://127.0.0.1:PORT --token TOKEN --demo-base PORT");
   process.exit(2);
 }
+// Loopback only: this script exists to fill a local test server, never to send anything elsewhere.
+const baseURL = new URL(args.base);
+if (baseURL.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(baseURL.hostname)) {
+  console.error(`seed.mjs: --base must be http:// on loopback (127.0.0.1, localhost or [::1]), not ${baseURL.origin}`);
+  process.exit(2);
+}
+const base = baseURL.origin;
 
 async function api(method, path, body, type = "application/json") {
   const res = await fetch(base + path, {
@@ -89,9 +95,6 @@ await api("PUT", `/api/v1/assets/${ids["legacy-tls12"]}/findings/${encodeURIComp
 
 // A link between two endpoints (the same service behind two names).
 await api("PUT", `/api/v1/assets/${ids["modern-hybrid"]}/links/${ids["classical-tls13"]}`);
-
-// A host inventory, as the collector uploads it.
-await api("POST", "/api/v1/hosts/ingest", JSON.parse(readFileSync(args.cbom, "utf8")));
 
 const summary = await api("GET", "/api/v1/summary");
 console.log("seeded:", JSON.stringify(summary).slice(0, 300));
