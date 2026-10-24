@@ -47,6 +47,31 @@ rest. `go vet ./...` and `gofmt -l .` (expect no output) should be clean before 
    `go test ./internal/app -update` and read the diff.
 5. **Run the checks** in "Development setup" above.
 
+## Changing the database
+
+Every install upgrades its own database when a new version starts, from whatever version it ran before,
+however many releases it skipped. That only works if these rules hold (the tests enforce most of them; see
+[PRD-016](docs/product/PRD-016-upgrades-and-updates.md) §5.2):
+
+- **Add a new step to `migrations` in `internal/store/store.go`; never edit, reorder or remove one that has
+  shipped.** Shipped steps are listed in `internal/store/migrations.lock` (`TestMigrationsLock`). Fix a
+  shipped mistake with a new step.
+- **Additive in a minor release:** new tables, nullable columns or columns with a default, new indexes.
+  Dropping or renaming a column, or changing what one means, goes in two releases: add the new one and write
+  both; then, a release later, stop using and drop the old one.
+- **A step's Go back-fill (`postMigrations`) uses only frozen code:** SQL, the standard library and helpers
+  named `…V<step>` that are copied for it. No `Store` methods, no other package of this module, no shared
+  package variables (`TestPostMigrationsUseOnlyFrozenCode`). `recordConfirmedLinkV6` is an example.
+- **Stored evidence is never rewritten.** Scan reports (`report_json`) and host inventories stay as observed;
+  a new report shape gets a new `schemaVersion` and readers keep reading the old ones.
+- **Regenerate the schema description** and review its diff:
+  `go test ./internal/store -run TestSchemaFingerprint -update-schema` (writes `schema_fingerprint.go` and
+  `internal/store/testdata/schema.txt`).
+- **Write upgrade notes:** while a step is unreleased, `CHANGELOG.md` `[Unreleased]` needs a
+  `### Upgrade notes` section saying what the upgrade does and roughly how long it takes on a large database.
+- `TestUpgradeFromEveryRelease` upgrades a database written by every past release (`internal/store/testdata/upgrade`)
+  and checks nothing was lost and the result matches a fresh install.
+
 ## Evidence and citations
 
 This is the one rule the codebase enforces in tests, not just in review: **every PQC verdict, every TLS

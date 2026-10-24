@@ -1,0 +1,253 @@
+index-sql one_active_scan on scans: CREATE UNIQUE INDEX one_active_scan ON scans(asset_id) WHERE status IN ('queued','running')
+table asset_links
+  column asset_id INTEGER 1 NULL 1 0
+  column linked_asset_id INTEGER 1 NULL 2 0
+  column created_at TEXT 1 NULL 0 0
+  foreign-key assets linked_asset_id id NO ACTION CASCADE
+  foreign-key assets asset_id id NO ACTION CASCADE
+  index sqlite_autoindex_asset_links_1 1 pk 0 (asset_id:0:BINARY, linked_asset_id:0:BINARY)
+table assets
+  column id INTEGER 0 NULL 1 0
+  column kind TEXT 1 NULL 0 0
+  column name TEXT 1 NULL 0 0
+  column host TEXT 1 NULL 0 0
+  column port INTEGER 1 0 0 0
+  column tags TEXT 1 '[]' 0 0
+  column notes TEXT 1 '' 0 0
+  column interval_seconds INTEGER 1 0 0 0
+  column next_scan_at TEXT 0 NULL 0 0
+  column created_at TEXT 1 NULL 0 0
+  column updated_at TEXT 1 NULL 0 0
+  column system_id INTEGER 0 NULL 0 0
+  column starttls TEXT 1 'auto' 0 0
+  foreign-key systems system_id id NO ACTION NO ACTION
+  index assets_system 0 c 0 (system_id:0:BINARY)
+  index sqlite_autoindex_assets_1 1 u 0 (kind:0:BINARY, host:0:BINARY, port:0:BINARY)
+table audit_log
+  column id INTEGER 0 NULL 1 0
+  column at TEXT 1 NULL 0 0
+  column actor TEXT 1 NULL 0 0
+  column object_kind TEXT 1 NULL 0 0
+  column object_id INTEGER 1 NULL 0 0
+  column action TEXT 1 NULL 0 0
+  column before_json TEXT 1 '{}' 0 0
+  column after_json TEXT 1 '{}' 0 0
+  column reason TEXT 1 '' 0 0
+  index audit_log_at 0 c 0 (at:0:BINARY)
+  index audit_object 0 c 0 (object_kind:0:BINARY, object_id:0:BINARY, id:0:BINARY)
+table auth_events
+  column id INTEGER 0 NULL 1 0
+  column at TEXT 1 NULL 0 0
+  column kind TEXT 1 NULL 0 0
+  column username TEXT 1 '' 0 0
+  column actor TEXT 1 '' 0 0
+  column client TEXT 1 '' 0 0
+  column detail TEXT 1 '' 0 0
+  index auth_events_at 0 c 0 (at:0:BINARY)
+table entities
+  column id INTEGER 0 NULL 1 0
+  column kind TEXT 1 NULL 0 0
+  column key TEXT 1 NULL 0 0
+  column name TEXT 1 '' 0 0
+  column attrs_json TEXT 1 '{}' 0 0
+  index sqlite_autoindex_entities_1 1 u 0 (kind:0:BINARY, key:0:BINARY)
+table finding_status
+  column asset_id INTEGER 1 NULL 1 0
+  column finding_key TEXT 1 NULL 2 0
+  column status TEXT 1 NULL 0 0
+  column note TEXT 1 '' 0 0
+  column set_at TEXT 1 NULL 0 0
+  foreign-key assets asset_id id NO ACTION CASCADE
+  index sqlite_autoindex_finding_status_1 1 pk 0 (asset_id:0:BINARY, finding_key:0:BINARY)
+table host_snapshots
+  column id INTEGER 0 NULL 1 0
+  column asset_id INTEGER 1 NULL 0 0
+  column at TEXT 1 NULL 0 0
+  column cbom_json BLOB 1 NULL 0 0
+  column summary_json BLOB 1 NULL 0 0
+  column source_class TEXT 1 'imported' 0 0
+  column submitted_by TEXT 1 '' 0 0
+  foreign-key assets asset_id id NO ACTION CASCADE
+  index host_snapshots_asset 0 c 0 (asset_id:0:BINARY, id:1:BINARY)
+table imports
+  column id INTEGER 0 NULL 1 0
+  column sha256 TEXT 1 NULL 0 0
+  column spec_version TEXT 1 NULL 0 0
+  column profile TEXT 1 NULL 0 0
+  column kind TEXT 1 NULL 0 0
+  column cbom_json BLOB 1 NULL 0 0
+  column created_at TEXT 1 NULL 0 0
+  index sqlite_autoindex_imports_1 1 u 0 (sha256:0:BINARY)
+table links
+  column id INTEGER 0 NULL 1 0
+  column asset_id INTEGER 1 NULL 0 0
+  column system_id INTEGER 1 NULL 0 0
+  column state TEXT 1 NULL 0 0
+  column strength TEXT 1 NULL 0 0
+  column rules_json TEXT 1 '[]' 0 0
+  column evidence_json TEXT 1 '{}' 0 0
+  column stale INTEGER 1 0 0 0
+  column decided_by TEXT 1 '' 0 0
+  column decided_at TEXT 0 NULL 0 0
+  column created_at TEXT 1 NULL 0 0
+  column updated_at TEXT 1 NULL 0 0
+  foreign-key systems system_id id NO ACTION CASCADE
+  foreign-key assets asset_id id NO ACTION CASCADE
+  index links_state 0 c 0 (state:0:BINARY)
+  index sqlite_autoindex_links_1 1 u 0 (asset_id:0:BINARY, system_id:0:BINARY)
+table observations
+  column id INTEGER 0 NULL 1 0
+  column source_id INTEGER 1 NULL 0 0
+  column entity_id INTEGER 1 NULL 0 0
+  column relation TEXT 1 NULL 0 0
+  column via TEXT 1 '' 0 0
+  column rung TEXT 1 NULL 0 0
+  column class INTEGER 1 NULL 0 0
+  column method TEXT 1 NULL 0 0
+  column quality TEXT 1 NULL 0 0
+  column observed_at TEXT 1 NULL 0 0
+  column attrs_json TEXT 1 '{}' 0 0
+  foreign-key entities entity_id id NO ACTION NO ACTION
+  foreign-key sources source_id id NO ACTION CASCADE
+  index observations_entity 0 c 0 (entity_id:0:BINARY)
+  index observations_source 0 c 0 (source_id:0:BINARY)
+table projection_state
+  column id INTEGER 0 NULL 1 0
+  column version INTEGER 1 NULL 0 0
+  column built_at TEXT 1 NULL 0 0
+  column stale INTEGER 1 0 0 0
+table scan_events
+  column id INTEGER 0 NULL 1 0
+  column scan_id INTEGER 1 NULL 0 0
+  column at TEXT 1 NULL 0 0
+  column message TEXT 1 NULL 0 0
+  foreign-key scans scan_id id NO ACTION CASCADE
+  index scan_events_scan 0 c 0 (scan_id:0:BINARY, id:0:BINARY)
+table scans
+  column id INTEGER 0 NULL 1 0
+  column asset_id INTEGER 1 NULL 0 0
+  column status TEXT 1 NULL 0 0
+  column trigger TEXT 1 NULL 0 0
+  column stage TEXT 1 '' 0 0
+  column progress_pct INTEGER 1 0 0 0
+  column connections INTEGER 1 0 0 0
+  column queued_at TEXT 1 NULL 0 0
+  column started_at TEXT 0 NULL 0 0
+  column finished_at TEXT 0 NULL 0 0
+  column error TEXT 1 '' 0 0
+  column report_json BLOB 0 NULL 0 0
+  column eval_json BLOB 0 NULL 0 0
+  column band TEXT 1 '' 0 0
+  column readiness_level INTEGER 0 NULL 0 0
+  column hndl_exposed INTEGER 1 0 0 0
+  column crit INTEGER 1 0 0 0
+  column high INTEGER 1 0 0 0
+  column medium INTEGER 1 0 0 0
+  column cert_not_after TEXT 0 NULL 0 0
+  column incomplete INTEGER 1 0 0 0
+  column score INTEGER 1 -1 0 0
+  column low INTEGER 1 0 0 0
+  column info INTEGER 1 0 0 0
+  column started_by TEXT 1 '' 0 0
+  column service TEXT 1 '' 0 0
+  column host_key TEXT 1 '' 0 0
+  column baseline TEXT 1 '' 0 0
+  column baseline_meets INTEGER 0 NULL 0 0
+  column baseline_changes INTEGER 1 0 0 0
+  foreign-key assets asset_id id NO ACTION CASCADE
+  index one_active_scan 1 c 1 (asset_id:0:BINARY)
+  index scans_asset 0 c 0 (asset_id:0:BINARY, id:1:BINARY)
+  index scans_status 0 c 0 (status:0:BINARY, id:0:BINARY)
+table schema_migrations
+  column version INTEGER 0 NULL 1 0
+  column applied_at TEXT 1 NULL 0 0
+table sessions
+  column id INTEGER 0 NULL 1 0
+  column token_hash TEXT 1 NULL 0 0
+  column user_id INTEGER 1 NULL 0 0
+  column created_at TEXT 1 NULL 0 0
+  column last_seen_at TEXT 1 NULL 0 0
+  column expires_at TEXT 1 NULL 0 0
+  column client TEXT 1 '' 0 0
+  column user_agent TEXT 1 '' 0 0
+  foreign-key users user_id id NO ACTION CASCADE
+  index sessions_user 0 c 0 (user_id:0:BINARY)
+  index sqlite_autoindex_sessions_1 1 u 0 (token_hash:0:BINARY)
+table settings
+  column key TEXT 0 NULL 1 0
+  column value TEXT 1 NULL 0 0
+  index sqlite_autoindex_settings_1 1 pk 0 (key:0:BINARY)
+table sources
+  column id INTEGER 0 NULL 1 0
+  column class TEXT 1 NULL 0 0
+  column stream TEXT 1 NULL 0 0
+  column ref_kind TEXT 1 NULL 0 0
+  column ref_id INTEGER 1 NULL 0 0
+  column asset_id INTEGER 0 NULL 0 0
+  column system_id INTEGER 0 NULL 0 0
+  column tool_name TEXT 1 '' 0 0
+  column tool_version TEXT 1 '' 0 0
+  column sha256 TEXT 1 '' 0 0
+  column size INTEGER 1 0 0 0
+  column received_at TEXT 1 NULL 0 0
+  column observed_at TEXT 1 NULL 0 0
+  column submitted_by TEXT 1 '' 0 0
+  column subject_claim TEXT 1 '' 0 0
+  column status TEXT 1 'active' 0 0
+  column is_current INTEGER 1 1 0 0
+  column not_interpreted_json TEXT 1 '{}' 0 0
+  foreign-key systems system_id id NO ACTION CASCADE
+  foreign-key assets asset_id id NO ACTION CASCADE
+  index sources_asset 0 c 0 (asset_id:0:BINARY, is_current:0:BINARY)
+  index sqlite_autoindex_sources_1 1 u 0 (ref_kind:0:BINARY, ref_id:0:BINARY)
+table systems
+  column id INTEGER 0 NULL 1 0
+  column name TEXT 1 NULL 0 0
+  column owner TEXT 1 '' 0 0
+  column environment TEXT 1 '' 0 0
+  column criticality TEXT 1 '' 0 0
+  column exposure TEXT 1 '' 0 0
+  column data_lifetime_years INTEGER 0 NULL 0 0
+  column fisma_id TEXT 1 '' 0 0
+  column fips199 TEXT 1 '' 0 0
+  column hva_id TEXT 1 '' 0 0
+  column hosting TEXT 1 '' 0 0
+  column hosting_provider TEXT 1 '' 0 0
+  column notes TEXT 1 '' 0 0
+  column created_at TEXT 1 NULL 0 0
+  column updated_at TEXT 1 NULL 0 0
+table trust_anchors
+  column id INTEGER 0 NULL 1 0
+  column system_id INTEGER 1 NULL 0 0
+  column sha256 TEXT 1 NULL 0 0
+  column subject TEXT 1 NULL 0 0
+  column not_after TEXT 1 NULL 0 0
+  column pem TEXT 1 NULL 0 0
+  column added_at TEXT 1 NULL 0 0
+  column added_by TEXT 1 NULL 0 0
+  foreign-key systems system_id id NO ACTION CASCADE
+  index sqlite_autoindex_trust_anchors_1 1 u 0 (system_id:0:BINARY, sha256:0:BINARY)
+table upgrade_log
+  column id INTEGER 0 NULL 1 0
+  column at TEXT 1 NULL 0 0
+  column from_schema INTEGER 1 NULL 0 0
+  column to_schema INTEGER 1 NULL 0 0
+  column app_version TEXT 1 '' 0 0
+  column backup TEXT 1 '' 0 0
+table users
+  column id INTEGER 0 NULL 1 0
+  column username TEXT 1 NULL 0 0
+  column display_name TEXT 1 '' 0 0
+  column role TEXT 1 NULL 0 0
+  column password_hash TEXT 1 NULL 0 0
+  column disabled INTEGER 1 0 0 0
+  column must_change INTEGER 1 0 0 0
+  column failed_count INTEGER 1 0 0 0
+  column locked_until TEXT 0 NULL 0 0
+  column created_at TEXT 1 NULL 0 0
+  column created_by TEXT 1 '' 0 0
+  column password_changed_at TEXT 1 NULL 0 0
+  column last_login_at TEXT 0 NULL 0 0
+  index sqlite_autoindex_users_1 1 u 0 (username:0:NOCASE)
+trigger audit_log_no_delete on audit_log: CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END
+trigger audit_log_no_update on audit_log: CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END

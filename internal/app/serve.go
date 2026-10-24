@@ -171,6 +171,8 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	addr := fl.String("addr", "", "address to listen on: host:port, or a host alone with --port (default 127.0.0.1:8080, or "+addrEnv+" and "+portEnv+")")
 	port := fl.Int("port", -1, "port to listen on, keeping the host of --addr (or set "+portEnv+"); 0 picks any free port")
 	dbPath := fl.String("db", "", dbFlagHelp())
+	migrateMode := fl.String("migrate", "auto", "what to do with a database made by an older version: auto (upgrade it at start, after a backup) "+
+		"or refuse (stop and say so; upgrade it yourself with cipherhorizon db migrate)")
 	token := fl.String("token", "", "an automation token: scripts and tools may call the API with it as a bearer token, acting as an analyst (or set "+tokenEnv+")")
 	signInMode := fl.String("sign-in", "auto", "require sign-in: auto (off until turned on in Settings; on if accounts already exist), "+
 		"on (always; the first start prints a setup code for the administrator) or off (never)")
@@ -282,7 +284,16 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	if *dbPath, err = resolveDB(*dbPath, env); err != nil {
 		return fatalf(env, "choosing the database: %v", err)
 	}
-	st, err := store.Open(*dbPath)
+	// Exclusive: one server per database, and no other version upgrading it underneath this one.
+	opts := store.OpenOptions{Exclusive: true}
+	switch *migrateMode {
+	case "auto":
+	case "refuse":
+		opts.Migrate = store.MigrateRefuse
+	default:
+		return fatalf(env, "--migrate must be auto or refuse")
+	}
+	st, err := store.OpenWith(*dbPath, opts)
 	if err != nil {
 		return fatalf(env, "opening the database: %v", err)
 	}
