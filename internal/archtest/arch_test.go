@@ -89,17 +89,19 @@ func TestDiscoverDoesNotTouchTheOSDirectly(t *testing.T) {
 	forbid(t, "../discover", append(append(append([]string{}, noProcessOrNetwork...), noPlatform...), noCycloneDX...)...)
 }
 
-// The only packages allowed a Windows or unsafe import are the three platform layers:
-// hostinfo (who and what this machine is), winapi (what Windows cryptography says) and
-// winsvc (running as a Windows service), each behind build tags. None may run subprocesses or
-// use the network, and winapi and winsvc may import nothing else from this module, so they stay
-// pure platform layers that know nothing of evidence, CBOMs or the server.
+// The only packages allowed a Windows or unsafe import are the four platform layers:
+// hostinfo (who and what this machine is), winapi (what Windows cryptography says),
+// winsvc (running as a Windows service) and osfile (file locks and free space, for the
+// database), each behind build tags. None may run subprocesses or use the network, and winapi,
+// winsvc and osfile may import nothing else from this module, so they stay pure platform layers
+// that know nothing of evidence, CBOMs or the server.
 func TestOnlyPlatformLayersTouchTheOS(t *testing.T) {
 	forbid(t, "../hostinfo", "os/exec", "net", "net/http")
 	forbid(t, "../winapi", "os/exec", "net", "net/http", "net/rpc", module+"/internal")
 	forbid(t, "../winsvc", "os/exec", "net", "net/http", "net/rpc", module+"/internal")
+	forbid(t, "../osfile", "os/exec", "net", "net/http", "net/rpc", "unsafe", module+"/internal")
 
-	platform := map[string]bool{"hostinfo": true, "winapi": true, "winsvc": true}
+	platform := map[string]bool{"hostinfo": true, "winapi": true, "winsvc": true, "osfile": true}
 	entries, err := os.ReadDir("..")
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +112,7 @@ func TestOnlyPlatformLayersTouchTheOS(t *testing.T) {
 		}
 		for imp, files := range importsOf(t, filepath.Join("..", e.Name())) {
 			if imp == "golang.org/x/sys/windows" || strings.HasPrefix(imp, "golang.org/x/sys/windows/") || imp == "unsafe" {
-				t.Errorf("only internal/hostinfo, internal/winapi and internal/winsvc may import %s (used in %s)", imp, strings.Join(files, ", "))
+				t.Errorf("only internal/hostinfo, internal/winapi, internal/winsvc and internal/osfile may import %s (used in %s)", imp, strings.Join(files, ", "))
 			}
 		}
 	}

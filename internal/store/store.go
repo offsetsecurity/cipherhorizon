@@ -54,6 +54,7 @@ type Store struct {
 	path string
 	now  func() time.Time
 	log  *slog.Logger
+	lock *fileLock // held for the Store's life when opened Exclusive
 
 	// opened holds what Open did on its own (a backup, a deleted old backup) until SetLogger
 	// gives it somewhere to go: Open runs before the caller has set a logger.
@@ -69,7 +70,8 @@ type Store struct {
 	corrDone    uint64 // requests covered by a finished run
 }
 
-// Open opens (creating if needed) the database at path and applies migrations.
+// Open opens (creating if needed) the database at path and upgrades it if it is older than this
+// program (see upgrade.go for the steps and what happens when one fails).
 //
 // The file holds an organisation's scan results and host inventories, so it is
 // created owner-only (0600) and an existing one is tightened. SQLite gives its
@@ -78,30 +80,57 @@ type Store struct {
 // Every transaction is opened IMMEDIATE: a write transaction takes the write lock when it begins,
 // so two of them queue behind the busy timeout instead of one failing at its first write with
 // "database is locked" (a deferred transaction that read first cannot be upgraded under WAL).
-func Open(path string) (*Store, error) {
+func Open(path string) (*Store, error) { return OpenWith(path, OpenOptions{}) }
+
+// OpenWith is Open with options: a server opens Exclusive, and may refuse to upgrade.
+func OpenWith(path string, o OpenOptions) (*Store, error) {
+	var lk *fileLock
+	if o.Exclusive && lockable(path) {
+		// Taken before the file is touched, so a second server never even creates it.
+		var err error
+		if lk, err = acquireLock(path); err != nil {
+			return nil, err
+		}
+	}
 	if err := restrictFile(path); err != nil {
+		lk.release()
 		return nil, fmt.Errorf("store: securing %s: %w", path, err)
 	}
 	db, err := sql.Open("sqlite", dsnFor(path))
 	if err != nil {
+		lk.release()
 		return nil, err
 	}
 	db.SetMaxOpenConns(8)
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
+		lk.release()
 		return nil, fmt.Errorf("store: opening %s: %w", path, err)
 	}
-	s := &Store{db: db, path: path, now: time.Now, log: slog.New(slog.DiscardHandler), holding: true}
+	s := &Store{db: db, path: path, now: time.Now, log: slog.New(slog.DiscardHandler), holding: true, lock: lk}
 	s.corrCond = sync.NewCond(&s.corrMu)
-	if err := s.migrate(); err != nil {
+	res, err := s.migrate(o)
+	if err != nil {
 		_ = db.Close()
+		if res.restoreFrom != "" {
+			// The upgrade failed part-way or failed its checks: put the file back as it was.
+			if kept, rerr := restoreAfterFailedUpgrade(path, res.restoreFrom); rerr != nil {
+				err = fmt.Errorf("%w; putting the backup back also failed (%w): restore it by hand with cipherhorizon db restore --db %s %s", err, rerr, path, res.restoreFrom)
+			} else {
+				err = fmt.Errorf("%w. The database was put back exactly as it was before the upgrade (from %s), and the failed copy kept as %s for diagnosis; this version will not run on it until the problem is fixed", err, res.restoreFrom, kept)
+			}
+		}
+		res.lock.release()
+		lk.release()
 		return nil, err
 	}
+	res.lock.release()
 	s.noticeMu.Lock()
 	s.holding = false
 	s.noticeMu.Unlock()
 	if err := s.ensureProjection(); err != nil {
 		_ = db.Close()
+		lk.release()
 		return nil, err
 	}
 	return s, nil
@@ -157,8 +186,12 @@ func (s *Store) notice(msg string, args ...any) {
 // SetClock replaces the time source (tests).
 func (s *Store) SetClock(now func() time.Time) { s.now = now }
 
-// Close closes the database.
-func (s *Store) Close() error { return s.db.Close() }
+// Close closes the database and gives back its lock.
+func (s *Store) Close() error {
+	err := s.db.Close()
+	s.lock.release()
+	return err
+}
 
 var migrations = []string{
 	// 1: initial schema
@@ -453,6 +486,16 @@ var migrations = []string{
 	// strength alone. Every stored scan's band is carried over to its new name; the score is unchanged.
 	`UPDATE scans SET band = CASE band WHEN 'Strong' THEN 'Excellent' WHEN 'Sound' THEN 'Good'
 		WHEN 'Weak' THEN 'Poor' WHEN 'Broken' THEN 'Failing' ELSE band END;`,
+	// 16: every upgrade (and the first creation) is recorded: from which schema to which, by which
+	// version, and the backup made first (PRD-016 U-07). cipherhorizon db status lists them.
+	`CREATE TABLE upgrade_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		at TEXT NOT NULL,
+		from_schema INTEGER NOT NULL,
+		to_schema INTEGER NOT NULL,
+		app_version TEXT NOT NULL DEFAULT '',
+		backup TEXT NOT NULL DEFAULT ''
+	);`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same
@@ -474,50 +517,6 @@ const (
 	FindingAcceptedRisk = "accepted-risk"
 )
 
-func (s *Store) migrate() error {
-	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
-		return err
-	}
-	var have int
-	if err := s.db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&have); err != nil {
-		return err
-	}
-	if have > len(migrations) {
-		return fmt.Errorf("store: database schema version %d is newer than this program understands (%d)", have, len(migrations))
-	}
-	if have > 0 && have < len(migrations) {
-		// An existing database is about to change shape: keep a copy first (SR-10). If the
-		// copy cannot be made, nothing is changed.
-		if err := s.backup(have); err != nil {
-			return fmt.Errorf("store: cannot back up %s before migrating from version %d, so it was not changed: %w", s.path, have, err)
-		}
-	}
-	for v := have + 1; v <= len(migrations); v++ {
-		tx, err := s.db.Begin()
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(migrations[v-1]); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("store: migration %d: %w", v, err)
-		}
-		if post := postMigrations[v]; post != nil {
-			if err := post(tx, s.now()); err != nil {
-				_ = tx.Rollback()
-				return fmt.Errorf("store: migration %d: %w", v, err)
-			}
-		}
-		if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, v, ts(s.now())); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		if err := tx.Commit(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // ---- time helpers --------------------------------------------------------------------
 
 // tsLayout is how every time is stored: UTC, always nine fractional digits, so that comparing
@@ -526,8 +525,10 @@ const tsLayout = "2006-01-02T15:04:05.000000000Z07:00"
 
 func ts(t time.Time) string { return t.UTC().Format(tsLayout) }
 
-// timestampColumns are every column holding a time written by ts (migration 10 rewrites them).
-var timestampColumns = map[string][]string{
+// timestampColumnsV10 are the columns migration 10 rewrites: every column holding a time as the
+// schema stood at step 10. Frozen with that step, like its SQL: a table added later must never be
+// listed here, because a database upgraded from before step 10 does not have it yet at step 10.
+var timestampColumnsV10 = map[string][]string{
 	"asset_links":       {"created_at"},
 	"assets":            {"created_at", "next_scan_at", "updated_at"},
 	"audit_log":         {"at"},
@@ -556,7 +557,7 @@ func backfillTimestamps(tx *sql.Tx, _ time.Time) error {
 	if _, err := tx.Exec(`DROP TRIGGER audit_log_no_update`); err != nil {
 		return err
 	}
-	for table, cols := range timestampColumns {
+	for table, cols := range timestampColumnsV10 {
 		for _, col := range cols {
 			if err := reformatColumnTx(tx, table, col); err != nil {
 				return fmt.Errorf("%s.%s: %w", table, col, err)
@@ -568,7 +569,7 @@ func backfillTimestamps(tx *sql.Tx, _ time.Time) error {
 }
 
 func reformatColumnTx(tx *sql.Tx, table, col string) error {
-	// table and col come from timestampColumns, a constant list, never from input.
+	// table and col come from timestampColumnsV10, a constant list, never from input.
 	rows, err := tx.Query(`SELECT rowid, ` + col + ` FROM ` + table + ` WHERE ` + col + ` IS NOT NULL AND ` + col + ` <> ''`) //nolint:gosec // constant identifiers
 	if err != nil {
 		return err

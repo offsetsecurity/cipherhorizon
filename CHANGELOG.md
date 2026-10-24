@@ -10,6 +10,32 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Safer upgrades** ([PRD-016](docs/product/PRD-016-upgrades-and-updates.md) Phase 0). The server still upgrades
+  its database at launch, from any earlier version, after a backup; now it also:
+  - refuses to run two servers on one database, and refuses to upgrade a database another CipherHorizon process
+    is using (a `<database>.lock` file next to it; the OS releases the lock if the process dies);
+  - checks there is room for the backup first, and changes nothing if there is not;
+  - checks the database after upgrading it, and if a step or the check fails, puts the file back exactly as it
+    was, keeps the failed copy for diagnosis, and refuses to start;
+  - records each upgrade (from which schema to which, by which version, and the backup) in the database.
+- `cipherhorizon db status` (schema, what an upgrade would do, backups, upgrade history, whether a server is
+  using it), `db check` (SQLite integrity check, references, structure; exit 2 on a problem), `db migrate`
+  (`--dry-run` to rehearse) and `db restore BACKUP-FILE` (the server must be stopped; the replaced database
+  is kept beside it).
+- `serve --migrate refuse`: for change-controlled sites, stop instead of upgrading an older database, so the
+  upgrade is run as its own step with `db migrate`.
+
+### Upgrade notes
+
+- Schema 15 → 16: adds the `upgrade_log` table. Nothing existing is changed; the upgrade takes under a second.
+- From this version on, a second `serve` on the same database exits with a message naming the process using
+  it. If you ran two servers on one file before, give each its own `--db`.
+- A database upgraded by this version is refused by 0.4.0 and earlier ("newer than this program
+  understands"). To go back, restore the backup made before the upgrade with `cipherhorizon db restore`
+  (this version) and then run the older one.
+
 ## [0.4.0] - 2026-10-22
 
 ### Security
