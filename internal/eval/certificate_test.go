@@ -156,9 +156,35 @@ func TestEveryCertificateFindingIsCited(t *testing.T) {
 	collect(f)
 	f.NotAfter = days(4)
 	collect(f)
+	// A CA on the distrust list (eMudhra "EM OV TLS CA - G3C", by key).
+	collect(CertificateFacts{Subject: "CN=EM OV TLS CA - G3C", NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 384,
+		SigName: "ECDSA-SHA384", IsCA: true, SPKISHA256: "63ecefee431d49523bc1136c4e72d0206a477086caf606cd5cf025686c109cf8"})
 	for _, id := range CertificateRuleIDs() {
 		if !seen[id] {
 			t.Errorf("rule %s never fired in the citation check", id)
+		}
+	}
+}
+
+// A certificate found on a host is known by its fingerprint (collectors do not
+// record the key hash): the Sectigo cross-sign of "EM OV TLS CA - G3C" must
+// still match, and a CA gets the note about trust stores.
+func TestDistrustedKeyByFingerprint(t *testing.T) {
+	f := CertificateFacts{Subject: "CN=EM OV TLS CA - G3C", NotBefore: days(-30), NotAfter: days(300), KeyAlgorithm: "ECDSA", KeyBits: 384,
+		SigName: "SHA384-RSA", IsCA: true, SHA256: "7485B51C0ED192878FA1D2F948FB529AE1842CC5086C4B67F7BE5B2039DE9489"}
+	var got *Finding
+	for _, fd := range EvaluateCertificate(f, certNow) {
+		if fd.ID == "CERT.DISTRUSTED-KEY" {
+			got = &fd
+		}
+	}
+	if got == nil || got.Severity != Critical || !strings.Contains(got.Detail, "whose private key is public") || !strings.Contains(got.Detail, "a machine that trusts it") {
+		t.Fatalf("finding %+v", got)
+	}
+	f.SHA256 = strings.Repeat("ab", 32)
+	for _, fd := range EvaluateCertificate(f, certNow) {
+		if fd.ID == "CERT.DISTRUSTED-KEY" {
+			t.Errorf("an unlisted certificate matched: %+v", fd)
 		}
 	}
 }

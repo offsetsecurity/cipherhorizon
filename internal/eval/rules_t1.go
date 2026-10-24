@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/pki"
@@ -29,7 +30,99 @@ var (
 	citSP80056A   = Citation{Title: "NIST SP 800-56A Rev. 3: Pair-Wise Key-Establishment Using Discrete Logarithm Cryptography (domain parameters, section 5.5)", URL: "https://csrc.nist.gov/pubs/sp/800/56/a/r3/final"}
 	citDHSubgroup = cve("CVE-2016-0701", "OpenSSL: DH small-subgroup key recovery with primes that are not safe primes")
 	citSuperfish  = cve("CVE-2015-2077", "Superfish: a root certificate installed with its private key")
+	// citCAKeyCompromise is the rule a compromised CA key falls under; each finding also names the
+	// incident's own sources from the distrust list.
+	citCAKeyCompromise = Citation{Title: "CA/Browser Forum Baseline Requirements §4.9.1.2: revoking a subordinate CA whose private key is compromised",
+		URL: "https://cabforum.org/working-groups/server/baseline-requirements/requirements/"}
 )
+
+// distrustedKeyHits is CERT.DISTRUSTED-KEY: every served certificate whose key or fingerprint is
+// on the distrust list, wherever it sits on the chain, plus a listed root that a path reaches
+// without the server sending it. The finding sits beside the trust verdict, never instead of it:
+// the chain is still validated, and each store's result says whether a signature-valid path
+// exists through the listed key.
+func distrustedKeyHits(c *ctx) []hit {
+	dl := c.in.Distrust
+	if dl.Len() == 0 {
+		return nil
+	}
+	views := map[int]*chain{}
+	for i, ch := range c.chains {
+		views[i] = ch
+	}
+	var hits []hit
+	for i, cr := range c.rep.Certificates {
+		if cr.NoSNI || len(cr.Chain) == 0 {
+			continue
+		}
+		label := certLabel(cr, cr.Chain[0])
+		seen := map[string]bool{}
+		report := func(where string, l pki.Listed, sha string) {
+			if seen[sha] {
+				return
+			}
+			seen[sha] = true
+			sev := Critical
+			if l.Kind == pki.KindCADistrust {
+				sev = High
+			}
+			detail := fmt.Sprintf("%s: %s %q %s", label, where, l.Name, l.Phrase())
+			if ch := views[i]; ch != nil {
+				if reach := ch.pathsThrough(sha); reach != "" {
+					detail += "; a signature-valid path through it reaches " + reach
+				}
+			}
+			if len(l.Sources) > 0 {
+				detail += "; see " + l.Sources[0]
+			}
+			hits = append(hits, hit{detail: detail, severity: sev})
+		}
+		for pos, ci := range cr.Chain {
+			sha := strings.ToLower(ci.SHA256)
+			if l, ok := dl.LookupHashes(sha, strings.ToLower(ci.SPKISHA256)); ok {
+				where := fmt.Sprintf("served certificate %d", pos)
+				if pos == 0 {
+					where = "the leaf"
+				}
+				report(where, l, sha)
+			}
+		}
+		if ch := views[i]; ch != nil {
+			for _, r := range ch.storeResults() {
+				for _, on := range r.Listed {
+					report("the path in "+r.Store+" goes through", on.Listed, on.SHA256)
+				}
+			}
+		}
+	}
+	return hits
+}
+
+// storeResults are the chain's results for every store, the operator's bundle included.
+func (ch *chain) storeResults() []pki.StoreResult {
+	out := append([]pki.StoreResult(nil), ch.view.Trust...)
+	if ch.view.Private != nil {
+		out = append(out, *ch.view.Private)
+	}
+	return out
+}
+
+// pathsThrough names, per store, the root a validated path through the certificate sha reaches.
+func (ch *chain) pathsThrough(sha string) string {
+	var parts []string
+	for _, r := range ch.storeResults() {
+		if len(r.Path) == 0 || !slices.Contains(r.Path, sha) {
+			continue
+		}
+		root := r.Path[len(r.Path)-1]
+		name := root[:16]
+		if _, n, ok := refdata.RootName(root); ok {
+			name = n
+		}
+		parts = append(parts, fmt.Sprintf("%q in %s", name, r.Store))
+	}
+	return strings.Join(parts, ", ")
+}
 
 // compromisedRoots are roots whose private keys were published with the software that installed
 // them, matched by the issuer's common name: anyone can issue a certificate under them.
@@ -244,6 +337,11 @@ var t1Rules = []rule{
 			}
 			return "", "", false
 		}),
+	{id: "CERT.DISTRUSTED-KEY", title: "A certificate on the chain uses a distrusted CA key", category: "certificate",
+		severity: Critical, evidence: Observed, citations: []Citation{citCAKeyCompromise, citRFC5280},
+		remediation: "Replace the certificate with one from a CA whose key is intact. Remove the listed CA certificates from every trust store and CA bundle you manage, and update clients (browsers, operating-system trust stores, language runtimes, appliances) so they block the key. " +
+			"Anyone can issue certificates under a key whose private half is public, so a client that still accepts it can be intercepted.",
+		check: distrustedKeyHits},
 	chainRule("CERT.WEAK-EXPONENT", "RSA public exponent is smaller than 65537", "certificate", Low,
 		[]Citation{citCABF},
 		"Reissue with a new key whose public exponent is 65537.",

@@ -101,8 +101,10 @@ const hygieneMethodology = "TLS hygiene score: start at 100 and take off points 
 func computeHygiene(c *ctx, findings []Finding) Hygiene {
 	h := Hygiene{Deductions: []Deduction{}, Methodology: hygieneMethodology}
 	h.NotMeasured = []string{
-		"Certificate revocation status.",
 		"Active exploit probes (Heartbleed, ROBOT, CCS injection, ...): not implemented; only weaknesses inferable from what is enabled are counted.",
+	}
+	if !c.rep.CRLLookups {
+		h.NotMeasured = append([]string{"Certificate revocation status: CRL lookups were off for this scan (--revocation), so only a stapled OCSP response could report it."}, h.NotMeasured...)
 	}
 	if c.rep.HSTS == nil {
 		h.NotMeasured = append(h.NotMeasured,

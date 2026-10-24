@@ -98,7 +98,8 @@ func TestEndpointKeepsItsSTARTTLS(t *testing.T) {
 		if c.Section == "http" && c.Result != "not-applicable" {
 			t.Errorf("check %s: %q, want not-applicable", c.ID, c.Result)
 		}
-		if c.Result == "not-checked" {
+		// The CRL checks are not checked whenever CRL lookups are off (the default), STARTTLS or not.
+		if c.Result == "not-checked" && !strings.HasPrefix(c.ID, "REV.") {
 			t.Errorf("check %s was not checked over STARTTLS", c.ID)
 		}
 	}

@@ -11,6 +11,8 @@ package tlsprobe
 
 import (
 	"time"
+
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
 )
 
 // SchemaVersion identifies the JSON shape of Report. It changes only with a
@@ -83,6 +85,9 @@ type Report struct {
 	// leaf as with SNI), "different" (a separate certificate result with NoSNI
 	// set), "failed", or empty when not attempted (the target is an address).
 	NoSNI string `json:"noSni,omitempty"`
+	// CRLLookups is set when the scan fetched the CRLs the served certificates name (Options.CRL).
+	// Without it, an absent CRL result means "not looked up", never "not revoked".
+	CRLLookups bool `json:"crlLookups,omitempty"`
 
 	// Stages record, for each part of the scan (the sections of the endpoint
 	// page), whether it ran, why not, and what it cost.
@@ -288,6 +293,9 @@ type CertResult struct {
 	OCSPStaple string `json:"ocspStaple,omitempty"`
 	// TLSSCTs are the raw SCTs from the TLS extension (base64), at most 32.
 	TLSSCTs []string `json:"tlsScts,omitempty"`
+	// CRL is what the CRLs named by each certificate on the served path said, when
+	// Report.CRLLookups is set: one result per CRL tried, in path order.
+	CRL []pki.CRLResult `json:"crl,omitempty"`
 }
 
 // CertInfo describes one certificate.

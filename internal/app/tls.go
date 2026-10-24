@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -14,6 +15,8 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/cbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
+	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
+	"github.com/offsetsecurity/cipherhorizon/internal/revocation"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 	"github.com/offsetsecurity/cipherhorizon/internal/version"
@@ -52,6 +55,10 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		"On by default; --http-checks=false turns it off")
 	osTrust := fl.Bool("os-trust", false, "also check each chain against this machine's trust store. Off by default: on some systems the OS verifier "+
 		"fetches missing intermediates from the network, contacting hosts other than the target")
+	crl := fl.Bool("revocation", false, "fetch the CRL each certificate on the served path names and report whether it is revoked. "+
+		"Off by default: it contacts the CA's CRL server (plain HTTP), a host other than the target. Private and loopback addresses are refused "+
+		"unless --revocation-private is set")
+	crlPrivate := fl.Bool("revocation-private", false, "with --revocation, also fetch CRLs from private (RFC 1918, unique-local) and loopback addresses: an internal CA's CRL server")
 	fl.Usage = func() {
 		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...  (flags must come before targets)")
 		fl.PrintDefaults()
@@ -92,6 +99,13 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		targets = append(targets, t)
 	}
 
+	var crlFetcher tlsprobe.CRLFetcher
+	var crlIssuers []*x509.Certificate
+	if *crl {
+		crlFetcher = revocation.New(revocation.Policy{AllowPrivate: *crlPrivate, AllowLoopback: *crlPrivate})
+		crlIssuers = refdata.RootCertificates()
+	}
+
 	_, _ = fmt.Fprint(env.Stderr, tlsNotice)
 
 	code := ExitOK
@@ -111,6 +125,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		rep, err := tlsprobe.Scan(ctx, t, tlsprobe.Options{
 			Timeout: *timeout, Concurrency: *concurrency, MaxConnections: *maxConns,
 			MinInterval: *interval, SkipCertificates: *noCerts, HTTPChecks: *httpChecks, OSTrust: *osTrust,
+			CRL: crlFetcher, CRLIssuers: crlIssuers,
 			Progress: func(msg string) { _, _ = fmt.Fprintf(env.Stderr, "  %s\n", msg) },
 			Now:      env.Now,
 		})

@@ -110,6 +110,7 @@ export async function render(root) {
       ['What may be scanned', scope, '--scan-allow'],
       ['This machine (loopback)', v.allowLoopback ? 'may be scanned' : 'may not be scanned', '--allow-loopback'],
       ['HTTP check (HSTS)', v.httpChecks ? 'on: one GET / after the handshake' : 'off', '--http-checks'],
+      ['CRL lookups', v.crlLookups ? 'on: each certificate’s CRL is fetched from its CA (plain HTTP)' : 'off: revocation is known only from stapled OCSP', '--revocation'],
       ['Automation token', v.automationToken ? 'accepted for scripts and CI' : 'not configured', '--token'],
       ['Scans at once', String(v.maxConcurrentScans), '--max-concurrent-scans'],
       ['History kept', `the last ${v.retentionPerAsset} scans of each endpoint`],

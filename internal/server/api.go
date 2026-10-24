@@ -84,6 +84,7 @@ func (s *Server) about(w http.ResponseWriter, _ *http.Request) {
 		"authRequired": s.signInOn() || s.cfg.Token != "", "signInRequired": s.signInOn(),
 		"automationToken": s.cfg.Token != "",
 		"httpChecks":      s.cfg.Runner.HTTPChecks(),
+		"crlLookups":      s.cfg.Runner.CRLLookups(),
 		"intervals":       []int{0, 3600, 21600, 86400, 604800},
 		"notice": "This tool connects to the endpoints you add and makes a few hundred short TLS handshakes to each. " +
 			"Scan only systems you own or are authorised to test.",
