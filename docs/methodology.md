@@ -120,6 +120,33 @@ lifetime limit and the CT requirement. The readiness level is unaffected by trus
   (cross-signs, reissues), and by certificate SHA-256 for certificates known only by fingerprint (host collectors).
   First entry: the eight eMudhra intermediate CAs of October 2026, whose P-384 private keys are below 256.
 
+| Rule | Severity | Fires when | Source |
+|---|---|---|---|
+| `REV.REVOKED` | critical | a certificate on the served path is listed on its issuer's CRL (signature verified, in scope) | RFC 5280 §5, CA/B Forum BR §4.9, §7.2 |
+| `REV.CRL-BAD-SIGNATURE` | high | a CRL a certificate names is under its issuer's name but does not verify under the issuer's key | as above |
+| `REV.CRL-STALE` | medium | the CRL that answered is past its nextUpdate at evaluation time | as above |
+| `REV.UNKNOWN` | low | no CRL answered for a certificate: unreachable, refused by the address policy, too large, not a CRL, out of scope, a delta, indirect, issuer unknown | as above |
+
+- **CRL lookups are opt-in** (`--revocation` on `tls scan` and `serve`; off by default). They are the only part of
+  a scan that contacts a host other than the target. With them off, the four checks read *not checked*, never
+  *passed*.
+- **Chain-wide, issuer-signed.** Each certificate on the served path, leaf first, is checked against a CRL it
+  names, signed by the certificate above it (or, for the top, a bundled root or the system's private anchor).
+  The walk stops at a self-signed root or a served cross-sign of a known root. A forged leaf's own revocation
+  data would be signed by the compromised key, which is why the parent's CRL is the one that counts.
+- **What a CRL must be to answer:** issued under the certificate's issuer name, signed by the issuer's key, not
+  dated in the future, a complete CRL (not a delta), not indirect, and in scope by its issuing distribution point
+  (user-only, CA-only, only-some-reasons and partition URLs are honoured). Otherwise the status is *unknown*.
+- **Fetching is guarded.** Plain `http` URLs only, no credentials, at most 4 per certificate, 16 MiB per CRL, 10 s
+  per fetch, 90 s for the stage, 3 redirects (each re-checked), no environment proxy. Every connection's real
+  address is checked after DNS: loopback, link-local (cloud metadata), private (RFC 1918, fc00::/7,
+  100.64.0.0/10), unspecified and multicast are refused unless `--revocation-private` is set (an internal CA's
+  CRL server). Results are cached per URL until the CRL's nextUpdate (at most a day), failures for 5 minutes.
+- **Revocation is a status, not a gate.** A revoked certificate stays on the path; the trust verdict and every
+  other rule are unchanged. A current CRL that does not list the leaf counts, like a verified staple, as
+  revocation being known. OCSP responders are never contacted: a lookup would tell the CA which site is checked,
+  and CRLs are mandatory for every publicly trusted CA.
+
 ### Rules and changes in eval/12 (PRD-015)
 
 | Rule | Severity | Fires when | Source |
@@ -134,8 +161,9 @@ lifetime limit and the CT requirement. The readiness level is unaffected by trus
 - **A missing issuer** is called a missing intermediate only when the served path stops at a certificate that names
   where its issuer can be downloaded (AIA caIssuers); otherwise it is a root the stores checked do not hold: a
   private CA, or a public root since removed.
-- **Revocation** is *good* only when a verified stapled OCSP response says so. Otherwise its status is *unknown*: the
-  scan does not contact the CA's OCSP responder or CRL. The revocation checks still count as run.
+- **Revocation** is *good* only when a verified stapled OCSP response says so, or (from eval/13, with CRL lookups
+  on) a current CRL from the leaf's issuer does not list it. Otherwise its status is *unknown*. The staple checks
+  still count as run.
 
 ### Rules added in eval/3 (PRD-004)
 

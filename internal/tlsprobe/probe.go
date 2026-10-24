@@ -3,6 +3,7 @@ package tlsprobe
 import (
 	"context"
 	"crypto/rand"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -41,6 +42,14 @@ type Options struct {
 	// fetches missing intermediates from the network, which would contact a
 	// host other than the target.
 	OSTrust bool
+	// CRL, when set, makes the revocation stage fetch the CRL each certificate on a
+	// served path names and judge it (CRYPTO-REVIEW-004 P1b). Off (nil) by default: it
+	// contacts the CA's CRL server, a host other than the target. The fetcher applies
+	// its own address policy; Dial and LookupIP are for the target only.
+	CRL CRLFetcher
+	// CRLIssuers are CA certificates (root stores, private anchors) that may have
+	// issued the top of a served path, so its CRL's signature can be checked.
+	CRLIssuers []*x509.Certificate
 
 	// Dial opens a connection. Default: net.Dialer. The server's SSRF guard and tests
 	// replace it. STARTTLS runs on top of whatever it returns (Target.StartTLS).

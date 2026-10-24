@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
@@ -89,6 +90,9 @@ func (r *Runner) Wait() { r.wg.Wait() }
 // HTTPChecks reports whether this runner's scans send the opt-in HTTP-layer
 // check (HSTS), so the API can tell callers about a server-wide setting.
 func (r *Runner) HTTPChecks() bool { return r.opts.Scan.HTTPChecks }
+
+// CRLLookups reports whether this runner's scans fetch the CRLs certificates name (--revocation).
+func (r *Runner) CRLLookups() bool { return r.opts.Scan.CRL != nil }
 
 // CABundle returns the server-wide private CA bundle.
 func (r *Runner) CABundle() []AnchorCert { return r.opts.CABundle }
@@ -331,6 +335,13 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 	o.Now = r.opts.Now
 	o.Progress = prog.message
 	o.Tick = prog.tick
+	if o.CRL != nil {
+		// A CRL issued by a root is checked against the bundled roots and this asset's private anchors.
+		o.CRLIssuers = refdata.RootCertificates()
+		if a := r.anchorsFor(asset.ID); a != nil {
+			o.CRLIssuers = append(o.CRLIssuers, a.Certificates()...)
+		}
+	}
 
 	r.note(sc.ID, r.st.AddEvent(sc.ID, "scan started: "+asset.Address()))
 	rep, err := tlsprobe.Scan(ctx, target, o)

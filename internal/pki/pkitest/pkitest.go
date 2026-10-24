@@ -39,6 +39,7 @@ type CAOpts struct {
 	NotBefore, NotAfter time.Time // default Epoch-1y .. Epoch+10y
 	PermittedDNS        []string
 	EKU                 []x509.ExtKeyUsage
+	CRL                 []string // CRL distribution points the CA certificate names
 }
 
 func newKey(t testing.TB) *ecdsa.PrivateKey {
@@ -74,7 +75,7 @@ func caTemplate(name string, o CAOpts) *x509.Certificate {
 	return &x509.Certificate{
 		SerialNumber: big.NewInt(serial.Add(1)), Subject: pkix.Name{CommonName: name, Organization: []string{"pkitest"}},
 		NotBefore: nb, NotAfter: na, IsCA: true, BasicConstraintsValid: true,
-		KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageCRLSign, PermittedDNSDomains: o.PermittedDNS, ExtKeyUsage: o.EKU,
+		KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageCRLSign, PermittedDNSDomains: o.PermittedDNS, ExtKeyUsage: o.EKU, CRLDistributionPoints: o.CRL,
 	}
 }
 
@@ -265,4 +266,20 @@ func DER(certs ...*x509.Certificate) [][]byte {
 // selfSigned reports whether the CA is a root.
 func (ca *CA) selfSigned() bool {
 	return bytes.Equal(ca.Cert.RawIssuer, ca.Cert.RawSubject)
+}
+
+// CRL issues a CRL under ca listing revoked, valid from thisUpdate to nextUpdate.
+func (ca *CA) CRL(t testing.TB, revoked []x509.RevocationListEntry, thisUpdate, nextUpdate time.Time) *x509.RevocationList {
+	t.Helper()
+	der, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+		Number: big.NewInt(serial.Add(1)), ThisUpdate: thisUpdate, NextUpdate: nextUpdate, RevokedCertificateEntries: revoked,
+	}, ca.Cert, ca.Key)
+	if err != nil {
+		t.Fatalf("pkitest: CRL: %v", err)
+	}
+	rl, err := x509.ParseRevocationList(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rl
 }

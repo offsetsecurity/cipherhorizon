@@ -252,6 +252,36 @@ function keyExchangeSection(ctx, tone) {
 
 // ---- 4. revocation, 5. features -------------------------------------------------------------
 
+const cnOf = (dn) => { const m = /(?:^|,\s*)CN=([^,]+)/.exec(dn || ''); return m ? m[1] : (dn || ''); };
+
+// crlSummary reads the CRL lookups of a chain view: one line per certificate on the served path,
+// and an overall verdict. Revocation is a status beside trust: this never changes the trust chips.
+export function crlSummary(v, cr) {
+  const results = v.crl || [];
+  const chain = (cr && cr.chain) || [];
+  const who = (pos) => (pos === 0 ? 'Leaf' : `Intermediate ${cnOf((chain[pos] || {}).subject) || pos}`);
+  const byPos = new Map();
+  for (const r of results) { if (!byPos.has(r.position)) byPos.set(r.position, []); byPos.get(r.position).push(r); }
+  const rows = [...byPos.entries()].sort((a, b) => a[0] - b[0]).map(([pos, rs]) => {
+    const ans = rs.find((r) => r.status !== 'unknown') || rs[rs.length - 1];
+    const stale = ans.status === 'good' && ans.nextUpdate && new Date(ans.nextUpdate) < new Date();
+    const text = ans.status === 'revoked' ? `revoked${ans.reason ? ` (${ans.reason})` : ''}${ans.revokedAt ? ` since ${fmtDay(ans.revokedAt)}` : ''}`
+      : ans.status === 'good' ? (stale ? `not listed, but the CRL is past its next update (${fmtDay(ans.nextUpdate)})` : `not revoked${ans.nextUpdate ? `; CRL current until ${fmtDay(ans.nextUpdate)}` : ''}`)
+        : `unknown: ${ans.problem || 'no CRL answered'}`;
+    const tone = ans.status === 'revoked' ? 'problem' : ans.status === 'good' && !stale ? 'good' : 'attention';
+    return { pos, who: who(pos), url: ans.url || '', text, tone, signature: ans.signature || '' };
+  });
+  const revoked = rows.filter((r) => r.tone === 'problem');
+  const leaf = rows.find((r) => r.pos === 0);
+  const verdict = !v.crlLookups ? { text: 'CRL lookups were off for this scan: revocation status unknown', tone: 'na' }
+    : revoked.length ? { text: `Revoked: ${revoked.map((r) => r.who).join(', ')}`, tone: 'problem' }
+      : rows.length && rows.every((r) => r.tone === 'good') ? { text: `Not revoked: ${rows.length === 1 ? 'the leaf was' : `all ${rows.length} certificates were`} checked against a current CRL from their issuer`, tone: 'good' }
+        : leaf && leaf.tone === 'good' ? { text: 'Leaf not revoked; a CRL higher up could not answer', tone: 'attention' }
+          : rows.length ? { text: 'A CRL could not answer: revocation status unknown', tone: 'attention' }
+            : { text: 'The certificates name no CRL to check', tone: 'na' };
+  return { rows, verdict };
+}
+
 function revocationSection(ctx, tone) {
   const { ev, rep } = ctx;
   const v = (ev.pki || []).find((x) => !x.noSni) || (ev.pki || [])[0];
@@ -269,11 +299,13 @@ function revocationSection(ctx, tone) {
       : o.error || !o.forThisCert ? statusTile('OCSP stapling', o.error ? `Stapled but unusable: ${o.error}` : 'Stapled, for another certificate', 'problem')
         : statusTile('OCSP stapling', `Stapled: ${o.status}${o.nextUpdate ? `, until ${fmtDay(o.nextUpdate)}` : ''}`, o.status === 'good' && o.signature === 'valid' ? 'good' : 'problem'),
     statusTile('Must-staple', leaf.ocspMustStaple ? 'Required by the certificate' : 'Not set', 'na'),
-    statusTile('OCSP and CRL', urls.length ? 'Named by the certificate, not contacted: revocation status unknown' : 'The certificate names none', urls.length ? 'na' : (v.public ? 'attention' : 'na'), null, null, urls.length ? urls.join('\n') : null),
+    v.crlLookups ? (() => { const s = crlSummary(v, cr); return statusTile('CRL', s.verdict.text, s.verdict.tone, null, null, s.rows.map((r) => `${r.who}: ${r.text}`).join('\n') || null); })()
+      : statusTile('OCSP and CRL', urls.length ? 'Named by the certificate, not contacted (CRL lookups off): revocation status unknown' : 'The certificate names none', urls.length ? 'na' : (v.public ? 'attention' : 'na'), null, null, urls.length ? urls.join('\n') : null),
     statusTile('Certificate Transparency', scts.length ? `${plural(scts.length, 'SCT')}: ${scts.map((s) => s.logName || 'unknown log').join(', ')}`
       : v.public ? 'No SCT in any of the three places' : 'No SCT: not needed for a private certificate', scts.length ? 'good' : v.public ? 'problem' : 'na'),
   ];
-  return section('sec-revocation', 'Revocation and transparency', tone, h('span', { class: 'cfg-aside' }, 'The CA’s responder and CRL are not contacted.'), h('div', { class: 'stiles' }, tiles));
+  const aside = v.crlLookups ? 'CRLs were fetched from the CA; OCSP responders are not contacted.' : 'The CA’s responder and CRL are not contacted.';
+  return section('sec-revocation', 'Revocation and transparency', tone, h('span', { class: 'cfg-aside' }, aside), h('div', { class: 'stiles' }, tiles));
 }
 
 function featuresSection(ctx, tone) {

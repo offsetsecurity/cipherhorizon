@@ -63,6 +63,7 @@ func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
 			"automationToken": s.cfg.Token != "", "allowLoopback": s.cfg.Guard.AllowLoopback,
 			"scanScope":          append([]string{}, s.cfg.Guard.Scope.Entries()...),
 			"httpChecks":         s.cfg.Runner.HTTPChecks(),
+			"crlLookups":         s.cfg.Runner.CRLLookups(),
 			"maxConcurrentScans": s.cfg.MaxConcurrentScans, "retentionPerAsset": store.Retention,
 			"sessionIdleMinutes": int(s.sessionIdle().Minutes()), "sessionMaxHours": int(s.sessionMax().Hours()),
 		},

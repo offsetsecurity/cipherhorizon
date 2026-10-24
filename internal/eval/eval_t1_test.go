@@ -655,6 +655,7 @@ func t1Firing(t *testing.T) []eval.Evaluation {
 		out = append(out, evalAt(r, epoch, f.stores))
 	}
 	out = append(out, weakKeyEval(t))
+	out = append(out, crlEvals(t)...)
 	at, st := osslAt(t), osslStore(t)
 	for _, c := range []struct {
 		leaf, staple string
@@ -698,8 +699,12 @@ func TestRevocationIsUnknownWithoutAStaple(t *testing.T) {
 		t.Errorf("no staple: section %+v", s)
 	}
 	for _, c := range ev.Checks {
-		if c.Section == eval.SecRevocation && c.Result == "not-checked" {
+		crl := strings.HasPrefix(c.ID, "REV.")
+		switch {
+		case c.Section == eval.SecRevocation && !crl && c.Result == "not-checked":
 			t.Errorf("check %s reads not-checked; it ran", c.ID)
+		case crl && c.Result != "not-checked":
+			t.Errorf("CRL check %s reads %s, but the scan did not look CRLs up", c.ID, c.Result)
 		}
 	}
 	good := evalAt(stapled(t, "leaf.pem", osslStaple(t, "ocsp-good")), osslAt(t), osslStore(t))

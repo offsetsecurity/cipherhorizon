@@ -20,6 +20,7 @@
 package refdata
 
 import (
+	"crypto/x509"
 	"encoding/base64"
 	"sync"
 	"time"
@@ -176,4 +177,20 @@ func Sources() []Source {
 	m, c, d, l, t := mozillaSource, chromeSource, dhSource, ctSource, lifetimeSource
 	m.Count, c.Count, d.Count, l.Count, t.Count = len(mozillaRoots), len(chromeRoots), len(dhPrimes), len(ctLogs), len(lifetimeLimits)
 	return []Source{m, c, l, d, t, distrustSource()}
+}
+
+// RootCertificates returns every root of the bundled stores once, for checking
+// the signature of a CRL issued by a root.
+func RootCertificates() []*x509.Certificate {
+	seen := map[string]bool{}
+	var out []*x509.Certificate
+	for _, s := range Stores() {
+		for _, c := range s.Certificates() {
+			if fp := pki.Fingerprint(c); !seen[fp] {
+				seen[fp] = true
+				out = append(out, c)
+			}
+		}
+	}
+	return out
 }

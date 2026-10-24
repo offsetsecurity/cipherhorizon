@@ -12,6 +12,24 @@ P0 as built, and where it differs from the plan below:
 - Superfish, eDellRoot and DSDTestProvider stay matched by name in `CERT.COMPROMISED-ROOT`. No key hash for them was
   verified, and guessing one would be worse than the name match.
 - Host-collected certificates match by certificate fingerprint. Collectors do not record the key hash yet (P2).
+
+P1b (online revocation) as built, same branch, still eval/13 (unreleased):
+- **CRL only, no OCSP.** CRLs are mandatory for every public CA, and an OCSP lookup would tell the CA which site is
+  being checked. OCSP responders stay uncontacted.
+- **Where the code is.** `pki.JudgeCRL` is pure. `internal/revocation` does the guarded fetching and caching.
+  `tlsprobe` walks the served path in the revocation stage and records `CertResult.CRL` and `Report.CRLLookups`.
+  The `REV.*` rules read those records.
+- **Flags.** `--revocation` and `--revocation-private` on `tls scan` and `serve`.
+- **Real servers, 2026-10-23.**
+  - eMudhra test host: `REV.REVOKED`. G3B is revoked (cACompromise) on emSign Root TLS CA - G3's own CRL, and the
+    signature verifies.
+  - revoked.badssl.com: the leaf is revoked (keyCompromise). The chain was checked up to ISRG Root X1.
+  - www.google.com: not revoked. The first run raised `REV.UNKNOWN` for a served cross-sign of GTS Root R4 whose
+    issuer we do not hold. Fixed: the walk now stops at a served copy of a known anchor.
+- **Not done.**
+  - Per-system anchors are used as CRL issuers only in `serve` (`tls scan` has no `--ca-bundle`).
+  - No CRLite or OneCRL feed yet (P3).
+  - No UI toggle: the setting is a server flag, shown in Settings.
 Trigger: IFF letter of 2026-10-22 on the compromise of eMudhra CA keys.
 
 ## 1. The incident in brief

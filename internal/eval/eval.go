@@ -10,6 +10,7 @@ package eval
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
@@ -267,6 +268,11 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	for i := range checks {
 		if r := skipped[checks[i].Section]; checks[i].Result == "not-found" && r != "" {
 			checks[i].Result = r
+		}
+		// The CRL checks ran only if the scan looked CRLs up: otherwise "nothing found" would
+		// read as "not revoked".
+		if strings.HasPrefix(checks[i].ID, "REV.") && checks[i].Result == "not-found" && !rep.CRLLookups {
+			checks[i].Result = "not-checked"
 		}
 	}
 	ev.Checks = checks
