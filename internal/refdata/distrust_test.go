@@ -69,8 +69,15 @@ func TestDistrustListIsWellFormed(t *testing.T) {
 			}
 		}
 	}
-	if Distrust().Len() != len(seen) {
-		t.Errorf("loaded %d values, file has %d", Distrust().Len(), len(seen))
+	// OneCRL adds its keys (except those the file already explains) and its certificates.
+	want := len(seen) + len(onecrlCerts)
+	for _, k := range onecrlKeys {
+		if _, dup := seen[k.SPKI]; !dup {
+			want++
+		}
+	}
+	if Distrust().Len() != want {
+		t.Errorf("loaded %d values, want %d (file %d, OneCRL %d keys + %d certificates)", Distrust().Len(), want, len(seen), len(onecrlKeys), len(onecrlCerts))
 	}
 }
 
@@ -115,5 +122,36 @@ func TestEmudhraKeysAreSmallScalars(t *testing.T) {
 	}
 	if found != len(want) {
 		t.Errorf("%d eMudhra entries, want %d", found, len(want))
+	}
+}
+
+// TestOneCRLIsWellFormedAndDefersToTheFile checks the generated OneCRL tables and that a key on
+// both lists keeps the hand-written entry, which says why (here: the eMudhra key compromise).
+func TestOneCRLIsWellFormedAndDefersToTheFile(t *testing.T) {
+	if len(onecrlCerts) < 100 || len(onecrlKeys) == 0 {
+		t.Fatalf("OneCRL: %d keys, %d certificates", len(onecrlKeys), len(onecrlCerts))
+	}
+	for _, k := range onecrlKeys {
+		if !isHex64(k.SPKI) || k.Name == "" || len(k.Since) != 10 {
+			t.Errorf("key %+v", k)
+		}
+	}
+	for _, c := range onecrlCerts {
+		if !isHex64(c.Issuer) || c.Serial == "" || strings.HasPrefix(c.Serial, "00") || c.IssuerName == "" {
+			t.Errorf("certificate %+v", c)
+		}
+	}
+	const emudhraG3B = "ebed6475c2c2d80fcb199f3fe8dd6e6b3ce60b77eb15d4e42c3dec0c6f5b5105"
+	l, ok := Distrust().LookupHashes("", emudhraG3B)
+	if !ok || l.Incident != "emudhra-2026-10" || l.Kind != pki.KindKeyCompromise {
+		t.Errorf("eMudhra G3B (on both lists) = %+v, want the hand-written key-compromise entry", l)
+	}
+	for _, k := range onecrlKeys {
+		l, ok := Distrust().LookupHashes("", k.SPKI)
+		if !ok {
+			t.Errorf("OneCRL key %s not loaded", k.Name)
+		} else if l.Incident == onecrlIncident && (l.Kind != pki.KindCADistrust || len(l.Sources) == 0) {
+			t.Errorf("OneCRL key %s: %+v", k.Name, l)
+		}
 	}
 }

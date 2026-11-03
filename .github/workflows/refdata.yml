@@ -1,0 +1,73 @@
+# Weekly reference-data refresh (CRYPTO-REVIEW-004 P3, PRD-016 U-18). Regenerates the root stores,
+# CT log list and OneCRL tables, checks Go's distrusted keys are all listed, runs the tests that read
+# them, and proposes the change as a pull request. Nothing is merged automatically.
+#
+# Pull requests opened with GITHUB_TOKEN need "Allow GitHub Actions to create and approve pull
+# requests" (Settings -> Actions -> General). Without it the job pushes the branch and opens an issue
+# that links to it instead. Either way CI does not start on its own for a branch pushed by this job:
+# close and reopen the pull request (or push to it) to run the full suite.
+name: refdata
+
+on:
+  schedule:
+    - cron: '17 5 * * 1' # Mondays 05:17 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: refdata
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    if: github.repository == 'offsetsecurity/cipherhorizon' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Regenerate
+        id: gen
+        run: |
+          scripts/refresh-refdata.sh "$RUNNER_TEMP/summary.md" | tee "$RUNNER_TEMP/gen.out"
+          grep -q '^changed=true$' "$RUNNER_TEMP/gen.out" && echo "changed=true" >> "$GITHUB_OUTPUT" || echo "changed=false" >> "$GITHUB_OUTPUT"
+
+      - name: Test what reads the lists
+        if: steps.gen.outputs.changed == 'true'
+        run: go test ./internal/refdata/... ./internal/pki/... ./internal/eval/...
+
+      - name: Propose the change
+        if: steps.gen.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          day="$(date -u +%Y-%m-%d)"
+          branch="refdata/$day"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add internal/refdata
+          git commit -q -m "chore(refdata): weekly refresh $day"
+          git push -q --force origin "$branch"
+          title="chore(refdata): weekly refresh $day"
+          if gh pr create --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/summary.md"; then
+            exit 0
+          fi
+          echo "::warning::Could not open a pull request (is 'Allow GitHub Actions to create and approve pull requests' off?); opening an issue instead."
+          {
+            cat "$RUNNER_TEMP/summary.md"
+            echo
+            echo "Open the pull request: https://github.com/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"
+          } > "$RUNNER_TEMP/issue.md"
+          gh issue create --title "$title" --body-file "$RUNNER_TEMP/issue.md"

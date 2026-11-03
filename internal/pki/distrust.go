@@ -39,15 +39,45 @@ func (l Listed) Phrase() string {
 
 // Distrust is a list of keys and certificates no path should rely on, matched by the SHA-256 of
 // the SubjectPublicKeyInfo (one entry covers every certificate for that key: the original, its
-// cross-signs and any reissue) or of the certificate's DER. A nil *Distrust matches nothing.
+// cross-signs and any reissue), of the certificate's DER, or by issuer name and serial number
+// (how root programs such as Mozilla's OneCRL revoke a CA certificate). A nil *Distrust matches
+// nothing.
 type Distrust struct {
-	bySPKI map[string]Listed
-	byCert map[string]Listed
+	bySPKI         map[string]Listed
+	byCert         map[string]Listed
+	byIssuerSerial map[string]Listed
 }
 
 // NewDistrust returns an empty list.
 func NewDistrust() *Distrust {
-	return &Distrust{bySPKI: map[string]Listed{}, byCert: map[string]Listed{}}
+	return &Distrust{bySPKI: map[string]Listed{}, byCert: map[string]Listed{}, byIssuerSerial: map[string]Listed{}}
+}
+
+// AddIssuerSerial lists one certificate by its issuer and serial number: issuerSHA is the
+// lower-case hex SHA-256 of the issuer Name's DER, serial the lower-case hex of the serial
+// number's magnitude (no leading zero bytes). An existing key or fingerprint entry for the same
+// certificate wins, since it says more.
+func (d *Distrust) AddIssuerSerial(issuerSHA, serial string, l Listed) {
+	d.byIssuerSerial[issuerSHA+":"+serial] = l
+}
+
+// Has reports whether a key is already listed (lower-case hex SPKI SHA-256).
+func (d *Distrust) Has(spki string) bool {
+	if d == nil {
+		return false
+	}
+	_, ok := d.bySPKI[spki]
+	return ok
+}
+
+// IssuerSerialKey is the issuer-and-serial match key of a certificate.
+func IssuerSerialKey(c *x509.Certificate) string {
+	sum := sha256.Sum256(c.RawIssuer)
+	serial := ""
+	if c.SerialNumber != nil {
+		serial = hex.EncodeToString(c.SerialNumber.Bytes())
+	}
+	return hex.EncodeToString(sum[:]) + ":" + serial
 }
 
 // Add lists a key (spki, lower-case hex, may be empty) and certificates (lower-case hex SHA-256 of
@@ -66,7 +96,7 @@ func (d *Distrust) Len() int {
 	if d == nil {
 		return 0
 	}
-	return len(d.bySPKI) + len(d.byCert)
+	return len(d.bySPKI) + len(d.byCert) + len(d.byIssuerSerial)
 }
 
 // LookupHashes matches by certificate SHA-256 and/or SPKI SHA-256 (lower-case hex; either may be
@@ -93,7 +123,11 @@ func (d *Distrust) Lookup(c *x509.Certificate) (Listed, bool) {
 	if d == nil || c == nil {
 		return Listed{}, false
 	}
-	return d.LookupHashes(Fingerprint(c), SPKIFingerprint(c))
+	if l, ok := d.LookupHashes(Fingerprint(c), SPKIFingerprint(c)); ok {
+		return l, true
+	}
+	l, ok := d.byIssuerSerial[IssuerSerialKey(c)]
+	return l, ok
 }
 
 // SPKIFingerprint is the lower-case hex SHA-256 of a certificate's SubjectPublicKeyInfo.

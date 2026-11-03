@@ -568,7 +568,7 @@ func TestSectionsAndFixFirst(t *testing.T) {
 			t.Errorf("%s has no section", fd.ID)
 		}
 	}
-	if len(ev.ReferenceData) != 6 {
+	if len(ev.ReferenceData) != 7 {
 		t.Errorf("reference data %+v", ev.ReferenceData)
 	}
 

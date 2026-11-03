@@ -11,6 +11,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
@@ -33,6 +35,7 @@ const (
 	mozillaURL = "https://ccadb.my.salesforce-sites.com/ccadb/Report?Name=MozillaTLSServerAuthenticationCSV"
 	chromeURL  = "https://ccadb.my.salesforce-sites.com/ccadb/Report?Name=ChromeTLSServerAuthenticationCSV"
 	ctURL      = "https://www.gstatic.com/ct/log_list/v3/log_list.json"
+	onecrlURL  = "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/changeset?_expected=0"
 	rfcURL     = "https://www.rfc-editor.org/rfc/rfc%s.txt"
 )
 
@@ -43,6 +46,8 @@ func main() {
 	rfcDir := flag.String("rfcs", "", "directory holding rfc2409.txt, rfc3526.txt, rfc5114.txt and rfc7919.txt")
 	retrieved := flag.String("retrieved", "", "date the sources were retrieved, YYYY-MM-DD (recorded in the output)")
 	outDir := flag.String("out", ".", "directory to write the *_gen.go files into")
+	onecrl := flag.String("onecrl", "", "Mozilla OneCRL changeset JSON (optional: without it onecrl_gen.go is left as it is)")
+	goVerify := flag.String("go-verify", "", "a Go toolchain's src/crypto/x509/verify.go (optional): fail if Go distrusts a key the bundled lists do not")
 	flag.Parse()
 	if *mozilla == "" || *chrome == "" || *ct == "" || *rfcDir == "" || *retrieved == "" {
 		fmt.Fprintln(os.Stderr, "gen: -mozilla, -chrome, -ctlogs, -rfcs and -retrieved are required")
@@ -55,6 +60,20 @@ func main() {
 	if err := run(*mozilla, *chrome, *ct, *rfcDir, *retrieved, *outDir); err != nil {
 		fmt.Fprintln(os.Stderr, "gen:", err)
 		os.Exit(1)
+	}
+	var keys []onecrlKey
+	if *onecrl != "" {
+		var err error
+		if keys, err = runOneCRL(*onecrl, *retrieved, *outDir); err != nil {
+			fmt.Fprintln(os.Stderr, "gen:", err)
+			os.Exit(1)
+		}
+	}
+	if *goVerify != "" {
+		if err := checkGoDistrust(*goVerify, filepath.Join(*outDir, "distrust.json"), keys); err != nil {
+			fmt.Fprintln(os.Stderr, "gen:", err)
+			os.Exit(3)
+		}
 	}
 }
 
@@ -442,4 +461,217 @@ func renderPrimes(primes []prime, sums map[string]string, retrieved string) []by
 	}
 	b.WriteString("}\n")
 	return b.Bytes()
+}
+
+// ---- Mozilla OneCRL -----------------------------------------------------------
+
+// onecrlKey is a OneCRL entry that blocks a key (subject + SPKI hash).
+type onecrlKey struct{ spki, name, since, bug string }
+
+// onecrlCert is a OneCRL entry that revokes one CA certificate by issuer and serial.
+type onecrlCert struct{ issuer, issuerName, serial, since, bug string }
+
+func runOneCRL(path, retrieved, outDir string) ([]onecrlKey, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	keys, certs, err := parseOneCRL(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return keys, write(filepath.Join(outDir, "onecrl_gen.go"), renderOneCRL(keys, certs, fileSHA(data), retrieved))
+}
+
+// parseOneCRL reads the Remote Settings changeset. Only enabled records are kept. A record is
+// either {subject, pubKeyHash} or {issuerName, serialNumber}; anything else is an error, as is a
+// value that does not decode to what it claims to be.
+func parseOneCRL(data []byte) ([]onecrlKey, []onecrlCert, error) {
+	var doc struct {
+		Changes []struct {
+			Enabled      bool   `json:"enabled"`
+			Deleted      bool   `json:"deleted"`
+			Subject      string `json:"subject"`
+			PubKeyHash   string `json:"pubKeyHash"`
+			IssuerName   string `json:"issuerName"`
+			SerialNumber string `json:"serialNumber"`
+			LastModified int64  `json:"last_modified"`
+			Details      struct {
+				Bug string `json:"bug"`
+			} `json:"details"`
+		} `json:"changes"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, nil, err
+	}
+	if len(doc.Changes) < 100 {
+		return nil, nil, fmt.Errorf("only %d records: not the OneCRL changeset", len(doc.Changes))
+	}
+	var keys []onecrlKey
+	var certs []onecrlCert
+	seenKey, seenCert := map[string]bool{}, map[string]bool{}
+	for i, r := range doc.Changes {
+		if r.Deleted || !r.Enabled {
+			continue
+		}
+		since := time.UnixMilli(r.LastModified).UTC().Format("2006-01-02")
+		bug := r.Details.Bug
+		if bug != "" && !strings.HasPrefix(bug, "https://") {
+			if _, err := strconv.Atoi(bug); err != nil {
+				return nil, nil, fmt.Errorf("record %d: bug %q is neither a URL nor a bug number", i, bug)
+			}
+			bug = "https://bugzilla.mozilla.org/show_bug.cgi?id=" + bug
+		}
+		switch {
+		case r.PubKeyHash != "" && r.Subject != "" && r.IssuerName == "" && r.SerialNumber == "":
+			h, err := base64.StdEncoding.DecodeString(r.PubKeyHash)
+			if err != nil || len(h) != 32 {
+				return nil, nil, fmt.Errorf("record %d: pubKeyHash is not 32 bytes of base64", i)
+			}
+			name, err := dnName(r.Subject)
+			if err != nil {
+				return nil, nil, fmt.Errorf("record %d: subject: %w", i, err)
+			}
+			k := hex.EncodeToString(h)
+			if !seenKey[k] {
+				seenKey[k] = true
+				keys = append(keys, onecrlKey{spki: k, name: name, since: since, bug: bug})
+			}
+		case r.IssuerName != "" && r.SerialNumber != "" && r.PubKeyHash == "" && r.Subject == "":
+			der, err := base64.StdEncoding.DecodeString(r.IssuerName)
+			if err != nil {
+				return nil, nil, fmt.Errorf("record %d: issuerName is not base64", i)
+			}
+			name, err := dnName(r.IssuerName)
+			if err != nil {
+				return nil, nil, fmt.Errorf("record %d: issuerName: %w", i, err)
+			}
+			sn, err := base64.StdEncoding.DecodeString(r.SerialNumber)
+			if err != nil || len(sn) == 0 || len(sn) > 64 {
+				return nil, nil, fmt.Errorf("record %d: serialNumber is not 1-64 bytes of base64", i)
+			}
+			// The serial's DER content may carry a leading zero byte to stay positive; the match
+			// key is the magnitude, as math/big gives it for a parsed certificate.
+			serial := hex.EncodeToString(new(big.Int).SetBytes(sn).Bytes())
+			sum := sha256.Sum256(der)
+			c := onecrlCert{issuer: hex.EncodeToString(sum[:]), issuerName: name, serial: serial, since: since, bug: bug}
+			if !seenCert[c.issuer+":"+c.serial] {
+				seenCert[c.issuer+":"+c.serial] = true
+				certs = append(certs, c)
+			}
+		default:
+			return nil, nil, fmt.Errorf("record %d: neither {subject, pubKeyHash} nor {issuerName, serialNumber}", i)
+		}
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i].spki < keys[j].spki })
+	sort.Slice(certs, func(i, j int) bool {
+		if certs[i].issuer != certs[j].issuer {
+			return certs[i].issuer < certs[j].issuer
+		}
+		return certs[i].serial < certs[j].serial
+	})
+	return keys, certs, nil
+}
+
+// dnName decodes a base64 DER Name to its common name, or the whole name when it has none.
+func dnName(b64 string) (string, error) {
+	der, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return "", err
+	}
+	var seq pkix.RDNSequence
+	rest, err := asn1.Unmarshal(der, &seq)
+	if err != nil {
+		return "", err
+	}
+	if len(rest) != 0 {
+		return "", fmt.Errorf("trailing data after the name")
+	}
+	var n pkix.Name
+	n.FillFromRDNSequence(&seq)
+	if n.CommonName != "" {
+		return n.CommonName, nil
+	}
+	return n.String(), nil
+}
+
+func renderOneCRL(keys []onecrlKey, certs []onecrlCert, sum, retrieved string) []byte {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "// Code generated by internal/refdata/gen from Mozilla OneCRL (retrieved %s). DO NOT EDIT.\n\n", retrieved)
+	b.WriteString("package refdata\n\n")
+	fmt.Fprintf(&b, "var onecrlSource = Source{Name: %q, URL: %q, Retrieved: %q, SHA256: %q, Licence: licenceOneCRL}\n\n", "Mozilla OneCRL", onecrlURL, retrieved, sum)
+	b.WriteString("var onecrlKeys = []onecrlKey{\n")
+	for _, k := range keys {
+		fmt.Fprintf(&b, "\t{SPKI: %q, Name: %q, Since: %q, Bug: %q},\n", k.spki, k.name, k.since, k.bug)
+	}
+	b.WriteString("}\n\nvar onecrlCerts = []onecrlCert{\n")
+	for _, c := range certs {
+		fmt.Fprintf(&b, "\t{Issuer: %q, IssuerName: %q, Serial: %q, Since: %q, Bug: %q},\n", c.issuer, c.issuerName, c.serial, c.since, c.bug)
+	}
+	b.WriteString("}\n")
+	return b.Bytes()
+}
+
+// ---- Go's hardcoded distrust ----------------------------------------------------
+
+var goSPKILine = regexp.MustCompile(`^\s*"([0-9a-f]{64})":\s*\{\},`)
+
+// checkGoDistrust fails when the Go toolchain distrusts a key that neither distrust.json nor
+// OneCRL lists. Such a key needs an incident entry written by hand (what it is, why, sources),
+// so the weekly refresh reports it rather than inventing one.
+func checkGoDistrust(verifyGo, distrustJSON string, onecrl []onecrlKey) error {
+	src, err := os.ReadFile(verifyGo)
+	if err != nil {
+		return err
+	}
+	i := bytes.Index(src, []byte("var distrustedSPKIHashes = map[string]struct{}{"))
+	if i < 0 {
+		return fmt.Errorf("%s: no distrustedSPKIHashes table (has Go changed how it distrusts keys?)", verifyGo)
+	}
+	var goKeys []string
+	sc := bufio.NewScanner(bytes.NewReader(src[i:]))
+	sc.Scan()
+	for sc.Scan() {
+		line := sc.Text()
+		if strings.TrimSpace(line) == "}" {
+			break
+		}
+		if m := goSPKILine.FindStringSubmatch(line); m != nil {
+			goKeys = append(goKeys, m[1])
+		}
+	}
+	listed := map[string]bool{}
+	for _, k := range onecrl {
+		listed[k.spki] = true
+	}
+	data, err := os.ReadFile(distrustJSON)
+	if err != nil {
+		return err
+	}
+	var f struct {
+		Incidents []struct {
+			Entries []struct {
+				SPKI string `json:"spkiSha256"`
+			} `json:"entries"`
+		} `json:"incidents"`
+	}
+	if err := json.Unmarshal(data, &f); err != nil {
+		return fmt.Errorf("%s: %w", distrustJSON, err)
+	}
+	for _, in := range f.Incidents {
+		for _, e := range in.Entries {
+			listed[e.SPKI] = true
+		}
+	}
+	var missing []string
+	for _, k := range goKeys {
+		if !listed[k] {
+			missing = append(missing, k)
+		}
+	}
+	fmt.Printf("Go distrusts %d keys; %d not in distrust.json or OneCRL\n", len(goKeys), len(missing))
+	if len(missing) > 0 {
+		return fmt.Errorf("go distrusts keys the bundled lists do not; add an incident to distrust.json for: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
