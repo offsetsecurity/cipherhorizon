@@ -41,8 +41,9 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Changed
 
-- Root stores refreshed from CCADB (2026-10-23). Mozilla has removed emSign ECC Root CA - G3, emSign ECC Root CA -
-  C3 and emSign Root CA - C1. Chrome still lists G3 until Chrome Root Store v43 (about 2026-10-27). CT log list
+- Root stores refreshed from CCADB (2026-11-03). Mozilla has removed emSign ECC Root CA - G3, emSign ECC Root CA -
+  C3 and emSign Root CA - C1, and Chrome Root Store v43 has removed emSign ECC Root CA - G3. Chains through these
+  roots now read "no path to a root" in those stores; `CERT.DISTRUSTED-KEY` still names the reason. CT log list
   refreshed: Google's logs are now named like "Google Argon2026h2".
 
 ## [0.4.0] - 2026-10-22
