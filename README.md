@@ -1,32 +1,74 @@
-# CipherHorizon
+<p align="center">
+  <img src="web/static/img/mark.svg" width="72" height="72" alt="">
+</p>
 
-[![CI](https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml/badge.svg)](https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml)
-[![Go Reference](https://img.shields.io/badge/go-1.27%2B-00ADD8?logo=go&logoColor=white)](go.mod)
-[![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![CycloneDX](https://img.shields.io/badge/CBOM-CycloneDX%201.7-2457d6)](docs/exporting.md)
+<h1 align="center">CipherHorizon</h1>
 
+<p align="center">
+  <a href="https://github.com/offsetsecurity/cipherhorizon/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/offsetsecurity/cipherhorizon?include_prereleases&sort=semver&label=release"></a>
+  <a href="https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/offsetsecurity/cipherhorizon/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/offsetsecurity/cipherhorizon/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/offsetsecurity/cipherhorizon/actions/workflows/codeql.yml/badge.svg"></a>
+  <br>
+  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/badge/go-1.27%2B-00ADD8?logo=go&logoColor=white"></a>
+  <a href="https://pkg.go.dev/github.com/offsetsecurity/cipherhorizon"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/offsetsecurity/cipherhorizon.svg"></a>
+  <a href="docs/exporting.md"><img alt="CBOM: CycloneDX 1.7" src="https://img.shields.io/badge/CBOM-CycloneDX%201.7-2457d6"></a>
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#what-is-in-it">Features</a> ·
+  <a href="#how-it-compares">How it compares</a> ·
+  <a href="docs/methodology.md">Methodology</a> ·
+  <a href="https://github.com/offsetsecurity/cipherhorizon/releases">Downloads</a>
+</p>
 
 **Post-quantum readiness for the protocols your organisation runs on: TLS, SSH and, next, VPN. A deep scan of each,
 a readiness level from L0 to L4, and one CycloneDX CBOM, self-hosted.** By [Offset Security](https://offsetsecurity.net/).
+
+> [!NOTE]
+> **Pre-release (`0.x`).** It works and is tested against real servers, but options and the API may still change
+> before 1.0 ([release checklist](docs/engineering/RELEASE-CHECKLIST-1.0.md)).
 
 Recorded traffic is protected today only if the key exchange was post-quantum: NIST IR 8547 deprecates the
 quantum-vulnerable algorithms after 2030 and disallows them after 2035, and anything harvested before then can be
 decrypted later. CipherHorizon tells you which of your TLS endpoints and SSH servers are exposed, which machines carry
 quantum-vulnerable cryptography, and what to fix first. It runs on your network and sends nothing anywhere.
 
-![The Overview: a scan box, the L0 to L4 readiness scale across TLS endpoints and SSH servers, and a card per protocol](docs/img/overview.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/overview-dark.png">
+  <img src="docs/img/overview.png" alt="The Overview: a scan box, the L0 to L4 readiness scale across TLS endpoints and SSH servers, and a card per protocol">
+</picture>
 
 ## Quick start
 
+Pick one. Downloads (Linux, macOS, Windows; amd64 and arm64) are on the [Releases page](../../releases).
+
+**Docker or Podman**
+
 ```sh
-docker compose up -d                                          # or: podman compose up -d
-sudo apt install ./cipherhorizon_<version>_amd64.deb          # Debian, Ubuntu (dnf install … .rpm on RHEL, Fedora)
-cipherhorizon.exe service install                             # Windows, as administrator: a service that starts at boot
-cipherhorizon serve                                           # any OS, from the release archive, in this terminal
+docker compose up -d          # or: podman compose up -d
 ```
 
-Downloads (Linux, macOS, Windows; amd64 and arm64) are on the [Releases page](../../releases). Each OS, where the
-data lives, backup, upgrade and removal: [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md).
+**Debian, Ubuntu** (on RHEL or Fedora: `sudo dnf install ./cipherhorizon-<version>-1.x86_64.rpm`)
+
+```sh
+sudo apt install ./cipherhorizon_<version>_amd64.deb
+```
+
+**Windows**, in a terminal run as administrator: a service that starts at boot
+
+```powershell
+cipherhorizon.exe service install
+```
+
+**Any OS**, from the release archive, running in this terminal
+
+```sh
+cipherhorizon serve
+```
+
+Each OS, where the data lives, backup, upgrade and removal: [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md).
 
 Open <http://127.0.0.1:8080>, type an address, press Enter. Sign-in is off until you want it: turn it on in
 **Settings** to give a team accounts and roles, or start with `--sign-in on`.
@@ -190,8 +232,6 @@ driver; the TLS scanner and the SSH auditor are their own wire implementations (
 Bug reports, corrections to a finding or a citation, and pull requests are welcome: see
 [CONTRIBUTING.md](CONTRIBUTING.md) for the setup, conventions and the evidence rule every finding follows.
 Everyone participating follows the [Code of Conduct](CODE_OF_CONDUCT.md).
-
-**Status:** pre-release (`0.x`), heading for 1.0 ([release checklist](docs/engineering/RELEASE-CHECKLIST-1.0.md)).
 
 ## License and credits
 

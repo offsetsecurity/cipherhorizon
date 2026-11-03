@@ -1,0 +1,57 @@
+<!doctype html>
+<!-- Source of docs/img/social-preview.png, the GitHub social preview (1280x640).
+     Render: scripts/render-social-preview.sh. Upload: repo Settings > General > Social preview. -->
+<html><head><meta charset="utf-8"><title>CipherHorizon social preview</title>
+<style>
+@font-face { font-family: "Geist"; src: url("../../web/static/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "Geist Mono"; src: url("../../web/static/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1280px; height: 640px; overflow: hidden; }
+body { background: #0B1428; color: #E8ECF4; font-family: "Geist", sans-serif; position: relative; }
+/* A faint horizon: a soft glow rising from the bottom edge. */
+body::before { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(120% 70% at 50% 118%, rgba(36,87,214,.55) 0%, rgba(36,87,214,.12) 45%, rgba(11,20,40,0) 70%); }
+.wrap { position: absolute; inset: 88px 104px 80px; display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 22px; }
+.brand svg { width: 76px; height: 76px; }
+.brand h1 { font-size: 64px; font-weight: 650; letter-spacing: -1.5px; color: #fff; }
+.lede { margin-top: 44px; font-size: 44px; font-weight: 600; letter-spacing: -.6px; line-height: 1.12; color: #fff; }
+.sub { margin-top: 16px; font-size: 25px; line-height: 1.4; color: #A3AEC2; }
+.scale { margin-top: auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.seg { height: 14px; border-radius: 7px; }
+.lab { margin-top: 12px; font-family: "Geist Mono", monospace; font-size: 16px; color: #A3AEC2; }
+.lab b { color: #fff; font-weight: 600; margin-right: 6px; }
+.foot { margin-top: 34px; display: flex; align-items: center; justify-content: space-between; }
+.chips { display: flex; gap: 10px; }
+.chip { font-family: "Geist Mono", monospace; font-size: 18px; color: #9DB6FF; border: 1.5px solid #2E3E64; border-radius: 999px; padding: 6px 16px; }
+.by { font-size: 20px; color: #A3AEC2; }
+.by strong { color: #E8ECF4; font-weight: 600; }
+</style></head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="7" fill="#2457D6"/>
+      <path d="M10.75 15V11.75a5.25 5.25 0 0 1 10.5 0V15h-2.9v-3.25a2.35 2.35 0 0 0-4.7 0V15Z" fill="#FFFFFF"/>
+      <rect x="8.5" y="14.5" width="15" height="11" rx="2.2" fill="#FFFFFF"/>
+      <path d="M16 17.4a1.7 1.7 0 0 1 .85 3.17V22.6h-1.7v-2.03A1.7 1.7 0 0 1 16 17.4Z" fill="#2457D6"/>
+    </svg>
+    <h1>CipherHorizon</h1>
+  </div>
+  <p class="lede">Post-quantum readiness for every TLS endpoint<br>and SSH server you run.</p>
+  <p class="sub">A deep scan, a readiness level from L0 to L4, and one CycloneDX CBOM. Self-hosted.</p>
+
+  <div class="scale">
+    <div><div class="seg" style="background:#FF8A80"></div><div class="lab"><b>L0</b>Not ready</div></div>
+    <div><div class="seg" style="background:#FFA866"></div><div class="lab"><b>L1</b>Exposed</div></div>
+    <div><div class="seg" style="background:#E9B949"></div><div class="lab"><b>L2</b>Hybrid available</div></div>
+    <div><div class="seg" style="background:#8DB2FF"></div><div class="lab"><b>L3</b>Hybrid negotiated</div></div>
+    <div><div class="seg" style="background:#6BD49A"></div><div class="lab"><b>L4</b>PQ-authenticated</div></div>
+  </div>
+
+  <div class="foot">
+    <div class="chips"><span class="chip">TLS</span><span class="chip">SSH</span><span class="chip">ML-KEM</span><span class="chip">ML-DSA</span><span class="chip">CBOM</span></div>
+    <div class="by">Open source · by <strong>Offset Security</strong></div>
+  </div>
+</div>
+</body></html>
