@@ -18,6 +18,7 @@ import (
 
 	"github.com/offsetsecurity/cipherhorizon/internal/auth"
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/revocation"
 	"github.com/offsetsecurity/cipherhorizon/internal/server"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
@@ -191,6 +192,10 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	httpChecks := fl.Bool("http-checks", true, "after each scan's handshake, send one plain HTTP GET / and read the Strict-Transport-Security header. "+
 		"This is the only check that sends anything beyond a TLS handshake: one real HTTP request to every scanned target, read for headers only. "+
 		"On by default, server-wide; --http-checks=false turns it off")
+	crlLookups := fl.Bool("revocation", false, "after each scan's handshakes, fetch the CRL each certificate on the served path names and report whether it is revoked. "+
+		"Off by default, server-wide: it contacts each CA's CRL server (plain HTTP), hosts other than the scanned targets. Private and loopback "+
+		"addresses are refused unless --revocation-private is set")
+	crlPrivate := fl.Bool("revocation-private", false, "with --revocation, also fetch CRLs from private (RFC 1918, unique-local) and loopback addresses: an internal CA's CRL server")
 	caBundle := fl.String("ca-bundle", "", "PEM file of private CA certificates every scan is also judged against (\"trusted by your CA bundle\"). "+
 		"Certificates only: a file containing a private-key block is refused")
 	var allowedHosts, trustedProxies, scanAllow stringList
@@ -331,9 +336,14 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		return fatalf(env, "%v", err)
 	}
 	guard := server.Guard{AllowLoopback: *allowLoopback, Scope: scope}
+	scanOpts := tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks}
+	if *crlLookups {
+		// One fetcher for the whole server, so its cache spans scans.
+		scanOpts.CRL = revocation.New(revocation.Policy{AllowPrivate: *crlPrivate, AllowLoopback: *crlPrivate})
+	}
 	runner := server.NewRunner(st, guard, server.RunnerOptions{
 		Workers:  *workers,
-		Scan:     tlsprobe.Options{Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
+		Scan:     scanOpts,
 		CABundle: bundle,
 		Log:      log,
 	})

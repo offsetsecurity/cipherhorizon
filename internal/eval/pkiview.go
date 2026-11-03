@@ -29,6 +29,10 @@ type Input struct {
 	// SSHBaseline is the id of the baseline an SSH server is judged against; empty means
 	// BaselineDefault.
 	SSHBaseline string
+	// Distrust lists keys and certificates no path should rely on; nil means the bundled
+	// list (refdata.Distrust). A listed key is reported on the path it sits on, never used
+	// to stop evaluating it.
+	Distrust *pki.Distrust
 }
 
 // ChainView is the evaluation's reading of one served chain: how it was
@@ -47,10 +51,14 @@ type ChainView struct {
 	Lifetime LifetimeView      `json:"lifetime"`
 	OCSP     *OCSPView         `json:"ocsp,omitempty"`
 	SCTs     []SCTView         `json:"scts"`
-	// Revocation sources the certificate names; T1 never contacts them.
+	// Revocation sources the leaf names. CRLs are contacted only when the scan's CRL
+	// lookups were on (CRLLookups); OCSP responders never are.
 	OCSPURLs []string `json:"ocspUrls,omitempty"`
 	CRLURLs  []string `json:"crlUrls,omitempty"`
-	Error    string   `json:"error,omitempty"` // the chain could not be analysed
+	// CRL is what the CRL lookups found for each certificate on the served path.
+	CRL        []pki.CRLResult `json:"crl,omitempty"`
+	CRLLookups bool            `json:"crlLookups,omitempty"`
+	Error      string          `json:"error,omitempty"` // the chain could not be analysed
 }
 
 // ServedView is the chain as the server sent it.
@@ -161,6 +169,7 @@ func (c *ctx) analyseChains() {
 		}
 		ch.view.Leaf = cr.Chain[0].SHA256
 		ch.view.OCSPURLs, ch.view.CRLURLs = cr.Chain[0].OCSPServers, cr.Chain[0].CRLPoints
+		ch.view.CRL, ch.view.CRLLookups = cr.CRL, c.rep.CRLLookups
 		var der [][]byte
 		for _, ci := range cr.Chain {
 			b, err := base64.StdEncoding.DecodeString(ci.DER)
@@ -208,7 +217,7 @@ func (c *ctx) analyseChains() {
 
 		expiredOnly := true
 		for _, st := range stores {
-			r := pki.Validate(s, st, c.now, times)
+			r := pki.Validate(s, st, c.now, times, c.in.Distrust)
 			ch.view.Trust = append(ch.view.Trust, r)
 			switch {
 			case r.Trusted:
@@ -228,7 +237,7 @@ func (c *ctx) analyseChains() {
 			}
 		}
 		if c.in.Anchors != nil {
-			r := pki.Validate(s, c.in.Anchors, c.now, times)
+			r := pki.Validate(s, c.in.Anchors, c.now, times, c.in.Distrust)
 			r.Store = "your CA bundle"
 			ch.view.Private = &r
 			ch.private = r.Trusted
@@ -412,9 +421,12 @@ func (ch *chain) trustSummary() string {
 		}
 	}
 	if p := ch.view.Private; p != nil {
-		if p.Trusted {
+		switch {
+		case p.Trusted:
 			parts = append(parts, "your CA bundle: trusted")
-		} else {
+		case p.Distrust != "":
+			parts = append(parts, "your CA bundle: "+p.Distrust)
+		default:
 			parts = append(parts, "your CA bundle: "+p.Error)
 		}
 	}

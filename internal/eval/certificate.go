@@ -5,6 +5,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
 )
 
 // CertificateFacts is what a certificate says about itself: enough to judge it, wherever it
@@ -19,6 +22,10 @@ type CertificateFacts struct {
 	SigName      string // the signature algorithm's name, e.g. SHA256-RSA
 	IsCA         bool
 	SelfSigned   bool
+	// SHA256 and SPKISHA256 identify the certificate and its key (lower-case hex; either may be
+	// empty), for the distrust list.
+	SHA256     string
+	SPKISHA256 string
 }
 
 // quantumVulnerableKeys are the public-key algorithms NIST IR 8547 lists as vulnerable to a
@@ -49,6 +56,23 @@ func EvaluateCertificate(f CertificateFacts, now time.Time) []Finding {
 	add := func(id, title string, sev Severity, cites []Citation, remed, detail string) {
 		out = append(out, Finding{ID: id, Title: title, Severity: sev, Category: "certificate", Detail: detail,
 			Evidence: Observed, Citations: cites, Remediation: remed})
+	}
+
+	if l, ok := refdata.Distrust().LookupHashes(strings.ToLower(f.SHA256), strings.ToLower(f.SPKISHA256)); ok {
+		sev := Critical
+		if l.Kind == pki.KindCADistrust {
+			sev = High
+		}
+		detail := fmt.Sprintf("%s is %q %s", label, l.Name, l.Phrase())
+		if f.IsCA {
+			detail += "; a machine that trusts it, or a CA bundle that carries it, accepts certificates anyone can issue under it"
+		}
+		if len(l.Sources) > 0 {
+			detail += "; see " + l.Sources[0]
+		}
+		add("CERT.DISTRUSTED-KEY", "Certificate uses a distrusted CA key", sev, []Citation{citCAKeyCompromise, citRFC5280},
+			"Remove this certificate from every trust store and CA bundle that holds it, replace anything issued under it, and update the software on this machine so it blocks the key.",
+			detail)
 	}
 
 	if !f.NotAfter.IsZero() {
@@ -110,5 +134,5 @@ func EvaluateCertificate(f CertificateFacts, now time.Time) []Finding {
 
 // CertificateRuleIDs lists the rule IDs EvaluateCertificate can produce.
 func CertificateRuleIDs() []string {
-	return []string{"CERT.EXPIRED", "CERT.EXPIRING", "CERT.NOT-YET-VALID", "CERT.WEAK-KEY", "CERT.WEAK-SIGNATURE", "CERT.PQ-OUTLIVES-DEPRECATION"}
+	return []string{"CERT.DISTRUSTED-KEY", "CERT.EXPIRED", "CERT.EXPIRING", "CERT.NOT-YET-VALID", "CERT.WEAK-KEY", "CERT.WEAK-SIGNATURE", "CERT.PQ-OUTLIVES-DEPRECATION"}
 }

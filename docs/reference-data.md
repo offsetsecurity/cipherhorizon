@@ -22,6 +22,7 @@ check was not available instead of falling back to something else.
 | CT log list | `https://www.gstatic.com/ct/log_list/v3/log_list.json` | Published by Google for CT clients and shipped inside Chromium under its BSD licence; a factual list of log identifiers and names | passed |
 | Published Diffie-Hellman groups | the texts of RFC 2409, RFC 3526, RFC 5114 and RFC 7919 | IETF Trust legal provisions; the values are factual parameters published for implementation | passed |
 | Certificate lifetime limits | CA/Browser Forum Ballot SC-081v3 (Baseline Requirements §6.3.2) | a four-row factual schedule, transcribed by hand | passed |
+| Distrusted CA keys | `internal/refdata/distrust.json`, compiled by hand from root-program incident reports (each incident cites its Bugzilla bug and announcements) | certificate and key SHA-256 values, factual identifiers; no text is copied | passed |
 
 ### Attribution
 
@@ -42,6 +43,15 @@ not *Included*. A root program's constraints are kept with the root and applied 
 
 A CA that a program has removed entirely is simply absent from its store. Together, the constraints and the
 absences are the distrust list of REQ-TTRS-6.
+
+**Distrusted CA keys.** Keys no certification path should rely on: CA keys whose private half is public or
+recoverable (`key-compromise`) and CA certificates root programs have blocked (`ca-distrust`). Each incident has
+an id, a title, the date it became public, a summary and its sources; each entry names the CA and gives its SPKI
+SHA-256 and the SHA-256 of every certificate known to carry the key. `TestDistrustListIsWellFormed` checks the
+shape, and `TestEmudhraKeysAreSmallScalars` re-derives the eMudhra keys from their published private values
+rather than trusting the copied hashes. Evaluation reports a listed key as `CERT.DISTRUSTED-KEY` and keeps
+evaluating the chain (see methodology, eval/13). The file is edited by hand: add an incident, run
+`go test ./internal/refdata/`, and set `version` to the date.
 
 **DH groups.** The primes are read from the RFC texts, checked to be prime and of the size their heading says,
 and fingerprinted the way the scanner fingerprints a server's prime (SHA-256 over the big-endian bytes, leading

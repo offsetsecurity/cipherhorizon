@@ -34,7 +34,8 @@ var (
 	probesRevocation = []string{
 		"reads the stapled OCSP response and the SCTs the certificate handshakes returned; no CA, OCSP responder or CT log is contacted",
 	}
-	probesHTTP = []string{
+	probesRevocationStaple = "reads the stapled OCSP response and the SCTs the certificate handshakes returned; no OCSP responder or CT log is contacted"
+	probesHTTP             = []string{
 		"one GET / over a fresh TLS connection; reads response headers only and follows no redirect",
 	}
 )

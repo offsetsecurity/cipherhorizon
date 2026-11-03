@@ -264,8 +264,16 @@ func Scan(ctx context.Context, t Target, opts Options) (rep *Report, err error) 
 			rep.Stages = append(rep.Stages, sc.end(StageCerts, OutcomeInconclusive, why, ReasonNotReached, probes),
 				sc.skip(StageRevocation, "no certificate was received", ReasonNotReached))
 		} else {
-			rep.Stages = append(rep.Stages, sc.end(StageCerts, OutcomeDone, "", "", probes),
-				Stage{Name: StageRevocation, Outcome: OutcomeDone, Probes: probesRevocation})
+			rev := Stage{Name: StageRevocation, Outcome: OutcomeDone, Probes: probesRevocation}
+			if opts.CRL != nil {
+				p.progress("checking CRLs")
+				p.crlChecks(ctx, rep.Certificates)
+				rep.CRLLookups = true
+				rev.Probes = []string{probesRevocationStaple, probesCRL}
+			} else {
+				rev.Reason = "CRL lookups are off for this scan, so only a stapled OCSP response can say whether the certificate is revoked"
+			}
+			rep.Stages = append(rep.Stages, sc.end(StageCerts, OutcomeDone, "", "", probes), rev)
 		}
 	}
 

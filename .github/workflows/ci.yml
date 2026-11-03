@@ -123,6 +123,8 @@ jobs:
           done
       - name: Fuzz the PE version-resource parser (reads untrusted files from the host)
         run: go test ./internal/sense/pefiles -run '^$' -fuzz '^FuzzReadVersion$' -fuzztime 30s
+      - name: Fuzz the CRL judgement (CRLs come from addresses a target's certificates name)
+        run: go test ./internal/pki -run '^$' -fuzz '^FuzzJudgeCRL$' -fuzztime 60s
       - name: Fuzz what people upload (facts files, systems CSV)
         run: |
           go test ./internal/machinefacts -run '^$' -fuzz '^FuzzParseFacts$' -fuzztime 60s
