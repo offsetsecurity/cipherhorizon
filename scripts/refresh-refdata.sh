@@ -37,8 +37,10 @@ set -e
 
 # What changed, beyond the dates and checksums that move on every run.
 gen=(internal/refdata/roots_gen.go internal/refdata/ctlogs_gen.go internal/refdata/dhprimes_gen.go internal/refdata/onecrl_gen.go)
-meaningful="$(git diff -U0 -- "${gen[@]}" | grep -E '^[-+][^-+]' | grep -vE 'Retrieved: |SHA256: "|^[-+]// Code generated' || true)"
-names() { git diff -U0 -- "$1" | grep -E "^$2" | grep -oE "$3" | sed -E "s/$3/\\1/" | sort -u || true; }
+# Every generated file names its retrieval date in a comment and in its Source line.
+meaningful="$(git diff -U0 -- "${gen[@]}" | grep -E '^[-+][^-+]' | grep -vE '^[-+]//|^[-+]var [a-zA-Z]+Source = Source\{' || true)"
+# Entry lines only (not the Source lines), so a list's own name never shows up as a changed root.
+names() { git diff -U0 -- "$1" | grep -E "^$2[^-+]" | grep -vE "^$2var " | grep -oE "$3" | sed -E "s/$3/\\1/" | sort -u || true; }
 {
   echo "Weekly reference-data refresh, retrieved $today by \`scripts/refresh-refdata.sh\`."
   echo
