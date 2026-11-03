@@ -57,9 +57,11 @@ evaluating the chain (see methodology, eval/13). The file is edited by hand: add
 **Mozilla OneCRL.** Mozilla's list of CA certificates Firefox refuses: a few keys (subject and SPKI SHA-256) and
 over a thousand CA certificates named by issuer and serial number. Only enabled records are kept. A OneCRL key
 the hand-written list already has keeps the hand-written entry, which says why (a compromise, with its
-incident). Every other entry becomes a `ca-distrust` entry titled "Mozilla OneCRL" with its Bugzilla link, so a
-served chain through it raises `CERT.DISTRUSTED-KEY` at high severity and the store result says why the path is
-not relied on. Issuer-and-serial entries can only be matched on a parsed certificate (served chains, files,
+incident). Every other entry becomes a `ca-distrust` entry titled "Mozilla OneCRL" with its Bugzilla link and
+scoped to the Mozilla store. A served certificate on it raises `CERT.DISTRUSTED-KEY` at high severity ("which
+Mozilla has blocked"), and the Mozilla store result says why the path is not relied on. The Chrome verdict is not
+changed, since Chrome keeps its own list (CRLSet). Entries in `distrust.json` apply to every store, private anchors
+included. Issuer-and-serial entries can only be matched on a parsed certificate (served chains, files,
 imports), not on host inventories that carry only fingerprints.
 
 **Go's distrusted keys.** `crypto/x509` hard-codes a few SPKI hashes it refuses. The generator reads that table

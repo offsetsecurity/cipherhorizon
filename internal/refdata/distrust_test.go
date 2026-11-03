@@ -143,14 +143,15 @@ func TestOneCRLIsWellFormedAndDefersToTheFile(t *testing.T) {
 	}
 	const emudhraG3B = "ebed6475c2c2d80fcb199f3fe8dd6e6b3ce60b77eb15d4e42c3dec0c6f5b5105"
 	l, ok := Distrust().LookupHashes("", emudhraG3B)
-	if !ok || l.Incident != "emudhra-2026-10" || l.Kind != pki.KindKeyCompromise {
+	if !ok || l.Incident != "emudhra-2026-10" || l.Kind != pki.KindKeyCompromise || len(l.Stores) != 0 {
 		t.Errorf("eMudhra G3B (on both lists) = %+v, want the hand-written key-compromise entry", l)
 	}
 	for _, k := range onecrlKeys {
 		l, ok := Distrust().LookupHashes("", k.SPKI)
 		if !ok {
 			t.Errorf("OneCRL key %s not loaded", k.Name)
-		} else if l.Incident == onecrlIncident && (l.Kind != pki.KindCADistrust || len(l.Sources) == 0) {
+		} else if l.Incident == onecrlIncident && (l.Kind != pki.KindCADistrust || len(l.Sources) == 0 ||
+			!l.AppliesTo("Mozilla") || l.AppliesTo("Chrome")) {
 			t.Errorf("OneCRL key %s: %+v", k.Name, l)
 		}
 	}

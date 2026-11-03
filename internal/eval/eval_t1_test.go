@@ -787,3 +787,64 @@ func TestDistrustedKeyIsAFindingNotAGate(t *testing.T) {
 		}
 	}
 }
+
+// mozillaOnly is how refdata lists a OneCRL revocation: one program's block, by issuer and serial.
+func mozillaOnly(t *testing.T, c *x509.Certificate) *pki.Distrust {
+	t.Helper()
+	dl := pki.NewDistrust()
+	issuer, serial, _ := strings.Cut(pki.IssuerSerialKey(c), ":")
+	dl.AddIssuerSerial(issuer, serial, pki.Listed{Name: "serial " + serial + " issued by Test Root", Kind: pki.KindCADistrust,
+		Incident: "mozilla-onecrl", Title: "Mozilla OneCRL", Since: "2026-11-01", Stores: []string{"Mozilla"},
+		Sources: []string{"https://bugzilla.mozilla.org/show_bug.cgi?id=1"}})
+	return dl
+}
+
+// TestOneProgramsBlockChangesOnlyItsStore: a CA certificate on Mozilla's OneCRL makes the Mozilla
+// verdict "not trusted, and why", leaves Chrome's trusted, and the finding names Mozilla, not
+// "root programs".
+func TestOneProgramsBlockChangesOnlyItsStore(t *testing.T) {
+	f := newPKI(t)
+	rep := v2(chainResult("tls-default", f.inter.Leaf(t, pkitest.LeafOpts{SCTs: sctOK}), f.inter.Cert))
+	ev := eval.EvaluateWith(rep, eval.Input{Now: epoch, Stores: f.stores, Distrust: mozillaOnly(t, f.inter.Cert)})
+	if len(ev.PKI) != 1 {
+		t.Fatalf("%d chains", len(ev.PKI))
+	}
+	for _, r := range ev.PKI[0].Trust {
+		switch r.Store {
+		case "Mozilla":
+			if r.Trusted || !strings.Contains(r.Distrust, "which Mozilla has blocked (Mozilla OneCRL, 2026-11-01)") || len(r.Path) != 3 {
+				t.Errorf("Mozilla: %+v", r)
+			}
+		case "Chrome":
+			if !r.Trusted || r.Distrust != "" || len(r.Listed) != 0 {
+				t.Errorf("Chrome is changed by Mozilla's list: %+v", r)
+			}
+		}
+	}
+	dk := findID(ev, "CERT.DISTRUSTED-KEY")
+	if len(dk) != 1 || dk[0].Severity != eval.High || !strings.Contains(dk[0].Detail, "which Mozilla has blocked") || strings.Contains(dk[0].Detail, "root programs") {
+		t.Errorf("finding: %+v", dk)
+	}
+	if len(findID(ev, "CERT.UNTRUSTED")) != 0 {
+		t.Error("CERT.UNTRUSTED fired although Chrome trusts the chain")
+	}
+}
+
+// TestRevokedExtraCertificateIsReported: a server that also sends a CA certificate OneCRL revokes,
+// off the path it is trusted by, still gets the finding (matched by issuer and serial on the parsed
+// certificate), and both stores trust the endpoint.
+func TestRevokedExtraCertificateIsReported(t *testing.T) {
+	f := newPKI(t)
+	old := f.root.Intermediate(t, "Retired CA", pkitest.CAOpts{})
+	rep := v2(chainResult("tls-default", f.inter.Leaf(t, pkitest.LeafOpts{SCTs: sctOK}), f.inter.Cert, old.Cert))
+	ev := eval.EvaluateWith(rep, eval.Input{Now: epoch, Stores: f.stores, Distrust: mozillaOnly(t, old.Cert)})
+	for _, r := range ev.PKI[0].Trust {
+		if !r.Trusted {
+			t.Errorf("%s: an unused revoked certificate changed the verdict: %+v", r.Store, r)
+		}
+	}
+	dk := findID(ev, "CERT.DISTRUSTED-KEY")
+	if len(dk) != 1 || !strings.Contains(dk[0].Detail, "served certificate 2") || !strings.Contains(dk[0].Detail, "which Mozilla has blocked") {
+		t.Errorf("finding: %+v", dk)
+	}
+}

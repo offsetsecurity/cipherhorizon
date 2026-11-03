@@ -23,6 +23,9 @@ const licenceOneCRL = "Published by Mozilla for Firefox through Remote Settings 
 
 const onecrlIncident = "mozilla-onecrl"
 
+// onecrlStore is the bundled store OneCRL applies to (the name buildStore gives it).
+const onecrlStore = "Mozilla"
+
 // addOneCRL puts the OneCRL entries on d as root-program blocks. A key already on the
 // hand-curated list keeps its own entry, which says why (a compromise, its incident and sources).
 func addOneCRL(d *pki.Distrust) {
@@ -40,8 +43,10 @@ func addOneCRL(d *pki.Distrust) {
 }
 
 func onecrlListed(name, since, bug, summary string) pki.Listed {
+	// OneCRL is Mozilla's own list: it changes the Mozilla store's verdict and no other. Chrome,
+	// Apple and Microsoft keep separate lists (CRLSet, valid.apple.com, the disallowed CTL).
 	l := pki.Listed{Name: name, Kind: pki.KindCADistrust, Incident: onecrlIncident, Title: "Mozilla OneCRL", Since: since,
-		Summary: summary}
+		Summary: summary, Stores: []string{onecrlStore}}
 	if bug != "" {
 		l.Sources = []string{bug}
 	}

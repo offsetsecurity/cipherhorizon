@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
 // Kinds of distrust-list entry.
@@ -26,13 +27,38 @@ type Listed struct {
 	Since    string   `json:"since"`    // YYYY-MM-DD the problem became public
 	Summary  string   `json:"summary"`
 	Sources  []string `json:"sources"`
+	// Stores are the root stores whose programs block this entry (store names, e.g. "Mozilla").
+	// Empty means every store, private anchors included: a key whose private half is public is
+	// unsafe whoever trusts it. One program's block (Mozilla's OneCRL) changes only that store's
+	// verdict; the finding still says it, naming the program.
+	Stores []string `json:"stores,omitempty"`
+}
+
+// AppliesTo reports whether the entry changes the verdict of the named store.
+func (l Listed) AppliesTo(store string) bool {
+	if len(l.Stores) == 0 {
+		return true
+	}
+	for _, s := range l.Stores {
+		if s == store {
+			return true
+		}
+	}
+	return false
 }
 
 // Phrase describes the entry in a clause: "whose private key is public (title, since)".
 func (l Listed) Phrase() string {
 	what := "whose private key is public"
 	if l.Kind == KindCADistrust {
-		what = "which root programs have blocked"
+		switch len(l.Stores) {
+		case 0:
+			what = "which root programs have blocked"
+		case 1:
+			what = "which " + l.Stores[0] + " has blocked"
+		default:
+			what = "which " + strings.Join(l.Stores[:len(l.Stores)-1], ", ") + " and " + l.Stores[len(l.Stores)-1] + " have blocked"
+		}
 	}
 	return fmt.Sprintf("%s (%s, %s)", what, l.Title, l.Since)
 }
@@ -145,9 +171,15 @@ type ListedOn struct {
 
 // ListedOnPath returns every listed certificate on a path (leaf first).
 func (d *Distrust) ListedOnPath(path []*x509.Certificate) []ListedOn {
+	return d.ListedOnPathIn(path, "")
+}
+
+// ListedOnPathIn returns the listed certificates on a path whose entry applies to the named store
+// (leaf first). An empty store name returns every listed certificate.
+func (d *Distrust) ListedOnPathIn(path []*x509.Certificate, store string) []ListedOn {
 	var out []ListedOn
 	for i, c := range path {
-		if l, ok := d.Lookup(c); ok {
+		if l, ok := d.Lookup(c); ok && (store == "" || l.AppliesTo(store)) {
 			out = append(out, ListedOn{Position: i, SHA256: Fingerprint(c), Listed: l})
 		}
 	}
