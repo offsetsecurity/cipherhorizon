@@ -84,6 +84,17 @@ Prerequisites: you are a maintainer; `main` is green; Actions are enabled; you h
    every changed default, every new flag; **Security** and **Breaking** items first. If the release changes
    the database, its **Upgrade notes** say what the upgrade does (CI refuses unreleased migrations without
    them). Also confirm `SECURITY.md` "Supported versions" is right.
+
+   If the script locked migrations, the release changed the database and needs its **upgrade fixture**
+   (PRD-016 U-02) in the same PR, or CI fails `TestEveryReleaseWithAMigrationHasAFixture`:
+   ```sh
+   testing/upgrade/make-fixture.sh v0.1.0 HEAD  # builds HEAD stamped as the
+                                               # release, seeds it through its own API, and writes
+                                               # internal/store/testdata/upgrade/v0.1.0.db
+   ```
+   HEAD builds the same program the tag will: the release commit only adds the changelog, the lock and this
+   file. From then on every change is tested against what installs of this version hold
+   (`TestUpgradeFromEveryRelease`).
 3. **Open a PR** titled `chore(release): 0.1.0`. CI runs (including the GoReleaser and container dry run).
    Merge (squash).
 4. **Rehearse locally** (optional, needs `goreleaser`): `make snapshot` builds all six archives into `dist/`
@@ -107,15 +118,6 @@ Prerequisites: you are a maintainer; `main` is green; Actions are enabled; you h
 7. **Verify** the published release exactly as a user would (commands in [DISTRIBUTION.md](DISTRIBUTION.md#verifying-a-download)),
    and start the binary: `cipherhorizon version` shows the tag, the commit, and the build date.
 8. **Announce**: nothing to do for 0.1.0 beyond the release page; for later releases, link the changelog.
-9. **Record the release's database for the upgrade tests** (PRD-016 U-02). From `main`, after the tag exists:
-   ```sh
-   git fetch --tags && git switch -c test/upgrade-fixture-0.5.0
-   testing/upgrade/make-fixture.sh v0.5.0   # builds the tag, seeds it through its own API, writes
-                                            # internal/store/testdata/upgrade/v0.5.0.db
-   ```
-   Commit the file and open a PR. From then on every change is tested against what installs of this version
-   hold (`TestUpgradeFromEveryRelease`). A release that shipped a migration *must* have one; CI says so.
-
 ### If the workflow fails
 
 The release is a *draft* until the last job, so a failure leaves nothing public.
@@ -171,7 +173,7 @@ patch, and if it is a vulnerability publish a GitHub Security Advisory.
 - [ ] `release.yml` green through `publish`
 - [ ] Downloaded an archive from the release page, verified checksum + signature + attestation, ran `version`
 - [ ] Pulled the container image, verified the signature, ran it
-- [ ] Upgrade fixture made with `testing/upgrade/make-fixture.sh` and its PR opened
+- [ ] Database changed? Upgrade fixture `vX.Y.Z.db` made with `testing/upgrade/make-fixture.sh vX.Y.Z HEAD` and in the release PR
 - [ ] Any follow-up issues opened for things found while releasing
 
 ## What can go wrong here, and why the pipeline is shaped this way

@@ -3,19 +3,31 @@
 # tag, runs it against the demo targets, seeds it through its own API (seed.mjs), adds an account
 # with its own CLI, and writes a compact copy to internal/store/testdata/upgrade/<tag>.db.
 #
-#   testing/upgrade/make-fixture.sh v0.4.0
+#   testing/upgrade/make-fixture.sh v0.4.0          # a released version, built from its tag
+#   testing/upgrade/make-fixture.sh v0.4.1 HEAD     # the release being prepared, before it is tagged
 #
 # The database is written by the release itself, so TestUpgradeFromEveryRelease upgrades what real
-# installs of that version hold. Run it once per release (RELEASING.md) and commit the file. Needs Go,
-# Node 22+ and git; the tag must exist locally.
+# installs of that version hold. Run it once per release, on the release branch before the tag
+# (RELEASING.md step 2): the release commit only adds the changelog, the lock and this file, so HEAD
+# builds the same program the tag will, stamped with the same version. Commit the file with the
+# release. Needs Go, Node 22+ and git.
 set -euo pipefail
 
 tag="${1:-}"
-[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "usage: $0 vX.Y.Z" >&2; exit 2; }
+ref="${2:-}"
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "usage: $0 vX.Y.Z [REF]" >&2; exit 2; }
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 out="$root/internal/store/testdata/upgrade/$tag.db"
 [ -e "$out" ] && { echo "$out already exists; a fixture is made once, from the release" >&2; exit 1; }
-git -C "$root" rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "no tag $tag (git fetch --tags)" >&2; exit 1; }
+if [ -z "$ref" ]; then
+  git -C "$root" rev-parse -q --verify "refs/tags/$tag" >/dev/null || { echo "no tag $tag (git fetch --tags), or give the release commit: $0 $tag HEAD" >&2; exit 1; }
+  ref="$tag"
+elif git -C "$root" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+  # Once the tag exists it is the release; a different commit would not be what installs hold.
+  [ "$(git -C "$root" rev-parse "$tag^{commit}")" = "$(git -C "$root" rev-parse "$ref^{commit}")" ] ||
+    { echo "$tag exists and is not $ref: build the fixture from the tag ($0 $tag)" >&2; exit 1; }
+fi
+grep -q "^## \[${tag#v}\]" "$root/CHANGELOG.md" || { echo "CHANGELOG.md has no section for ${tag#v}: run scripts/prepare-release.sh first" >&2; exit 1; }
 
 work="$(mktemp -d)"
 src="$work/src"
@@ -31,7 +43,7 @@ trap cleanup EXIT
 exe=""
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) exe=".exe" ;; esac
 
-git -C "$root" worktree add -q --detach "$src" "$tag"
+git -C "$root" worktree add -q --detach "$src" "$ref"
 module="$(cd "$src" && go list -m)"
 version="${tag#v}"
 (
