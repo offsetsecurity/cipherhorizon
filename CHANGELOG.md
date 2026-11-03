@@ -10,6 +10,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-03
+
 ### Security
 
 - **Distrusted CA keys are reported, on any Go version**
@@ -38,7 +40,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - **Tested:** fixtures are produced by OpenSSL (`testing/pki/make-crl.sh`), including IDP scope, partitions,
     delta and wrong-key CRLs, and a fuzz target runs in CI.
   - Settings and Help show whether lookups are on.
-
 - **Safer upgrades** ([PRD-016](docs/product/PRD-016-upgrades-and-updates.md) Phase 0). The server still upgrades
   its database at launch, from any earlier version, after a backup; now it also:
   - refuses to run two servers on one database, and refuses to upgrade a database another CipherHorizon process
@@ -60,6 +61,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   C3 and emSign Root CA - C1, and Chrome Root Store v43 has removed emSign ECC Root CA - G3. Chains through these
   roots now read "no path to a root" in those stores; `CERT.DISTRUSTED-KEY` still names the reason. CT log list
   refreshed: Google's logs are now named like "Google Argon2026h2".
+- Dependencies: modernc.org/sqlite 1.61.0; the Go build image and the GitHub Actions used by CI and releases
+  updated to their latest pinned digests.
 
 ### Upgrade notes
 
@@ -69,7 +72,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - A database upgraded by this version is refused by 0.4.0 and earlier ("newer than this program
   understands"). To go back, restore the backup made before the upgrade with `cipherhorizon db restore`
   (this version) and then run the older one.
-
 
 ## [0.4.0] - 2026-10-22
 
@@ -935,9 +937,10 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Storage:** SQLite only. Up to 50 snapshots of up to 32 MiB are kept per machine; there is no overall storage
   budget yet.
 
-[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.4.1...HEAD
 [0.4.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/offsetsecurity/cipherhorizon/releases/tag/v0.1.0
+[0.4.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.4.0...v0.4.1

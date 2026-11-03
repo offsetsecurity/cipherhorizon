@@ -51,6 +51,9 @@ go test ./internal/store -run '^TestMigrationsLock$' -count=1 -args -lock-releas
 after="$(grep -c '^[0-9]' "$lock" || true)"
 if [ "$after" -gt "$before" ]; then
   echo "$lock: locked migrations $((before + 1))-$after as shipped in v$version. Commit it with the changelog."
+  echo "This release changes the database, so it needs its upgrade fixture before the tag (CI checks):"
+  echo "  testing/upgrade/make-fixture.sh v$version HEAD"
+  echo "and commit internal/store/testdata/upgrade/v$version.db with the release."
 else
   echo "$lock: this release ships no new migration."
 fi
