@@ -70,7 +70,7 @@ func richChain(t testing.TB) (leafDER []byte, ca *x509.Certificate) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	logID, _ := base64.StdEncoding.DecodeString("1219ENGn9XfCx+lf1wC/+YLJM1pl4dCzAXMXwMjFaXc=") // Google 'Argon2026h2' log
+	logID, _ := base64.StdEncoding.DecodeString("1219ENGn9XfCx+lf1wC/+YLJM1pl4dCzAXMXwMjFaXc=") // Google Argon2026h2
 	mustStaple, _ := asn1.Marshal([]int{5})
 	u, _ := url.Parse("spiffe://example.test/web")
 	leafTmpl := &x509.Certificate{
@@ -139,7 +139,7 @@ func TestX509DecodeShowsEveryExtension(t *testing.T) {
 		"CRL distribution points":       "http://crl.example.test/ca.crl",
 		"Certificate policies":          "2.23.140.1.2.2 (organization validated (OV))",
 		"TLS feature":                   "status_request (OCSP must-staple)",
-		"Signed certificate timestamps": "Google 'Argon2026h2' log (Google), 2026-10-01 12:00 UTC",
+		"Signed certificate timestamps": "Google Argon2026h2 (Google), 2026-10-01 12:00 UTC",
 	}
 	for name, value := range want {
 		e, ok := byName[name]

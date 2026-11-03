@@ -30,7 +30,7 @@ type rule struct {
 	legacyOnly, v2Only bool
 }
 
-func allRules() []rule { return append(append([]rule(nil), rules...), t1Rules...) }
+func allRules() []rule { return append(append(append([]rule(nil), rules...), t1Rules...), crlRules...) }
 
 // RuleIDs lists the IDs of the built-in rules (PQC readiness findings, which come
 // from the readiness assessment, are not included).

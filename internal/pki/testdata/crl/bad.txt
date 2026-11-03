@@ -1,0 +1,23 @@
+Certificate Revocation List (CRL):
+        Version 2 (0x1)
+        Signature Algorithm: ecdsa-with-SHA256
+        Issuer: CN=CipherHorizon CRL Test Intermediate
+        Last Update: Jun  1 00:00:00 2026 GMT
+        Next Update: Jan  1 00:00:00 2045 GMT
+        CRL extensions:
+            X509v3 Authority Key Identifier: 
+                78:E9:7F:4C:14:25:3B:FD:2B:AB:B9:32:D3:EB:B7:F9:05:7B:CC:7F
+            X509v3 CRL Number: 
+                2
+Revoked Certificates:
+    Serial Number: 2001
+        Revocation Date: May  1 00:00:00 2026 GMT
+        CRL entry extensions:
+            X509v3 CRL Reason Code: 
+                Key Compromise
+    Signature Algorithm: ecdsa-with-SHA256
+    Signature Value:
+        30:45:02:21:00:b5:47:bb:93:db:4f:ee:74:78:19:44:ba:09:
+        39:82:95:64:e5:5b:6a:ed:f0:0a:df:90:2c:c9:3a:fd:51:ba:
+        4c:02:20:5a:af:9e:04:26:e9:e6:ce:ef:72:15:8d:03:b9:71:
+        a1:f4:f3:03:96:6e:57:47:63:db:dc:58:f3:5d:85:a0:4c

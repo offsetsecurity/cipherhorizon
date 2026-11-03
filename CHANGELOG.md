@@ -10,7 +10,34 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Security
+
+- **Distrusted CA keys are reported, on any Go version**
+  ([CRYPTO-REVIEW-004](docs/product/CRYPTO-REVIEW-004-emudhra-weak-ca-keys.md)). A new bundled distrust list is
+  matched by key (SPKI SHA-256) and by certificate fingerprint. Its first entry is the eight eMudhra intermediate CAs
+  of October 2026, whose P-384 private keys are below 256, with their Sectigo cross-signs. The new rule
+  `CERT.DISTRUSTED-KEY` (critical) fires on served chains and on certificates found on hosts, in files and in
+  imports.
+- **A chain through a distrusted key is still evaluated.** 0.4.0 rejected these chains only because Go 1.27.3
+  drops them inside `crypto/x509`, and the report showed just "x509: no valid chains built". The evaluation now
+  builds signature-valid paths itself. Each store's result keeps the path, names the listed certificate and its
+  position, and says why the store does not trust it. Every other rule still runs. Evaluation version `eval/13`.
+
 ### Added
+
+- **CRL revocation checks, opt-in** (`--revocation` on `tls scan` and `serve`; CRYPTO-REVIEW-004 P1b). Every
+  certificate on the served path is checked against the CRL it names, signed by its own issuer, up to the root.
+  New rules: `REV.REVOKED` (critical), `REV.CRL-BAD-SIGNATURE` (high), `REV.CRL-STALE` (medium) and
+  `REV.UNKNOWN` (low). They read *not checked* when lookups are off.
+  - **Status, not gate:** a revoked certificate stays on the path, and trust and every other rule are unchanged.
+  - **Hostile URLs are guarded:** fetches are plain HTTP only, with a 16 MiB size cap and timeouts, and every
+    connection's real address is checked. Private, loopback and cloud-metadata addresses are refused unless
+    `--revocation-private` is set.
+  - **Caching:** CRLs are cached until their nextUpdate.
+  - **Not OCSP:** OCSP responders are still never contacted.
+  - **Tested:** fixtures are produced by OpenSSL (`testing/pki/make-crl.sh`), including IDP scope, partitions,
+    delta and wrong-key CRLs, and a fuzz target runs in CI.
+  - Settings and Help show whether lookups are on.
 
 - **Safer upgrades** ([PRD-016](docs/product/PRD-016-upgrades-and-updates.md) Phase 0). The server still upgrades
   its database at launch, from any earlier version, after a backup; now it also:
@@ -27,6 +54,13 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - `serve --migrate refuse`: for change-controlled sites, stop instead of upgrading an older database, so the
   upgrade is run as its own step with `db migrate`.
 
+### Changed
+
+- Root stores refreshed from CCADB (2026-11-03). Mozilla has removed emSign ECC Root CA - G3, emSign ECC Root CA -
+  C3 and emSign Root CA - C1, and Chrome Root Store v43 has removed emSign ECC Root CA - G3. Chains through these
+  roots now read "no path to a root" in those stores; `CERT.DISTRUSTED-KEY` still names the reason. CT log list
+  refreshed: Google's logs are now named like "Google Argon2026h2".
+
 ### Upgrade notes
 
 - Schema 15 → 16: adds the `upgrade_log` table. Nothing existing is changed; the upgrade takes under a second.
@@ -35,6 +69,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - A database upgraded by this version is refused by 0.4.0 and earlier ("newer than this program
   understands"). To go back, restore the backup made before the upgrade with `cipherhorizon db restore`
   (this version) and then run the older one.
+
 
 ## [0.4.0] - 2026-10-22
 

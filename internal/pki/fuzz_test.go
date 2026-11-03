@@ -1,6 +1,7 @@
 package pki_test
 
 import (
+	"crypto/x509"
 	"os"
 	"path/filepath"
 	"testing"
@@ -75,5 +76,36 @@ func FuzzServedChain(f *testing.F) {
 		}
 		_ = s.ExpiresFirst()
 		_, _, _ = s.MissingIssuer()
+	})
+}
+
+// FuzzJudgeCRL feeds hostile CRLs (a scan fetches them from addresses a target's certificates
+// name) through the parser and the judgement: no panic, and an answer is one of the three
+// statuses, with "good" or "revoked" only under a valid signature.
+func FuzzJudgeCRL(f *testing.F) {
+	for _, n := range []string{"int-revoked", "int-empty", "root-revoked", "int-partition", "int-delta", "bad"} {
+		if b, err := os.ReadFile(filepath.Join("testdata", "crl", n+".crl")); err == nil {
+			f.Add(b)
+		}
+	}
+	leaf, inter := crlCert(f, "leaf"), crlCert(f, "int")
+	f.Fuzz(func(t *testing.T, b []byte) {
+		rl, err := x509.ParseRevocationList(b)
+		if err != nil {
+			return
+		}
+		r := pki.JudgeCRL(rl, "http://crl.pki.test/int.crl", leaf, inter, crlAt)
+		switch r.Status {
+		case pki.CRLGood, pki.CRLRevoked:
+			if r.Signature != pki.CRLSigValid {
+				t.Fatalf("%s without a valid signature: %+v", r.Status, r)
+			}
+		case pki.CRLUnknown:
+			if r.Problem == "" {
+				t.Fatal("unknown without a reason")
+			}
+		default:
+			t.Fatalf("status %q", r.Status)
+		}
 	})
 }

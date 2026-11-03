@@ -10,6 +10,7 @@ package eval
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
@@ -18,7 +19,7 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/12"
+const Version = "eval/13"
 
 // eval/7 (PRD-008): a post-quantum signature scheme proved accepted by the signature stage counts
 // toward L4, and SSH endpoints are judged into the same shape (Protocol "ssh").
@@ -174,6 +175,9 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	if in.Stores == nil {
 		in.Stores = refdata.Stores()
 	}
+	if in.Distrust == nil {
+		in.Distrust = refdata.Distrust()
+	}
 	c := newContext(rep, in.Now)
 	c.in = in
 	c.legacy = rep.SchemaVersion == "" || rep.SchemaVersion == tlsprobe.SchemaVersion1
@@ -264,6 +268,11 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	for i := range checks {
 		if r := skipped[checks[i].Section]; checks[i].Result == "not-found" && r != "" {
 			checks[i].Result = r
+		}
+		// The CRL checks ran only if the scan looked CRLs up: otherwise "nothing found" would
+		// read as "not revoked".
+		if strings.HasPrefix(checks[i].ID, "REV.") && checks[i].Result == "not-found" && !rep.CRLLookups {
+			checks[i].Result = "not-checked"
 		}
 	}
 	ev.Checks = checks

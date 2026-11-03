@@ -103,7 +103,7 @@ func sectionOf(f Finding) string {
 // availabilityRules make clients fail to connect (REQ-TUI-2).
 var availabilityRules = map[string]bool{
 	"CERT.EXPIRED": true, "CERT.UNTRUSTED": true, "CERT.NAME-MISMATCH": true, "CERT.CHAIN-INCOMPLETE": true,
-	"CERT.NO-SERVERAUTH": true, "OCSP.MUST-STAPLE-MISSING": true, "OCSP.REVOKED": true, "CERT.COMPROMISED-ROOT": true,
+	"CERT.NO-SERVERAUTH": true, "OCSP.MUST-STAPLE-MISSING": true, "OCSP.REVOKED": true, "CERT.COMPROMISED-ROOT": true, "REV.REVOKED": true,
 }
 
 // attackLabels name the attacks a finding enables (REQ-TVLN-1). The detail
@@ -182,7 +182,10 @@ func sections(c *ctx, findings []Finding) []Section {
 
 		if id == SecRevocation && s.Status == StatusGood && !c.legacy && !c.revocationVouched() {
 			s.Status, s.ReasonCode = StatusUnknown, "not-contacted"
-			s.Reason = "No stapled OCSP response vouches for the certificate, and this scan does not contact the CA's OCSP responder or CRL, so whether it has been revoked is not known."
+			s.Reason = "No stapled OCSP response vouches for the certificate, and CRL lookups were off for this scan, so whether it has been revoked is not known."
+			if c.rep.CRLLookups {
+				s.Reason = "No stapled OCSP response vouches for the certificate, and no CRL from its issuer could say it is not revoked (see the revocation checks), so whether it has been revoked is not known."
+			}
 		}
 		if c.legacy {
 			switch id {
@@ -327,14 +330,17 @@ func referenceData(now time.Time) []RefInfo {
 	return out
 }
 
-// revocationVouched reports whether a stapled OCSP response that verifies says the served leaf is
-// good: the only revocation status this scan can know without contacting the CA.
+// revocationVouched reports whether a stapled OCSP response that verifies, or a current CRL from
+// the leaf's issuer (when the scan looked CRLs up), says the served leaf is not revoked.
 func (c *ctx) revocationVouched() bool {
 	for _, ch := range c.chains {
 		if ch.cr.NoSNI {
 			continue
 		}
 		if o := ch.view.OCSP; o != nil && o.ForThisCert && o.Error == "" && o.Status == "good" && o.Signature == "valid" {
+			return true
+		}
+		if ch.crlVouches(c) {
 			return true
 		}
 	}

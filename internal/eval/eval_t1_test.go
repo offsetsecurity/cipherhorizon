@@ -1,6 +1,7 @@
 package eval_test
 
 import (
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
@@ -567,7 +568,7 @@ func TestSectionsAndFixFirst(t *testing.T) {
 			t.Errorf("%s has no section", fd.ID)
 		}
 	}
-	if len(ev.ReferenceData) != 5 {
+	if len(ev.ReferenceData) != 6 {
 		t.Errorf("reference data %+v", ev.ReferenceData)
 	}
 
@@ -653,6 +654,8 @@ func t1Firing(t *testing.T) []eval.Evaluation {
 		r.HSTSHeader = tlsprobe.ParseHSTS(h)
 		out = append(out, evalAt(r, epoch, f.stores))
 	}
+	out = append(out, weakKeyEval(t))
+	out = append(out, crlEvals(t)...)
 	at, st := osslAt(t), osslStore(t)
 	for _, c := range []struct {
 		leaf, staple string
@@ -696,8 +699,12 @@ func TestRevocationIsUnknownWithoutAStaple(t *testing.T) {
 		t.Errorf("no staple: section %+v", s)
 	}
 	for _, c := range ev.Checks {
-		if c.Section == eval.SecRevocation && c.Result == "not-checked" {
+		crl := strings.HasPrefix(c.ID, "REV.")
+		switch {
+		case c.Section == eval.SecRevocation && !crl && c.Result == "not-checked":
 			t.Errorf("check %s reads not-checked; it ran", c.ID)
+		case crl && c.Result != "not-checked":
+			t.Errorf("CRL check %s reads %s, but the scan did not look CRLs up", c.ID, c.Result)
 		}
 	}
 	good := evalAt(stapled(t, "leaf.pem", osslStaple(t, "ocsp-good")), osslAt(t), osslStore(t))
@@ -718,5 +725,65 @@ func TestCompromisedRootIsItsOwnFinding(t *testing.T) {
 	}
 	if len(findID(ev, "CERT.UNTRUSTED")) != 0 || len(findID(ev, "CERT.CHAIN-INCOMPLETE")) != 0 {
 		t.Errorf("also untrusted or incomplete: %v", t1IDs(ev))
+	}
+}
+
+// weakKeyEval is a chain through a CA whose P-384 private key is 4 (the key of
+// eMudhra's "EM OV TLS CA - G3C"), under a synthetic root both stores hold,
+// evaluated against the bundled distrust list.
+func weakKeyEval(t *testing.T) eval.Evaluation {
+	t.Helper()
+	f := newPKI(t)
+	weak := f.root.IntermediateWithKey(t, "Weak CA", pkitest.CAOpts{}, pkitest.SmallScalarKey(t, elliptic.P384(), 4))
+	rep := v2(chainResult("tls-default", weak.Leaf(t, pkitest.LeafOpts{SCTs: sctOK}), weak.Cert))
+	return evalAt(rep, epoch, f.stores)
+}
+
+// TestDistrustedKeyIsAFindingNotAGate: a listed key on the path raises
+// CERT.DISTRUSTED-KEY, the stores report the path they found through it and
+// why they do not trust it, and every other rule still runs on the endpoint.
+func TestDistrustedKeyIsAFindingNotAGate(t *testing.T) {
+	ev := weakKeyEval(t)
+	var dk []eval.Finding
+	for _, fd := range ev.Findings {
+		if fd.ID == "CERT.DISTRUSTED-KEY" {
+			dk = append(dk, fd)
+		}
+	}
+	if len(dk) != 1 || dk[0].Severity != eval.Critical {
+		t.Fatalf("CERT.DISTRUSTED-KEY: %+v", dk)
+	}
+	for _, want := range []string{`served certificate 1 "EM OV TLS CA - G3C" whose private key is public`, "eMudhra intermediate CA private keys recoverable, 2026-10-17",
+		"a signature-valid path through it reaches", "in Mozilla", "in Chrome", "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"} {
+		if !strings.Contains(dk[0].Detail, want) {
+			t.Errorf("detail lacks %q: %s", want, dk[0].Detail)
+		}
+	}
+	if len(ev.PKI) != 1 {
+		t.Fatalf("%d chains", len(ev.PKI))
+	}
+	for _, r := range ev.PKI[0].Trust {
+		if r.Trusted || len(r.Path) != 3 || len(r.Listed) != 1 || r.Listed[0].Position != 1 || !strings.Contains(r.Distrust, "whose private key is public") || r.Error != "" {
+			t.Errorf("%s: %+v", r.Store, r)
+		}
+	}
+	untrusted := false
+	for _, fd := range ev.Findings {
+		if fd.ID == "CERT.UNTRUSTED" && strings.Contains(fd.Detail, "the path goes through") {
+			untrusted = true
+		}
+	}
+	if !untrusted {
+		t.Error("CERT.UNTRUSTED should fire and say why")
+	}
+	// Evaluation carried on: the whole rule set was checked, not just the certificate.
+	checked := map[string]bool{}
+	for _, c := range ev.Checks {
+		checked[c.ID] = true
+	}
+	for _, id := range []string{"PROTO.TLS10", "CERT.EXPIRING", "CERT.LIFETIME", "CT.NO-SCTS", "KX.DH-SMALL"} {
+		if !checked[id] {
+			t.Errorf("%s was not checked once the key was found", id)
+		}
 	}
 }

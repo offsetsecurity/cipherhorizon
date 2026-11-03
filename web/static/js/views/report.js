@@ -6,7 +6,7 @@
 import { h, svg, clear, fmtDate, fmtDay, daysUntil } from '../dom.js';
 import { levelClass, levelName } from '../charts.js';
 import { badge, sevBadge, evidenceBadge, citations, bandTone, bandWord, button } from '../ui.js';
-import { tlsConfiguration, weakestAlgorithm, certHref } from './tls-config.js';
+import { tlsConfiguration, weakestAlgorithm, certHref, crlSummary } from './tls-config.js';
 import { bitsBar, gauge, levelStepper, lifetimeBar, stackBar, statusTile } from '../viz.js';
 
 export const SECTIONS = [
@@ -556,10 +556,12 @@ function revocationBody(ctx) {
   const leaf = cr ? cr.chain[0] : {};
   const o = v.ocsp;
   let ocspLine;
+  const crl = crlSummary(v, cr);
   if (!o) {
-    // Nothing vouches for the certificate, and this scan never contacts the CA: say the status is unknown.
+    // Nothing stapled vouches for the certificate: the CRL lookups, when they ran, are the only other source.
     ocspLine = leaf.ocspMustStaple ? 'No OCSP response was stapled, although the certificate requires one (Must-Staple).'
-      : 'Revocation status unknown: no OCSP response was stapled, and this scan does not contact the CA.';
+      : v.crlLookups ? `No OCSP response was stapled. CRL: ${crl.verdict.text}.`
+        : 'Revocation status unknown: no OCSP response was stapled, and CRL lookups were off for this scan.';
   } else if (o.error) {
     ocspLine = `A stapled OCSP response was sent but is not usable: ${o.error}.`;
   } else if (!o.forThisCert) {
@@ -577,11 +579,19 @@ function revocationBody(ctx) {
       : v.public ? 'No Certificate Transparency proof was found in any of the three places it can travel.' : 'No Certificate Transparency proof; not required for a privately trusted certificate.',
   ];
   const urls = [...(v.ocspUrls || []).map((u) => ['OCSP', u]), ...(v.crlUrls || []).map((u) => ['CRL', u])];
+  const crlTable = crl.rows.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
+    h('thead', null, h('tr', null, ['Certificate', 'CRL', 'Status', 'Signature'].map((c) => h('th', { scope: 'col' }, c)))),
+    h('tbody', null, crl.rows.map((r) => h('tr', null, h('td', null, r.who), h('td', null, r.url ? h('code', null, r.url) : 'none named'),
+      h('td', null, badge(r.tone === 'good' ? 'ok' : r.tone === 'problem' ? 'revoked' : 'check', r.tone === 'good' ? 'good' : r.tone === 'problem' ? 'bad' : 'warn'), ' ', r.text),
+      h('td', null, { valid: 'signed by the issuer', invalid: 'does NOT verify', 'no-issuer': 'issuer not available' }[r.signature] || 'not read'))))))
+    : h('p', { class: 'muted' }, 'The certificates name no CRL to check.');
   const lead = h('div', null,
-    h('h3', null, 'Revocation sources the certificate names'),
-    urls.length ? h('ul', { class: 'urls' }, urls.map(([k, u]) => h('li', null, badge(k, 'neutral'), ' ', h('code', null, u), ' ', h('span', { class: 'hint' }, 'not looked up'))))
-      : h('p', { class: 'muted' }, 'None.'),
-    h('p', { class: 'hint' }, 'This scan contacts only the endpoint, so the CA’s OCSP responder and CRL were not queried. Live lookups are planned as an option, off by default.'),
+    v.crlLookups ? [h('h3', null, 'CRL checks, up the served chain'), crlTable,
+      h('p', { class: 'hint' }, 'Each certificate was checked against the CRL it names, signed by the certificate above it (or by a bundled root). Revocation is reported beside trust, not instead of it. OCSP responders are not contacted.')]
+      : [h('h3', null, 'Revocation sources the certificate names'),
+        urls.length ? h('ul', { class: 'urls' }, urls.map(([k, u]) => h('li', null, badge(k, 'neutral'), ' ', h('code', null, u), ' ', h('span', { class: 'hint' }, 'not looked up'))))
+          : h('p', { class: 'muted' }, 'None.'),
+        h('p', { class: 'hint' }, 'CRL lookups were off for this scan, so the CA was not contacted. Turn them on with --revocation (server or CLI); they fetch only plain-HTTP CRLs and refuse private addresses unless allowed.')],
     h('h3', null, 'Certificate Transparency'),
     scts.length ? h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
       h('thead', null, h('tr', null, ['Source', 'Log', 'Timestamp'].map((c) => h('th', { scope: 'col' }, c)))),

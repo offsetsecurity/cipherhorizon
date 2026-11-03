@@ -18,9 +18,13 @@ type StoreResult struct {
 	// anchor. Empty when nothing validated.
 	Path []string `json:"path,omitempty"`
 	// Error says why nothing validated; Distrust says which root-program
-	// constraint stopped an otherwise valid path.
+	// constraint, or which listed key, stopped a path that exists.
 	Error    string `json:"error,omitempty"`
 	Distrust string `json:"distrust,omitempty"`
+	// Listed are the certificates on Path that the distrust list names. Path is
+	// then the signature-valid path through them: the evaluation reports it
+	// rather than losing it.
+	Listed []ListedOn `json:"listed,omitempty"`
 	// ExpiredOnly is set when the path validates except that a certificate on it
 	// is outside its validity at the evaluation time: the expiry finding covers
 	// it, so "untrusted" is not raised a second time.
@@ -32,7 +36,12 @@ type StoreResult struct {
 // pool), for TLS server authentication at now. sctTimes are the timestamps of
 // every SCT seen for the leaf (embedded, TLS, OCSP); they decide Chrome's
 // sct_not_after constraint.
-func Validate(s *Served, store *Store, now time.Time, sctTimes []time.Time) StoreResult {
+//
+// dl is the distrust list (nil for none). It applies to every store, private
+// ones included: a path through a listed key is reported as distrusted, with the
+// path and the listed certificates, whatever crypto/x509 did with it (Go 1.27.3
+// and later drop such paths silently, older versions accept them).
+func Validate(s *Served, store *Store, now time.Time, sctTimes []time.Time, dl *Distrust) StoreResult {
 	res := StoreResult{Store: store.Name, Snapshot: store.Snapshot}
 	inter := x509.NewCertPool()
 	for _, c := range s.Intermediates() {
@@ -44,6 +53,16 @@ func Validate(s *Served, store *Store, now time.Time, sctTimes []time.Time) Stor
 	}
 	chains, err := verify(now)
 	if err != nil {
+		// A path that exists but runs through a listed key: say so and show it,
+		// instead of the bare error crypto/x509 gives when it drops such a path.
+		if dl.Len() > 0 {
+			for _, p := range Paths(s, store) {
+				if on := dl.ListedOnPath(p); len(on) > 0 {
+					res.Distrust, res.Listed, res.Path = listedReason(on), on, chainSHAs(p)
+					return res
+				}
+			}
+		}
 		var inv x509.CertificateInvalidError
 		if errors.As(err, &inv) && inv.Reason == x509.Expired {
 			// Would the path hold while every certificate on it was valid?
@@ -60,10 +79,19 @@ func Validate(s *Served, store *Store, now time.Time, sctTimes []time.Time) Stor
 		return res
 	}
 	var reasons []string
+	var listed []ListedOn
+	var listedPath []*x509.Certificate
 	for _, ch := range chains {
 		root := ch[len(ch)-1]
 		r, ok := store.Root(Fingerprint(root))
 		if !ok {
+			continue
+		}
+		if on := dl.ListedOnPath(ch); len(on) > 0 {
+			reasons = append(reasons, listedReason(on))
+			if listed == nil {
+				listed, listedPath = on, ch
+			}
 			continue
 		}
 		if why := constraintFailure(r, s.Leaf(), sctTimes); why != "" && store.Constrained {
@@ -79,7 +107,19 @@ func Validate(s *Served, store *Store, now time.Time, sctTimes []time.Time) Stor
 	}
 	res.Distrust = strings.Join(dedupe(reasons), "; ")
 	res.Path = chainSHAs(chains[0])
+	if listed != nil {
+		res.Path, res.Listed = chainSHAs(listedPath), listed
+	}
 	return res
+}
+
+// listedReason says which listed certificates a path goes through.
+func listedReason(on []ListedOn) string {
+	parts := make([]string, 0, len(on))
+	for _, l := range on {
+		parts = append(parts, fmt.Sprintf("%q %s", l.Name, l.Phrase()))
+	}
+	return "the path goes through " + strings.Join(parts, " and ")
 }
 
 // constraintFailure applies a root program's constraints to a leaf.
