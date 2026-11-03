@@ -23,6 +23,7 @@ check was not available instead of falling back to something else.
 | Published Diffie-Hellman groups | the texts of RFC 2409, RFC 3526, RFC 5114 and RFC 7919 | IETF Trust legal provisions; the values are factual parameters published for implementation | passed |
 | Certificate lifetime limits | CA/Browser Forum Ballot SC-081v3 (Baseline Requirements §6.3.2) | a four-row factual schedule, transcribed by hand | passed |
 | Distrusted CA keys | `internal/refdata/distrust.json`, compiled by hand from root-program incident reports (each incident cites its Bugzilla bug and announcements) | certificate and key SHA-256 values, factual identifiers; no text is copied | passed |
+| Mozilla OneCRL | Remote Settings collection `security-state/onecrl` (`https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/changeset`), published for Firefox and public | no licence is stated; what is kept is factual: key hashes, issuer-name hashes, serial numbers, the CA's common name, the date and the Bugzilla link. No text is copied | passed (factual identifiers, as for the distrust list); the owner may want Mozilla's confirmation before 1.0 |
 
 ### Attribution
 
@@ -53,6 +54,23 @@ rather than trusting the copied hashes. Evaluation reports a listed key as `CERT
 evaluating the chain (see methodology, eval/13). The file is edited by hand: add an incident, run
 `go test ./internal/refdata/`, and set `version` to the date.
 
+**Mozilla OneCRL.** Mozilla's list of CA certificates Firefox refuses: a few keys (subject and SPKI SHA-256) and
+over a thousand CA certificates named by issuer and serial number. Only enabled records are kept. A OneCRL key
+the hand-written list already has keeps the hand-written entry, which says why (a compromise, with its
+incident). Every other entry becomes a `ca-distrust` entry titled "Mozilla OneCRL" with its Bugzilla link, so a
+served chain through it raises `CERT.DISTRUSTED-KEY` at high severity and the store result says why the path is
+not relied on. Issuer-and-serial entries can only be matched on a parsed certificate (served chains, files,
+imports), not on host inventories that carry only fingerprints.
+
+**Go's distrusted keys.** `crypto/x509` hard-codes a few SPKI hashes it refuses. The generator reads that table
+from the toolchain (`-go-verify`) and fails if Go distrusts a key neither `distrust.json` nor OneCRL lists, so
+the weekly refresh says so instead of letting Go hide a path without a reason.
+
+**Age.** Each list records the day it was retrieved. The root stores, the CT log list and OneCRL count as old
+after 30 days, the others after 180. An evaluation that used old root stores says so beside its trust verdict
+(the report's certificate tile and chain, and `tls scan`): "Stores N days old". It is not a finding and does not
+change the endpoint's score, since it is about this program's copy of the stores, not the endpoint.
+
 **DH groups.** The primes are read from the RFC texts, checked to be prime and of the size their heading says,
 and fingerprinted the way the scanner fingerprints a server's prime (SHA-256 over the big-endian bytes, leading
 zeros trimmed). Fourteen of the sixteen fingerprints are pinned in a test against OpenSSL 3.5's built-in named
@@ -68,6 +86,14 @@ are not included: no licence-clear, machine-readable list of them exists.
 
 ## Refreshing
 
-Download the sources, run the generator with the retrieval date, run `go test ./internal/refdata/`, and commit
+`scripts/refresh-refdata.sh` downloads every source, runs the generator with today's date (including OneCRL and
+the Go cross-check) and, given a file name, writes a summary of what changed. Then run `go test ./...` and commit
 the regenerated `*_gen.go` files with the date in the message. If a source's terms change, re-run the gate above
 before shipping.
+
+The `refdata` workflow does this every Monday and proposes the result as a pull request
+(`chore(refdata): weekly refresh <date>`) when anything other than the retrieval dates changed. It needs
+*Allow GitHub Actions to create and approve pull requests* (Settings → Actions → General); without it the job
+pushes the branch and opens an issue linking to it. CI does not start by itself on a branch the job pushed:
+close and reopen the pull request to run it. If the generator fails because Go distrusts an unlisted key, the
+job fails with the key's hash: add an incident to `distrust.json` by hand.

@@ -10,6 +10,20 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Mozilla OneCRL in the distrust list** (CRYPTO-REVIEW-004 P3). Mozilla's list of CA certificates Firefox
+  refuses is bundled: 9 blocked keys and 1,253 CA certificates revoked by issuer and serial number (snapshot
+  2026-11-04). A served chain through one raises `CERT.DISTRUSTED-KEY` (high, "which root programs have blocked
+  (Mozilla OneCRL, date)", with the Bugzilla link) and the path is still evaluated. Keys the hand-written list
+  already explains keep that entry.
+- **Weekly reference-data refresh.** `scripts/refresh-refdata.sh` and the `refdata` workflow regenerate the root
+  stores, CT log list and OneCRL every Monday and propose a pull request when something other than the dates
+  changed. The generator now fails when Go's `crypto/x509` distrusts a key the bundled lists do not have.
+- **Old root stores are said beside the trust verdict.** Root stores, the CT log list and OneCRL count as old after
+  30 days (other lists after 180). The certificate tile, the certificate chain and `tls scan` then say "Stores N days
+  old" and ask you to upgrade. It is not a finding and does not change the endpoint's score.
+
 ## [0.4.1] - 2026-11-03
 
 ### Security

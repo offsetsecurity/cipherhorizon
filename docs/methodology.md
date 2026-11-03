@@ -119,6 +119,9 @@ lifetime limit and the CT requirement. The readiness level is unaffected by trus
 - **The list** is matched by the SHA-256 of the SubjectPublicKeyInfo, which covers every certificate for the key
   (cross-signs, reissues), and by certificate SHA-256 for certificates known only by fingerprint (host collectors).
   First entry: the eight eMudhra intermediate CAs of October 2026, whose P-384 private keys are below 256.
+  Mozilla OneCRL is bundled beside it (from 0.5.0): its blocked keys, and CA certificates it revokes by issuer and
+  serial number (matched on parsed certificates), each a high-severity "root programs have blocked" entry. A key on
+  both lists is reported with the hand-written entry. See [reference-data.md](reference-data.md).
 
 | Rule | Severity | Fires when | Source |
 |---|---|---|---|
