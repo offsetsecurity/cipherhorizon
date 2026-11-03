@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
 // Kinds of distrust-list entry.
@@ -26,28 +27,83 @@ type Listed struct {
 	Since    string   `json:"since"`    // YYYY-MM-DD the problem became public
 	Summary  string   `json:"summary"`
 	Sources  []string `json:"sources"`
+	// Stores are the root stores whose programs block this entry (store names, e.g. "Mozilla").
+	// Empty means every store, private anchors included: a key whose private half is public is
+	// unsafe whoever trusts it. One program's block (Mozilla's OneCRL) changes only that store's
+	// verdict; the finding still says it, naming the program.
+	Stores []string `json:"stores,omitempty"`
+}
+
+// AppliesTo reports whether the entry changes the verdict of the named store.
+func (l Listed) AppliesTo(store string) bool {
+	if len(l.Stores) == 0 {
+		return true
+	}
+	for _, s := range l.Stores {
+		if s == store {
+			return true
+		}
+	}
+	return false
 }
 
 // Phrase describes the entry in a clause: "whose private key is public (title, since)".
 func (l Listed) Phrase() string {
 	what := "whose private key is public"
 	if l.Kind == KindCADistrust {
-		what = "which root programs have blocked"
+		switch len(l.Stores) {
+		case 0:
+			what = "which root programs have blocked"
+		case 1:
+			what = "which " + l.Stores[0] + " has blocked"
+		default:
+			what = "which " + strings.Join(l.Stores[:len(l.Stores)-1], ", ") + " and " + l.Stores[len(l.Stores)-1] + " have blocked"
+		}
 	}
 	return fmt.Sprintf("%s (%s, %s)", what, l.Title, l.Since)
 }
 
 // Distrust is a list of keys and certificates no path should rely on, matched by the SHA-256 of
 // the SubjectPublicKeyInfo (one entry covers every certificate for that key: the original, its
-// cross-signs and any reissue) or of the certificate's DER. A nil *Distrust matches nothing.
+// cross-signs and any reissue), of the certificate's DER, or by issuer name and serial number
+// (how root programs such as Mozilla's OneCRL revoke a CA certificate). A nil *Distrust matches
+// nothing.
 type Distrust struct {
-	bySPKI map[string]Listed
-	byCert map[string]Listed
+	bySPKI         map[string]Listed
+	byCert         map[string]Listed
+	byIssuerSerial map[string]Listed
 }
 
 // NewDistrust returns an empty list.
 func NewDistrust() *Distrust {
-	return &Distrust{bySPKI: map[string]Listed{}, byCert: map[string]Listed{}}
+	return &Distrust{bySPKI: map[string]Listed{}, byCert: map[string]Listed{}, byIssuerSerial: map[string]Listed{}}
+}
+
+// AddIssuerSerial lists one certificate by its issuer and serial number: issuerSHA is the
+// lower-case hex SHA-256 of the issuer Name's DER, serial the lower-case hex of the serial
+// number's magnitude (no leading zero bytes). An existing key or fingerprint entry for the same
+// certificate wins, since it says more.
+func (d *Distrust) AddIssuerSerial(issuerSHA, serial string, l Listed) {
+	d.byIssuerSerial[issuerSHA+":"+serial] = l
+}
+
+// Has reports whether a key is already listed (lower-case hex SPKI SHA-256).
+func (d *Distrust) Has(spki string) bool {
+	if d == nil {
+		return false
+	}
+	_, ok := d.bySPKI[spki]
+	return ok
+}
+
+// IssuerSerialKey is the issuer-and-serial match key of a certificate.
+func IssuerSerialKey(c *x509.Certificate) string {
+	sum := sha256.Sum256(c.RawIssuer)
+	serial := ""
+	if c.SerialNumber != nil {
+		serial = hex.EncodeToString(c.SerialNumber.Bytes())
+	}
+	return hex.EncodeToString(sum[:]) + ":" + serial
 }
 
 // Add lists a key (spki, lower-case hex, may be empty) and certificates (lower-case hex SHA-256 of
@@ -66,7 +122,7 @@ func (d *Distrust) Len() int {
 	if d == nil {
 		return 0
 	}
-	return len(d.bySPKI) + len(d.byCert)
+	return len(d.bySPKI) + len(d.byCert) + len(d.byIssuerSerial)
 }
 
 // LookupHashes matches by certificate SHA-256 and/or SPKI SHA-256 (lower-case hex; either may be
@@ -93,7 +149,11 @@ func (d *Distrust) Lookup(c *x509.Certificate) (Listed, bool) {
 	if d == nil || c == nil {
 		return Listed{}, false
 	}
-	return d.LookupHashes(Fingerprint(c), SPKIFingerprint(c))
+	if l, ok := d.LookupHashes(Fingerprint(c), SPKIFingerprint(c)); ok {
+		return l, true
+	}
+	l, ok := d.byIssuerSerial[IssuerSerialKey(c)]
+	return l, ok
 }
 
 // SPKIFingerprint is the lower-case hex SHA-256 of a certificate's SubjectPublicKeyInfo.
@@ -111,9 +171,15 @@ type ListedOn struct {
 
 // ListedOnPath returns every listed certificate on a path (leaf first).
 func (d *Distrust) ListedOnPath(path []*x509.Certificate) []ListedOn {
+	return d.ListedOnPathIn(path, "")
+}
+
+// ListedOnPathIn returns the listed certificates on a path whose entry applies to the named store
+// (leaf first). An empty store name returns every listed certificate.
+func (d *Distrust) ListedOnPathIn(path []*x509.Certificate, store string) []ListedOn {
 	var out []ListedOn
 	for i, c := range path {
-		if l, ok := d.Lookup(c); ok {
+		if l, ok := d.Lookup(c); ok && (store == "" || l.AppliesTo(store)) {
 			out = append(out, ListedOn{Position: i, SHA256: Fingerprint(c), Listed: l})
 		}
 	}

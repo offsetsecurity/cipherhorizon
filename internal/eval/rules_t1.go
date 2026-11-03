@@ -79,7 +79,13 @@ func distrustedKeyHits(c *ctx) []hit {
 		}
 		for pos, ci := range cr.Chain {
 			sha := strings.ToLower(ci.SHA256)
-			if l, ok := dl.LookupHashes(sha, strings.ToLower(ci.SPKISHA256)); ok {
+			// The parsed certificate also matches entries known by issuer and serial (OneCRL);
+			// the facts alone match keys and fingerprints.
+			l, ok := dl.LookupHashes(sha, strings.ToLower(ci.SPKISHA256))
+			if ch := views[i]; !ok && ch != nil && ch.served != nil && pos < len(ch.served.Certs) && ch.served.Certs[pos] != nil {
+				l, ok = dl.Lookup(ch.served.Certs[pos])
+			}
+			if ok {
 				where := fmt.Sprintf("served certificate %d", pos)
 				if pos == 0 {
 					where = "the leaf"

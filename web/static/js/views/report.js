@@ -6,7 +6,7 @@
 import { h, svg, clear, fmtDate, fmtDay, daysUntil } from '../dom.js';
 import { levelClass, levelName } from '../charts.js';
 import { badge, sevBadge, evidenceBadge, citations, bandTone, bandWord, button } from '../ui.js';
-import { tlsConfiguration, weakestAlgorithm, certHref, crlSummary } from './tls-config.js';
+import { tlsConfiguration, weakestAlgorithm, certHref, crlSummary, oldStoresChip } from './tls-config.js';
 import { bitsBar, gauge, levelStepper, lifetimeBar, stackBar, statusTile } from '../viz.js';
 
 export const SECTIONS = [
@@ -486,7 +486,7 @@ function summaryStrip(ctx, sections) {
     ctone = left === null ? 'lvu' : left < 0 ? 'lv0' : left <= 30 ? 'lv1' : 'lv3';
     certBar = lifetimeBar(leaf.notBefore, leaf.notAfter);
     const stores = pki ? [...(pki.trust || []), pki.private].filter(Boolean) : [];
-    chips = stores.length ? h('div', { class: 'trust-chips' }, stores.map((t) => h('span', { class: `tchip ${t.trusted ? 'tchip-good' : 'tchip-bad'}` }, `${t.store} ${t.trusted ? '✓' : '✕'}`)))
+    chips = stores.length ? h('div', { class: 'trust-chips' }, stores.map((t) => h('span', { class: `tchip ${t.trusted ? 'tchip-good' : 'tchip-bad'}` }, `${t.store} ${t.trusted ? '✓' : '✕'}`)), oldStoresChip(ctx.ev))
       : h('div', { class: 'sumtile-sub' }, 'trust not analysed by this scan version');
   }
   const cert = tile('#sec-certificates', 'sumtile-cert', 'Certificate',

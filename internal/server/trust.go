@@ -128,10 +128,10 @@ func (s *Server) referenceData(w http.ResponseWriter, _ *http.Request) {
 	out := []refView{}
 	for _, src := range refdata.Sources() {
 		age := src.Age(now)
-		out = append(out, refView{Source: src, AgeDays: age, Stale: age > refdata.StaleAfterDays})
+		out = append(out, refView{Source: src, AgeDays: age, Stale: src.Stale(now)})
 	}
 	writeJSON(w, 200, map[string]any{
-		"lists": out, "staleAfterDays": refdata.StaleAfterDays,
+		"lists": out, "staleAfterDays": refdata.StaleAfterDays, "trustStaleAfterDays": refdata.TrustStaleAfterDays,
 		"attribution": "Root-store data is derived from the Common CA Database (CCADB), used under the CCADB Data Usage Terms " +
 			"(CDLA-Permissive-2.0). The CCADB does not endorse this product.",
 	})
