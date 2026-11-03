@@ -703,9 +703,10 @@ func backfillSystems(tx *sql.Tx, now time.Time) error {
 }
 
 // backup writes a consistent copy of the database next to it before a migration.
-func (s *Store) backup(version int) error {
+// It returns the backup's path ("" for a database that is not a plain file, which gets none).
+func (s *Store) backup(version int) (string, error) {
 	if s.path == "" || s.path == ":memory:" || strings.HasPrefix(s.path, "file:") {
-		return nil
+		return "", nil
 	}
 	base := fmt.Sprintf("%s.bak-v%d-%s", s.path, version, s.now().UTC().Format("20060102T150405Z"))
 	dst := base
@@ -714,23 +715,23 @@ func (s *Store) backup(version int) error {
 			break
 		}
 		if n > 99 {
-			return fmt.Errorf("%s and its numbered variants already exist", base)
+			return "", fmt.Errorf("%s and its numbered variants already exist", base)
 		}
 		dst = fmt.Sprintf("%s-%d", base, n)
 	}
 	if err := restrictFile(dst); err != nil {
-		return err
+		return "", err
 	}
 	if _, err := s.db.Exec(`VACUUM INTO ?`, dst); err != nil {
 		_ = os.Remove(dst)
-		return err
+		return "", err
 	}
 	if err := restrictFile(dst); err != nil {
-		return err
+		return "", err
 	}
 	s.notice("backed up the database before migrating it", "backup", dst)
-	s.pruneBackups()
-	return nil
+	s.pruneBackups(dst)
+	return dst, nil
 }
 
 // BackupTo writes a consistent copy of the database to dst, owner-only, while it stays in use
@@ -754,8 +755,9 @@ func (s *Store) BackupTo(dst string) error {
 const keepBackups = 3
 
 // pruneBackups deletes all but the newest keepBackups pre-migration backups and reports each one
-// it deletes. A backup it cannot delete is reported and left; the migration goes on.
-func (s *Store) pruneBackups() {
+// it deletes. A backup it cannot delete is reported and left; the migration goes on. keep (the
+// backup just made, which a failed upgrade restores from) is never deleted, whatever the clock says.
+func (s *Store) pruneBackups(keep string) {
 	names, err := filepath.Glob(s.path + ".bak-v*")
 	if err != nil || len(names) <= keepBackups {
 		return
@@ -777,6 +779,9 @@ func (s *Store) pruneBackups() {
 		return baks[i].name > baks[j].name
 	})
 	for _, b := range baks[min(keepBackups, len(baks)):] {
+		if b.name == keep {
+			continue
+		}
 		if err := os.Remove(b.name); err != nil {
 			s.notice("could not delete an old backup", "backup", b.name, "err", err.Error())
 			continue

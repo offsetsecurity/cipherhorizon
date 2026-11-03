@@ -89,11 +89,13 @@ docker compose exec cipherhorizon /cipherhorizon db backup --db /data/cipherhori
 ```
 
 A backup is a consistent copy taken while the server runs, readable by its owner only. It holds
-password and session hashes: protect it like the database. To restore, stop the server, put the copy
-in place of the database file and start it again (`serve --db` also opens a copy directly).
+password and session hashes: protect it like the database. To restore, stop the server, run
+`cipherhorizon db restore --db FILE BACKUP` (it keeps the database it replaces) and start it again
+(`serve --db` also opens a copy directly).
 
-Upgrades migrate the database on start, after keeping a copy next to it; the newest three such
-copies are kept.
+Upgrades migrate the database on start, after keeping a copy next to it (the newest three are kept); a failed
+upgrade puts the file back as it was. `cipherhorizon db status` shows the schema, the backups and the upgrade
+history. Details: [INSTALL.md](engineering/INSTALL.md#upgrading).
 
 ## Checking the inventory scripts
 

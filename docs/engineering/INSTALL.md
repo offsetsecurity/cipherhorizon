@@ -184,13 +184,17 @@ docker exec cipherhorizon /cipherhorizon db backup --db /data/cipherhorizon.db /
 
 On Windows (administrator): `cipherhorizon db backup --db C:\ProgramData\CipherHorizon\cipherhorizon.db D:\backup\ch.db`.
 
-To restore:
-1. Stop the server.
-2. Put the backup in place of `cipherhorizon.db`.
-3. Delete the stale `cipherhorizon.db-wal` and `cipherhorizon.db-shm` files next to it.
-4. Start the server.
+To restore, stop the server, then:
 
-A backup opens like any database (`cipherhorizon serve --db backup.db`), so you can check it first.
+```sh
+cipherhorizon db restore --db /var/lib/cipherhorizon/cipherhorizon.db /root/cipherhorizon-2026-10-24.db
+docker run --rm -v cipherhorizon-data:/data ghcr.io/offsetsecurity/cipherhorizon:<version> db restore --db /data/cipherhorizon.db /data/backup.db
+```
+
+It checks the backup is a sound CipherHorizon database first, refuses while a server is using the database,
+and keeps the database it replaces beside it (`cipherhorizon.db.replaced-<time>`, with its `-wal` and `-shm`)
+rather than deleting it. Then start the server. `cipherhorizon db check --db FILE` examines any database,
+backup or live, without changing it.
 
 ## Upgrading
 
@@ -201,9 +205,36 @@ A backup opens like any database (`cipherhorizon serve --db backup.db`), so you 
 | container | pulling the new tag, then recreating the container; the volume keeps the data |
 | binary | replacing the file |
 
-On start, the server migrates the database forward. Before each migration it saves a consistent copy
-next to the file, `cipherhorizon.db.bak-v<schema>-<time>`, and keeps the newest three. 0.x releases do
-not promise a downgrade path: to go back, restore that copy (as above) and run the older version.
+You can skip versions: any release upgrades straight from any earlier one. Every release is tested
+upgrading databases written by each earlier release.
+
+**What happens at start.** The new version upgrades the database itself, the first time it opens it (as
+`serve`, or any `db` or `user` command):
+
+1. It takes the database's lock (`cipherhorizon.db.lock`), so it never changes a file another CipherHorizon
+   process is using. A second server on the same database is refused, naming the one that holds it. Stop the
+   old version before starting the new one; Compose, Quadlet and the packages already do.
+2. It checks there is room for a backup, then saves a consistent copy next to the file,
+   `cipherhorizon.db.bak-v<schema>-<time>`, keeping the newest three.
+3. It applies each change the database lacks, in order, then checks the result.
+4. If anything fails, it puts the file back exactly as it was, keeps the failed copy as
+   `cipherhorizon.db.failed-upgrade-<time>` and refuses to start, saying why. Your data is never left
+   half-upgraded.
+
+**Seeing it before it happens.**
+
+```sh
+cipherhorizon db status --db FILE           # schema, what this version would do, backups, history
+cipherhorizon db migrate --dry-run --db FILE
+```
+
+Run the new version's binary against the file before replacing the old one, or in a throwaway container with the
+volume mounted. **Change-controlled sites** can start the server with `--migrate refuse`: it then stops instead of
+upgrading, and the upgrade is its own step, `cipherhorizon db migrate --db FILE`.
+
+**Going back.** An older version refuses a database a newer one has upgraded. To go back, stop the server,
+restore the backup made before the upgrade (`cipherhorizon db status` lists them) with `cipherhorizon db restore`,
+and run the older version. Scans made since the upgrade are not in that backup.
 
 ## Removing it
 

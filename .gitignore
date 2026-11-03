@@ -24,6 +24,9 @@ Thumbs.db
 *.db
 *.db-shm
 *.db-wal
+*.db.lock
+# except the databases released versions wrote, kept for the upgrade tests (PRD-016 U-02)
+!/internal/store/testdata/upgrade/v*.db
 
 # release build output and local release scratch
 /RELEASE_NOTES.md

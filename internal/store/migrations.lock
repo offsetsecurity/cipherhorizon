@@ -1,0 +1,20 @@
+# Released database migrations: "<step> <sha256 of its SQL> <first release that shipped it>".
+#
+# A step listed here has run on real installs. It is never edited, reordered or removed: fix forward
+# with a new step. TestMigrationsLock enforces this. scripts/prepare-release.sh appends the steps a
+# release ships; nothing else writes this file.
+1 322ac65ad005a250ae183424c9cd2cbc554a298b64ef9fc3bcfaf239e93a7c1a v0.1.0
+2 e508e5434edde4d2fbb59c8d0b6903ddf105258b8958d793dfd84c1006790fb0 v0.1.0
+3 890f9fbeee7148eaab374f896d7aa1238d8499fb630994ca99cf2b813e88074e v0.1.0
+4 78d661812e2538582b26a42911aeea3a10511d82f4c3ebec508dd369812d52d6 v0.1.0
+5 5d9688b6cf093133ef5b5a07ec1839d4e3f7ee6330c7a88dbff305c7b1af0bc5 v0.1.0
+6 cbba55f2acb67c7c3c621d5de5f64435a82a49cb6be1cddbd8e4895eccd644f5 v0.1.0
+7 6af9bebe6be1ef55b278162f75421ccd065062e6b5401ed11febfdb267d9ecfe v0.1.0
+8 5ef2c57241aefe716519a505bb1f929ed573e644ddfa4c25aa6f9aa997a38095 v0.1.0
+9 ee861d922261dbc1e2beca7047d456a679a0070c1c7923a24f2080cfd5d078d9 v0.1.0
+10 63b5b6760d4a0fea11a2bea60e37f9396d38fb090fb1e300b4b934b9095f0f33 v0.1.0
+11 997421c1a765d5905500f31820d980c6dc42dd469d277a688ef9391dc8dce177 v0.1.0
+12 3e1fe670af68ba2a449d08f51888bec37b1eaf78b16d60a3de8317517f496f0e v0.1.0
+13 5c670283cdc831273fa37f4613babea271a060a4b1989f188e14e3d4832f7147 v0.1.0
+14 a70dabf873dff7fb49d117ffef8ea84e8c3760c2ed38006b2173b92a8b1b4e75 v0.1.0
+15 ea1c22bba46ed3abd4044664b4266ee194438125b191e02121c94aa3d2c95f04 v0.4.0

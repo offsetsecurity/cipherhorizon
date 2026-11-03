@@ -66,3 +66,12 @@ func (s *Store) QueryIntForTest(q string, args ...any) (int, error) {
 func (s *Store) QueryStringForTest(q string, dest *string, args ...any) error {
 	return s.db.QueryRow(q, args...).Scan(dest)
 }
+
+// HoldLockForTest takes path's lock as a running server would, until release is called.
+func HoldLockForTest(path string) (release func(), err error) {
+	l, err := acquireLock(path)
+	if err != nil {
+		return nil, err
+	}
+	return l.release, nil
+}

@@ -91,6 +91,50 @@ jobs:
       - name: The workflow files themselves (actionlint)
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/*.yml
 
+  upgrade:
+    # PRD-016: the latest release, built from its tag, and this commit on the same database. This commit
+    # upgrades what the release wrote, and the release then refuses the upgraded file instead of misreading
+    # it. Upgrades from every release's real data are TestUpgradeFromEveryRelease, in the test job.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: Build this commit and the latest release
+        run: |
+          # the newest release in this commit's history, other than this commit itself (a release run)
+          here="$(git tag --points-at HEAD | head -1)"
+          prev="$(git tag -l 'v*' --sort=-v:refname --merged HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vxF -e "${here:-none}" | head -1)"
+          test -n "$prev" || { echo "no earlier release tag"; exit 1; }
+          echo "latest release: $prev"
+          CGO_ENABLED=0 go build -o /tmp/ch-new ./cmd/cipherhorizon
+          git worktree add -q --detach /tmp/prev-src "$prev"
+          (cd /tmp/prev-src && CGO_ENABLED=0 go build -o /tmp/ch-old ./cmd/cipherhorizon)
+      - name: Upgrade a database the release made, then hand it back to the release
+        run: |
+          set -x
+          /tmp/ch-old db stats --db /tmp/u.db >/dev/null       # the release creates its database
+          before="$(/tmp/ch-new db status --json --db /tmp/u.db | jq '.pending | length')"
+          /tmp/ch-new db migrate --db /tmp/u.db
+          /tmp/ch-new db check --db /tmp/u.db
+          if [ "$before" -gt 0 ]; then
+            if /tmp/ch-old db stats --db /tmp/u.db > /tmp/old.out 2>&1; then
+              echo "the release opened a database this commit upgraded"; cat /tmp/old.out; exit 1
+            fi
+            grep -q "newer than this program" /tmp/old.out || { cat /tmp/old.out; exit 1; }
+            # and the backup taken before the upgrade gets it back
+            bak="$(/tmp/ch-new db status --json --db /tmp/u.db | jq -r '.backups[0].path')"
+            /tmp/ch-new db restore --db /tmp/u.db "$bak"
+            /tmp/ch-old db stats --db /tmp/u.db >/dev/null
+          else
+            /tmp/ch-old db stats --db /tmp/u.db >/dev/null       # same schema: both read it
+          fi
+
   vuln:
     # Known vulnerabilities in the dependencies and the standard library, limited to code that is reachable.
     runs-on: ubuntu-latest

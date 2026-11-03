@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Cut the changelog for a release: turns "## [Unreleased]" into "## [X.Y.Z] - DATE", opens a fresh
-# Unreleased section and updates the compare links. It changes CHANGELOG.md only; you review the diff,
-# commit it on a release-prep branch, open a PR, and tag after it merges (docs/engineering/RELEASING.md).
+# Unreleased section and updates the compare links. It also locks the database migrations the release
+# ships (internal/store/migrations.lock). It changes those two files only; you review the diff, commit
+# it on a release-prep branch, open a PR, and tag after it merges (docs/engineering/RELEASING.md).
 #   scripts/prepare-release.sh 0.1.0
 set -euo pipefail
 
@@ -41,3 +42,15 @@ if [ -n "$url" ]; then
 fi
 mv "$tmp" "$f"
 echo "CHANGELOG.md: Unreleased is now $version ($date). Review it, then commit."
+
+# Database migrations this release ships become history: lock them, so no later change can edit what
+# installs of this version have already run (PRD-016 U-01).
+lock=internal/store/migrations.lock
+before="$(grep -c '^[0-9]' "$lock" || true)"
+go test ./internal/store -run '^TestMigrationsLock$' -count=1 -args -lock-release="$version" >/dev/null
+after="$(grep -c '^[0-9]' "$lock" || true)"
+if [ "$after" -gt "$before" ]; then
+  echo "$lock: locked migrations $((before + 1))-$after as shipped in v$version. Commit it with the changelog."
+else
+  echo "$lock: this release ships no new migration."
+fi

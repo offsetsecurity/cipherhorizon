@@ -256,12 +256,27 @@ func backfillLinks(tx *sql.Tx, now time.Time) error {
 		if err := tx.QueryRow(`SELECT system_id FROM assets WHERE id = ?`, p.a).Scan(&sys); err != nil || !sys.Valid {
 			continue
 		}
-		if err := recordManualLinkTx(tx, p.at, "operator", p.a, sys.Int64, LinkConfirmed); err != nil {
+		if err := recordConfirmedLinkV6(tx, p.at, p.a, sys.Int64); err != nil {
 			return err
 		}
 	}
 	_ = now
 	return nil
+}
+
+// recordConfirmedLinkV6 is recordManualLinkTx as migration 6 shipped it in 0.1.0, frozen with the step
+// (PRD-016 §5.2): the live function and the estate package's rule types may change, and a database
+// upgraded from before step 6 must end up exactly like one that ran it on release day.
+func recordConfirmedLinkV6(tx *sql.Tx, now string, assetID, systemID int64) error {
+	const (
+		rulesJSON    = `[{"id":"manual","detail":"linked by a person (operator)"}]`
+		evidenceJSON = `{"ambiguous":false}`
+	)
+	_, err := tx.Exec(`INSERT INTO links (asset_id, system_id, state, strength, rules_json, evidence_json, stale, decided_by, decided_at, created_at, updated_at)
+		VALUES (?, ?, 'confirmed', 'strong', ?, ?, 0, 'operator', ?, ?, ?)
+		ON CONFLICT(asset_id, system_id) DO UPDATE SET state = excluded.state, stale = 0, decided_by = excluded.decided_by, decided_at = excluded.decided_at, updated_at = excluded.updated_at`,
+		assetID, systemID, rulesJSON, evidenceJSON, now, now, now)
+	return err
 }
 
 // ---- correlating ------------------------------------------------------------------------------
