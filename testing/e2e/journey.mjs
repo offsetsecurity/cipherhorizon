@@ -514,7 +514,7 @@ async function main() {
     reps.head === 'TLS endpoints' && reps.tabs === 'TLS endpoints|Scan activity' && reps.rows >= 5 && reps.actions, JSON.stringify(reps).slice(0, 300));
   check('E2E-R.4', 'a row has one way in (the row opens the report: no second Open report button), and its findings column names the worst severity or says No problems (UX-REVIEW-008 E1, E2)',
     reps.open === 0 && reps.findings.every((t) => t !== 'none') && reps.findings.some((t) => /\d+ (critical|high|medium|low)|No problems/.test(t)), JSON.stringify(reps.findings));
-  check('E2E-S.1', 'each scanned row says how many published standards it meets, as "n of m" (PRD-017)',
+  check('E2E-STD.1', 'each scanned row says how many published standards it meets, as "n of m" (PRD-017)',
     reps.standards.some((t) => /^\d+ of \d+$/.test(t)), JSON.stringify(reps.standards));
   const rowClick = await js(`const r = [...document.querySelectorAll('main tbody tr.rowlink')].find((x) => /L\\d/.test(x.innerText));
     r.querySelector('td:nth-child(5)').click(); await new Promise((ok) => setTimeout(ok, 600));
@@ -602,7 +602,7 @@ async function main() {
     return { cards: document.querySelectorAll('.std-card').length, lists: document.querySelectorAll('.std-list').length,
       rows: document.querySelectorAll('.std-table tbody tr').length, statuses: [...new Set([...document.querySelectorAll('.std-table tbody .badge')].map((b) => b.textContent))],
       chips: document.querySelectorAll('.stdcard .stdchip').length, csv: document.querySelectorAll('.std-list button').length };`);
-  check('E2E-S.2', 'the Standards tab shows one card and one checklist per standard, every clause with a status word, and a CSV button each',
+  check('E2E-STD.2', 'the Standards tab shows one card and one checklist per standard, every clause with a status word, and a CSV button each',
     std.cards >= 8 && std.lists === std.cards && std.rows > 50 && std.statuses.every((w) => /^(Met|Not met|Not followed|Not assessed|Does not apply)$/.test(w)) && std.csv === std.cards,
     JSON.stringify(std));
   await shot('asset-standards-tab');
