@@ -2688,6 +2688,54 @@
         }
       }
     },
+    "/api/v1/standards": {
+      "get": {
+        "summary": "The published standards every scan is judged against (PRD-017): for each, id, title, publisher, edition, protocol (tls or ssh), url, scope, the requirements (id, clause, text, level must|should) and what a network scan cannot assess. A scan's verdicts are in its evaluation's standards[] (verdict meets|does-not-meet|not-assessed, counts, and one result per requirement with status met|not-met|not-assessed|not-applicable and detail).",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_standards",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/standards/summary": {
+      "get": {
+        "summary": "How the fleet measures against each standard: per standard, the number of endpoints whose latest scan meets it, does not meet it, or could not be assessed, with the endpoints' ids; scans made before eval/14 count as not stored.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "get_standards_summary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
     "/api/v1/ssh/baselines": {
       "get": {
         "summary": "The SSH baselines this server judges SSH servers against: id, title, version, the allowed algorithms per kind (each with the OpenSSH version that first offers it and its citation), the requirements and the minimum RSA host key size.",

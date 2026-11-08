@@ -333,6 +333,8 @@ func (s *Server) routes() {
 	handle("GET /api/v1/trust-anchors", s.serverTrustAnchors)
 	handle("GET /api/v1/reference-data", s.referenceData)
 	handle("GET /api/v1/ssh/baselines", s.sshBaselines)
+	handle("GET /api/v1/standards", s.listStandards)
+	handle("GET /api/v1/standards/summary", s.standardsSummary)
 	handle("GET /api/v1/systems/{id}/observations", s.systemObservations)
 	handle("GET /api/v1/systems/{id}/certificates", s.systemCertificates)
 	handle("GET /api/v1/certificates", s.listCertificates)

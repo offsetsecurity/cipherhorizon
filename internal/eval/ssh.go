@@ -393,6 +393,7 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 		b, _ = SSHBaselineByID(BaselineDefault)
 	}
 	ev.Baseline = sshConformance(c, b)
+	ev.Standards = evaluateSSHStandards(c)
 	ev.Sections = sshSections(c, findings, ev.Baseline)
 	skipped := map[string]string{}
 	for _, s := range ev.Sections {

@@ -198,8 +198,23 @@ function certWords(iso) {
   return h('span', null, `${d} days left`);
 }
 
+// Standards met, for the column and the sort: [met, judged] from the stored verdict map.
+const stdCount = (d) => {
+  const v = Object.values((d && d.standards) || {});
+  return [v.filter((x) => x === 'meets').length, v.filter((x) => x !== 'not-assessed').length];
+};
+function stdWords(d) {
+  const [met, judged] = stdCount(d);
+  if (!d || !d.standards) return h('span', { class: 'muted', title: 'Scanned before standards were judged: re-evaluate or scan again' }, '·');
+  if (!judged) return h('span', { class: 'muted' }, 'not assessed');
+  const names = Object.entries(d.standards).filter(([, v]) => v === 'does-not-meet').map(([k]) => k).join(', ');
+  return h('span', { class: `stdcount ${met === judged ? 'stdcount-all' : met ? 'stdcount-some' : 'stdcount-none'}`, title: names ? `Not met: ${names}` : 'Meets every standard judged' },
+    h('b', null, met), ` of ${judged}`);
+}
+
 const SORTS = {
   name: (a, b) => a.name.localeCompare(b.name),
+  standards: (a, b) => { const [ma, ja] = stdCount(a.lastDone), [mb, jb] = stdCount(b.lastDone); return (ma - (ja - ma)) - (mb - (jb - mb)); },
   level: (a, b) => (a.lastDone?.readinessLevel ?? 99) - (b.lastDone?.readinessLevel ?? 99),
   hygiene: (a, b) => (a.lastDone?.score ?? 999) - (b.lastDone?.score ?? 999),
   baseline: (a, b) => baselineRank(a.lastDone) - baselineRank(b.lastDone),
@@ -208,8 +223,12 @@ const SORTS = {
   scanned: (a, b) => (new Date(b.lastDone?.finishedAt || 0)) - (new Date(a.lastDone?.finishedAt || 0)),
 };
 
+// The standards' titles for the filter chip; filled from the catalogue when a list first renders.
+const STD_TITLES = {};
+
 export async function render(root, ctx = {}) {
   const protocol = ctx.protocol === 'ssh' ? 'ssh' : 'tls';
+  if (!Object.keys(STD_TITLES).length) api.standards().then((r) => { for (const s of r.standards || []) STD_TITLES[s.id] = s.title; }).catch(() => {});
   const place = PLACES[protocol];
   let assets = [];
   let stopped = false, timer = null;
@@ -217,8 +236,11 @@ export async function render(root, ctx = {}) {
   const query = ctx.query || new URLSearchParams();
   const lv = query.get('level');
   const state = { q: query.get('q') || '', sort: 'level', exposed: query.get('exposed') === '1',
-    level: /^[0-4]$/.test(lv || '') ? Number(lv) : null, selected: new Set(), frozen: null };
-  const remember = () => setQuery({ level: state.level === null ? '' : state.level, exposed: state.exposed ? '1' : '', q: state.q });
+    level: /^[0-4]$/.test(lv || '') ? Number(lv) : null, selected: new Set(), frozen: null,
+    // ?standard=ID&meets=0|1: the endpoints that do (not) meet one standard (from the Overview's panel).
+    standard: query.get('standard') || null, meets: query.get('meets') === '1' };
+  const remember = () => setQuery({ level: state.level === null ? '' : state.level, exposed: state.exposed ? '1' : '', q: state.q,
+    standard: state.standard || '', meets: state.standard ? (state.meets ? '1' : '0') : '' });
 
   // The page's one way to add is its primary button (endpoints.js); the toolbar acts on the list.
   const actions = h('div', { class: 'row toolbar-actions' },
@@ -245,6 +267,7 @@ export async function render(root, ctx = {}) {
       .filter((a) => !state.q || `${a.name} ${a.address} ${a.tags.join(' ')}`.toLowerCase().includes(state.q.toLowerCase()))
       .filter((a) => !state.exposed || a.lastDone?.hndlExposed)
       .filter((a) => state.level === null || a.lastDone?.readinessLevel === state.level)
+      .filter((a) => !state.standard || (a.lastDone?.standards?.[state.standard] === (state.meets ? 'meets' : 'does-not-meet')))
       .sort(SORTS[state.sort]);
     const busy = assets.some((a) => a.latest && (a.latest.status === 'queued' || a.latest.status === 'running'));
     if (!busy) { state.frozen = null; return list; }
@@ -274,6 +297,7 @@ export async function render(root, ctx = {}) {
       h('label', { class: 'row' }, h('input', { type: 'checkbox', checked: state.exposed, onchange: (e) => { state.exposed = e.target.checked; remember(); crossFade(table, paint); } }),
         ' Only exposed to harvest-now-decrypt-later'),
       state.level === null ? null : filterChip(`PQC readiness L${state.level} ${levelName(state.level)}`, () => { state.level = null; remember(); crossFade(table, paint); }),
+      state.standard ? filterChip(`${state.meets ? 'Meets' : 'Does not meet'} ${STD_TITLES[state.standard] || state.standard}`, () => { state.standard = null; remember(); crossFade(table, paint); }) : null,
       h('span', { class: 'muted' }, `${list.length} of ${assets.length}`),
       h('span', { class: 'grow' }),
       actions));
@@ -296,8 +320,8 @@ export async function render(root, ctx = {}) {
 
     table.appendChild(h('div', { class: 'tablewrap' }, h('table', null,
       h('thead', null, h('tr', null, h('th', { scope: 'col' }, allBox), protocol === 'ssh'
-        ? [th('name', 'Server'), th('level', 'PQC readiness'), th('baseline', 'Baseline'), th('findings', 'Findings'), th(null, 'Host key')]
-        : [th('name', 'Endpoint'), th('level', 'PQC readiness'), th('hygiene', 'TLS hygiene'), th('findings', 'Findings'), th('expiry', 'Certificate expiry')],
+        ? [th('name', 'Server'), th('level', 'PQC readiness'), th('baseline', 'Baseline'), th('standards', 'Standards'), th('findings', 'Findings'), th(null, 'Host key')]
+        : [th('name', 'Endpoint'), th('level', 'PQC readiness'), th('hygiene', 'TLS hygiene'), th('standards', 'Standards'), th('findings', 'Findings'), th('expiry', 'Certificate expiry')],
         th('scanned', 'Last scan'), th(null, h('span', { class: 'sr-only' }, 'Actions')))),
       h('tbody', null, list.map(row)))));
   };
@@ -317,8 +341,8 @@ export async function render(root, ctx = {}) {
       h('td', null, d ? [levelBadge(d.readinessLevel), d.hndlExposed ? h('div', { class: 'hint' }, 'exposed to harvest-now-decrypt-later') : null]
         : (a.latest?.status === 'failed' ? badge('scan failed', 'bad', a.latest.error) : badge('Not scanned', 'none'))),
       protocol === 'ssh'
-        ? [h('td', null, d ? baselineWords(d) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? hostKeyWords(d) : '·')]
-        : [h('td', null, d ? bandBadge(d.band, d.score) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? certWords(d.certNotAfter) : '·')],
+        ? [h('td', null, d ? baselineWords(d) : '·'), h('td', { class: 'nowrap' }, d ? stdWords(d) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? hostKeyWords(d) : '·')]
+        : [h('td', null, d ? bandBadge(d.band, d.score) : '·'), h('td', { class: 'nowrap' }, d ? stdWords(d) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? certWords(d.certNotAfter) : '·')],
       h('td', { class: 'nowrap' }, active ? h('div', null, statusPill(a.latest.status), progressBar(a.latest.progressPct))
         : d ? h('span', { class: 'muted', title: fmtDate(d.finishedAt) }, relTime(d.finishedAt)) : '·'),
       h('td', { class: 'rowactions' },

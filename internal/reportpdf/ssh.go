@@ -85,6 +85,7 @@ func SSH(in SSHInput) ([]byte, error) {
 		x.section(id)
 	}
 	x.checks()
+	x.standards()
 	x.about()
 	return x.finish()
 }

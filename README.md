@@ -85,6 +85,7 @@ cipherhorizon tls scan smtp://mail.example.com         # STARTTLS: SMTP, IMAP, P
 cipherhorizon tls scan --fail-on 'level<L3' api.example.com   # exit 3 when it fails: a CI gate
 cipherhorizon ssh scan bastion.example.com              # readiness, the SSH baseline, the sshd_config lines to meet it
 cipherhorizon ssh scan --fail-on baseline git.example.com      # exit 3 when the server does not meet the baseline
+cipherhorizon tls scan --fail-on standard=nist-sp800-52r2 www.example.gov   # exit 3 when a published standard is not met
 ```
 
 Scan only systems you own or are authorised to test.
@@ -131,6 +132,7 @@ CycloneDX 1.7 CBOM, with PDF reports for each endpoint and for the whole invento
 | **Inventory** | TLS endpoints, SSH servers, machines and imported CBOMs merged into one CycloneDX 1.7 (or 1.6) CBOM: every algorithm with its OID where one exists (the exact certificate signature algorithm, ECDH on each named curve, legacy ciphers such as 3DES and RC4), certificates with their serial and SHA-256 fingerprint. |
 | **Charts you can act on** | Every chart opens what it counts: a readiness level opens the endpoints at that level, a ring segment the quantum-vulnerable algorithms, an expiry bar the certificates expiring in that window, a point on the history the scan it stands for. The filter stays in the address, so a filtered list can be bookmarked and Back returns to the chart. |
 | **Findings and systems** | Findings across everything, grouped by problem, with triage; systems ranked for migration by exposure and how long their data must stay secret; OMB M-23-02 export per system. |
+| **Published standards** | Every scan judged, clause by clause, against RFC 9325 (BCP 195), NIST SP 800-52 Rev. 2, BSI TR-02102-2 and -4, the ANSSI TLS guide, Mozilla Modern and Intermediate, PCI DSS v4.0.1 4.2.1 and the CNSA 2.0 profiles: each clause with the document's section number, whether it holds, and what was seen. A checklist per standard on the report, the PDF and as CSV; the fleet's standing on the Overview; `--fail-on standard=ID` in CI. The verdicts are the documents', read from the documents ([docs/standards.md](docs/standards.md)). |
 | **Reports** | PDF reports per TLS endpoint, per SSH server and for the whole inventory; CycloneDX, CSV and JSON downloads. |
 | **Over time** | Schedules, history, and what changed between two scans. |
 | **For teams** | Sign-in when you want it: administrator, analyst and viewer roles, an exportable activity log. |

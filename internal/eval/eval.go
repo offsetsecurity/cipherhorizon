@@ -19,7 +19,10 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/13"
+const Version = "eval/14"
+
+// eval/14 (PRD-017): every evaluation carries its verdicts against the published standards
+// (Evaluation.Standards), judged from the same facts as the findings.
 
 // eval/7 (PRD-008): a post-quantum signature scheme proved accepted by the signature stage counts
 // toward L4, and SSH endpoints are judged into the same shape (Protocol "ssh").
@@ -139,6 +142,9 @@ type Evaluation struct {
 	// eval/10 (PRD-011): every algorithm the endpoint uses, by class, with its strength,
 	// post-quantum status and uses. Each suite part also says its class, and gains its hash part.
 	Algorithms []AlgorithmUse `json:"algorithms,omitempty"`
+	// eval/14 (PRD-017): how the endpoint measures against each published standard this program
+	// carries (NIST SP 800-52, BSI TR-02102, BCP 195, ...), clause by clause.
+	Standards []StandardResult `json:"standards,omitempty"`
 	// eval/11 (PRD-014 QA): a truncated SSH MAC is bounded by its tag; SSH next steps name OpenSSH
 	// releases only to OpenSSH servers; a baseline requirement with nothing to judge does not apply.
 }
@@ -255,6 +261,7 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 		ev.PKI = append(ev.PKI, ch.view)
 	}
 	ev.Sections = sections(c, findings)
+	ev.Standards = evaluateTLSStandards(c)
 	// A check whose stage did not run was not checked, whatever its rule returned.
 	skipped := map[string]string{}
 	for _, s := range ev.Sections {

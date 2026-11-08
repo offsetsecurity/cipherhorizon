@@ -215,9 +215,9 @@ func (s *Store) FinishScan(id int64, r Result) error {
 	res, err := tx.Exec(`UPDATE scans SET status = 'done', finished_at = ?, stage = 'done', progress_pct = 100, error = '',
 		report_json = ?, eval_json = ?, band = ?, score = ?, readiness_level = ?, hndl_exposed = ?, crit = ?, high = ?, medium = ?,
 		low = ?, info = ?, cert_not_after = ?, incomplete = ?, service = ?, host_key = ?,
-		baseline = ?, baseline_meets = ?, baseline_changes = ? WHERE id = ? AND status = 'running'`,
+		baseline = ?, baseline_meets = ?, baseline_changes = ?, standards = ? WHERE id = ? AND status = 'running'`,
 		ts(s.now()), r.Report, r.Evaluation, r.Band, r.Score, r.ReadinessLevel, b2i(r.HNDLExposed), r.Critical, r.High, r.Medium, r.Low, r.Info,
-		nullTS(r.CertNotAfter), b2i(r.Incomplete), r.Service, r.HostKey, r.Baseline, nullBool(r.BaselineMeets), r.BaselineChanges, id)
+		nullTS(r.CertNotAfter), b2i(r.Incomplete), r.Service, r.HostKey, r.Baseline, nullBool(r.BaselineMeets), r.BaselineChanges, r.Standards, id)
 	if err != nil {
 		return err
 	}

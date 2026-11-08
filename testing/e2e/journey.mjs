@@ -509,11 +509,13 @@ async function main() {
   const reps = await js(`const rows = [...document.querySelectorAll('main tbody tr')];
     return { head: document.querySelector('main h1')?.textContent, tabs: [...document.querySelectorAll('.tabs .tab')].map((t) => t.textContent).join('|'), rows: rows.length,
       open: rows.filter((r) => /Open report/.test(r.innerText)).length, scanned: rows.filter((r) => /Hybrid|Not ready|Classical|ready/i.test(r.innerText)).length,
-      findings: rows.map((r) => r.children[4]?.innerText || ''), actions: !!document.querySelector('.toolbar .toolbar-actions') }`);
+      findings: rows.map((r) => r.children[5]?.innerText || ''), standards: rows.map((r) => r.children[4]?.innerText || ''), actions: !!document.querySelector('.toolbar .toolbar-actions') }`);
   check('E2E-F.5', 'TLS endpoints lists every TLS endpoint with Add, Scan all and Export beside the filter, and a Scan activity tab',
     reps.head === 'TLS endpoints' && reps.tabs === 'TLS endpoints|Scan activity' && reps.rows >= 5 && reps.actions, JSON.stringify(reps).slice(0, 300));
   check('E2E-R.4', 'a row has one way in (the row opens the report: no second Open report button), and its findings column names the worst severity or says No problems (UX-REVIEW-008 E1, E2)',
     reps.open === 0 && reps.findings.every((t) => t !== 'none') && reps.findings.some((t) => /\d+ (critical|high|medium|low)|No problems/.test(t)), JSON.stringify(reps.findings));
+  check('E2E-STD.1', 'each scanned row says how many published standards it meets, as "n of m" (PRD-017)',
+    reps.standards.some((t) => /^\d+ of \d+$/.test(t)), JSON.stringify(reps.standards));
   const rowClick = await js(`const r = [...document.querySelectorAll('main tbody tr.rowlink')].find((x) => /L\\d/.test(x.innerText));
     r.querySelector('td:nth-child(5)').click(); await new Promise((ok) => setTimeout(ok, 600));
     return { hash: location.hash, crumbs: [...document.querySelectorAll('.crumbs li')].map((l) => l.textContent), lit: document.querySelector('#nav a[aria-current=page]')?.textContent.trim() }`);
@@ -593,8 +595,18 @@ async function main() {
   check('E2E-F.7', 'every finding appears once in the action items; What was evaluated has a line per area; Configuration shows no finding card',
     rp.issues.length > 0 && new Set(rp.issues).size === rp.issues.length && rp.checks === 8 && rp.findingCards === 0, JSON.stringify(rp).slice(0, 240));
   check('E2E-F.8', 'Configuration has its six sections, each aside at most 25 words, and How we tested ends it', rp.details === 6 && rp.maxPurpose <= 25 && rp.about, JSON.stringify({ sections: rp.details, max: rp.maxPurpose, about: rp.about }));
-  check('E2E-F.9', 'the header has Scan again, Download and More; the tabs are Summary, Configuration, Weaknesses, CBOM, History',
-    ['Scan again', 'Download', 'More'].every((t) => rp.head.includes(t)) && !rp.head.includes('Delete') && rp.tabs.join() === 'Summary,Configuration,Weaknesses,CBOM,History', JSON.stringify({ head: rp.head, tabs: rp.tabs }));
+  check('E2E-F.9', 'the header has Scan again, Download and More; the tabs are Summary, Configuration, Weaknesses, Standards, CBOM, History',
+    ['Scan again', 'Download', 'More'].every((t) => rp.head.includes(t)) && !rp.head.includes('Delete') && rp.tabs.join() === 'Summary,Configuration,Weaknesses,Standards,CBOM,History', JSON.stringify({ head: rp.head, tabs: rp.tabs }));
+  // PRD-017: the Standards tab lists one card per standard and a checklist per standard, each clause with a status.
+  const std = await js(`document.querySelector('#tab-standards').click(); await new Promise((ok) => setTimeout(ok, 500));
+    return { cards: document.querySelectorAll('.std-card').length, lists: document.querySelectorAll('.std-list').length,
+      rows: document.querySelectorAll('.std-table tbody tr').length, statuses: [...new Set([...document.querySelectorAll('.std-table tbody .badge')].map((b) => b.textContent))],
+      chips: document.querySelectorAll('.stdcard .stdchip').length, csv: document.querySelectorAll('.std-list button').length };`);
+  check('E2E-STD.2', 'the Standards tab shows one card and one checklist per standard, every clause with a status word, and a CSV button each',
+    std.cards >= 8 && std.lists === std.cards && std.rows > 50 && std.statuses.every((w) => /^(Met|Not met|Not followed|Not assessed|Does not apply)$/.test(w)) && std.csv === std.cards,
+    JSON.stringify(std));
+  await shot('asset-standards-tab');
+  await js(`document.querySelector('#tab-summary').click(); await new Promise((ok) => setTimeout(ok, 300));`);
   check('E2E-R.1', 'Configuration opens with the protocols: every version is shown, each one on with its suites, the ones off on one line (PRD-013 REQ-VIS-3)',
     rp.matrix.first === 'sec-protocols' && rp.matrix.on.length + rp.matrix.off.length >= 4 && rp.matrix.on.length > 0 && rp.matrix.suites.every((n) => n > 0), JSON.stringify(rp.matrix));
   check('E2E-R.3', 'each version says whether that is right: an old version that is on "should be off", a current one does not',

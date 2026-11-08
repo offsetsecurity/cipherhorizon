@@ -75,6 +75,7 @@ func resultOfSSH(rep *sshprobe.Report, ev eval.Evaluation) (store.Result, error)
 		Medium: ev.Counts[eval.Medium], Low: ev.Counts[eval.Low], Info: ev.Counts[eval.Info], Incomplete: rep.Incomplete,
 	}
 	res.Baseline, res.BaselineMeets, res.BaselineChanges = eval.SSHBaselineSummary(ev)
+	res.Standards = standardsJSON(ev)
 	if id := rep.Identification; id != nil {
 		res.Service = id.Software
 		if res.Service == "" {

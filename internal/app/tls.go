@@ -29,8 +29,11 @@ const tlsNotice = `notice: "tls scan" connects to each target and makes a few hu
 
 // tlsCmd implements "cipherhorizon tls scan [flags] TARGET...".
 func tlsCmd(ctx context.Context, args []string, env Env) int {
+	if len(args) > 0 && args[0] == "standards" {
+		return standardsCmd(env, "tls")
+	}
 	if len(args) == 0 || args[0] != "scan" {
-		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...")
+		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...\n       cipherhorizon tls standards")
 		return ExitFatal
 	}
 
@@ -42,7 +45,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 	details := fl.Bool("details", false, "after the verdict, print the raw probe results: protocols, every cipher suite, groups and certificates")
 	var failOn stringList
 	fl.Var(&failOn, "fail-on", "exit 3 when a target meets this condition (repeatable, or comma separated): "+
-		"level<L3, score<70, severity>=high, finding=PROTO.TLS10. A target that cannot be scanned also fails")
+		"level<L3, score<70, standard=bcp195, severity>=high, finding=PROTO.TLS10. A target that cannot be scanned also fails")
 	asCBOM := fl.Bool("cbom", false, "print a CycloneDX CBOM of what was observed instead of text (exactly one target)")
 	spec := fl.String("spec", cbom.DefaultSpec, "CycloneDX version of the CBOM: 1.7 or 1.6")
 	timeout := fl.Duration("timeout", 8*time.Second, "per-connection timeout")
@@ -184,6 +187,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 				return fatalf(env, "writing report: %v", err)
 			}
 			writeAlgorithms(env.Stdout, ev)
+			writeStandardsDetail(env.Stdout, ev)
 		}
 	}
 	if !*asJSON && !*asCBOM && !*details {

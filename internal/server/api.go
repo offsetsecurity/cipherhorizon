@@ -684,9 +684,9 @@ func (s *Server) exportCSV(w http.ResponseWriter, r *http.Request) {
 	cw := csv.NewWriter(w)
 	_ = cw.Write([]string{"name", "address", "tags", "hygiene_band", "pqc_level", "pqc_label", "hndl_exposed", "critical", "high",
 		"cert_expires", "last_scan", "status", "rescan_interval_seconds", "hygiene_score", "protocol", "service",
-		"ssh_baseline", "ssh_baseline_meets", "ssh_baseline_changes"})
+		"ssh_baseline", "ssh_baseline_meets", "ssh_baseline_changes", "standards_met", "standards_not_met"})
 	for _, a := range as {
-		row := []string{csvSafe(a.Name), csvSafe(a.Address()), csvSafe(strings.Join(a.Tags, ";")), "", "", "", "", "", "", "", "", "", strconv.Itoa(a.IntervalSeconds), "", view(a, nil).Protocol, "", "", "", ""}
+		row := []string{csvSafe(a.Name), csvSafe(a.Address()), csvSafe(strings.Join(a.Tags, ";")), "", "", "", "", "", "", "", "", "", strconv.Itoa(a.IntervalSeconds), "", view(a, nil).Protocol, "", "", "", "", "", ""}
 		if a.Latest != nil {
 			row[11] = a.Latest.Status
 		}
@@ -712,6 +712,7 @@ func (s *Server) exportCSV(w http.ResponseWriter, r *http.Request) {
 			if d.BaselineMeets != nil {
 				row[16], row[17], row[18] = d.Baseline, strconv.FormatBool(*d.BaselineMeets), strconv.Itoa(d.BaselineChanges)
 			}
+			row[19], row[20] = standardsCSV(d.Standards)
 		}
 		_ = cw.Write(row)
 	}

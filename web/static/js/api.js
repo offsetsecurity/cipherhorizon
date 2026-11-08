@@ -70,6 +70,8 @@ export const api = {
 
   about: () => request('GET', '/api/v1/about'),
   sshBaselines: () => request('GET', '/api/v1/ssh/baselines'),
+  standards: () => request('GET', '/api/v1/standards'),
+  standardsSummary: () => request('GET', '/api/v1/standards/summary'),
   settings: () => request('GET', '/api/v1/settings'),
   setSignIn: (body) => request('PUT', '/api/v1/settings/sign-in', body),
   summary: (days = 14) => request('GET', `/api/v1/summary?days=${days}`),
