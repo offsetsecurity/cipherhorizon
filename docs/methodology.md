@@ -313,6 +313,18 @@ and which `sshd_config` lines would make it. No list, total or sort ever adds an
 The baseline and the checks agree on what is wrong; they answer different questions. The checks say how bad each
 problem is. The baseline says whether the server, as a whole, is configured as it should be.
 
+## Published standards (eval/14, PRD-017)
+
+Every evaluation also carries, under `standards[]`, how the endpoint measures against each published standard the
+program carries: RFC 9325 (BCP 195), NIST SP 800-52 Rev. 2, BSI TR-02102-2, the ANSSI TLS guide, Mozilla Server
+Side TLS 6.0 (Modern, Intermediate), PCI DSS v4.0.1 Requirement 4.2.1 and the CNSA 2.0 TLS profile; for SSH, BSI
+TR-02102-4 and the CNSA 2.0 SSH profile. Each clause is transcribed from the document with its section number and
+judged from the same facts the rules read: *met*, *not met*, *not assessed* (no evidence; never counted as met) or
+*does not apply*. A standard is **met** when no binding clause fails; recommendations not followed are counted
+beside the verdict. Periods of use (BSI's years) are applied at evaluation time. The verdicts are the documents',
+not this product's: readiness and hygiene do not feed them and are not changed by them. The clause tables, the
+editions read and what a network scan cannot assess are in [standards.md](standards.md).
+
 ## What a scan sends
 
 A few dozen to a few hundred short TLS handshakes per endpoint (a ClientHello, a read of the server's reply,

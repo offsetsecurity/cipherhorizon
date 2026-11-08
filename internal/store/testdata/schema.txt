@@ -154,6 +154,7 @@ table scans
   column baseline TEXT 1 '' 0 0
   column baseline_meets INTEGER 0 NULL 0 0
   column baseline_changes INTEGER 1 0 0 0
+  column standards TEXT 1 '' 0 0
   foreign-key assets asset_id id NO ACTION CASCADE
   index one_active_scan 1 c 1 (asset_id:0:BINARY)
   index scans_asset 0 c 0 (asset_id:0:BINARY, id:1:BINARY)

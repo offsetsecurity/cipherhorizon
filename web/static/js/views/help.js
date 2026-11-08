@@ -40,6 +40,7 @@ const TOPICS = [
   ['score', 'The TLS hygiene score'],
   ['strength', 'Classical strength'],
   ['baseline', 'The SSH baseline'],
+  ['standards', 'Published standards'],
   ['limits', 'What is and is not checked'],
   ['charts', 'Charts and filtered lists'],
   ['server', 'Running the server'],
@@ -48,7 +49,7 @@ const TOPICS = [
 ];
 
 export async function render(root) {
-  const [a, bl] = await Promise.all([api.about().catch(() => ({})), api.sshBaselines().catch(() => null)]);
+  const [a, bl, sd] = await Promise.all([api.about().catch(() => ({})), api.sshBaselines().catch(() => null), api.standards().catch(() => null)]);
   root.appendChild(h('div', { class: 'page-head' },
     h('div', null, h('h1', null, 'Help'), h('div', { class: 'sub' }, 'How to use CipherHorizon, and how it reaches its verdicts.'))));
 
@@ -126,6 +127,17 @@ export async function render(root) {
           h('dt', null, KIND_WORDS[k]),
           h('dd', null, b.allowed[k].map((e, i) => [i ? ', ' : '', code(e.name)]))])))) : []),
       h('p', { class: 'text-2' }, 'Every entry’s source and the OpenSSH version that first offers it: ', code('cipherhorizon ssh baselines'), '. The baseline is this product’s own; BSI TR-02102-4 is planned as a second one.')),
+    sec('standards', 'Published standards',
+      h('p', null, 'Every scan is judged, clause by clause, against the published standards this program carries: for TLS, RFC 9325 (BCP 195), NIST SP 800-52 Rev. 2, BSI TR-02102-2, the ANSSI TLS guide, Mozilla’s Modern and Intermediate profiles, PCI DSS v4.0.1 Requirement 4.2.1 and the CNSA 2.0 profile; for SSH, BSI TR-02102-4 and the CNSA 2.0 SSH profile. The verdicts are on a report’s ', h('b', null, 'Standards'), ' tab, in the endpoint lists, on the Overview, in the PDF and the CSV export, and on the command line.'),
+      h('p', null, h('b', null, 'The user story. '), 'An auditor asks “does this endpoint meet PCI DSS?” or a German federal project asks for TR-02102 conformance. The answer is a checklist: each clause of the document, with its section number, whether the endpoint meets it, and what the scan saw. The checklist is the document’s own words paraphrased, never a score; the same facts the findings rest on decide it, so a standard and a finding can never disagree.'),
+      h('p', null, h('b', null, 'How a verdict is reached. '), 'A clause is ', h('i', null, 'met'), ', ', h('i', null, 'not met'), ', ', h('i', null, 'not assessed'), ' (the scan holds no evidence either way: a stage did not run, or the document asks for something a network scan cannot see) or ', h('i', null, 'does not apply'), ' (nothing to judge: a CBC rule on a server with no CBC suite). A clause is binding (', code('must'), ': shall, MUST, or a thing the document does not recommend) or a recommendation (', code('should'), '). The endpoint ', h('b', null, 'meets'), ' a standard when no binding clause fails; recommendations not followed are counted beside the verdict. Where a document gives a period of use (BSI’s “use up to” years), the year is applied on the day of evaluation.'),
+      ...(sd && sd.standards ? [h('div', { class: 'help-stds' }, sd.standards.map((s) => h('details', { class: 'help-std' },
+        h('summary', null, h('b', null, s.title), ` · ${s.publisher}, ${s.edition} · ${s.protocol.toUpperCase()} · ${s.requirements.length} clauses`),
+        h('p', null, s.scope, ' ', h('a', { href: s.url, target: '_blank', rel: 'noopener' }, 'The document')),
+        h('table', { class: 'compact' }, h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Clause'), h('th', { scope: 'col' }, 'Level'), h('th', { scope: 'col' }, 'Requirement'))),
+          h('tbody', null, s.requirements.map((r) => h('tr', null, h('td', null, code(r.clause)), h('td', null, r.level), h('td', null, r.text))))),
+        s.notAssessed && s.notAssessed.length ? h('p', { class: 'text-2' }, h('b', null, 'Not assessed by a network scan: '), s.notAssessed.join('; '), '.') : null)))] : []),
+      h('p', { class: 'text-2' }, 'From the command line: ', code('cipherhorizon tls standards'), ' and ', code('ssh standards'), ' list the clauses; a scan prints the verdicts, ', code('--details'), ' every clause, and ', code('--fail-on standard=bcp195'), ' exits 3 when a target does not meet one. The standards are read from the documents themselves and name their edition; when a document changes, the edition changes with it.')),
     sec('limits', 'What is and is not checked',
       h('p', null, 'Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group, the certificate chain against the bundled root stores, OCSP stapling, CRL revocation, Certificate Transparency, and session features: 63 checks, each listed on the endpoint’s page as found, passed, not checked or not applicable. Revocation is shown as status unknown unless a stapled response or, with CRL lookups on, a current CRL from the issuer vouches for the certificate.'),
       h('p', null, h('b', null, 'One HTTP request. '), 'Every check exchanges only TLS handshake messages except one: after the handshake, a plain ', code('GET /'),

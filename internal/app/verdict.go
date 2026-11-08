@@ -64,6 +64,13 @@ func parsePolicy(values []string) ([]policyCond, error) {
 				pc.kind, pc.n, pc.label = "severity", sev.Rank(), fmt.Sprintf("a %s finding or worse", sev)
 			case c == "baseline":
 				pc.kind, pc.label = "baseline", "does not meet the SSH baseline"
+			case strings.HasPrefix(c, "standard="):
+				id := strings.ToLower(strings.TrimPrefix(c, "standard="))
+				std, ok := eval.StandardByID(id)
+				if !ok {
+					return nil, fmt.Errorf("--fail-on %q: no such standard; list them with: cipherhorizon tls standards (or ssh standards)", c)
+				}
+				pc.kind, pc.id, pc.label = "standard", id, "does not meet "+std.Title
 			case strings.HasPrefix(c, "finding="):
 				id := strings.ToUpper(strings.TrimPrefix(c, "finding="))
 				if id == "" {
@@ -71,7 +78,7 @@ func parsePolicy(values []string) ([]policyCond, error) {
 				}
 				pc.kind, pc.id, pc.label = "finding", id, "finding "+id
 			default:
-				return nil, fmt.Errorf("--fail-on %q: use level<L3, score<70 (TLS), baseline (SSH), severity>=high or finding=ID", c)
+				return nil, fmt.Errorf("--fail-on %q: use level<L3, score<70 (TLS), baseline (SSH), standard=ID, severity>=high or finding=ID", c)
 			}
 			out = append(out, pc)
 		}
@@ -88,6 +95,10 @@ func policyFor(conds []policyCond, protocol string) error {
 			return fmt.Errorf("--fail-on %q: SSH servers have no score; use --fail-on baseline", c.raw)
 		case c.kind == "baseline" && protocol != eval.ProtocolSSH:
 			return fmt.Errorf("--fail-on %q: the baseline condition is for ssh scan; TLS endpoints are rated by their hygiene score", c.raw)
+		case c.kind == "standard":
+			if std, ok := eval.StandardByID(c.id); ok && std.Protocol != protocolWord(protocol) {
+				return fmt.Errorf("--fail-on %q: %s is a %s standard", c.raw, std.Title, strings.ToUpper(std.Protocol))
+			}
 		}
 	}
 	return nil
@@ -135,9 +146,75 @@ func breaches(conds []policyCond, ev eval.Evaluation) []string {
 					break
 				}
 			}
+		case "standard":
+			for _, st := range ev.Standards {
+				if st.ID != c.id {
+					continue
+				}
+				switch st.Verdict {
+				case eval.StdFails:
+					out = append(out, fmt.Sprintf("%s (%s)", c.label, clausesText(st)))
+				case eval.StdNotAssessed:
+					out = append(out, fmt.Sprintf("%s could not be assessed on this scan", st.Title))
+				}
+			}
 		}
 	}
 	return out
+}
+
+// protocolWord is a standard's protocol word for an evaluation protocol ("" is TLS).
+func protocolWord(protocol string) string {
+	if protocol == eval.ProtocolSSH {
+		return eval.ProtocolSSH
+	}
+	return "tls"
+}
+
+// clausesText names the clauses a standard is not met on: "2 clauses: §3.1, §4.5".
+func clausesText(st eval.StandardResult) string {
+	var ids []string
+	for _, r := range st.Requirements {
+		if r.Status == eval.ReqNotMet && r.Level == eval.LevelMust {
+			ids = append(ids, r.Clause)
+		}
+	}
+	word := "clauses"
+	if len(ids) == 1 {
+		word = "clause"
+	}
+	n := len(ids)
+	if len(ids) > 4 {
+		ids = append(ids[:4], fmt.Sprintf("and %d more", n-4))
+	}
+	return fmt.Sprintf("%d %s: %s", n, word, strings.Join(ids, "; "))
+}
+
+// writeStandards prints one line per standard: the verdict and how many clauses are not met.
+func writeStandards(b *strings.Builder, ev eval.Evaluation) {
+	if len(ev.Standards) == 0 {
+		return
+	}
+	b.WriteString("\n  Standards\n")
+	for _, st := range ev.Standards {
+		var verdict string
+		switch st.Verdict {
+		case eval.StdMeets:
+			verdict = "meets"
+			if st.ShouldFailures > 0 {
+				verdict += fmt.Sprintf(" (%d recommendation(s) not followed)", st.ShouldFailures)
+			}
+		case eval.StdFails:
+			verdict = "does not meet: " + clausesText(st)
+			if st.ShouldFailures > 0 {
+				verdict += fmt.Sprintf("; %d recommendation(s) not followed", st.ShouldFailures)
+			}
+		default:
+			verdict = "not assessed: the scan holds no evidence for its clauses"
+		}
+		fmt.Fprintf(b, "    %-30s %s\n", st.Title, verdict)
+	}
+	b.WriteString("    (--details lists every clause with its section number)\n")
 }
 
 // targetName is host:port, with the STARTTLS protocol when there is one.
@@ -226,6 +303,7 @@ func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 			b.WriteString("    " + line + "\n")
 		}
 	}
+	writeStandards(&b, ev)
 	if len(notes) > 0 {
 		b.WriteString("\n  Notes\n")
 		for _, f := range notes {

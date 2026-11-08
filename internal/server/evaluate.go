@@ -112,8 +112,21 @@ func resultOf(rep *tlsprobe.Report, ev eval.Evaluation) (store.Result, error) {
 		Report: repJSON, Evaluation: evJSON, Band: ev.Hygiene.Band, Score: ev.Hygiene.Score, ReadinessLevel: ev.Readiness.Level,
 		HNDLExposed: ev.Readiness.HNDLExposed, Critical: ev.Counts[eval.Critical], High: ev.Counts[eval.High],
 		Medium: ev.Counts[eval.Medium], Low: ev.Counts[eval.Low], Info: ev.Counts[eval.Info], Incomplete: rep.Incomplete,
-		CertNotAfter: leafNotAfter(rep),
+		CertNotAfter: leafNotAfter(rep), Standards: standardsJSON(ev),
 	}, nil
+}
+
+// standardsJSON is the compact standards summary stored beside a scan for lists (PRD-017).
+func standardsJSON(ev eval.Evaluation) string {
+	sum := eval.StandardsSummary(ev)
+	if len(sum) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(sum)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // Reevaluate recomputes a completed scan's evaluation from its stored report

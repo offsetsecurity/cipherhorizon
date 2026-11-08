@@ -118,6 +118,7 @@ Usage:
   cipherhorizon tls scan [flags] HOST[:PORT]...
   cipherhorizon ssh scan [flags] HOST[:PORT]...
   cipherhorizon ssh baselines
+  cipherhorizon tls standards | ssh standards   the published standards every scan is judged against
   cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--tls-cert F --tls-key F] [--token TOKEN] [--no-login]
   cipherhorizon import [--server URL] (--system ID | --new-system NAME) FILE|-
   cipherhorizon db rebuild-graph|stats|backup [--db FILE] [BACKUP-FILE]

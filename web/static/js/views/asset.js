@@ -4,6 +4,7 @@ import { h, clear, fmtDate, fmtDay, daysUntil, relTime, INTERVALS, intervalLabel
 import { api, ApiError } from '../api.js';
 import { historyChart, levelClass, levelName } from '../charts.js';
 import { summaryView, configurationView, weaknessesView, cbomView, SECTIONS } from './report.js';
+import { standardsView } from './standards.js';
 import './report-ssh.js'; // registers the SSH report profile (PRD-008)
 import { PLACES, protocolOf, reportHref, baselineWords } from './assets.js';
 import { levelBadge, bandBadge, bandTone, bandWord, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog, crumbs,
@@ -275,7 +276,7 @@ export async function render(root, { args, query, protocol = 'tls' }) {
     // eval/3 results are one sectioned report; older ones keep the previous layout and offer re-evaluation.
     const sectioned = Array.isArray(ev.sections);
     if (sectioned && OLD_TABS[tab]) tab = OLD_TABS[tab];
-    if (!sectioned && ['summary', 'configuration', 'weaknesses', 'cbom'].includes(tab)) tab = 'overview';
+    if (!sectioned && ['summary', 'configuration', 'weaknesses', 'standards', 'cbom'].includes(tab)) tab = 'overview';
     if (!sectioned) {
       body.appendChild(h('div', { class: 'callout info', role: 'status' },
         h('b', null, `Evaluated by an earlier version (${ev.version}). `),
@@ -283,7 +284,7 @@ export async function render(root, { args, query, protocol = 'tls' }) {
         viewScanId ? null : h('span', null, ' ', button('Re-evaluate', reevaluate, 'secondary', { class: 'btn btn-sm' }))));
     }
     const tabs = sectioned
-      ? [['summary', 'Summary'], ['configuration', 'Configuration'], ['weaknesses', 'Weaknesses'], ['cbom', 'CBOM'], ['history', `History (${history.length})`]]
+      ? [['summary', 'Summary'], ['configuration', 'Configuration'], ['weaknesses', 'Weaknesses'], ['standards', 'Standards'], ['cbom', 'CBOM'], ['history', `History (${history.length})`]]
       : [['overview', 'Overview'], ['tls', 'TLS details'], ['findings', `Findings (${ev.findings.length})`], ['history', `History (${history.length})`]];
     body.appendChild(h('div', { class: 'tabs', role: 'tablist' }, tabs.map(([k, label]) =>
       h('button', { type: 'button', class: 'tab', role: 'tab', id: `tab-${k}`, 'aria-selected': String(tab === k),
@@ -292,7 +293,7 @@ export async function render(root, { args, query, protocol = 'tls' }) {
       goTab: (t) => { tab = t; paint(); window.scrollTo(0, 0); },
       scanId: shown.id, stem: a.name.replace(/[^a-z0-9._-]+/gi, '_'), download: (path, name) => api.download(path, name).catch((e) => toast(e.message, 'error')),
       fetchCBOM: () => api.scanCBOM(shown.id) };
-    const views = { summary: summaryView, configuration: configurationView, weaknesses: weaknessesView, cbom: cbomView };
+    const views = { summary: summaryView, configuration: configurationView, weaknesses: weaknessesView, standards: standardsView, cbom: cbomView };
     body.appendChild(views[tab] ? views[tab](ctx)
       : tab === 'tls' ? tlsTab() : tab === 'findings' ? findingsTab() : tab === 'history' ? historySection() : overviewTab());
     if (focusFix && tab === 'summary') {

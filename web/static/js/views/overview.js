@@ -115,6 +115,34 @@ function recentRow(a) {
     h('span', { class: 'recent-when' }, d ? `${p ? plural(p, 'problem') : 'no problems'} · ${relTime(d.finishedAt)}` : ''));
 }
 
+/** Standards across the fleet (PRD-017): one row per standard, the endpoints that meet it and
+ *  those that do not, each count opening that list. TLS and SSH standards keep to their own pages. */
+function standardsPanel(rows) {
+  const judged = rows.filter((s) => s.meets + s.fails + s.notAssessed > 0);
+  if (!judged.length) return null;
+  const place = (s) => (s.protocol === 'ssh' ? '#/ssh' : '#/endpoints');
+  // Widths go through the CSSOM: the page's Content Security Policy allows no style attributes.
+  const seg = (el, n) => { el.style.flexGrow = String(n); return el; };
+  const row = (s) => {
+    const total = s.meets + s.fails;
+    const pct = total ? Math.round((s.meets / total) * 100) : 0;
+    return h('div', { class: 'stdrow' },
+      h('div', { class: 'stdrow-name' }, h('b', null, s.title), h('span', { class: 'stdrow-pub' }, `${s.publisher} · ${s.protocol.toUpperCase()}`)),
+      h('div', { class: 'stdrow-bar', role: 'img', 'aria-label': `${s.meets} meet, ${s.fails} do not` },
+        s.meets ? seg(h('a', { class: 'stdrow-seg stdrow-meets', href: `${place(s)}?standard=${s.id}&meets=1`, title: `${s.meets} meet: open them` }), s.meets) : null,
+        s.fails ? seg(h('a', { class: 'stdrow-seg stdrow-fails', href: `${place(s)}?standard=${s.id}&meets=0`, title: `${s.fails} do not meet: open them` }), s.fails) : null,
+        !total ? seg(h('span', { class: 'stdrow-seg stdrow-na' }), 1) : null),
+      h('div', { class: 'stdrow-figs' },
+        total ? h('a', { class: s.fails ? 'fleet-warn' : 'fleet-good', href: `${place(s)}?standard=${s.id}&meets=${s.fails ? 0 : 1}` }, s.fails ? `${s.fails} of ${total} do not meet` : `all ${total} meet`) : h('span', { class: 'muted' }, 'not assessed'),
+        total ? h('span', { class: 'stdrow-pct muted' }, `${pct}%`) : null,
+        s.notStored ? h('span', { class: 'hint' }, `${s.notStored} scanned before standards: re-evaluate`) : null));
+  };
+  return h('section', { class: 'card stdpanel', 'aria-labelledby': 'stdpanel-h' },
+    h('div', { class: 'panel-head' }, h('h2', { id: 'stdpanel-h' }, 'Standards'), h('a', { href: '#/help?topic=standards' }, 'How they are judged')),
+    h('p', { class: 'hint' }, 'Each endpoint’s latest scan, judged clause by clause against the published standards. A bar opens the endpoints it counts.'),
+    h('div', { class: 'stdrows' }, judged.map(row)));
+}
+
 function fixFirst(findings) {
   const groups = groupFindings(findings.filter((f) => f.severity && f.severity !== 'info')).slice(0, 6);
   return h('section', { class: 'card', 'aria-labelledby': 'fixfirst-h' },
@@ -203,9 +231,10 @@ export async function render(root) {
   root.append(section, band, lower);
   input.focus();
 
-  const [assets, hosts, inv, findings] = await Promise.all([
+  const [assets, hosts, inv, findings, stds] = await Promise.all([
     api.assets().catch(() => []), api.hosts().catch(() => []),
-    api.inventorySummary().catch(() => null), api.fleetFindings('').catch(() => [])]);
+    api.inventorySummary().catch(() => null), api.fleetFindings('').catch(() => []),
+    api.standardsSummary().catch(() => ({ standards: [] }))]);
   if (!assets.length && !hosts.length) {
     lower.appendChild(h('p', { class: 'overview-empty' }, 'Scan an endpoint above, or inventory a machine, and this page shows where you stand.'));
     return null;
@@ -221,6 +250,7 @@ export async function render(root) {
         h('span', { class: 'row' }, h('a', { href: '#/endpoints' }, 'TLS endpoints'), h('a', { href: '#/ssh' }, 'SSH servers'))),
       shown.length ? h('div', { class: 'recent-list' }, shown.map(recentRow)) : h('p', { class: 'muted' }, 'No endpoint scanned yet.'),
       hosts.length ? h('p', { class: 'hint' }, `${plural(hosts.length, 'machine')} inventoried. `, h('a', { href: '#/machines' }, 'Machines')) : null),
-    fixFirst(findings));
+    fixFirst(findings),
+    standardsPanel(stds.standards || []));
   return null;
 }

@@ -8,6 +8,7 @@ import { levelClass, levelName } from '../charts.js';
 import { badge, sevBadge, evidenceBadge, citations, bandTone, bandWord, button } from '../ui.js';
 import { tlsConfiguration, weakestAlgorithm, certHref, crlSummary } from './tls-config.js';
 import { bitsBar, gauge, levelStepper, lifetimeBar, stackBar, statusTile } from '../viz.js';
+import { standardsCard } from './standards.js';
 
 export const SECTIONS = [
   ['certificates', 'Certificates & trust', 'Who issued the certificate, who trusts it, and how long it lasts.'],
@@ -193,6 +194,10 @@ export function summaryView(ctx) {
     h('div', { class: 'cfg-head' }, h('h2', { id: 'checks-h', class: 'coverage-line' }, `${cs.length} checks run`),
       h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goTab('weaknesses'); } }, 'See every check')),
     sb.bar, sb.legend));
+
+  // The published standards, as verdict chips (PRD-017); the Standards tab has the clauses.
+  const stdc = standardsCard(ctx);
+  if (stdc) wrap.appendChild(stdc);
 
   // Each area as a tile: its state and its one line.
   const TONE = { problem: 'problem', attention: 'attention', good: 'good' };

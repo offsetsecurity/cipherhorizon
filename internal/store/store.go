@@ -496,6 +496,9 @@ var migrations = []string{
 		app_version TEXT NOT NULL DEFAULT '',
 		backup TEXT NOT NULL DEFAULT ''
 	);`,
+	// 17: a scan's verdicts against the published standards (PRD-017), as a small JSON object of
+	// standard id to verdict, for lists, filters and the fleet summary without opening the evaluation.
+	`ALTER TABLE scans ADD COLUMN standards TEXT NOT NULL DEFAULT '';`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same
@@ -700,6 +703,9 @@ type ScanSummary struct {
 	Baseline        string `json:"baseline,omitempty"`
 	BaselineMeets   *bool  `json:"baselineMeets,omitempty"`
 	BaselineChanges int    `json:"baselineChanges,omitempty"`
+	// Standards maps each published standard's id to the scan's verdict against it (meets,
+	// does-not-meet, not-assessed); nil for scans made before eval/14 (PRD-017).
+	Standards map[string]string `json:"standards,omitempty"`
 }
 
 // Result is what a finished scan stores.
@@ -723,6 +729,8 @@ type Result struct {
 	Baseline        string
 	BaselineMeets   *bool
 	BaselineChanges int
+	// Standards is the JSON object of standard id to verdict (eval.StandardsSummary), or "".
+	Standards string
 	// FinalEvent, if set, is logged with the result in one transaction.
 	FinalEvent string
 }
@@ -961,7 +969,7 @@ func (s *Store) DeleteAsset(id int64) error {
 
 const scanCols = `id, asset_id, status, trigger, started_by, stage, progress_pct, connections, queued_at, started_at, finished_at, error,
 	band, score, readiness_level, hndl_exposed, crit, high, medium, low, info, cert_not_after, incomplete, service, host_key,
-	baseline, baseline_meets, baseline_changes`
+	baseline, baseline_meets, baseline_changes, standards`
 
 func scanSummary(r scanner) (ScanSummary, error) {
 	var v ScanSummary
@@ -969,10 +977,14 @@ func scanSummary(r scanner) (ScanSummary, error) {
 	var started, finished, certEnd sql.NullString
 	var level, meets sql.NullInt64
 	var hndl, incomplete int
+	var standards string
 	if err := r.Scan(&v.ID, &v.AssetID, &v.Status, &v.Trigger, &v.StartedBy, &v.Stage, &v.ProgressPct, &v.Connections, &queued, &started, &finished,
 		&v.Error, &v.Band, &v.Score, &level, &hndl, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Info, &certEnd, &incomplete, &v.Service, &v.HostKey,
-		&v.Baseline, &meets, &v.BaselineChanges); err != nil {
+		&v.Baseline, &meets, &v.BaselineChanges, &standards); err != nil {
 		return ScanSummary{}, err
+	}
+	if standards != "" {
+		_ = json.Unmarshal([]byte(standards), &v.Standards) // an unreadable value reads as "not stored"
 	}
 	if t := parseTS(sql.NullString{String: queued, Valid: true}); t != nil {
 		v.QueuedAt = *t

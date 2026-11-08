@@ -31,8 +31,11 @@ func sshCmd(ctx context.Context, args []string, env Env) int {
 	if len(args) > 0 && args[0] == "baselines" {
 		return sshBaselinesCmd(env)
 	}
+	if len(args) > 0 && args[0] == "standards" {
+		return standardsCmd(env, eval.ProtocolSSH)
+	}
 	if len(args) == 0 || args[0] != "scan" {
-		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon ssh scan [flags] HOST[:PORT]...\n       cipherhorizon ssh baselines")
+		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon ssh scan [flags] HOST[:PORT]...\n       cipherhorizon ssh baselines\n       cipherhorizon ssh standards")
 		return ExitFatal
 	}
 	fl := flag.NewFlagSet("ssh scan", flag.ContinueOnError)
@@ -41,7 +44,7 @@ func sshCmd(ctx context.Context, args []string, env Env) int {
 	details := fl.Bool("details", false, "after the verdict, print the algorithm lists and host keys behind it")
 	var failOn stringList
 	fl.Var(&failOn, "fail-on", "exit 3 when a target meets this condition (repeatable, or comma separated): "+
-		"level<L3, baseline, severity>=high, finding=SSH.KEX-SHA1. A target that cannot be scanned also fails")
+		"level<L3, baseline, standard=bsi-tr-02102-4, severity>=high, finding=SSH.KEX-SHA1. A target that cannot be scanned also fails")
 	baseline := fl.String("baseline", eval.BaselineDefault, "the SSH baseline to judge against (list them with: cipherhorizon ssh baselines)")
 	asCBOM := fl.Bool("cbom", false, "print a CycloneDX CBOM of what was observed instead of text (exactly one target)")
 	spec := fl.String("spec", cbom.DefaultSpec, "CycloneDX version of the CBOM: 1.7 or 1.6")
@@ -158,6 +161,7 @@ func sshCmd(ctx context.Context, args []string, env Env) int {
 		if *details {
 			_, _ = fmt.Fprintln(env.Stdout)
 			writeSSHDetails(env.Stdout, rep)
+			writeStandardsDetail(env.Stdout, ev)
 		}
 	}
 	if *asJSON {

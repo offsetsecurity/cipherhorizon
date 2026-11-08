@@ -10,6 +10,34 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Published standards, clause by clause** ([PRD-017](docs/product/PRD-017-standards.md)). Every scan is judged
+  against the published standards the program carries, from the facts the findings already rest on: for TLS,
+  RFC 9325 (BCP 195), NIST SP 800-52 Rev. 2, BSI TR-02102-2 (2026-01), the ANSSI TLS guide v1.2, Mozilla Server
+  Side TLS 6.0 (Modern and Intermediate), PCI DSS v4.0.1 Requirement 4.2.1 and the CNSA 2.0 TLS profile; for
+  SSH, BSI TR-02102-4 (2026-01) and the CNSA 2.0 SSH profile. Each clause carries the document's own section
+  number, whether it is binding or a recommendation, its status on this endpoint (met, not met, not assessed,
+  does not apply) and what the scan saw. A standard is met when no binding clause fails; a clause the scan holds
+  no evidence for is never counted as met. BSI's "use up to" years are applied on the day of evaluation.
+  - A **Standards** tab on every TLS and SSH report (with a CSV checklist per standard), a verdict strip on the
+    Summary, a Standards column and `?standard=ID&meets=0|1` filter on the endpoint lists, a Standards panel
+    on the Overview, a page in the PDF reports, `standards_met` and `standards_not_met` columns in the CSV
+    export, and a Help topic.
+  - `cipherhorizon tls standards` and `ssh standards` list the clauses; `tls scan` and `ssh scan` print the
+    verdicts (`--details` every clause) and take `--fail-on standard=ID`.
+  - API: `GET /api/v1/standards` (the catalogue), `GET /api/v1/standards/summary` (the fleet), and
+    `standards[]` on every evaluation. Evaluation version `eval/14`; stored results are re-evaluated at launch.
+  - Standards are transcribed from the documents themselves (`docs/standards.md` names each edition and what a
+    network scan cannot assess). They are the documents' judgements, not this product's: the readiness level
+    and the TLS hygiene score are unchanged.
+
+### Upgrade notes
+
+- Schema 17 adds one text column (`scans.standards`) holding each scan's verdicts as a small JSON object. The
+  step is instant; nothing is rewritten. The server then re-evaluates every endpoint's latest scan with
+  `eval/14` at launch, as it does after any rule change (a few seconds for a few hundred endpoints).
+
 ## [0.4.1] - 2026-11-03
 
 ### Security
