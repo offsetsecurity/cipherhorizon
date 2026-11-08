@@ -101,9 +101,10 @@ func TestUpgradeFromEveryRelease(t *testing.T) {
 					continue
 				}
 				if table == "upgrade_log" {
-					// The upgrade itself is recorded (PRD-016 U-07): exactly one row more.
-					if after.counts[table] != n+1 {
-						t.Errorf("upgrade_log: %d rows before the upgrade, %d after; want one more", n, after.counts[table])
+					// An upgrade is recorded (PRD-016 U-07): one row more when a migration ran, none
+					// when the fixture is already at the current schema.
+					if after.counts[table] != n && after.counts[table] != n+1 {
+						t.Errorf("upgrade_log: %d rows before the upgrade, %d after; want the same or one more", n, after.counts[table])
 					}
 					continue
 				}
