@@ -43,7 +43,49 @@ export async function render(root) {
   async function draw() {
     const [st, auth] = await Promise.all([api.settings(), api.authState()]);
     const s = st.signIn;
-    clear(body).append(signInCard(s, auth), serverCard(st.server));
+    clear(body).append(signInCard(s, auth), scanningCard(st.scanning, auth), serverCard(st.server));
+  }
+
+  // Scanning (0.5.1): the options every scan runs with, changed here and applied to the next scan.
+  // The command line only sets the starting values.
+  function scanningCard(sc, auth) {
+    const canEdit = !auth?.required || auth?.me?.role === 'admin' || auth?.role === 'admin';
+    const OPTS = [
+      ['httpChecks', 'HTTP check (HSTS)', 'After the TLS handshake, send one plain GET / and read the Strict-Transport-Security header. The only check that sends more than a handshake: one request, headers only, no redirect followed. Off, the HTTP security area reads not checked.'],
+      ['crlLookups', 'CRL lookups', 'After the handshakes, fetch the CRL each certificate on the served chain names, from the CA’s CRL server (plain HTTP, at most 16 MiB, cached until its next update) and report whether the certificate is revoked. Off, revocation is known only from a stapled OCSP response. OCSP responders are never contacted.'],
+      ['crlPrivate', 'CRL servers on private addresses', 'Let CRL lookups reach private (RFC 1918, unique-local) and loopback addresses: an internal CA’s CRL server. Off, such URLs are refused, because any scanned server can name one.'],
+    ];
+    const state = Object.fromEntries(OPTS.map(([k]) => [k, sc[k]]));
+    const save = async () => {
+      try {
+        const r = await api.setScanning({ httpChecks: state.httpChecks ? 'on' : 'off', crlLookups: state.crlLookups ? 'on' : 'off', crlPrivate: state.crlPrivate ? 'on' : 'off' });
+        toast('Scanning settings saved: they apply to the next scan.', 'success');
+        Object.assign(sc, r);
+        draw();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+    const reset = async () => {
+      try { await api.setScanning({ httpChecks: 'default', crlLookups: 'default', crlPrivate: 'default' }); toast('Back to the command line’s values.', 'success'); draw(); } catch (e) { toast(e.message, 'error'); }
+    };
+    const rows = OPTS.map(([k, label, text]) => {
+      const box = h('input', { type: 'checkbox', id: `scan-${k}`, checked: !!state[k], disabled: !canEdit || (k === 'crlPrivate' && !state.crlLookups),
+        onchange: (e) => { state[k] = e.target.checked; if (k === 'crlLookups') { const p = card.querySelector('#scan-crlPrivate'); if (p) p.disabled = !e.target.checked; } } });
+      const overridden = (sc.overridden || []).includes(k);
+      return h('div', { class: 'setrow' },
+        h('div', { class: 'setrow-switch' }, box),
+        h('div', { class: 'setrow-text' },
+          h('label', { for: `scan-${k}`, class: 'setrow-label' }, label, ' ', badge(sc[k] ? 'on' : 'off', sc[k] ? 'good' : 'neutral'),
+            overridden ? h('span', { class: 'hint', title: 'Set here; the command line said otherwise' }, ` · set here (started ${sc.defaults[k] ? 'on' : 'off'})`) : null),
+          h('p', { class: 'setrow-help' }, text)));
+    });
+    const card = h('section', { class: 'card settings-card', 'aria-labelledby': 'set-scan-h' },
+      h('div', { class: 'settings-head' }, h('h2', { id: 'set-scan-h' }, 'Scanning')),
+      h('p', null, 'What every scan does beyond the TLS handshakes. A change applies to the next scan; results already stored keep what their scan did. ',
+        'The server’s command line sets the starting values (', h('code', null, '--http-checks'), ', ', h('code', null, '--revocation'), ', ', h('code', null, '--revocation-private'), ').'),
+      h('div', { class: 'setrows' }, rows),
+      canEdit ? h('div', { class: 'row' }, button('Save', save, 'primary'), (sc.overridden || []).length ? button('Use the command line’s values', reset, 'secondary') : null)
+        : h('p', { class: 'hint' }, 'Only an administrator can change these.'));
+    return card;
   }
 
   function signInCard(s, auth) {
@@ -109,8 +151,6 @@ export async function render(root) {
       ['Version', `${v.version} (evaluation rules ${v.evalVersion})`],
       ['What may be scanned', scope, '--scan-allow'],
       ['This machine (loopback)', v.allowLoopback ? 'may be scanned' : 'may not be scanned', '--allow-loopback'],
-      ['HTTP check (HSTS)', v.httpChecks ? 'on: one GET / after the handshake' : 'off', '--http-checks'],
-      ['CRL lookups', v.crlLookups ? 'on: each certificate’s CRL is fetched from its CA (plain HTTP)' : 'off: revocation is known only from stapled OCSP', '--revocation'],
       ['Automation token', v.automationToken ? 'accepted for scripts and CI' : 'not configured', '--token'],
       ['Scans at once', String(v.maxConcurrentScans), '--max-concurrent-scans'],
       ['History kept', `the last ${v.retentionPerAsset} scans of each endpoint`],

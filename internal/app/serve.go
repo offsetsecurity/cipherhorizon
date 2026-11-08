@@ -191,10 +191,10 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	workers := fl.Int("max-concurrent-scans", 2, "scans that may run at once")
 	timeout := fl.Duration("timeout", 8*time.Second, "per-connection timeout during a scan")
 	concurrency := fl.Int("concurrency", 4, "connections in flight to one target at once")
-	httpChecks := fl.Bool("http-checks", true, "after each scan's handshake, send one plain HTTP GET / and read the Strict-Transport-Security header. "+
+	httpChecks := fl.Bool("http-checks", true, "the starting value of the HTTP check (Settings → Scanning can change it without a restart): after each scan's handshake, send one plain HTTP GET / and read the Strict-Transport-Security header. "+
 		"This is the only check that sends anything beyond a TLS handshake: one real HTTP request to every scanned target, read for headers only. "+
 		"On by default, server-wide; --http-checks=false turns it off")
-	crlLookups := fl.Bool("revocation", false, "after each scan's handshakes, fetch the CRL each certificate on the served path names and report whether it is revoked. "+
+	crlLookups := fl.Bool("revocation", false, "the starting value of CRL lookups (Settings → Scanning can change it without a restart): after each scan's handshakes, fetch the CRL each certificate on the served path names and report whether it is revoked. "+
 		"Off by default, server-wide: it contacts each CA's CRL server (plain HTTP), hosts other than the scanned targets. Private and loopback "+
 		"addresses are refused unless --revocation-private is set")
 	crlPrivate := fl.Bool("revocation-private", false, "with --revocation, also fetch CRLs from private (RFC 1918, unique-local) and loopback addresses: an internal CA's CRL server")
@@ -353,10 +353,11 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		scanOpts.CRL = revocation.New(revocation.Policy{AllowPrivate: *crlPrivate, AllowLoopback: *crlPrivate})
 	}
 	runner := server.NewRunner(st, guard, server.RunnerOptions{
-		Workers:  *workers,
-		Scan:     scanOpts,
-		CABundle: bundle,
-		Log:      log,
+		Workers:    *workers,
+		Scan:       scanOpts,
+		CABundle:   bundle,
+		CRLPrivate: *crlPrivate,
+		Log:        log,
 	})
 	if n := runner.ReevaluateOutdated(); n > 0 {
 		log.Info("re-evaluated the latest results with the current rules", "endpoints", n, "rules", eval.Version)

@@ -10,6 +10,21 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Changed
+
+- **Scan options live in Settings.** The HTTP check (HSTS), CRL lookups and whether CRL lookups may reach private
+  addresses are set under **Settings → Scanning** and apply to the next scan, no restart. The command-line flags
+  (`--http-checks`, `--revocation`, `--revocation-private`) now set the starting values only; Settings says when it
+  has overridden them and can hand back to the command line. `GET /api/v1/settings` carries the effective
+  configuration under `scanning`; `PUT /api/v1/settings/scanning` changes it (administrators, audited).
+- **Findings and Weaknesses read as facts, not paragraphs.** A finding's sources are a row of chips (the short
+  name shown, the full title on hover) instead of a list; on the Findings page each place is a row with what was
+  seen beside it, no disclosure to open; on a report's Weaknesses tab the detail is a Seen / Why it matters / Fix
+  grid. The same chips replace the source lists everywhere.
+- **A post-quantum key held beside a classical certificate is said on the Summary.** A server that presents an
+  ML-DSA certificate only to clients that offer ML-DSA reads L4 while the Certificate tile shows the ECDSA or RSA
+  certificate current clients get; the tile now says the ML-DSA key is held and what the shown certificate is.
+
 ## [0.5.0] - 2026-11-08
 
 ### Added

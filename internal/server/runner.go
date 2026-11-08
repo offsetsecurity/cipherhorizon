@@ -32,6 +32,9 @@ type RunnerOptions struct {
 	// CABundle is the server-wide private CA bundle (--ca-bundle), applied to
 	// every evaluation as "your CA bundle" (REQ-TTRS-2).
 	CABundle []AnchorCert
+	// CRLPrivate is the command line's --revocation-private: whether CRL lookups may reach
+	// private and loopback addresses. Settings can override it (scansettings.go).
+	CRLPrivate bool
 	// Log receives what the runner could not do: a store write that failed, a scan that
 	// panicked. Default: discarded.
 	Log *slog.Logger
@@ -49,6 +52,8 @@ type Runner struct {
 	// cancels holds the cancel function of each running scan.
 	cancels map[int64]context.CancelFunc
 	wg      sync.WaitGroup
+	// fetchers holds one CRL fetcher per policy (private allowed or not), so caches span scans.
+	fetchers map[bool]tlsprobe.CRLFetcher
 }
 
 // NewRunner creates a runner. Call Start to begin work.
@@ -87,12 +92,13 @@ func (r *Runner) Start(ctx context.Context) {
 // Wait blocks until every worker has stopped.
 func (r *Runner) Wait() { r.wg.Wait() }
 
-// HTTPChecks reports whether this runner's scans send the opt-in HTTP-layer
-// check (HSTS), so the API can tell callers about a server-wide setting.
-func (r *Runner) HTTPChecks() bool { return r.opts.Scan.HTTPChecks }
+// HTTPChecks reports whether this runner's scans send the HTTP-layer check (HSTS): the
+// effective value, Settings over the command line.
+func (r *Runner) HTTPChecks() bool { return r.scanConfig().HTTPChecks }
 
-// CRLLookups reports whether this runner's scans fetch the CRLs certificates name (--revocation).
-func (r *Runner) CRLLookups() bool { return r.opts.Scan.CRL != nil }
+// CRLLookups reports whether this runner's scans fetch the CRLs certificates name: the effective
+// value, Settings over the command line.
+func (r *Runner) CRLLookups() bool { return r.scanConfig().CRL }
 
 // CABundle returns the server-wide private CA bundle.
 func (r *Runner) CABundle() []AnchorCert { return r.opts.CABundle }
@@ -328,7 +334,7 @@ func (r *Runner) execute(parent context.Context, sc store.ScanSummary) {
 	}()
 
 	prog := &progress{r: r, ctx: ctx, id: sc.ID, table: stages, floor: 0, next: stages[0].floor}
-	o := r.opts.Scan
+	o := r.scanOptions()                // the effective configuration: Settings over the command line
 	g := r.guard.ForTarget(target.Host) // the scan scope applies to every connection (REQ-AC-1)
 	o.Dial = g.Dial
 	o.LookupIP = g.LookupIP

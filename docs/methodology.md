@@ -90,7 +90,7 @@ not marked down twice.
 The result lists each deduction (rule ID, title, severity, points), any ceiling that changed the outcome, and what is
 **not measured**: live revocation status (the staple is read; the CA is not asked), and active exploit probes
 (Heartbleed, ROBOT, CCS injection). HTTP Strict Transport Security is measured by default (the HTTP stage sends one
-`GET /`; `--http-checks=false` turns it off, and the HTTP section then says *Not checked* and why). Weaknesses
+`GET /`; Settings → Scanning on a server, or `--http-checks=false` on the CLI, turns it off, and the HTTP section then says *Not checked* and why). Weaknesses
 inferable from what a server offers (POODLE, Sweet32, FREAK, Logjam, CRIME, BEAST, RC4) appear as `inferred`
 findings and are scored like any other; an attack name is a label on its finding, so it never counts twice.
 
@@ -144,7 +144,7 @@ lifetime limit and the CT requirement. The readiness level is unaffected by trus
 - **Fetching is guarded.** Plain `http` URLs only, no credentials, at most 4 per certificate, 16 MiB per CRL, 10 s
   per fetch, 90 s for the stage, 3 redirects (each re-checked), no environment proxy. Every connection's real
   address is checked after DNS: loopback, link-local (cloud metadata), private (RFC 1918, fc00::/7,
-  100.64.0.0/10), unspecified and multicast are refused unless `--revocation-private` is set (an internal CA's
+  100.64.0.0/10), unspecified and multicast are refused unless "CRL servers on private addresses" is on in Settings → Scanning (`--revocation-private` on the CLI; an internal CA's
   CRL server). Results are cached per URL until the CRL's nextUpdate (at most a day), failures for 5 minutes.
 - **Revocation is a status, not a gate.** A revoked certificate stays on the path; the trust verdict and every
   other rule are unchanged. A current CRL that does not list the leaf counts, like a verified staple, as

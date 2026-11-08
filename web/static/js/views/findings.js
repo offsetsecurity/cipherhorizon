@@ -63,12 +63,13 @@ export async function render(root, ctx = {}) {
         button('Clear', async () => { try { await api.clearFindingStatus(f.assetId, f.key); toast('Triage cleared'); redraw(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' })]
       : [button('Acknowledge', async () => { try { await api.setFindingStatus(f.assetId, f.key, 'acknowledged', ''); toast('Acknowledged'); redraw(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' }),
         button('Accept risk', () => acceptRiskDialog(f, redraw), 'secondary', { class: 'btn btn-sm' })];
+    // One row: where, what was seen there (with its evidence tier), and the triage actions.
     return h('li', { class: 'fgroup-place' },
-      h('div', { class: 'row' },
+      h('div', { class: 'fplace-where' },
         h('a', { href: `${placeOf(f.assetKind)[2]}/${f.assetId}`, class: 'xlink' }, h('b', null, f.assetName)),
-        h('span', { class: 'tag', title: placeOf(f.assetKind)[1] }, placeOf(f.assetKind)[0]),
-        h('span', { class: 'fgroup-triage' }, triage)),
-      f.detail ? h('details', { class: 'why' }, h('summary', null, 'Why'), h('div', { class: 'detail' }, f.detail, f.evidence ? [' ', evidenceBadge(f.evidence)] : null)) : null);
+        h('span', { class: 'tag', title: placeOf(f.assetKind)[1] }, placeOf(f.assetKind)[0])),
+      h('div', { class: 'fplace-seen' }, f.detail ? [f.detail, f.evidence ? [' ', evidenceBadge(f.evidence)] : null] : h('span', { class: 'muted' }, 'no detail recorded')),
+      h('div', { class: 'fgroup-triage' }, triage));
   };
 
   const draw = async () => {
@@ -114,8 +115,9 @@ export async function render(root, ctx = {}) {
           h('span', { class: 'fgroup-title' }, f.title),
           h('span', { class: 'fgroup-where muted' }, tags, ' ', where, open < fs.length ? ` · ${fs.length - open} triaged` : '')),
         h('div', { class: 'fgroup-body' },
-          f.remediation ? h('p', { class: 'fix' }, h('b', null, 'Fix: '), f.remediation) : null,
-          (f.citations || []).length ? h('details', { class: 'why' }, h('summary', null, 'Sources'), citations(f.citations)) : null,
+          f.remediation ? h('div', { class: 'fixrow' }, h('span', { class: 'fixrow-label' }, 'Fix'), h('span', { class: 'fixrow-text' }, f.remediation)) : null,
+          citations(f.citations),
+          h('div', { class: 'fplace-head' }, h('span', null, 'Where'), h('span', null, 'What was seen'), h('span', null)),
           h('ul', { class: 'fgroup-places' }, fs.map((x) => place(x, draw)))));
     })));
   };

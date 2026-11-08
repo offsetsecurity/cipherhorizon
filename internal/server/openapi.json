@@ -3562,6 +3562,51 @@
         "operationId": "get_settings"
       }
     },
+    "/api/v1/settings/scanning": {
+      "put": {
+        "summary": "Set the options every scan runs with: httpChecks (one GET / after the handshake, for HSTS), crlLookups (fetch each certificate's CRL from its CA) and crlPrivate (let CRL lookups reach private and loopback addresses). Each is on, off or default (the server's command line decides again). Applies to the next scan; no restart. Administrators only when sign-in is on. Returns the effective configuration, as GET /api/v1/settings does under scanning.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "put_settings_scanning",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "httpChecks": { "type": "string", "enum": ["on", "off", "default"] },
+                  "crlLookups": { "type": "string", "enum": ["on", "off", "default"] },
+                  "crlPrivate": { "type": "string", "enum": ["on", "off", "default"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A value is not on, off or default"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Not an administrator"
+          }
+        }
+      }
+    },
     "/api/v1/settings/sign-in": {
       "put": {
         "summary": "Turn sign-in on or off. Turning it on with no account yet creates the first administrator from username and password and signs this browser in.",

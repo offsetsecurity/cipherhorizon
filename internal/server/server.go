@@ -292,6 +292,7 @@ func (s *Server) routes() {
 	handle("GET /api/v1/audit.csv", s.activityCSV)
 	handle("GET /api/v1/settings", s.getSettings)
 	handle("PUT /api/v1/settings/sign-in", s.putSignIn)
+	handle("PUT /api/v1/settings/scanning", s.putScanSettings)
 	handle("GET /api/v1/users", s.listUsers)
 	handle("POST /api/v1/users", s.createUser)
 	handle("PATCH /api/v1/users/{id}", s.patchUser)
