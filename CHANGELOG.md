@@ -27,10 +27,17 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - `cipherhorizon tls standards` and `ssh standards` list the clauses; `tls scan` and `ssh scan` print the
     verdicts (`--details` every clause) and take `--fail-on standard=ID`.
   - API: `GET /api/v1/standards` (the catalogue), `GET /api/v1/standards/summary` (the fleet), and
-    `standards[]` on every evaluation. Evaluation version `eval/14`; stored results are re-evaluated at launch.
+    `standards[]` on every evaluation. Evaluation version `eval/15` (with the client simulation below); stored results are re-evaluated at launch.
   - Standards are transcribed from the documents themselves (`docs/standards.md` names each edition and what a
     network scan cannot assess). They are the documents' judgements, not this product's: the readiness level
     and the TLS hygiene score are unchanged.
+- **Client simulation** ([PRD-018](docs/product/PRD-018-client-simulation.md)). Every TLS report has a **Clients**
+  tab: what each of two dozen named clients (current Chrome, Edge, Firefox and Safari; Android 14, 10, 7 and 4.4;
+  Java 21, 11, 8, 7 and 6; OpenSSL 3.5, 3.0, 1.1.1 and 1.0.2; Go; Windows 11 and 10 Schannel; IE 11 on Windows 7
+  and IE 8 on XP) would negotiate with the server: version, cipher suite, key-exchange group, forward secrecy and
+  post-quantum key exchange, or why it cannot connect. Computed from what the scan enumerated and each client's
+  published defaults; nothing is sent. Also on the Summary, in the PDF, on the CLI (a `Clients` block; `--details`
+  the full table) and in the evaluation (`clients[]`). The profiles and their sources: `docs/clients.md`.
 - **Mozilla OneCRL in the distrust list** (CRYPTO-REVIEW-004 P3). Mozilla's list of CA certificates Firefox
   refuses is bundled: 9 blocked keys and 1,253 CA certificates revoked by issuer and serial number (snapshot
   2026-11-04). A served certificate on it raises `CERT.DISTRUSTED-KEY` (high, "which Mozilla has blocked
@@ -48,7 +55,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 - Schema 17 adds one text column (`scans.standards`) holding each scan's verdicts as a small JSON object. The
   step is instant; nothing is rewritten. The server then re-evaluates every endpoint's latest scan with
-  `eval/14` at launch, as it does after any rule change (a few seconds for a few hundred endpoints).
+  `eval/15` at launch, as it does after any rule change (a few seconds for a few hundred endpoints).
 
 ## [0.4.1] - 2026-11-03
 

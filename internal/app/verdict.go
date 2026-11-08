@@ -304,6 +304,7 @@ func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 		}
 	}
 	writeStandards(&b, ev)
+	writeClients(&b, ev)
 	if len(notes) > 0 {
 		b.WriteString("\n  Notes\n")
 		for _, f := range notes {

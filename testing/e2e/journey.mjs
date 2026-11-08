@@ -595,8 +595,8 @@ async function main() {
   check('E2E-F.7', 'every finding appears once in the action items; What was evaluated has a line per area; Configuration shows no finding card',
     rp.issues.length > 0 && new Set(rp.issues).size === rp.issues.length && rp.checks === 8 && rp.findingCards === 0, JSON.stringify(rp).slice(0, 240));
   check('E2E-F.8', 'Configuration has its six sections, each aside at most 25 words, and How we tested ends it', rp.details === 6 && rp.maxPurpose <= 25 && rp.about, JSON.stringify({ sections: rp.details, max: rp.maxPurpose, about: rp.about }));
-  check('E2E-F.9', 'the header has Scan again, Download and More; the tabs are Summary, Configuration, Weaknesses, Standards, CBOM, History',
-    ['Scan again', 'Download', 'More'].every((t) => rp.head.includes(t)) && !rp.head.includes('Delete') && rp.tabs.join() === 'Summary,Configuration,Weaknesses,Standards,CBOM,History', JSON.stringify({ head: rp.head, tabs: rp.tabs }));
+  check('E2E-F.9', 'the header has Scan again, Download and More; the tabs are Summary, Configuration, Weaknesses, Standards, Clients, CBOM, History',
+    ['Scan again', 'Download', 'More'].every((t) => rp.head.includes(t)) && !rp.head.includes('Delete') && rp.tabs.join() === 'Summary,Configuration,Weaknesses,Standards,Clients,CBOM,History', JSON.stringify({ head: rp.head, tabs: rp.tabs }));
   // PRD-017: the Standards tab lists one card per standard and a checklist per standard, each clause with a status.
   const std = await js(`document.querySelector('#tab-standards').click(); await new Promise((ok) => setTimeout(ok, 500));
     return { cards: document.querySelectorAll('.std-card').length, lists: document.querySelectorAll('.std-list').length,
@@ -606,6 +606,13 @@ async function main() {
     std.cards >= 8 && std.lists === std.cards && std.rows > 50 && std.statuses.every((w) => /^(Met|Not met|Not followed|Not assessed|Does not apply)$/.test(w)) && std.csv === std.cards,
     JSON.stringify(std));
   await shot('asset-standards-tab');
+  // PRD-018: the Clients tab lists every simulated client, grouped by family, each row connecting or saying why not.
+  const cl = await js(`document.querySelector('#tab-clients').click(); await new Promise((ok) => setTimeout(ok, 500));
+    return { groups: document.querySelectorAll('.cl-group').length, rows: document.querySelectorAll('.cl-table tbody tr').length,
+      fails: document.querySelectorAll('.cl-fail').length, head: document.querySelector('#cl-h')?.textContent || '' };`);
+  check('E2E-CLI.1', 'the Clients tab lists the simulated clients by family; each row connects or says why not',
+    cl.groups >= 4 && cl.rows >= 20 && /client/.test(cl.head), JSON.stringify(cl));
+  await shot('asset-clients-tab');
   await js(`document.querySelector('#tab-summary').click(); await new Promise((ok) => setTimeout(ok, 300));`);
   check('E2E-R.1', 'Configuration opens with the protocols: every version is shown, each one on with its suites, the ones off on one line (PRD-013 REQ-VIS-3)',
     rp.matrix.first === 'sec-protocols' && rp.matrix.on.length + rp.matrix.off.length >= 4 && rp.matrix.on.length > 0 && rp.matrix.suites.every((n) => n > 0), JSON.stringify(rp.matrix));

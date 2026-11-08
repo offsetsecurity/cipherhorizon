@@ -19,8 +19,9 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/14"
+const Version = "eval/15"
 
+// eval/15 (PRD-018): every TLS evaluation carries the client simulation (Evaluation.Clients).
 // eval/14 (PRD-017): every evaluation carries its verdicts against the published standards
 // (Evaluation.Standards), judged from the same facts as the findings.
 
@@ -145,6 +146,9 @@ type Evaluation struct {
 	// eval/14 (PRD-017): how the endpoint measures against each published standard this program
 	// carries (NIST SP 800-52, BSI TR-02102, BCP 195, ...), clause by clause.
 	Standards []StandardResult `json:"standards,omitempty"`
+	// eval/15 (PRD-018): what each named client would negotiate with this server, computed from the
+	// enumerated versions, suites and groups and the client's published defaults; nothing is sent.
+	Clients []ClientSim `json:"clients,omitempty"`
 	// eval/11 (PRD-014 QA): a truncated SSH MAC is bounded by its tag; SSH next steps name OpenSSH
 	// releases only to OpenSSH servers; a baseline requirement with nothing to judge does not apply.
 }
@@ -262,6 +266,7 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	}
 	ev.Sections = sections(c, findings)
 	ev.Standards = evaluateTLSStandards(c)
+	ev.Clients = simulateClients(c)
 	// A check whose stage did not run was not checked, whatever its rule returned.
 	skipped := map[string]string{}
 	for _, s := range ev.Sections {

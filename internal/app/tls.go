@@ -188,6 +188,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 			}
 			writeAlgorithms(env.Stdout, ev)
 			writeStandardsDetail(env.Stdout, ev)
+			writeClientsDetail(env.Stdout, ev)
 		}
 	}
 	if !*asJSON && !*asCBOM && !*details {

@@ -9,6 +9,7 @@ import { badge, sevBadge, evidenceBadge, citations, bandTone, bandWord, button }
 import { tlsConfiguration, weakestAlgorithm, certHref, crlSummary, oldStoresChip } from './tls-config.js';
 import { bitsBar, gauge, levelStepper, lifetimeBar, stackBar, statusTile } from '../viz.js';
 import { standardsCard } from './standards.js';
+import { clientsCard } from './clients.js';
 
 export const SECTIONS = [
   ['certificates', 'Certificates & trust', 'Who issued the certificate, who trusts it, and how long it lasts.'],
@@ -198,6 +199,9 @@ export function summaryView(ctx) {
   // The published standards, as verdict chips (PRD-017); the Standards tab has the clauses.
   const stdc = standardsCard(ctx);
   if (stdc) wrap.appendChild(stdc);
+  // Who connects (PRD-018); the Clients tab has the table.
+  const clc = clientsCard(ctx);
+  if (clc) wrap.appendChild(clc);
 
   // Each area as a tile: its state and its one line.
   const TONE = { problem: 'problem', attention: 'attention', good: 'good' };

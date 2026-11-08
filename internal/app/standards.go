@@ -36,6 +36,56 @@ func standardsCmd(env Env, protocol string) int {
 	return ExitOK
 }
 
+// writeClients prints who connects, in one block: the counts, then the clients that cannot and why.
+func writeClients(b *strings.Builder, ev eval.Evaluation) {
+	sum := eval.SummariseClients(ev.Clients)
+	if sum == nil {
+		return
+	}
+	fmt.Fprintf(b, "\n  Clients                  %d of %d connect", sum.Connect, len(ev.Clients))
+	if sum.PQ > 0 {
+		fmt.Fprintf(b, "; %d with post-quantum key exchange", sum.PQ)
+	}
+	if sum.NoFS > 0 {
+		fmt.Fprintf(b, "; %d without forward secrecy", sum.NoFS)
+	}
+	b.WriteString("\n")
+	for _, c := range ev.Clients {
+		if !c.Connects {
+			fmt.Fprintf(b, "    cannot connect  %-28s %s\n", c.Name, c.Why)
+		}
+	}
+	b.WriteString("    (--details lists what every client negotiates)\n")
+}
+
+// writeClientsDetail prints every client's simulated outcome.
+func writeClientsDetail(w io.Writer, ev eval.Evaluation) {
+	if len(ev.Clients) == 0 {
+		return
+	}
+	var b strings.Builder
+	b.WriteString("\nClients, simulated from this scan\n")
+	for _, c := range ev.Clients {
+		if !c.Connects {
+			fmt.Fprintf(&b, "  %-34s cannot connect: %s\n", c.Name, c.Why)
+			continue
+		}
+		props := "forward secrecy"
+		if !c.ForwardSecrecy {
+			props = "no forward secrecy"
+		}
+		if c.PQ {
+			props = "post-quantum, " + props
+		}
+		group := c.Group
+		if group == "" {
+			group = "static RSA"
+		}
+		fmt.Fprintf(&b, "  %-34s %-8s %-46s %-20s %s\n", c.Name, c.Version, c.Suite, group, props)
+	}
+	_, _ = io.WriteString(w, b.String())
+}
+
 // writeStandardsDetail prints, after the raw details, every clause of every standard with its
 // status, so the whole checklist is on the terminal.
 func writeStandardsDetail(w io.Writer, ev eval.Evaluation) {

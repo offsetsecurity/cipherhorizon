@@ -329,6 +329,12 @@ beside the verdict. Periods of use (BSI's years) are applied at evaluation time.
 not this product's: readiness and hygiene do not feed them and are not changed by them. The clause tables, the
 editions read and what a network scan cannot assess are in [standards.md](standards.md).
 
+## Client simulation (eval/15, PRD-018)
+
+`clients[]` on a TLS evaluation is what each named client would negotiate, computed from the enumerated versions,
+suites and groups, the server's preference and the client's published defaults; nothing is sent. The rules, the
+client list and its sources are in [clients.md](clients.md).
+
 ## What a scan sends
 
 A few dozen to a few hundred short TLS handshakes per endpoint (a ClientHello, a read of the server's reply,

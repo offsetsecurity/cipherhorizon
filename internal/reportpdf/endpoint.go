@@ -118,6 +118,7 @@ func Endpoint(in EndpointInput) ([]byte, error) {
 	if in.Kind == KindFull {
 		x.checks()
 		x.standards()
+		x.clients()
 	}
 	x.about()
 	return x.finish()
