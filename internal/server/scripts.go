@@ -32,12 +32,20 @@ func (s *Server) inventoryScript(w http.ResponseWriter, r *http.Request) {
 }
 
 // listSignatures publishes the signature database: everything the inventory scripts collect,
-// how and why (PRD-006 REQ-SG-4).
+// how and why (PRD-006 REQ-SG-4), grouped by area (PRD-019 REQ-HI-5), with the fixed queries
+// each engine implements.
 func (s *Server) listSignatures(w http.ResponseWriter, _ *http.Request) {
 	db, err := signatures.Load()
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	writeJSON(w, 200, db)
+	areas := make([]map[string]string, 0, len(signatures.Areas))
+	for _, a := range signatures.Areas {
+		areas = append(areas, map[string]string{"id": a, "title": signatures.AreaTitles[a]})
+	}
+	writeJSON(w, 200, map[string]any{
+		"version": db.Version, "about": db.About, "areas": areas, "signatures": db.Signatures,
+		"capabilities": signatures.Capabilities, "queries": signatures.Queries,
+	})
 }

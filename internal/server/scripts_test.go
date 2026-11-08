@@ -29,13 +29,33 @@ func TestInventoryScriptsAndFactsUpload(t *testing.T) {
 		}
 	}
 	var db struct {
-		Version    string `json:"version"`
+		Version    string                       `json:"version"`
+		Areas      []struct{ ID, Title string } `json:"areas"`
+		Queries    map[string][]string          `json:"queries"`
 		Signatures []struct {
-			ID, Platform, Capability, How string
+			ID, Platform, Capability, How, Area, Needs string
 		} `json:"signatures"`
 	}
 	if s := e.call("GET", "/api/v1/collector/signatures", nil, &db); s != 200 || db.Version == "" || len(db.Signatures) < 10 || db.Signatures[0].How == "" {
 		t.Errorf("signature database: %d %+v", s, db)
+	}
+	// PRD-019: every signature has an area the API names, and a query signature names a query
+	// the engine lists.
+	areas := map[string]bool{}
+	for _, a := range db.Areas {
+		areas[a.ID] = true
+	}
+	admin := 0
+	for _, sig := range db.Signatures {
+		if !areas[sig.Area] {
+			t.Errorf("signature %s: area %q is not in the API's areas", sig.ID, sig.Area)
+		}
+		if sig.Needs == "admin" {
+			admin++
+		}
+	}
+	if admin == 0 || len(db.Queries["linux"]) < 20 || len(db.Queries["windows"]) < 10 {
+		t.Errorf("areas %v, %d admin-only, queries %d/%d", db.Areas, admin, len(db.Queries["linux"]), len(db.Queries["windows"]))
 	}
 	for _, sc := range list.Scripts {
 		_, body, _ := e.req("GET", "/api/v1/collector/scripts/"+sc.Name, nil, nil)

@@ -12,6 +12,16 @@ net than the collector, so a shared mistake cannot hide.
 | `authenticode-probe/` | Windows | An investigation tool, not shipped; results in `docs/host-discovery/authenticode-investigation.md`. |
 | `lab-debian.sh` | Debian, Ubuntu, Kali (WSL, VM or container) | **Written, not yet run**: no Linux host was available. |
 
+## The inventory scripts (PRD-019)
+
+The scripts handed out on the Inventory page are validated the same way: by running the real engine and reading the
+facts file. Done 2026-11-09: `cipherhorizon-inventory.ps1` on Windows 11 as a standard user (42 s, 517 lines, 139
+listener records, 0 key-material lines); `cipherhorizon-inventory.sh` on Ubuntu 26.04 (WSL) as root (12 s, 666 lines,
+`sshd -T` effective policy, nginx configuration, loaded libraries per listener) and as `nobody` (the same sockets, no
+process owners). Trimmed copies shaped on those runs are the fixtures in `internal/machinefacts/interpret_v3_test.go`.
+To repeat: `DUMP_SCRIPTS_DIR=<dir> go test ./internal/machinefacts -run TestDumpScripts`, run the dumped script, grep the
+facts file for `PRIVATE KEY` (must be 0), upload it.
+
 ## Linux via WSL (what has to happen first)
 
 WSL is not installed on the development machine, and installing it enables Windows features, so it needs an

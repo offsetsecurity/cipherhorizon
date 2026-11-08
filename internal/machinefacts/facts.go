@@ -11,7 +11,7 @@
 //
 // The format is one fact per line, fields separated by tabs:
 //
-//	cipherhorizon-machine-facts	1
+//	cipherhorizon-machine-facts	3
 //	script	<name>	<version>
 //	host	name|os|os-version|privilege|collected	<value>
 //	os-release	<base64 of /etc/os-release>
@@ -20,6 +20,11 @@
 //	cert-file	<absolute path>	<base64 of the file>
 //	store-cert	LocalMachine|CurrentUser	<store>	yes|no|unknown	<base64 DER>
 //	note	<text>
+//
+// Version 2 added signature-driven records ("fact <signature> <kind> …": registry, file,
+// program, line) with "signatures", "ran" and "skip" lines; version 3 (PRD-019) adds the kinds
+// "query" (a fixed engine query's output line) and "listener" (a listening socket with its
+// process and the cryptographic libraries it loaded).
 //
 // Everything in the file came from the machine and is treated as untrusted:
 // sizes are bounded, and nothing that looks like private key material is kept.
@@ -95,7 +100,7 @@ type Facts struct {
 type Item struct {
 	Sig    string   // the signature id
 	Kind   string   // registry | file | program | line
-	Fields []string // registry: key, name, value; file: path, size, sha256, version, product; program: name, version, publisher; line: path, text
+	Fields []string // registry: key, name, value; file: path, size, sha256, version, product; program: name, version, publisher; line: path, text; query: id, text; listener: proto, address, port, pid, process, executable, libraries
 }
 
 const maxItems = 20_000
@@ -140,8 +145,8 @@ func Parse(b []byte) (*Facts, error) {
 		}
 		fl := strings.Split(line, "\t")
 		if n == 1 {
-			if fl[0] != Header || len(fl) < 2 || (fl[1] != "1" && fl[1] != "2") {
-				return nil, errors.New("not a version 1 or 2 CipherHorizon facts file")
+			if fl[0] != Header || len(fl) < 2 || (fl[1] != "1" && fl[1] != "2" && fl[1] != "3") {
+				return nil, errors.New("not a version 1, 2 or 3 CipherHorizon facts file")
 			}
 			continue
 		}
@@ -154,8 +159,9 @@ func Parse(b []byte) (*Facts, error) {
 				fl = append([]string{"store-cert"}, rest...)
 			case "package", "package-manager", "cert-file":
 				fl = append([]string{kind}, rest...)
-			case "registry", "file", "program", "line":
-				if len(f.Items) >= maxItems || strings.Contains(strings.Join(rest, " "), "PRIVATE KEY") {
+			case "registry", "file", "program", "line", "query", "listener":
+				joined := strings.Join(rest, " ")
+				if len(f.Items) >= maxItems || strings.Contains(joined, "PRIVATE KEY") || strings.Contains(joined, "BEGIN OPENSSH") || strings.Contains(joined, "OpenVPN Static key") {
 					f.Dropped++
 					continue
 				}

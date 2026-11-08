@@ -1,6 +1,6 @@
 {
-  "version": "2026.10.04",
-  "about": "What the CipherHorizon inventory scripts collect. Each signature names one read-only capability of the script engine and its parameters; the server interprets what comes back. Edit this file to collect something new: the engines do not change.",
+  "version": "2026.11.09",
+  "about": "What the CipherHorizon inventory scripts collect (PRD-019). Each signature names one read-only capability of the script engine and its parameters; the server interprets what comes back. Edit this file to collect something new: the engines do not change. A query signature can only pick one of the queries written in the engine itself.",
   "maps": {
     "ssh": {
       "curve25519-sha256": "X25519",
@@ -44,153 +44,1906 @@
       "ssh-rsa": "RSA",
       "rsa-sha2-256": "RSA",
       "rsa-sha2-512": "RSA",
-      "ssh-dss": "DSA"
+      "ssh-dss": "DSA",
+      "mlkem768nistp256-sha256": "mlkem768nistp256-sha256",
+      "mlkem1024nistp384-sha384": "mlkem1024nistp384-sha384",
+      "ssh-mldsa44-ed25519": "ML-DSA-44",
+      "ssh-mldsa65-ed25519": "ML-DSA-65",
+      "ssh-mldsa87-ed25519": "ML-DSA-87",
+      "aes128-gcm": "AES-128-GCM",
+      "aes256-gcm": "AES-256-GCM",
+      "umac-64-etm@openssh.com": "UMAC-64",
+      "umac-128-etm@openssh.com": "UMAC-128",
+      "umac-64@openssh.com": "UMAC-64",
+      "umac-128@openssh.com": "UMAC-128",
+      "hmac-sha2-512-etm": "SHA-512",
+      "hmac-sha2-256-etm": "SHA-256",
+      "rsa-sha2-256-cert-v01@openssh.com": "RSA",
+      "rsa-sha2-512-cert-v01@openssh.com": "RSA",
+      "ssh-rsa-cert-v01@openssh.com": "RSA",
+      "ecdsa-sha2-nistp256-cert-v01@openssh.com": "ECDSA",
+      "ecdsa-sha2-nistp384-cert-v01@openssh.com": "ECDSA",
+      "ecdsa-sha2-nistp521-cert-v01@openssh.com": "ECDSA",
+      "sk-ssh-ed25519-cert-v01@openssh.com": "Ed25519",
+      "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com": "ECDSA",
+      "ssh-dss-cert-v01@openssh.com": "DSA",
+      "ssh-xmss@openssh.com": "XMSS",
+      "ssh-xmss-cert-v01@openssh.com": "XMSS",
+      "webauthn-sk-ecdsa-sha2-nistp256@openssh.com": "ECDSA",
+      "aes256-ctr-etm": "AES",
+      "rijndael-cbc@lysator.liu.se": "AES-256-CBC",
+      "arcfour": "RC4",
+      "arcfour128": "RC4",
+      "arcfour256": "RC4",
+      "blowfish-cbc": "Blowfish",
+      "cast128-cbc": "CAST5",
+      "hmac-md5-96": "MD5",
+      "hmac-sha1-96": "SHA-1",
+      "hmac-md5-etm@openssh.com": "MD5",
+      "hmac-md5-96-etm@openssh.com": "MD5",
+      "hmac-sha1-96-etm@openssh.com": "SHA-1"
     }
   },
   "signatures": [
     {
-      "id": "win.certificate-stores",
+      "id": "win.platform.role",
       "platform": "windows",
-      "title": "Certificates in the Windows certificate stores",
-      "why": "Server, client and CA certificates, with their keys' algorithms and expiry; and whether Windows holds a private key for each (the key itself is never read).",
-      "capability": "certstore",
-      "params": { "locations": "LocalMachine|CurrentUser", "stores": "My|Root|CA|TrustedPeople|TrustedPublisher|AuthRoot" },
-      "interpret": "certificate"
+      "area": "platform",
+      "title": "Windows edition, domain role and hardware",
+      "why": "Whether the machine is a domain member, a server or a workstation decides which authentication and policy settings apply to it.",
+      "capability": "query",
+      "params": {
+        "query": "host.role"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "win.platform.fips",
+      "platform": "windows",
+      "area": "platform",
+      "title": "FIPS algorithm policy",
+      "why": "With this policy on, Schannel, .NET and BitLocker refuse algorithms outside the FIPS-validated set; post-quantum algorithms arrive through this gate.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\FipsAlgorithmPolicy",
+        "values": "Enabled",
+        "depth": "0"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "win.platform.secure-boot",
+      "platform": "windows",
+      "area": "platform",
+      "title": "Secure Boot state",
+      "why": "Secure Boot anchors the boot chain in firmware-held signature keys (RSA today); it is the first link of the machine's trust chain.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State",
+        "values": "UEFISecureBootEnabled",
+        "depth": "0"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "win.platform.device-guard",
+      "platform": "windows",
+      "area": "platform",
+      "title": "Virtualisation-based security, HVCI and Credential Guard",
+      "why": "Credential Guard isolates Kerberos and NTLM secrets; HVCI protects the kernel's code integrity. Both change what an attacker on the box can reach.",
+      "capability": "query",
+      "params": {
+        "query": "deviceguard"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "win.platform.device-guard-policy",
+      "platform": "windows",
+      "area": "platform",
+      "title": "Virtualisation-based security policy",
+      "why": "The configured (as opposed to running) state of VBS and HVCI, as Group Policy or the registry set it.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard",
+        "values": "EnableVirtualizationBasedSecurity|RequirePlatformSecurityFeatures|Enabled|Locked",
+        "depth": "2"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "win.platform.tpm",
+      "platform": "windows",
+      "area": "platform",
+      "title": "TPM presence, version and readiness",
+      "why": "A TPM holds BitLocker, Windows Hello and certificate keys in hardware. Those keys are RSA or ECC and cannot be swapped for post-quantum ones without new hardware or firmware.",
+      "capability": "query",
+      "params": {
+        "query": "tpm"
+      },
+      "interpret": "platform",
+      "needs": "admin"
+    },
+    {
+      "id": "win.platform.bitlocker",
+      "platform": "windows",
+      "area": "platform",
+      "title": "BitLocker volumes and encryption method",
+      "why": "Which volumes are encrypted, with which cipher (XTS-AES-128 or 256) and which protectors (TPM, PIN, recovery password).",
+      "capability": "query",
+      "params": {
+        "query": "bitlocker"
+      },
+      "interpret": "platform",
+      "needs": "admin"
+    },
+    {
+      "id": "win.platform.bitlocker-policy",
+      "platform": "windows",
+      "area": "platform",
+      "title": "BitLocker policy",
+      "why": "The encryption method and the protectors Group Policy requires for new volumes.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\FVE",
+        "values": "EncryptionMethod|EncryptionMethodWithXtsOs|EncryptionMethodWithXtsFdv|EncryptionMethodWithXtsRdv|UseTPM|UseTPMPIN|UseTPMKey|UseAdvancedStartup|OSEncryptionType|FDVEncryptionType|RDVEncryptionType",
+        "depth": "0"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "win.platform.crypto-stack",
+      "platform": "windows",
+      "area": "platform",
+      "title": "Windows cryptographic stack versions",
+      "why": "bcryptprimitives.dll is the FIPS-validated primitive module; schannel.dll is TLS; ncrypt.dll is key storage. Their versions say which Windows build's cryptography every program on the machine gets.",
+      "capability": "file",
+      "params": {
+        "roots": "%WINDIR%\\System32",
+        "names": "bcryptprimitives.dll|bcrypt.dll|ncrypt.dll|schannel.dll|crypt32.dll|ncryptsslp.dll|ncryptprov.dll|rsaenh.dll|dssenh.dll|cng.sys|ksecdd.sys",
+        "depth": "0",
+        "max": "20"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "win.platform.cng-providers",
+      "platform": "windows",
+      "area": "platform",
+      "title": "Cryptographic providers registered (CNG and legacy CAPI)",
+      "why": "The key storage and algorithm providers programs can ask for: the Microsoft software and TPM providers, smart-card and HSM vendors' providers.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Cryptography\\Providers",
+        "values": "",
+        "depth": "0",
+        "subkeys": "yes"
+      },
+      "interpret": "pki-policy"
+    },
+    {
+      "id": "win.platform.capi-providers",
+      "platform": "windows",
+      "area": "platform",
+      "title": "Legacy cryptographic service providers (CAPI)",
+      "why": "Older programs use CAPI providers; which ones exist says what legacy key storage is in play.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\Cryptography\\Defaults\\Provider",
+        "values": "",
+        "depth": "0",
+        "subkeys": "yes"
+      },
+      "interpret": "pki-policy"
+    },
+    {
+      "id": "win.platform.features",
+      "platform": "windows",
+      "area": "platform",
+      "title": "Windows optional features enabled",
+      "why": "SMB1, IIS, OpenSSH Server, Hyper-V, .NET 3.5 and similar features each bring their own protocols and cryptography.",
+      "capability": "query",
+      "params": {
+        "query": "windows.features",
+        "match": "(?i)smb|iis|openssh|hyper-v|netfx|telnet|tftp|ldap|certificate|bitlocker|credential|applicationguard|wsl|containers|rdp|remotedesktop|windows-defender"
+      },
+      "interpret": "platform",
+      "needs": "admin"
     },
     {
       "id": "win.schannel.protocols",
       "platform": "windows",
+      "area": "tls",
       "title": "TLS and SSL versions set for Windows (Schannel)",
       "why": "IIS, Remote Desktop, SQL Server and .NET use Schannel: a version explicitly enabled or disabled here applies to all of them.",
       "capability": "registry",
-      "params": { "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL\\Protocols", "values": "Enabled|DisabledByDefault", "depth": "2" },
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL\\Protocols",
+        "values": "Enabled|DisabledByDefault",
+        "depth": "2"
+      },
       "interpret": "schannel-protocols"
     },
     {
       "id": "win.schannel.ciphers",
       "platform": "windows",
-      "title": "Ciphers and hashes set for Windows (Schannel)",
-      "why": "Old ciphers (RC4, DES, 3DES) and hashes (MD5, SHA-1) explicitly enabled or disabled for every Schannel program.",
+      "area": "tls",
+      "title": "Ciphers enabled or disabled for Schannel",
+      "why": "RC4, 3DES, DES, NULL and AES toggles that apply to every Schannel connection on the machine.",
       "capability": "registry",
-      "params": { "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL", "values": "Enabled", "depth": "2" },
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL\\Ciphers",
+        "values": "Enabled",
+        "depth": "1"
+      },
+      "interpret": "schannel-ciphers"
+    },
+    {
+      "id": "win.schannel.hashes",
+      "platform": "windows",
+      "area": "tls",
+      "title": "Hashes enabled or disabled for Schannel",
+      "why": "MD5 and SHA toggles for TLS handshakes and signatures.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL\\Hashes",
+        "values": "Enabled",
+        "depth": "1"
+      },
+      "interpret": "schannel-ciphers"
+    },
+    {
+      "id": "win.schannel.key-exchange",
+      "platform": "windows",
+      "area": "tls",
+      "title": "Key exchange algorithms and minimum key sizes for Schannel",
+      "why": "Diffie-Hellman and PKCS (RSA) key exchange toggles and the smallest key Schannel accepts (ClientMinKeyBitLength, ServerMinKeyBitLength).",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL\\KeyExchangeAlgorithms",
+        "values": "Enabled|ClientMinKeyBitLength|ServerMinKeyBitLength",
+        "depth": "1"
+      },
       "interpret": "schannel-ciphers"
     },
     {
       "id": "win.schannel.suite-order",
       "platform": "windows",
-      "title": "Cipher suite order set on this machine (Schannel)",
-      "why": "The suites Windows offers, in order, when an administrator has set them; empty means the Windows default.",
+      "area": "tls",
+      "title": "Cipher suite order set locally (Schannel)",
+      "why": "The order Windows offers and chooses suites in, when an administrator set it; empty means the Windows default order.",
       "capability": "registry",
-      "params": { "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Cryptography\\Configuration\\Local\\SSL\\00010002", "values": "Functions", "depth": "0" },
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Cryptography\\Configuration\\Local\\SSL\\00010002",
+        "values": "Functions|EccCurves",
+        "depth": "0"
+      },
       "interpret": "schannel-suite-order"
     },
     {
       "id": "win.schannel.suite-policy",
       "platform": "windows",
+      "area": "tls",
       "title": "Cipher suite order set by Group Policy (Schannel)",
-      "why": "A suite order and curve list pushed by Group Policy override the local order.",
+      "why": "A domain policy overrides the local order; this is where it lands.",
       "capability": "registry",
-      "params": { "key": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Cryptography\\Configuration\\SSL\\00010002", "values": "Functions|EccCurves", "depth": "0" },
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Cryptography\\Configuration\\SSL\\00010002",
+        "values": "Functions|EccCurves",
+        "depth": "0"
+      },
       "interpret": "schannel-suite-order"
+    },
+    {
+      "id": "win.schannel.effective",
+      "platform": "windows",
+      "area": "tls",
+      "title": "Effective TLS cipher suites and curves (Schannel)",
+      "why": "What Windows actually negotiates with, in order, after local settings, policy and defaults are combined: the list a scan of this machine's services would see.",
+      "capability": "query",
+      "params": {
+        "query": "tls.cipher-suites"
+      },
+      "interpret": "tls-cipher-suites"
+    },
+    {
+      "id": "win.schannel.effective-curves",
+      "platform": "windows",
+      "area": "tls",
+      "title": "Effective key exchange curves (Schannel)",
+      "why": "The elliptic curves offered for ECDHE, in order; a post-quantum hybrid appears here when Windows ships one.",
+      "capability": "query",
+      "params": {
+        "query": "tls.curves"
+      },
+      "interpret": "tls-cipher-suites"
     },
     {
       "id": "win.dotnet.tls",
       "platform": "windows",
-      "title": ".NET Framework TLS settings",
-      "why": "Without these, older .NET applications may still use TLS 1.0.",
+      "area": "tls",
+      "title": ".NET Framework TLS settings (64-bit, 4.x)",
+      "why": "SchUseStrongCrypto and SystemDefaultTlsVersions decide whether .NET Framework programs follow the operating system's TLS versions or stay on TLS 1.0.",
       "capability": "registry",
-      "params": { "key": "HKLM:\\SOFTWARE\\Microsoft\\.NETFramework\\v4.0.30319", "values": "SchUseStrongCrypto|SystemDefaultTlsVersions", "depth": "0" },
-      "interpret": "config"
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\.NETFramework\\v4.0.30319",
+        "values": "SchUseStrongCrypto|SystemDefaultTlsVersions",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
     },
     {
-      "id": "win.crypto-libraries",
+      "id": "win.dotnet.tls-32bit",
       "platform": "windows",
-      "title": "Cryptographic libraries installed with applications",
-      "why": "Applications that ship their own OpenSSL, NSS, libsodium or similar: their version decides which algorithms they can use, post-quantum ones included.",
-      "capability": "file",
-      "params": { "roots": "%ProgramFiles%|%ProgramFiles(x86)%|%ProgramData%", "names": "libcrypto-*.dll|libssl-*.dll|libeay32.dll|ssleay32.dll|nss3.dll|libsodium*.dll|libgcrypt-*.dll|libgnutls-*.dll|*wolfssl*.dll|*mbedcrypto*.dll|*mbedtls*.dll|*botan*.dll|libssh*.dll|openssl.exe|gpg.exe", "depth": "6", "max": "500" },
-      "interpret": "library-file"
+      "area": "tls",
+      "title": ".NET Framework TLS settings (32-bit, 4.x)",
+      "why": "32-bit .NET Framework programs read their own key; a machine can be fixed for one and not the other.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\.NETFramework\\v4.0.30319",
+        "values": "SchUseStrongCrypto|SystemDefaultTlsVersions",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "win.dotnet.tls-legacy",
+      "platform": "windows",
+      "area": "tls",
+      "title": ".NET Framework 2.0 and 3.5 TLS settings",
+      "why": "Programs on the 2.0 runtime (3.5 included) have their own TLS switches; left alone they speak TLS 1.0.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\.NETFramework\\v2.0.50727",
+        "values": "SchUseStrongCrypto|SystemDefaultTlsVersions",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "win.dotnet.framework",
+      "platform": "windows",
+      "area": "software",
+      "title": ".NET Framework release installed",
+      "why": "The release number says which .NET Framework version (4.6.2 through 4.8.1) and so which TLS defaults programs get.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full",
+        "values": "Release|Version",
+        "depth": "0"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "win.dotnet.runtimes",
+      "platform": "windows",
+      "area": "software",
+      "title": ".NET (Core) runtimes installed",
+      "why": ".NET 6, 8 and 9 use Schannel on Windows but carry their own TLS defaults and, from .NET 9, post-quantum APIs.",
+      "capability": "query",
+      "params": {
+        "query": "dotnet.runtimes"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "win.winhttp.tls",
+      "platform": "windows",
+      "area": "tls",
+      "title": "WinHTTP TLS versions",
+      "why": "Services and scripts that use WinHTTP (Windows Update, PowerShell web cmdlets, many agents) negotiate the versions set here.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\WinHttp",
+        "values": "DefaultSecureProtocols",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "win.winhttp.tls-32bit",
+      "platform": "windows",
+      "area": "tls",
+      "title": "WinHTTP TLS versions (32-bit)",
+      "why": "The 32-bit WinHTTP setting, read by 32-bit programs.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\WinHttp",
+        "values": "DefaultSecureProtocols",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "win.wininet.tls",
+      "platform": "windows",
+      "area": "tls",
+      "title": "WinINet TLS versions (Internet Settings)",
+      "why": "The SecureProtocols bit mask Internet Explorer, Edge legacy and WinINet-based programs use.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+        "values": "SecureProtocols",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "win.wininet.tls-policy",
+      "platform": "windows",
+      "area": "tls",
+      "title": "WinINet TLS versions set by policy",
+      "why": "A Group Policy setting overrides the local SecureProtocols value.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+        "values": "SecureProtocols",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
     },
     {
       "id": "win.programs",
       "platform": "windows",
+      "area": "software",
       "title": "Installed programs that bring their own cryptography",
-      "why": "OpenSSL, OpenSSH, PuTTY, GnuPG and similar, as Windows lists them under installed programs.",
+      "why": "Libraries, runtimes, servers, VPN clients, smart-card middleware and HSM clients: each ships or depends on a cryptographic library of its own version.",
       "capability": "program",
-      "params": { "match": "(?i)openssl|openssh|putty|gnupg|gpg4win|wolfssl|libsodium|stunnel|winscp|filezilla|keepass|veracrypt" },
+      "params": {
+        "match": "(?i)openssl|openssh|putty|gnupg|gpg4win|kleopatra|wolfssl|libsodium|stunnel|winscp|filezilla|keepass|bitwarden|1password|veracrypt|\\bjava\\b|\\bjdk\\b|\\bjre\\b|openjdk|adoptium|temurin|zulu|corretto|liberica|semeru|graalvm|python|node\\.?js|\\bgo\\b|golang|ruby|\\bphp\\b|perl|\\.net|dotnet|asp\\.net|powershell|nginx|apache|haproxy|sql server|postgresql|mysql|mariadb|mongodb|redis|oracle|openvpn|wireguard|anyconnect|globalprotect|forticlient|zscaler|pulse secure|ivanti|docker|podman|git version|mobaxterm|tortoise|azure cli|aws command line|google cloud|kubectl|terraform|hashicorp|safenet|gemalto|thales|yubi|nitrokey|feitian|opensc|actividentity|charismathics|nshield|luna|cloudhsm|xca|keystore explorer|portecle|cygwin|msys2|mingw|rust|cargo|erlang|elixir|tomcat|jetty|wildfly|jboss|weblogic|websphere|iis|exchange|sharepoint|citrix|vmware|virtualbox|chrome|firefox|edge|thunderbird|outlook|teams|zoom|slack|signal|telegram|whatsapp|dropbox|onedrive|box|acrobat|adobe"
+      },
       "interpret": "software"
+    },
+    {
+      "id": "win.crypto-libraries",
+      "platform": "windows",
+      "area": "software",
+      "title": "Cryptographic libraries installed with applications",
+      "why": "Applications that ship their own OpenSSL, NSS, libsodium or similar: their version decides which algorithms they can use, post-quantum ones included.",
+      "capability": "file",
+      "params": {
+        "roots": "%ProgramFiles%|%ProgramFiles(x86)%|%ProgramData%|%LocalAppData%\\Programs",
+        "names": "libcrypto-*.dll|libssl-*.dll|libeay32.dll|ssleay32.dll|nss3.dll|libsodium*.dll|libgcrypt-*.dll|libgnutls-*.dll|*wolfssl*.dll|*mbedcrypto*.dll|*mbedtls*.dll|*botan*.dll|libssh*.dll|libtomcrypt*.dll|cryptopp*.dll|sunec.dll|sunmscapi.dll|openssl.exe|gpg.exe|libtss2*.dll|softhsm2*.dll",
+        "depth": "6",
+        "max": "500"
+      },
+      "interpret": "library-file"
+    },
+    {
+      "id": "win.runtimes",
+      "platform": "windows",
+      "area": "software",
+      "title": "Language runtimes, servers and tools (executables with versions)",
+      "why": "Python, Node, Go, Ruby, PHP, Java, .NET, PowerShell 7, web and database servers and SSH tools: each executable's version says which TLS stack and algorithms its programs get.",
+      "capability": "file",
+      "params": {
+        "roots": "%ProgramFiles%|%ProgramFiles(x86)%|%LocalAppData%\\Programs|%WINDIR%\\System32\\OpenSSH|%ProgramData%\\chocolatey\\bin|%ProgramFiles%\\OpenSSH",
+        "names": "python.exe|node.exe|go.exe|ruby.exe|php.exe|java.exe|dotnet.exe|pwsh.exe|perl.exe|ssh.exe|sshd.exe|ssh-keygen.exe|putty.exe|plink.exe|pageant.exe|psql.exe|postgres.exe|mysqld.exe|mariadbd.exe|nginx.exe|httpd.exe|haproxy.exe|openvpn.exe|wireguard.exe|stunnel.exe|curl.exe|git.exe|docker.exe|kubectl.exe|terraform.exe|vault.exe|tomcat*.exe|redis-server.exe|mongod.exe",
+        "depth": "4",
+        "max": "300"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "win.java.registry",
+      "platform": "windows",
+      "area": "software",
+      "title": "Java installations registered",
+      "why": "Oracle and OpenJDK builds register their home and version here; a Java runtime brings its own TLS stack (JSSE) and trust store.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\JavaSoft",
+        "values": "CurrentVersion|JavaHome|RuntimeLib",
+        "depth": "3"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "win.java.files",
+      "platform": "windows",
+      "area": "software",
+      "title": "Java trust stores and security policy files present",
+      "why": "Each JDK or JRE has a cacerts trust store and a java.security policy; a program trusts what its own Java trusts.",
+      "capability": "file",
+      "params": {
+        "roots": "%ProgramFiles%\\Java|%ProgramFiles%\\Eclipse Adoptium|%ProgramFiles%\\Zulu|%ProgramFiles%\\Microsoft|%ProgramFiles%\\Amazon Corretto|%ProgramFiles%\\BellSoft|%ProgramFiles%\\RedHat|%ProgramFiles%\\Semeru|%ProgramFiles(x86)%\\Java|%ProgramFiles%\\Common Files\\Oracle\\Java|%LocalAppData%\\Programs",
+        "names": "cacerts|java.security",
+        "depth": "6",
+        "max": "100"
+      },
+      "interpret": "pki-policy"
+    },
+    {
+      "id": "win.java.security",
+      "platform": "windows",
+      "area": "tls",
+      "title": "Java security policy (java.security)",
+      "why": "jdk.tls.disabledAlgorithms, jdk.certpath.disabledAlgorithms, the provider order and the key store type decide what every Java program on this machine will negotiate and trust.",
+      "capability": "lines",
+      "params": {
+        "paths": "%ProgramFiles%\\*\\*\\conf\\security\\java.security|%ProgramFiles%\\*\\*\\lib\\security\\java.security|%ProgramFiles%\\*\\*\\*\\conf\\security\\java.security|%ProgramFiles(x86)%\\*\\*\\lib\\security\\java.security|%ProgramFiles(x86)%\\*\\*\\conf\\security\\java.security",
+        "match": "^\\s*(jdk\\.tls\\.disabledAlgorithms|jdk\\.certpath\\.disabledAlgorithms|jdk\\.jar\\.disabledAlgorithms|jdk\\.tls\\.legacyAlgorithms|jdk\\.tls\\.keyLimits|jdk\\.tls\\.namedGroups|jdk\\.tls\\.client\\.protocols|jdk\\.tls\\.server\\.protocols|jdk\\.tls\\.ephemeralDHKeySize|jdk\\.security\\.caDistrustPolicies|security\\.provider\\.[0-9]+|keystore\\.type|crypto\\.policy|securerandom\\.source|jdk\\.security\\.provider\\.preferred)\\s*=",
+        "max": "120",
+        "join": "backslash"
+      },
+      "interpret": "java-security"
     },
     {
       "id": "win.ssh.server-config",
       "platform": "windows",
-      "title": "OpenSSH server algorithms (Windows)",
-      "why": "The key exchange, ciphers, MACs and host key types the built-in OpenSSH server is set to accept.",
+      "area": "ssh",
+      "title": "OpenSSH server policy (Windows)",
+      "why": "The key exchange, ciphers, MACs, host key types and client key types the SSH server accepts, including post-quantum hybrids, and where its host keys are.",
       "capability": "lines",
-      "params": { "paths": "%ProgramData%\\ssh\\sshd_config", "match": "^\\s*(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms|PubkeyAcceptedAlgorithms)\\s", "max": "50" },
+      "params": {
+        "paths": "%ProgramData%\\ssh\\sshd_config|%ProgramData%\\ssh\\sshd_config.d\\*.conf",
+        "match": "^\\s*(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms|PubkeyAcceptedAlgorithms|PubkeyAcceptedKeyTypes|CASignatureAlgorithms|HostKey|RequiredRSASize|FingerprintHash|Include|Port|ListenAddress|PasswordAuthentication|PubkeyAuthentication|PermitRootLogin|Match)\\s",
+        "max": "80"
+      },
       "interpret": "ssh-config"
     },
     {
       "id": "win.ssh.host-keys",
       "platform": "windows",
+      "area": "ssh",
       "title": "OpenSSH server host key types (Windows)",
       "why": "The public half of each host key says which signature algorithm clients verify the server with.",
       "capability": "lines",
-      "params": { "paths": "%ProgramData%\\ssh\\ssh_host_*_key.pub", "match": "^(ssh-|ecdsa-|sk-)", "max": "10" },
+      "params": {
+        "paths": "%ProgramData%\\ssh\\ssh_host_*_key.pub",
+        "match": "^(ssh-|ecdsa-|sk-)",
+        "max": "10"
+      },
       "interpret": "ssh-host-key"
     },
     {
-      "id": "linux.packages",
-      "platform": "linux",
-      "title": "Installed cryptographic packages",
-      "why": "OpenSSL, GnuTLS, NSS, libgcrypt, OpenSSH and similar, with versions: the version decides which algorithms they can use, post-quantum ones included.",
-      "capability": "package",
-      "params": { "match": "^(openssl.*|libssl.*|libcrypto.*|gnupg.*|gpg.*|libgcrypt.*|.*gnutls.*|.*nettle.*|libhogweed.*|.*sodium.*|libnss3|nss|.*mbed(tls|crypto|x509).*|.*wolfssl.*|libbotan.*|libssh.*|openssh.*|libk5crypto.*|libkrb5.*|krb5-libs|libcrypt[0-9]*|libcryptsetup.*|python3-(cryptography|openssl))$" },
-      "interpret": "package"
+      "id": "win.ssh.supported",
+      "platform": "windows",
+      "area": "ssh",
+      "title": "Algorithms the installed OpenSSH can use (Windows)",
+      "why": "What the OpenSSH shipped with Windows is able to negotiate: whether the post-quantum hybrid key exchange (mlkem768x25519-sha256) is available at all.",
+      "capability": "query",
+      "params": {
+        "query": "ssh.algorithms"
+      },
+      "interpret": "ssh-supported"
     },
     {
-      "id": "linux.certificates",
-      "platform": "linux",
-      "title": "Certificate files in the usual places",
-      "why": "Trust stores and the certificates web, mail and proxy servers are configured with. Only CERTIFICATE blocks leave the machine; key directories and key files are never opened.",
-      "capability": "certfiles",
-      "params": { "dirs": "/etc/ssl/certs|/etc/pki/ca-trust/source/anchors|/etc/pki/ca-trust/extracted/pem|/etc/pki/tls/certs|/usr/local/share/ca-certificates|/usr/share/ca-certificates|/etc/letsencrypt/live|/etc/nginx|/etc/apache2|/etc/httpd|/etc/haproxy|/etc/postfix|/etc/dovecot", "depth": "6", "max": "5000" },
+      "id": "win.auth.kerberos",
+      "platform": "windows",
+      "area": "auth",
+      "title": "Kerberos encryption types",
+      "why": "Which enctypes this machine offers and accepts for Kerberos (AES-256, AES-128, RC4, DES); RC4 and DES are the usual legacy finding.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\Kerberos\\Parameters",
+        "values": "SupportedEncryptionTypes",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.kerberos-local",
+      "platform": "windows",
+      "area": "auth",
+      "title": "Kerberos encryption types (local setting)",
+      "why": "The local Kerberos client setting, when no policy applies.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\Kerberos\\Parameters",
+        "values": "SupportedEncryptionTypes|DefaultEncryptionType|MaxTokenSize",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.ntlm",
+      "platform": "windows",
+      "area": "auth",
+      "title": "NTLM and LAN Manager authentication levels",
+      "why": "LmCompatibilityLevel, NoLMHash and the NTLM restriction settings decide whether NTLMv1 or LM hashes can still be used.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa",
+        "values": "LmCompatibilityLevel|NoLMHash|RestrictSendingNTLMTraffic|RestrictReceivingNTLMTraffic|LsaCfgFlags|RunAsPPL|RunAsPPLBoot|DisableDomainCreds|EveryoneIncludesAnonymous",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.ntlm-minsec",
+      "platform": "windows",
+      "area": "auth",
+      "title": "NTLM minimum session security",
+      "why": "NTLMMinClientSec and NTLMMinServerSec require NTLMv2 session security and 128-bit encryption.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\MSV1_0",
+        "values": "NTLMMinClientSec|NTLMMinServerSec|RestrictSendingNTLMTraffic|RestrictReceivingNTLMTraffic|AuditReceivingNTLMTraffic|AllowOnlineID",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.smb-server",
+      "platform": "windows",
+      "area": "auth",
+      "title": "SMB server signing, encryption and SMB1",
+      "why": "Whether file shares require signing or encryption, and whether the SMB1 protocol is still enabled.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+        "values": "SMB1|SMB2|RequireSecuritySignature|EnableSecuritySignature|EncryptData|RejectUnencryptedAccess|RestrictNullSessAccess|SMBServerNameHardeningLevel",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.smb-client",
+      "platform": "windows",
+      "area": "auth",
+      "title": "SMB client signing and guest access",
+      "why": "Whether this machine signs SMB traffic it initiates and whether it allows insecure guest logons.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters",
+        "values": "RequireSecuritySignature|EnableSecuritySignature|EnableInsecureGuestLogons|AllowInsecureGuestAuth|RequireEncryption",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.smb-effective",
+      "platform": "windows",
+      "area": "auth",
+      "title": "SMB server configuration (effective)",
+      "why": "The running SMB server's settings: SMB1 on or off, signing, encryption and the ciphers it will use.",
+      "capability": "query",
+      "params": {
+        "query": "smb.server"
+      },
+      "interpret": "auth-policy",
+      "needs": "admin"
+    },
+    {
+      "id": "win.auth.netlogon",
+      "platform": "windows",
+      "area": "auth",
+      "title": "Netlogon secure channel",
+      "why": "Whether the domain secure channel is signed, sealed and uses strong (AES) session keys.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Netlogon\\Parameters",
+        "values": "RequireSignOrSeal|SealSecureChannel|SignSecureChannel|RequireStrongKey|DisablePasswordChange|MaximumPasswordAge",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.ldap",
+      "platform": "windows",
+      "area": "auth",
+      "title": "LDAP signing and channel binding",
+      "why": "The client's LDAP integrity requirement and, on a domain controller, the server's signing and channel-binding enforcement.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LDAP",
+        "values": "LDAPClientIntegrity|LdapEnforceChannelBinding",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.ldap-server",
+      "platform": "windows",
+      "area": "auth",
+      "title": "LDAP server signing (domain controller)",
+      "why": "LDAPServerIntegrity and LdapEnforceChannelBinding on a domain controller decide whether unsigned LDAP binds are refused.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\NTDS\\Parameters",
+        "values": "LDAPServerIntegrity|LdapEnforceChannelBinding",
+        "depth": "0"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "win.auth.rdp",
+      "platform": "windows",
+      "area": "auth",
+      "title": "Remote Desktop security layer, encryption level and certificate",
+      "why": "SecurityLayer 2 means TLS; MinEncryptionLevel 3 means 128-bit; UserAuthentication 1 means Network Level Authentication. The certificate hash is what clients verify.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+        "values": "SecurityLayer|MinEncryptionLevel|UserAuthentication|SSLCertificateSHA1Hash|PortNumber|fDisableEncryption",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "win.auth.rdp-policy",
+      "platform": "windows",
+      "area": "auth",
+      "title": "Remote Desktop security set by policy",
+      "why": "Group Policy values for the RDP security layer, encryption level and NLA override the local ones.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services",
+        "values": "SecurityLayer|MinEncryptionLevel|UserAuthentication|fDenyTSConnections",
+        "depth": "0"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "win.certificate-stores",
+      "platform": "windows",
+      "area": "pki",
+      "title": "Certificates in the Windows stores",
+      "why": "The personal, trusted root, intermediate, publisher, people, distrusted, Remote Desktop and web hosting stores, for the machine and the current user: what this machine trusts and what it can present.",
+      "capability": "certstore",
+      "params": {
+        "locations": "LocalMachine|CurrentUser",
+        "stores": "My|Root|CA|AuthRoot|TrustedPublisher|TrustedPeople|Disallowed|Remote Desktop|WebHosting"
+      },
       "interpret": "certificate"
     },
     {
-      "id": "linux.ssh.server-config",
-      "platform": "linux",
-      "title": "OpenSSH server algorithms",
-      "why": "The key exchange, ciphers, MACs and host key types the SSH server is set to accept, including post-quantum hybrids.",
-      "capability": "lines",
-      "params": { "paths": "/etc/ssh/sshd_config|/etc/ssh/sshd_config.d/*.conf", "match": "^[[:space:]]*(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms|PubkeyAcceptedAlgorithms)[[:space:]]", "max": "50" },
-      "interpret": "ssh-config"
+      "id": "win.key-providers",
+      "platform": "windows",
+      "area": "pki",
+      "title": "Key storage provider of each personal certificate",
+      "why": "Whether a certificate's private key is in the TPM (Microsoft Platform Crypto Provider), in the software key storage provider, on a smart card, or in a legacy CSP: hardware-bound keys cannot be replaced by post-quantum ones in place.",
+      "capability": "query",
+      "params": {
+        "query": "certstore.providers",
+        "match": "Cert Hash\\(sha1\\)|^\\s*Provider =|Key Container =|Subject:|^=+ Certificate [0-9]+ =+$|^(My|CurrentUser)"
+      },
+      "interpret": "key-providers"
     },
     {
-      "id": "linux.ssh.host-keys",
-      "platform": "linux",
-      "title": "OpenSSH server host key types",
-      "why": "The public half of each host key says which signature algorithm clients verify the server with.",
-      "capability": "lines",
-      "params": { "paths": "/etc/ssh/ssh_host_*_key.pub", "match": "^(ssh-|ecdsa-|sk-)", "max": "10" },
-      "interpret": "ssh-host-key"
+      "id": "win.pki.autoenrollment",
+      "platform": "windows",
+      "area": "pki",
+      "title": "Certificate auto-enrolment policy",
+      "why": "Whether this machine and its users enrol for certificates from Active Directory Certificate Services automatically.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Cryptography\\AutoEnrollment",
+        "values": "AEPolicy|OfflineExpirationPercent",
+        "depth": "0"
+      },
+      "interpret": "pki-policy"
     },
     {
-      "id": "linux.openssl.defaults",
-      "platform": "linux",
-      "title": "OpenSSL system-wide TLS defaults",
-      "why": "The minimum protocol, cipher string and groups every program using the system OpenSSL starts from.",
+      "id": "win.pki.certsvc",
+      "platform": "windows",
+      "area": "pki",
+      "title": "Active Directory Certificate Services on this machine",
+      "why": "A certificate authority running here is the issuer of the fleet's certificates; its key algorithm sets the fleet's floor.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\CertSvc\\Configuration",
+        "values": "Active",
+        "depth": "0",
+        "subkeys": "yes"
+      },
+      "interpret": "pki-policy"
+    },
+    {
+      "id": "win.pki.efs",
+      "platform": "windows",
+      "area": "pki",
+      "title": "Encrypting File System algorithm",
+      "why": "The algorithm EFS encrypts files with (AES-256 by default, 3DES or DESX on older policy).",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\EFS",
+        "values": "AlgorithmID|EfsConfiguration",
+        "depth": "0"
+      },
+      "interpret": "pki-policy"
+    },
+    {
+      "id": "win.bound.http-sslcert",
+      "platform": "windows",
+      "area": "bound",
+      "title": "HTTP.sys TLS certificate bindings",
+      "why": "Which certificate each HTTPS port served by HTTP.sys (IIS, WinRM, many Windows services) presents, and from which store: the binding of a key to a listening service.",
+      "capability": "query",
+      "params": {
+        "query": "http.sslcert"
+      },
+      "interpret": "tls-bindings"
+    },
+    {
+      "id": "win.bound.iis",
+      "platform": "windows",
+      "area": "bound",
+      "title": "IIS installed",
+      "why": "Internet Information Services serves TLS through Schannel; its presence makes the Schannel and HTTP.sys settings above those of a web server.",
+      "capability": "registry",
+      "params": {
+        "key": "HKLM:\\SOFTWARE\\Microsoft\\InetStp",
+        "values": "MajorVersion|MinorVersion|VersionString|InstallPath",
+        "depth": "0"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "win.bound.iis-bindings",
+      "platform": "windows",
+      "area": "bound",
+      "title": "IIS site bindings (HTTPS)",
+      "why": "Each HTTPS binding names the certificate hash and store a site presents.",
       "capability": "lines",
-      "params": { "paths": "/etc/ssl/openssl.cnf|/usr/lib/ssl/openssl.cnf|/etc/pki/tls/openssl.cnf", "match": "^[[:space:]]*(MinProtocol|MaxProtocol|CipherString|Ciphersuites|Groups|SignatureAlgorithms)[[:space:]]*=", "max": "40" },
-      "interpret": "openssl-config"
+      "params": {
+        "paths": "%WINDIR%\\System32\\inetsrv\\config\\applicationHost.config",
+        "match": "<binding protocol=\"https\"|certificateHash=|sslFlags=|<site name=",
+        "max": "200"
+      },
+      "interpret": "tls-bindings",
+      "needs": "admin"
+    },
+    {
+      "id": "win.bound.winrm",
+      "platform": "windows",
+      "area": "bound",
+      "title": "WinRM listeners",
+      "why": "Remote management listeners on HTTP and HTTPS, and the certificate an HTTPS listener presents.",
+      "capability": "query",
+      "params": {
+        "query": "winrm.listeners"
+      },
+      "interpret": "tls-bindings",
+      "needs": "admin"
+    },
+    {
+      "id": "win.bound.listeners",
+      "platform": "windows",
+      "area": "bound",
+      "title": "Listening services and the cryptographic libraries they loaded",
+      "why": "Each listening TCP or UDP socket with its process, executable and the TLS and key-storage DLLs in that process (schannel, ncrypt, a bundled OpenSSL, NSS): what is actually running with which cryptography.",
+      "capability": "listeners",
+      "params": {
+        "max": "500"
+      },
+      "interpret": "listeners",
+      "needs": "admin"
+    },
+    {
+      "id": "linux.platform.kernel",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Kernel and architecture",
+      "why": "The kernel version decides which in-kernel cryptography (dm-crypt, kTLS, WireGuard, IPsec) and which TPM and random-number support exist.",
+      "capability": "query",
+      "params": {
+        "query": "os.kernel"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "linux.platform.fips",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Kernel FIPS mode",
+      "why": "With fips_enabled=1 the kernel, OpenSSL, GnuTLS, NSS and OpenSSH restrict themselves to FIPS-approved algorithms.",
+      "capability": "lines",
+      "params": {
+        "paths": "/proc/sys/crypto/fips_enabled",
+        "match": "^[01]",
+        "max": "1"
+      },
+      "interpret": "platform"
     },
     {
       "id": "linux.crypto-policy",
       "platform": "linux",
-      "title": "System cryptographic policy (RHEL, Fedora)",
-      "why": "One setting (DEFAULT, LEGACY, FUTURE, FIPS) that sets the algorithms every system library allows.",
+      "area": "platform",
+      "title": "System-wide crypto policy",
+      "why": "On RHEL, Fedora, CentOS and derivatives one policy (DEFAULT, FUTURE, FIPS, LEGACY) sets the floor for OpenSSL, GnuTLS, NSS, OpenSSH, Java and Kerberos at once.",
       "capability": "lines",
-      "params": { "paths": "/etc/crypto-policies/config", "match": "^[A-Z]", "max": "5" },
+      "params": {
+        "paths": "/etc/crypto-policies/config",
+        "match": "^[A-Z]",
+        "max": "5"
+      },
       "interpret": "crypto-policy"
+    },
+    {
+      "id": "linux.crypto-policy.effective",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Crypto policy and FIPS mode as reported",
+      "why": "What update-crypto-policies and fips-mode-setup say is in force, which can differ from the file when a change has not been applied.",
+      "capability": "query",
+      "params": {
+        "query": "crypto-policies"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "linux.crypto-policy.backends",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Crypto policy back ends (OpenSSL, GnuTLS, NSS, OpenSSH, Java, Kerberos)",
+      "why": "The generated per-library policy files are what each library actually reads.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/crypto-policies/back-ends/*.config|/etc/crypto-policies/back-ends/*.txt",
+        "match": "^[A-Za-z]",
+        "max": "120"
+      },
+      "interpret": "config"
+    },
+    {
+      "id": "linux.platform.cpu-crypto",
+      "platform": "linux",
+      "area": "platform",
+      "title": "CPU cryptographic instructions",
+      "why": "AES-NI, SHA extensions and carry-less multiply decide whether AES-GCM and SHA-2 run in hardware; RDRAND and RDSEED feed the random generator.",
+      "capability": "query",
+      "params": {
+        "query": "cpu.crypto-flags"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "linux.platform.kernel-crypto",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Kernel crypto API algorithms",
+      "why": "The algorithms the kernel's crypto API has registered, used by dm-crypt, IPsec, kTLS, WireGuard and file-system encryption.",
+      "capability": "lines",
+      "params": {
+        "paths": "/proc/crypto",
+        "match": "^name",
+        "max": "400"
+      },
+      "interpret": "kernel-crypto"
+    },
+    {
+      "id": "linux.platform.kernel-modules",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Kernel modules for cryptography, TPM and tunnels",
+      "why": "Which acceleration, disk-encryption, TPM, TLS-offload and VPN modules are loaded.",
+      "capability": "lines",
+      "params": {
+        "paths": "/proc/modules",
+        "match": "^(aesni_intel|aes_[a-z0-9_]+|sha[0-9]+_[a-z0-9_]+|ghash_clmulni_intel|crc32_pclmul|polyval[a-z0-9_]*|chacha[a-z0-9_]*|poly1305[a-z0-9_]*|curve25519[a-z0-9_]*|ecdsa_generic|ecdh_generic|ecc|rsa_generic|dm_crypt|dm_integrity|dm_verity|encrypted_keys|trusted|tpm[a-z0-9_]*|wireguard|tls|xfrm[a-z0-9_]*|esp4|esp6|cryptd|crypto_simd|rng_core|intel_rng|ccp|qat_[a-z0-9_]+|caam[a-z0-9_]*|af_alg|algif_[a-z]+)[[:space:]]",
+        "max": "60"
+      },
+      "interpret": "kernel-crypto"
+    },
+    {
+      "id": "linux.platform.tpm",
+      "platform": "linux",
+      "area": "platform",
+      "title": "TPM presence and version",
+      "why": "A TPM anchors disk encryption, measured boot and (through tpm2-pkcs11 or the OpenSSL TPM2 provider) keys; its keys are RSA or ECC.",
+      "capability": "lines",
+      "params": {
+        "paths": "/sys/class/tpm/tpm*/tpm_version_major",
+        "match": "^[0-9]",
+        "max": "4"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "linux.platform.disk-encryption",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Encrypted block devices (dm-crypt, LUKS)",
+      "why": "Which devices are encrypted volumes or LUKS containers; the cipher is in the LUKS header, which only root can read.",
+      "capability": "query",
+      "params": {
+        "query": "disk.encryption"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "linux.platform.crypttab",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Encrypted volumes set up at boot (crypttab)",
+      "why": "The volumes unlocked at boot, with the options (cipher, key file location, TPM2 or FIDO2 enrolment) each uses.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/crypttab",
+        "match": "^[^#]",
+        "max": "20"
+      },
+      "interpret": "platform",
+      "needs": "admin"
+    },
+    {
+      "id": "linux.platform.secure-boot",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Secure Boot state",
+      "why": "Whether the firmware verifies the boot loader's signature; the kernel then enforces module signing.",
+      "capability": "query",
+      "params": {
+        "query": "secure-boot"
+      },
+      "interpret": "platform"
+    },
+    {
+      "id": "linux.platform.password-hashing",
+      "platform": "linux",
+      "area": "platform",
+      "title": "Password hashing algorithm",
+      "why": "ENCRYPT_METHOD and the pam_unix options decide whether account passwords are hashed with yescrypt, SHA-512, SHA-256 or MD5.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/login.defs|/etc/pam.d/common-password|/etc/pam.d/system-auth|/etc/pam.d/password-auth",
+        "match": "^[[:space:]]*(ENCRYPT_METHOD|SHA_CRYPT_MIN_ROUNDS|SHA_CRYPT_MAX_ROUNDS|YESCRYPT_COST_FACTOR)|pam_unix\\.so.*(sha512|sha256|yescrypt|md5|bigcrypt|blowfish|rounds=)",
+        "max": "10"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "linux.packages",
+      "platform": "linux",
+      "area": "software",
+      "title": "Installed cryptographic packages, servers and runtimes",
+      "why": "OpenSSL, GnuTLS, NSS, libgcrypt, OpenSSH, Java, Python, Node, Go, web, mail, database and VPN servers, PKCS#11 and TPM tools, with versions: the version decides which algorithms each can use, post-quantum ones included.",
+      "capability": "package",
+      "params": {
+        "match": "^(openssl.*|libssl.*|libcrypto.*|gnupg.*|gpg.*|libgcrypt.*|.*gnutls.*|.*nettle.*|libhogweed.*|.*sodium.*|libnss3.*|nss.*|.*mbed(tls|crypto|x509).*|.*wolfssl.*|libbotan.*|libssh.*|openssh.*|libk5crypto.*|libkrb5.*|krb5.*|libcrypt[0-9]*|libcryptsetup.*|cryptsetup.*|python3-(cryptography|openssl|paramiko|nacl|gnupg)|ca-certificates.*|p11-kit.*|libp11.*|opensc.*|softhsm.*|tpm2-.*|libtss2.*|gnutls-bin|nss-tools|libnss3-tools|liboqs.*|oqsprovider|openssl-oqs.*|curl|libcurl.*|wget|openjdk-.*|java-.*-openjdk.*|temurin-.*|zulu.*|adoptopenjdk.*|python3([.][0-9]+)?(-minimal)?|python3-.*ssl.*|nodejs|golang(-go)?|golang-[0-9.]+-go|ruby[0-9.]*|php[0-9.]*(-cli|-openssl)?|dotnet-runtime-.*|aspnetcore-runtime-.*|dotnet-sdk-.*|perl(-base)?|nginx.*|apache2|httpd|haproxy|lighttpd|caddy|postfix|dovecot-core|dovecot|exim4.*|postgresql(-[0-9.]+)?|mariadb-server.*|mysql-server.*|redis-server|mongodb-org-server|openvpn|strongswan.*|libreswan|wireguard.*|stunnel4?|slapd|samba|samba-common|bind9|named|chrony|systemd-resolved|libtasn1.*|libgpgme.*|gpgme|rsyslog-gnutls|cifs-utils|kubelet|kubeadm|containerd([.]io)?|docker-ce|docker[.]io|podman|libengine-pkcs11-openssl|openssl-pkcs11|tpm2-pkcs11|pcscd|yubikey-manager|libykcs11.*|libfido2.*|fido2-tools|mokutil|shim-signed|grub-efi-.*-signed|linux-image-.*|kernel(-core)?)$"
+      },
+      "interpret": "package"
+    },
+    {
+      "id": "linux.libraries",
+      "platform": "linux",
+      "area": "software",
+      "title": "Cryptographic shared libraries on disk",
+      "why": "Libraries bundled with applications under /opt, /srv, /usr/local or /var/lib, beside the distribution's own: each is a version to track.",
+      "capability": "file",
+      "params": {
+        "roots": "/usr/lib|/usr/lib64|/usr/local/lib|/opt|/srv|/var/lib|/usr/libexec",
+        "names": "libssl.so*|libcrypto.so*|libgnutls.so*|libgcrypt.so*|libsodium.so*|libnss3.so|libmbedtls.so*|libmbedcrypto.so*|libwolfssl.so*|libbotan*.so*|libssh.so*|libssh2.so*|libnettle.so*|libhogweed.so*|libtomcrypt.so*|liboqs.so*|libk5crypto.so*|libsunec.so|libjsse.so",
+        "depth": "7",
+        "max": "600"
+      },
+      "interpret": "library-file"
+    },
+    {
+      "id": "linux.openssl.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "OpenSSL version and build",
+      "why": "The system OpenSSL's exact version, build flags, configuration directory and module directory; 3.5 brings ML-KEM and ML-DSA.",
+      "capability": "query",
+      "params": {
+        "query": "openssl.version"
+      },
+      "interpret": "openssl-build"
+    },
+    {
+      "id": "linux.openssl.providers",
+      "platform": "linux",
+      "area": "software",
+      "title": "OpenSSL providers loaded",
+      "why": "Which providers the system configuration activates (default, legacy, FIPS, OQS, PKCS#11, TPM2): the FIPS provider restricts, the OQS provider adds post-quantum algorithms.",
+      "capability": "query",
+      "params": {
+        "query": "openssl.providers"
+      },
+      "interpret": "openssl-build"
+    },
+    {
+      "id": "linux.openssl.provider-modules",
+      "platform": "linux",
+      "area": "software",
+      "title": "OpenSSL provider modules installed",
+      "why": "A FIPS, OQS, PKCS#11, TPM2 or legacy provider module on disk can be activated by configuration; its presence is the first sign.",
+      "capability": "file",
+      "params": {
+        "roots": "/usr/lib/x86_64-linux-gnu/ossl-modules|/usr/lib/aarch64-linux-gnu/ossl-modules|/usr/lib64/ossl-modules|/usr/lib/ossl-modules|/usr/local/lib/ossl-modules|/usr/local/lib64/ossl-modules",
+        "names": "*.so",
+        "depth": "1",
+        "max": "40"
+      },
+      "interpret": "openssl-build"
+    },
+    {
+      "id": "linux.openssl.kem",
+      "platform": "linux",
+      "area": "software",
+      "title": "Key encapsulation algorithms the installed OpenSSL offers",
+      "why": "ML-KEM-512, -768 and -1024 listed here means the library can do post-quantum key exchange; absent means an upgrade is needed first.",
+      "capability": "query",
+      "params": {
+        "query": "openssl.kem-algorithms"
+      },
+      "interpret": "openssl-build"
+    },
+    {
+      "id": "linux.openssl.signatures",
+      "platform": "linux",
+      "area": "software",
+      "title": "Signature algorithms the installed OpenSSL offers",
+      "why": "ML-DSA and SLH-DSA listed here means the library can sign and verify post-quantum certificates.",
+      "capability": "query",
+      "params": {
+        "query": "openssl.signature-algorithms"
+      },
+      "interpret": "openssl-build"
+    },
+    {
+      "id": "linux.openssl.default-ciphers",
+      "platform": "linux",
+      "area": "software",
+      "title": "OpenSSL default cipher suites",
+      "why": "The suites the DEFAULT cipher string yields for this build and configuration: the starting point of every program that does not set its own.",
+      "capability": "query",
+      "params": {
+        "query": "openssl.ciphers",
+        "max": "120"
+      },
+      "interpret": "openssl-build"
+    },
+    {
+      "id": "linux.gnutls.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "GnuTLS version",
+      "why": "GnuTLS serves Exim, many GNOME programs, rsyslog and others; its version decides their algorithms.",
+      "capability": "query",
+      "params": {
+        "query": "gnutls.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.gpg.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "GnuPG version and algorithms",
+      "why": "GnuPG signs packages, commits and mail; the algorithms it lists are what it can create and verify.",
+      "capability": "query",
+      "params": {
+        "query": "gpg.version",
+        "match": "^(gpg |libgcrypt |Pubkey:|Cipher:|AEAD:|Hash:|Compression:|[[:space:]]+[A-Z0-9])",
+        "max": "16"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.curl.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "curl and its TLS backend",
+      "why": "curl's TLS backend (OpenSSL, GnuTLS, rustls) and the libssh2 and Kerberos libraries it links are what scripts and agents on the machine use.",
+      "capability": "query",
+      "params": {
+        "query": "curl.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.wget.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "wget and its TLS backend",
+      "why": "wget links OpenSSL or GnuTLS; its version decides what downloads will negotiate.",
+      "capability": "query",
+      "params": {
+        "query": "wget.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.java.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "Java version and location",
+      "why": "Which Java runs by default, and from where; the JDK version decides whether ML-KEM (JDK 24) and ML-DSA are available to Java programs.",
+      "capability": "query",
+      "params": {
+        "query": "java.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.java.files",
+      "platform": "linux",
+      "area": "software",
+      "title": "Java trust stores and security policy files present",
+      "why": "Each JDK's cacerts trust store and java.security policy, including Debian's shared one.",
+      "capability": "file",
+      "params": {
+        "roots": "/usr/lib/jvm|/opt|/usr/java|/usr/local|/etc/ssl/certs/java|/etc/java-*",
+        "names": "cacerts|java.security",
+        "depth": "6",
+        "max": "60"
+      },
+      "interpret": "pki-policy"
+    },
+    {
+      "id": "linux.java.security",
+      "platform": "linux",
+      "area": "tls",
+      "title": "Java security policy (java.security)",
+      "why": "jdk.tls.disabledAlgorithms, jdk.certpath.disabledAlgorithms, the provider order and the key store type decide what every Java program on this machine negotiates and trusts.",
+      "capability": "lines",
+      "params": {
+        "paths": "/usr/lib/jvm/*/conf/security/java.security|/usr/lib/jvm/*/lib/security/java.security|/usr/lib/jvm/*/jre/lib/security/java.security|/opt/*/conf/security/java.security|/opt/*/lib/security/java.security|/etc/java-*/security/java.security",
+        "match": "^[[:space:]]*(jdk\\.tls\\.disabledAlgorithms|jdk\\.certpath\\.disabledAlgorithms|jdk\\.jar\\.disabledAlgorithms|jdk\\.tls\\.legacyAlgorithms|jdk\\.tls\\.keyLimits|jdk\\.tls\\.namedGroups|jdk\\.tls\\.client\\.protocols|jdk\\.tls\\.server\\.protocols|jdk\\.tls\\.ephemeralDHKeySize|jdk\\.security\\.caDistrustPolicies|security\\.provider\\.[0-9]+|keystore\\.type|crypto\\.policy|securerandom\\.source|jdk\\.security\\.provider\\.preferred)[[:space:]]*=",
+        "max": "120",
+        "join": "backslash"
+      },
+      "interpret": "java-security"
+    },
+    {
+      "id": "linux.python.ssl",
+      "platform": "linux",
+      "area": "software",
+      "title": "Python and the OpenSSL it links",
+      "why": "Python's ssl module uses the OpenSSL it was built against, which may differ from the system's (pyenv, conda, containers).",
+      "capability": "query",
+      "params": {
+        "query": "python.ssl"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.node.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "Node.js and its bundled OpenSSL",
+      "why": "Node statically bundles OpenSSL; its version, not the system's, decides what Node programs negotiate.",
+      "capability": "query",
+      "params": {
+        "query": "node.versions"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.go.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "Go toolchain version",
+      "why": "Go programs use Go's own TLS stack; Go 1.24 negotiates X25519MLKEM768 by default.",
+      "capability": "query",
+      "params": {
+        "query": "go.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.ruby.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "Ruby and the OpenSSL it links",
+      "why": "Ruby's openssl extension reports the library it was built against.",
+      "capability": "query",
+      "params": {
+        "query": "ruby.openssl"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.php.build",
+      "platform": "linux",
+      "area": "software",
+      "title": "PHP and the OpenSSL it links",
+      "why": "PHP's openssl extension reports the library it was built against.",
+      "capability": "query",
+      "params": {
+        "query": "php.openssl"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.dotnet.runtimes",
+      "platform": "linux",
+      "area": "software",
+      "title": ".NET runtimes installed",
+      "why": ".NET on Linux uses the system OpenSSL; the runtime version decides its TLS defaults and post-quantum APIs.",
+      "capability": "query",
+      "params": {
+        "query": "dotnet.runtimes"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.openssl.defaults",
+      "platform": "linux",
+      "area": "tls",
+      "title": "OpenSSL system-wide configuration",
+      "why": "The minimum protocol, cipher string, groups, signature algorithms, and the providers the configuration activates (FIPS, legacy, OQS): the starting point of every program using the system OpenSSL.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/ssl/openssl.cnf|/usr/lib/ssl/openssl.cnf|/etc/pki/tls/openssl.cnf|/etc/ssl/openssl.cnf.d/*.cnf|/etc/pki/tls/openssl.d/*.cnf",
+        "match": "^[[:space:]]*(MinProtocol|MaxProtocol|CipherString|Ciphersuites|Groups|SignatureAlgorithms|Options|openssl_conf|providers|alg_section|default_properties|activate|fips|legacy|oqsprovider|module|\\.include|include)[[:space:]]*=",
+        "max": "60"
+      },
+      "interpret": "openssl-config"
+    },
+    {
+      "id": "linux.gnutls.config",
+      "platform": "linux",
+      "area": "tls",
+      "title": "GnuTLS system configuration",
+      "why": "The system-wide priority string and overrides every GnuTLS program starts from.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/gnutls/config|/etc/gnutls/config.d/*.conf",
+        "match": "^[[:space:]]*[a-z][a-z0-9-]*[[:space:]]*=",
+        "max": "40"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.nss.config",
+      "platform": "linux",
+      "area": "tls",
+      "title": "NSS system policy",
+      "why": "The policy file Firefox, Thunderbird, curl (NSS builds) and others read for allowed algorithms and versions.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/pki/nss-legacy/*.config|/etc/pki/nssdb/pkcs11.txt",
+        "match": "^[[:space:]]*(library|name|NSS|config|disable|allow)",
+        "max": "40"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.ssh.server-config",
+      "platform": "linux",
+      "area": "ssh",
+      "title": "OpenSSH server policy as written",
+      "why": "The key exchange, ciphers, MACs, host key types and client key types the SSH server accepts, including post-quantum hybrids, and the host keys and includes it uses.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/ssh/sshd_config|/etc/ssh/sshd_config.d/*.conf",
+        "match": "^[[:space:]]*(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms|PubkeyAcceptedAlgorithms|PubkeyAcceptedKeyTypes|CASignatureAlgorithms|HostKey|RequiredRSASize|FingerprintHash|Include|Port|ListenAddress|PasswordAuthentication|PubkeyAuthentication|PermitRootLogin|Match)[[:space:]]",
+        "max": "80"
+      },
+      "interpret": "ssh-config"
+    },
+    {
+      "id": "linux.ssh.server-effective",
+      "platform": "linux",
+      "area": "ssh",
+      "title": "OpenSSH server policy as effective",
+      "why": "What sshd itself reports after defaults, includes and the crypto policy are applied: the algorithms a client connecting to this machine is actually offered.",
+      "capability": "query",
+      "params": {
+        "query": "sshd.effective",
+        "match": "^(kexalgorithms|ciphers|macs|hostkeyalgorithms|pubkeyacceptedalgorithms|casignaturealgorithms|hostkey|requiredrsasize|fingerprinthash|port|listenaddress|passwordauthentication|pubkeyauthentication|permitrootlogin|gssapiauthentication|kbdinteractiveauthentication) "
+      },
+      "interpret": "ssh-effective",
+      "needs": "admin"
+    },
+    {
+      "id": "linux.ssh.client-config",
+      "platform": "linux",
+      "area": "ssh",
+      "title": "OpenSSH client policy",
+      "why": "What outbound SSH from this machine will offer: key exchange, ciphers, MACs, host key and key types.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/ssh/ssh_config|/etc/ssh/ssh_config.d/*.conf",
+        "match": "^[[:space:]]*(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms|PubkeyAcceptedAlgorithms|PubkeyAcceptedKeyTypes|CASignatureAlgorithms|RequiredRSASize|FingerprintHash|Include|Host|Match)[[:space:]]",
+        "max": "60"
+      },
+      "interpret": "ssh-client-config"
+    },
+    {
+      "id": "linux.ssh.supported",
+      "platform": "linux",
+      "area": "ssh",
+      "title": "Algorithms the installed OpenSSH can use",
+      "why": "What the installed OpenSSH is able to negotiate: whether the post-quantum hybrid key exchanges (mlkem768x25519-sha256, sntrup761x25519-sha512) exist at all.",
+      "capability": "query",
+      "params": {
+        "query": "ssh.algorithms"
+      },
+      "interpret": "ssh-supported"
+    },
+    {
+      "id": "linux.ssh.version",
+      "platform": "linux",
+      "area": "ssh",
+      "title": "OpenSSH version and the OpenSSL it links",
+      "why": "ssh -V names the OpenSSH release and the OpenSSL it was built with.",
+      "capability": "query",
+      "params": {
+        "query": "ssh.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.ssh.host-keys",
+      "platform": "linux",
+      "area": "ssh",
+      "title": "OpenSSH server host key types",
+      "why": "The public half of each host key says which signature algorithm clients verify the server with.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/ssh/ssh_host_*_key.pub",
+        "match": "^(ssh-|ecdsa-|sk-)",
+        "max": "10"
+      },
+      "interpret": "ssh-host-key"
+    },
+    {
+      "id": "linux.ssh.host-key-sizes",
+      "platform": "linux",
+      "area": "ssh",
+      "title": "OpenSSH host key sizes and fingerprints",
+      "why": "ssh-keygen -l reports each host key's size (bits) and SHA-256 fingerprint: a 2048-bit RSA host key is a finding of its own.",
+      "capability": "query",
+      "params": {
+        "query": "ssh.host-keys"
+      },
+      "interpret": "ssh-host-key-info"
+    },
+    {
+      "id": "linux.nginx.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "nginx TLS configuration",
+      "why": "ssl_protocols, ssl_ciphers, ssl_ecdh_curve, ssl_prefer_server_ciphers, stapling, tickets and the certificate each server block presents.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/nginx/nginx.conf|/etc/nginx/conf.d/*.conf|/etc/nginx/sites-enabled/*|/etc/nginx/snippets/*.conf|/etc/nginx/stream.d/*.conf",
+        "match": "^[[:space:]]*(ssl_[a-z_]+|listen[[:space:]].*(ssl|quic)|http2|http3|server_name|include[[:space:]].*(ssl|tls|snippets))",
+        "max": "150"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.nginx.build",
+      "platform": "linux",
+      "area": "servers",
+      "title": "nginx version and the OpenSSL it was built with",
+      "why": "nginx -V names the OpenSSL version nginx was compiled against and the one it runs with.",
+      "capability": "query",
+      "params": {
+        "query": "nginx.build"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.apache.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Apache httpd TLS configuration",
+      "why": "SSLProtocol, SSLCipherSuite, SSLHonorCipherOrder, SSLOpenSSLConfCmd and the certificate each virtual host presents.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/apache2/apache2.conf|/etc/apache2/mods-enabled/ssl.conf|/etc/apache2/sites-enabled/*|/etc/apache2/conf-enabled/*|/etc/httpd/conf/httpd.conf|/etc/httpd/conf.d/*.conf|/etc/httpd/conf.modules.d/*.conf",
+        "match": "^[[:space:]]*(SSLProtocol|SSLCipherSuite|SSLHonorCipherOrder|SSLOpenSSLConfCmd|SSLCertificateFile|SSLCertificateChainFile|SSLCACertificateFile|SSLUseStapling|SSLSessionTickets|SSLCompression|SSLEngine|SSLProxyProtocol|SSLProxyCipherSuite|SSLFIPS|SSLVerifyClient|Protocols|ServerName|LoadModule[[:space:]]ssl_module|<VirtualHost)",
+        "max": "150"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.apache.build",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Apache httpd version and build",
+      "why": "httpd -V names the server version and whether it was built with OpenSSL.",
+      "capability": "query",
+      "params": {
+        "query": "apache.build",
+        "match": "Server version|Server built|OPENSSL|Server MPM"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.haproxy.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "HAProxy TLS configuration",
+      "why": "ssl-default-bind-ciphers, ssl-min-ver, tune.ssl settings and the certificates bound to each frontend.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/haproxy/haproxy.cfg|/etc/haproxy/conf.d/*.cfg",
+        "match": "^[[:space:]]*(ssl-default-[a-z-]+|ssl-dh-param-file|ssl-server-verify|ssl-mode-async|tune\\.ssl\\.[a-z-]+|ca-base|crt-base|bind[[:space:]].*(ssl|crt)|server[[:space:]].*ssl|frontend|backend|listen)",
+        "max": "150"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.haproxy.build",
+      "platform": "linux",
+      "area": "servers",
+      "title": "HAProxy version and the OpenSSL it runs with",
+      "why": "haproxy -vv names the HAProxy release and the OpenSSL it was built with and runs with.",
+      "capability": "query",
+      "params": {
+        "query": "haproxy.build",
+        "match": "HAProxy version|OpenSSL|Built with|Running on"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.postfix.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Postfix TLS configuration",
+      "why": "smtpd_tls_* and smtp_tls_* decide what mail in and out of this machine is encrypted with and which certificate it presents.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/postfix/main.cf",
+        "match": "^[[:space:]]*(smtpd?_tls_[a-z_]+|tls_[a-z_]+|smtpd?_use_tls|smtpd?_enforce_tls|smtp_sasl_[a-z_]+|smtpd_sasl_[a-z_]+)[[:space:]]*=",
+        "max": "80"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.postfix.effective",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Postfix TLS settings in force",
+      "why": "postconf -n lists the non-default settings Postfix runs with, which can differ from main.cf when a change has not been reloaded.",
+      "capability": "query",
+      "params": {
+        "query": "postfix.tls",
+        "match": "tls|sasl"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.dovecot.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Dovecot TLS configuration",
+      "why": "ssl_min_protocol, ssl_cipher_list, ssl_prefer_server_ciphers and the certificate the IMAP and POP services present.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/dovecot/dovecot.conf|/etc/dovecot/conf.d/*.conf",
+        "match": "^[[:space:]]*ssl[a-z_]*[[:space:]]*=",
+        "max": "40"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.dovecot.effective",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Dovecot TLS settings in force",
+      "why": "doveconf -n lists the settings Dovecot runs with.",
+      "capability": "query",
+      "params": {
+        "query": "dovecot.ssl",
+        "match": "^ssl"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.exim.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Exim TLS configuration",
+      "why": "tls_advertise_hosts, tls_require_ciphers and the certificate Exim presents.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/exim4/exim4.conf.template|/etc/exim4/update-exim4.conf.conf|/etc/exim/exim.conf|/etc/exim4/conf.d/main/*",
+        "match": "^[[:space:]]*(tls_[a-z_]+|MAIN_TLS_[A-Z_]+|openssl_options|gnutls_[a-z_]+)[[:space:]]*=",
+        "max": "40"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.postgresql.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "PostgreSQL TLS configuration",
+      "why": "ssl, ssl_min_protocol_version, ssl_ciphers, ssl_ecdh_curve and the certificate the database presents.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/postgresql/*/main/postgresql.conf|/etc/postgresql/*/main/conf.d/*.conf|/var/lib/pgsql/data/postgresql.conf|/var/lib/pgsql/*/data/postgresql.conf|/var/lib/postgresql/*/main/postgresql.conf",
+        "match": "^[[:space:]]*(ssl|ssl_[a-z_]+|password_encryption)[[:space:]]*=",
+        "max": "40"
+      },
+      "interpret": "tls-config",
+      "needs": "admin"
+    },
+    {
+      "id": "linux.mysql.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "MySQL and MariaDB TLS configuration",
+      "why": "tls_version, ssl-cipher, require_secure_transport and the certificate the database presents.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/mysql/my.cnf|/etc/mysql/mysql.conf.d/*.cnf|/etc/mysql/mariadb.conf.d/*.cnf|/etc/mysql/conf.d/*.cnf|/etc/my.cnf|/etc/my.cnf.d/*.cnf",
+        "match": "^[[:space:]]*(ssl[a-z_-]*|tls[a-z_-]*|require_secure_transport|default_authentication_plugin|authentication_policy)",
+        "max": "40"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.ldap.tls",
+      "platform": "linux",
+      "area": "servers",
+      "title": "OpenLDAP TLS configuration (client and server)",
+      "why": "TLS_CACERT, TLS_REQCERT, TLSCipherSuite and TLSProtocolMin for directory connections in and out of this machine.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/ldap/ldap.conf|/etc/openldap/ldap.conf|/etc/openldap/slapd.conf|/etc/ldap/slapd.conf|/etc/ldap/slapd.d/cn=config.ldif|/etc/openldap/slapd.d/cn=config.ldif",
+        "match": "^[[:space:]]*(TLS_[A-Z_]+|TLSCipherSuite|TLSProtocolMin|TLSCertificateFile|TLSCACertificateFile|TLSVerifyClient|olcTLS[A-Za-z]+|olcSecurity|olcLocalSSF|security)",
+        "max": "40"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.samba.config",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Samba protocol, signing and encryption settings",
+      "why": "server min protocol, smb encrypt, server signing, ntlm auth and the LDAP and TLS settings of a Samba file or domain server.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/samba/smb.conf",
+        "match": "^[[:space:]]*(server min protocol|server max protocol|client min protocol|client max protocol|smb encrypt|server smb encrypt|client smb encrypt|server signing|client signing|ntlm auth|lanman auth|raw NTLMv2 auth|tls enabled|tls priority|tls certfile|tls cafile|ldap ssl|ldap server require strong auth|client ldap sasl wrapping|kerberos encryption types)[[:space:]]*=",
+        "max": "40"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "linux.samba.effective",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Samba settings in force",
+      "why": "testparm -s prints the settings Samba runs with, defaults resolved.",
+      "capability": "query",
+      "params": {
+        "query": "samba.effective",
+        "match": "min protocol|max protocol|smb encrypt|signing|ntlm auth|lanman auth|tls |ldap ssl|kerberos encryption"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "linux.bind.dnssec",
+      "platform": "linux",
+      "area": "servers",
+      "title": "BIND DNSSEC and DNS-over-TLS settings",
+      "why": "dnssec-validation, dnssec-policy and tls blocks: DNSSEC signing keys are RSA or ECDSA and have their own migration path.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/bind/named.conf|/etc/bind/named.conf.options|/etc/bind/named.conf.local|/etc/named.conf|/etc/named/*.conf",
+        "match": "^[[:space:]]*(dnssec-validation|dnssec-policy|dnssec-enable|tls[[:space:]]|key-directory|algorithm|listen-on.*tls|forwarders|https[[:space:]])",
+        "max": "40"
+      },
+      "interpret": "config"
+    },
+    {
+      "id": "linux.bind.build",
+      "platform": "linux",
+      "area": "servers",
+      "title": "BIND version and the OpenSSL it links",
+      "why": "named -V names the BIND release and its OpenSSL.",
+      "capability": "query",
+      "params": {
+        "query": "bind.build",
+        "match": "BIND|OpenSSL|compiled"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.kubernetes.apiserver",
+      "platform": "linux",
+      "area": "servers",
+      "title": "Kubernetes API server TLS flags",
+      "why": "--tls-min-version, --tls-cipher-suites and the certificate, CA and service-account signing key files the control plane uses.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/kubernetes/manifests/kube-apiserver.yaml|/etc/kubernetes/manifests/etcd.yaml|/etc/kubernetes/manifests/kube-controller-manager.yaml",
+        "match": "--(tls-[a-z-]+|etcd-(cafile|certfile)|client-ca-file|service-account-(signing-key-file|key-file|issuer)|cert-file|trusted-ca-file|peer-cert-file|cluster-signing-cert-file)=",
+        "max": "40"
+      },
+      "interpret": "tls-config",
+      "needs": "admin"
+    },
+    {
+      "id": "linux.resolved.dns",
+      "platform": "linux",
+      "area": "servers",
+      "title": "systemd-resolved DNS-over-TLS and DNSSEC",
+      "why": "Whether the machine's stub resolver encrypts and validates DNS.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/systemd/resolved.conf|/etc/systemd/resolved.conf.d/*.conf",
+        "match": "^[[:space:]]*(DNSOverTLS|DNSSEC|DNS)=",
+        "max": "10"
+      },
+      "interpret": "config"
+    },
+    {
+      "id": "linux.chrony.nts",
+      "platform": "linux",
+      "area": "servers",
+      "title": "chrony Network Time Security",
+      "why": "NTS authenticates time with TLS; unauthenticated time undermines certificate validity checks.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/chrony/chrony.conf|/etc/chrony.conf|/etc/chrony/conf.d/*.conf|/etc/chrony/sources.d/*.sources",
+        "match": "^[[:space:]]*(server|pool|peer)[[:space:]].*nts|^[[:space:]]*nts[a-z]*[[:space:]]",
+        "max": "20"
+      },
+      "interpret": "config"
+    },
+    {
+      "id": "linux.openvpn.config",
+      "platform": "linux",
+      "area": "vpn",
+      "title": "OpenVPN cipher, authentication and TLS settings",
+      "why": "data-ciphers, auth, tls-version-min, tls-cipher, tls-crypt and the certificate and CA each tunnel uses (inline key blocks are never copied).",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/openvpn/*.conf|/etc/openvpn/server/*.conf|/etc/openvpn/client/*.conf",
+        "match": "^[[:space:]]*(cipher|data-ciphers|data-ciphers-fallback|ncp-ciphers|auth|tls-cipher|tls-ciphersuites|tls-version-min|tls-version-max|tls-crypt|tls-crypt-v2|tls-auth|tls-groups|dh|ecdh-curve|remote-cert-tls|ca|cert|providers|tls-server|tls-client|proto|port)[[:space:]]",
+        "max": "60"
+      },
+      "interpret": "vpn-config"
+    },
+    {
+      "id": "linux.openvpn.build",
+      "platform": "linux",
+      "area": "vpn",
+      "title": "OpenVPN version and its OpenSSL",
+      "why": "openvpn --version names the release and the OpenSSL it links.",
+      "capability": "query",
+      "params": {
+        "query": "openvpn.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.ipsec.config",
+      "platform": "linux",
+      "area": "vpn",
+      "title": "IPsec (strongSwan, libreswan) proposals",
+      "why": "ike and esp proposals, key exchange version and authentication method of each connection: where IKEv2 post-quantum hybrids will appear.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/ipsec.conf|/etc/ipsec.d/*.conf|/etc/swanctl/swanctl.conf|/etc/swanctl/conf.d/*.conf|/etc/strongswan.conf|/etc/strongswan.d/*.conf|/etc/strongswan.d/charon/*.conf",
+        "match": "^[[:space:]]*(ike|esp|ah|keyexchange|proposals|esp_proposals|ah_proposals|ikelifetime|lifetime|rekey_time|pfs|authby|auth|send_cert|certs|pubkeys|version|ppk_id|load|fips_mode|i_dont_care_about_security_and_use_aggressive_mode_psk)[[:space:]]*=",
+        "max": "80"
+      },
+      "interpret": "vpn-config"
+    },
+    {
+      "id": "linux.ipsec.build",
+      "platform": "linux",
+      "area": "vpn",
+      "title": "strongSwan or libreswan version",
+      "why": "The IKE daemon's version decides which proposals it supports.",
+      "capability": "query",
+      "params": {
+        "query": "ipsec.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.wireguard.interfaces",
+      "platform": "linux",
+      "area": "vpn",
+      "title": "WireGuard interfaces up",
+      "why": "WireGuard uses Curve25519, ChaCha20-Poly1305 and BLAKE2s, fixed by the protocol; an interface present means that cryptography is in use. Its configuration files hold keys and are never read.",
+      "capability": "query",
+      "params": {
+        "query": "wireguard.interfaces"
+      },
+      "interpret": "vpn-config",
+      "needs": "admin"
+    },
+    {
+      "id": "linux.stunnel.config",
+      "platform": "linux",
+      "area": "vpn",
+      "title": "stunnel TLS settings",
+      "why": "The protocol versions, ciphers, curves and certificates each stunnel service wraps a plain connection in.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/stunnel/*.conf",
+        "match": "^[[:space:]]*(ciphers|ciphersuites|sslVersion|sslVersionMin|sslVersionMax|options|curves|cert|CAfile|CApath|verify[A-Za-z]*|fips|engine|accept|connect|\\[)",
+        "max": "60"
+      },
+      "interpret": "tls-config"
+    },
+    {
+      "id": "linux.stunnel.build",
+      "platform": "linux",
+      "area": "vpn",
+      "title": "stunnel version and its OpenSSL",
+      "why": "stunnel -version names the release and the OpenSSL it links.",
+      "capability": "query",
+      "params": {
+        "query": "stunnel.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.kerberos.config",
+      "platform": "linux",
+      "area": "auth",
+      "title": "Kerberos encryption types (krb5.conf, kdc.conf)",
+      "why": "permitted, default ticket and default TGS enctypes, allow_weak_crypto and a KDC's supported enctypes and master key type.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/krb5.conf|/etc/krb5.conf.d/*|/var/kerberos/krb5kdc/kdc.conf|/etc/krb5kdc/kdc.conf",
+        "match": "^[[:space:]]*(permitted_enctypes|default_tkt_enctypes|default_tgs_enctypes|allow_weak_crypto|supported_enctypes|master_key_type|pkinit_[a-z_]+|default_realm|dns_lookup_kdc)[[:space:]]*=",
+        "max": "30"
+      },
+      "interpret": "auth-policy"
+    },
+    {
+      "id": "linux.certificates",
+      "platform": "linux",
+      "area": "pki",
+      "title": "Certificates in the trust store and in service folders",
+      "why": "What the machine trusts (system and locally added anchors) and what its services present (web, mail, Kubernetes, container, VPN folders): the public halves only.",
+      "capability": "certfiles",
+      "params": {
+        "dirs": "/etc/ssl/certs|/etc/pki/ca-trust/source/anchors|/etc/pki/ca-trust/extracted/pem|/etc/pki/tls/certs|/usr/local/share/ca-certificates|/usr/share/ca-certificates|/etc/ca-certificates/trust-source|/etc/letsencrypt/live|/etc/letsencrypt/archive|/var/lib/acme|/etc/nginx|/etc/apache2|/etc/httpd|/etc/haproxy|/etc/postfix|/etc/dovecot|/etc/exim4|/etc/kubernetes/pki|/var/lib/kubelet/pki|/etc/docker|/etc/containerd|/etc/openvpn|/etc/ipsec.d|/etc/swanctl|/etc/stunnel|/etc/ldap|/etc/openldap|/etc/samba|/etc/pki/nssdb|/opt",
+        "depth": "6",
+        "max": "5000"
+      },
+      "interpret": "certificate"
+    },
+    {
+      "id": "linux.pkcs11.modules",
+      "platform": "linux",
+      "area": "pki",
+      "title": "PKCS#11 modules registered (p11-kit)",
+      "why": "Smart cards, HSMs, TPM2 and SoftHSM reach OpenSSL, GnuTLS, NSS and OpenSSH through these modules.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/pkcs11/modules/*.module|/usr/share/p11-kit/modules/*.module|/etc/pkcs11/pkcs11.conf",
+        "match": "^[[:space:]]*(module|priority|trust-policy|user-config|critical|enable-in|disable-in)[[:space:]]*:",
+        "max": "40"
+      },
+      "interpret": "pki-policy"
+    },
+    {
+      "id": "linux.softhsm.config",
+      "platform": "linux",
+      "area": "pki",
+      "title": "SoftHSM configuration",
+      "why": "A software HSM holding keys for tests or services; where its tokens live and how objects are stored.",
+      "capability": "lines",
+      "params": {
+        "paths": "/etc/softhsm/softhsm2.conf|/etc/softhsm2.conf",
+        "match": "^[[:space:]]*(directories\\.tokendir|objectstore\\.backend|slots\\.removable|log\\.level)[[:space:]]*=",
+        "max": "10"
+      },
+      "interpret": "pki-policy"
+    },
+    {
+      "id": "linux.cryptsetup.build",
+      "platform": "linux",
+      "area": "pki",
+      "title": "cryptsetup version",
+      "why": "The disk-encryption tool's version decides LUKS2, Argon2 and the ciphers it offers.",
+      "capability": "query",
+      "params": {
+        "query": "cryptsetup.version"
+      },
+      "interpret": "runtime"
+    },
+    {
+      "id": "linux.bound.listeners",
+      "platform": "linux",
+      "area": "bound",
+      "title": "Listening services and the cryptographic libraries they loaded",
+      "why": "Each listening TCP or UDP socket with its process, executable and the TLS and crypto libraries mapped into that process (libssl, libcrypto, libgnutls, nss3, libsodium): what is actually running with which cryptography. Go and Rust programs carry their own and show none.",
+      "capability": "listeners",
+      "params": {
+        "max": "500"
+      },
+      "interpret": "listeners",
+      "needs": "admin"
     }
   ]
 }

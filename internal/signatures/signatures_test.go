@@ -25,7 +25,7 @@ func TestTheDatabaseIsValid(t *testing.T) {
 }
 
 func TestValidationRefusesWhatAnEngineMustNotDo(t *testing.T) {
-	base := `{"version":"1","signatures":[{"id":"linux.x","platform":"linux","title":"t","why":"w","capability":%s,"params":%s,"interpret":%s}]}`
+	base := `{"version":"1","signatures":[{"id":"linux.x","platform":"linux","area":"ssh","title":"t","why":"w","capability":%s,"params":%s,"interpret":%s}]}`
 	bad := map[string][3]string{
 		"a command":        {`"command"`, `{"match":"x"}`, `"config"`},
 		"wrong platform":   {`"registry"`, `{"key":"HKLM:\x","values":"a"}`, `"config"`},
@@ -36,6 +36,13 @@ func TestValidationRefusesWhatAnEngineMustNotDo(t *testing.T) {
 		"a key file":       {`"lines"`, `{"paths":"/etc/ssl/private/server.key","match":"."}`, `"config"`},
 		"a key directory":  {`"certfiles"`, `{"dirs":"/etc/ssl/private"}`, `"certificate"`},
 		"a tab in a value": {`"package"`, `{"match":"a\tb"}`, `"package"`},
+		// PRD-019: a query is picked from the engine's table, never written; WireGuard folders hold keys.
+		"an unknown query": {`"query"`, `{"query":"rm.everything"}`, `"platform"`},
+		"a windows query":  {`"query"`, `{"query":"tls.cipher-suites"}`, `"platform"`},
+		"wireguard":        {`"lines"`, `{"paths":"/etc/wireguard/*.conf","match":"^ListenPort"}`, `"vpn-config"`},
+	}
+	if _, err := Parse([]byte(strings.Replace(base, `"area":"ssh"`, `"area":"misc"`, 1))); err == nil {
+		t.Error("an unknown area: accepted")
 	}
 	for name, v := range bad {
 		doc := strings.Replace(strings.Replace(strings.Replace(base, "%s", v[0], 1), "%s", v[1], 1), "%s", v[2], 1)

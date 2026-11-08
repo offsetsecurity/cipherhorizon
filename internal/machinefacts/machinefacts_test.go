@@ -165,7 +165,7 @@ func TestWindowsFactsUseTheCertificateStoreSensorOnly(t *testing.T) {
 func TestParseRefusesWhatIsNotAFactsFile(t *testing.T) {
 	for name, in := range map[string]string{
 		"json":     `{"bomFormat":"CycloneDX"}`,
-		"version3": "cipherhorizon-machine-facts\t3\nhost\tos\tlinux\n",
+		"version4": "cipherhorizon-machine-facts\t4\nhost\tos\tlinux\n",
 		"no os":    "cipherhorizon-machine-facts\t1\nhost\tname\tx\n",
 	} {
 		if _, err := Parse([]byte(in)); err == nil {
@@ -273,7 +273,8 @@ func TestSignatureFactsBecomeComponents(t *testing.T) {
 		t.Fatal(err)
 	}
 	cs := components(bom)
-	for _, want := range []string{"libcrypto-3-x64.dll", "ML-KEM-768", "Windows Schannel (TLS)", "SSH server (OpenSSH)", "X25519MLKEM768", "X25519", "Ed25519", "SSH host key (ssh-ed25519)", "PuTTY release 0.85"} {
+	for _, want := range []string{"libcrypto-3-x64.dll", "ML-KEM-768", "Windows Schannel (TLS)", "SSH server (OpenSSH), as written", "X25519MLKEM768", "X25519", "Ed25519", "SSH host key (ssh-ed25519)", "PuTTY release 0.85",
+		".NET Framework TLS settings (64-bit, 4.x)"} {
 		if _, ok := cs[want]; !ok {
 			names := []string{}
 			for n := range cs {
@@ -293,8 +294,17 @@ func TestSignatureFactsBecomeComponents(t *testing.T) {
 	if !strings.Contains(strings.Join(schProps, "|"), "TLS 1.0 (server): disabled") {
 		t.Errorf("Schannel properties: %v", schProps)
 	}
+	// A known configuration signature is a component with its settings in words (PRD-019); an
+	// unknown one is still recorded as observed configuration.
+	var dotnet []string
+	for _, p := range *cs[".NET Framework TLS settings (64-bit, 4.x)"].Properties {
+		dotnet = append(dotnet, p.Name+"="+p.Value)
+	}
+	if !strings.Contains(strings.Join(dotnet, "|"), "cipherhorizon:setting:SchUseStrongCrypto=on") {
+		t.Errorf(".NET settings: %v", dotnet)
+	}
 	props := metaProps(bom)
-	for _, want := range []string{"observed-config=.NET Framework TLS settings", "observed-config=win.future.thing", "sensor=win.crypto-libraries status=complete",
+	for _, want := range []string{"observed-config=win.future.thing", "sensor=win.crypto-libraries status=complete",
 		"sensor=win.schannel.suite-policy status=complete scope=Cipher suite order set by Group Policy (Schannel): not present", "signature-db=2026.10.04"} {
 		if !strings.Contains(props, want) {
 			t.Errorf("metadata lacks %q:\n%s", want, props)

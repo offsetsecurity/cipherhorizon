@@ -2389,7 +2389,7 @@
     },
     "/api/v1/collector/signatures": {
       "get": {
-        "summary": "The signature database: everything the inventory scripts collect, with the capability each uses, its parameters, why it is collected and how the server interprets it.",
+        "summary": "The signature database: everything the inventory scripts collect, with the capability each uses, its parameters, its area, whether it needs administrator rights, why it is collected and how the server interprets it; plus the areas, the capabilities and the fixed queries each engine implements.",
         "tags": [
           "collector"
         ],

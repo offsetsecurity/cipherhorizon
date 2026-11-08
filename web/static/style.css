@@ -2060,3 +2060,30 @@ a.stdrow-seg:hover { filter: brightness(1.15); }
 .setrow-label { font-weight: 600; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .setrow-help { margin: 2px 0 0; font-size: 13.5px; color: var(--text-2); max-width: 80ch; }
 .pq-held { margin-top: 6px; }
+
+
+/* PRD-019: the machine page by meaning (platform tiles, services, configuration by area) and the
+   signature list by area. Flat, no gradients; tone always carries a word. */
+.stiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-3); margin-top: .6rem; }
+.stile-na { border-color: var(--border); } .stile-na .stile-glyph { color: var(--muted); background: var(--surface-2); }
+.stile-problem { border-color: var(--bad-border); } .stile-problem .stile-glyph { color: var(--bad); background: var(--bad-bg); }
+.stile-detail { display: block; font-size: var(--fs-xs); color: var(--muted); white-space: normal; overflow-wrap: anywhere; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.chip { display: inline-block; padding: .05rem .5rem; border-radius: var(--radius-xs); font-size: var(--fs-xs); font-weight: 550; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); max-width: 100%; overflow-wrap: anywhere; }
+.chip-warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-border); }
+.chip-good { background: var(--good-bg); color: var(--good); }
+.tabs.subtabs { margin: .6rem 0 .9rem; gap: 1.1rem; }
+.tabs.subtabs .tab { padding: .5rem 0; font-size: var(--fs-sm); }
+.tab .count { display: inline-block; min-width: 1.3em; padding: 0 .35em; margin-left: .2rem; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 600; text-align: center; }
+.tab[aria-selected="true"] .count { background: var(--primary); color: var(--on-primary); }
+.config-area .config-block:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.kv.settings { grid-template-columns: minmax(140px, max-content) 1fr; margin-top: .5rem; }
+.kv.settings dt { font-family: var(--font-mono); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.kv.settings dd { font-size: var(--fs-sm); }
+ul.plain { margin: 0; padding-left: 1.1rem; } ul.plain li { overflow-wrap: anywhere; }
+details.more.inline { display: inline-block; }
+.services-table td.mono { font-size: var(--fs-xs); }
+.sigplatform { margin-top: .8rem; } .sigplatform h4 { margin: 0 0 .2rem; }
+.sigtable .tag { margin-left: .4rem; vertical-align: middle; }
+@media (max-width: 720px) { .kv.settings { grid-template-columns: 1fr; } .kv.settings dt { margin-top: .4rem; } }
+.stile-info { border-color: var(--border); } .stile-info .stile-glyph { color: var(--text-2); background: var(--surface-2); }

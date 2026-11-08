@@ -10,6 +10,47 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **The host inventory, done properly** (PRD-019, internal;
+  [ADR-0020](docs/decisions/ADR-0020-engine-queries.md)). The inventory scripts, version 3, gather what a
+  migration needs to know about a machine, not a package list and a few registry values: the platform's state
+  (FIPS mode, Secure Boot, TPM, BitLocker or LUKS, virtualisation-based security, crypto policy, kernel and CPU
+  instructions); what the installed OpenSSL and OpenSSH *can* do (ML-KEM, ML-DSA, the hybrid key exchanges);
+  the SSH server's policy as written *and* as `sshd -T` reports it, host key sizes and fingerprints; the TLS
+  settings of nginx, Apache, HAProxy, Postfix, Dovecot, Exim, PostgreSQL, MySQL, OpenLDAP, Samba, BIND,
+  Kubernetes, stunnel, systemd-resolved and chrony; Windows Schannel's *effective* cipher suites and curves, .NET,
+  WinHTTP and WinINet TLS, RDP, Kerberos, NTLM, SMB, Netlogon and LDAP signing, BitLocker and EFS policy; Java
+  installs, trust stores and `java.security` policy; runtimes (Python, Node, Go, Ruby, PHP, .NET, Java, curl,
+  GnuPG) with the TLS library each runs with; which provider holds each personal certificate's private key (TPM,
+  software, smart card); HTTP.sys, IIS and WinRM TLS bindings; and **every listening service with the
+  cryptographic libraries loaded into it** (what is running with which cryptography). 138 signatures (from 16),
+  each with its area and whether it needs administrator or root rights.
+- **Two engine capabilities.** `query` runs one of a fixed table of read-only queries written in the engine
+  itself; a signature can only pick an id, never write a command (ADR-0020). `listeners` lists sockets with
+  their process, executable and loaded crypto libraries. Facts format version 3; versions 1 and 2 still upload.
+- **The machine page reads by meaning.** Platform and policy as status tiles; services listening with their
+  crypto stack; configuration by area (TLS stacks, SSH, servers, VPN, authentication, keys and certificates)
+  with every setting in words; software, libraries and runtimes with their crypto backend; coverage says which
+  signatures were not present on the machine. The Inventory page lists every signature by area with where it
+  looks, how, why, and which need elevated rights, and the fixed queries each engine can run.
+- `GET /api/v1/collector/signatures` carries `areas`, `capabilities` and `queries` beside the signatures; each
+  signature carries `area` and, when elevated rights matter, `needs`.
+
+### Changed
+
+- The scripts' promise is now exact: on Windows the engine starts no program other than Windows' own
+  `certutil.exe`, `netsh.exe` and `ssh.exe`, by full path, with fixed read-only arguments; on Linux the engine
+  runs the machine's own query tools with fixed arguments and a timeout. Nothing is installed or changed.
+- Linux certificate collection also reads locally added trust anchors, Kubernetes, container, VPN, directory and
+  Samba folders; the package filter covers servers, runtimes, PKCS#11 and TPM tools. Windows certificate
+  collection adds the Disallowed, Remote Desktop and WebHosting stores.
+
+### Upgrade notes
+
+- No database migration. Upload a fresh inventory with the version 3 scripts to see the new sections; earlier
+  uploads keep showing what they had.
+
 ## [0.5.1] - 2026-11-08
 
 ### Changed
