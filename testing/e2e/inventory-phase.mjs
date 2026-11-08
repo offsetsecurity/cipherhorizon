@@ -35,8 +35,12 @@ export async function inventoryPhase({ check, js, go, sleep, shot, api, BASE }) 
   check('E2E-HI.1', 'a version 3 facts file uploads as a machine', (up.status === 200 || up.status === 201) && upj.asset && upj.asset.id > 0, `${up.status} ${JSON.stringify(upj).slice(0, 120)}`);
   if (!(upj.asset && upj.asset.id)) return;
   await go(`#/machines/${upj.asset.id}`);
-  await sleep(900);
-  const text = await js(`return document.querySelector('main').innerText`);
+  // The page reads the machine's CBOM after its summary; wait for the last card, not a fixed time.
+  let text = '';
+  for (let i = 0; i < 40 && !/Upload history/.test(text); i++) {
+    await sleep(250);
+    text = await js(`return document.querySelector('main').innerText`);
+  }
   check('E2E-HI.2', 'the machine page shows platform and policy as tiles (FIPS, TPM, disk encryption)',
     /Platform and policy/.test(text) && /FIPS mode[\s\S]{0,40}On/.test(text) && /TPM[\s\S]{0,40}Present/.test(text) && /Disk encryption/.test(text), text.slice(0, 160));
   check('E2E-HI.3', 'the installed OpenSSL is listed with its version and its ML-KEM algorithms',
