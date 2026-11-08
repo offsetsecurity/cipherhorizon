@@ -172,7 +172,7 @@ func TestCTLookup(t *testing.T) {
 
 func TestSourcesRecorded(t *testing.T) {
 	src := Sources()
-	if len(src) != 6 {
+	if len(src) != 7 {
 		t.Fatalf("%d sources", len(src))
 	}
 	for _, s := range src {
@@ -186,6 +186,18 @@ func TestSourcesRecorded(t *testing.T) {
 	at, _ := time.Parse("2006-01-02", src[0].Retrieved)
 	if src[0].Age(at.AddDate(0, 0, StaleAfterDays+1)) <= StaleAfterDays {
 		t.Error("Age does not pass the stale threshold")
+	}
+	// The lists a trust verdict depends on are old after a month; the others after half a year.
+	for _, s := range src {
+		at, _ := time.Parse("2006-01-02", s.Retrieved)
+		want := StaleAfterDays
+		switch s.Name {
+		case "Mozilla root store", "Chrome Root Store", "CT log list", "Mozilla OneCRL":
+			want = TrustStaleAfterDays
+		}
+		if s.StaleAfterDays != want || s.Stale(at.AddDate(0, 0, want)) || !s.Stale(at.AddDate(0, 0, want+1)) {
+			t.Errorf("%s: stale after %d days, want %d", s.Name, s.StaleAfterDays, want)
+		}
 	}
 }
 

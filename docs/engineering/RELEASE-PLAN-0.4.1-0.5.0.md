@@ -38,7 +38,7 @@ Each line is a PR of its own, reviewed and QA'd before the next starts. Rough ef
 
 | # | What | Source | Effort |
 |---|---|---|---|
-| 1 | **Weekly reference-data refresh** in CI: CCADB root stores, CT log list, Mozilla OneCRL and Go's distrusted SPKIs diffed into `distrust.json`; opens a PR when anything changes. Bundled-store age becomes a finding after 30 days. | CRYPTO-REVIEW-004 P3 (14, 15), PRD-016 U-18 | 2 |
+| 1 | **(built, PR open)** **Weekly reference-data refresh** in CI: CCADB root stores, CT log list, Mozilla OneCRL and Go's distrusted SPKIs diffed into `distrust.json`; opens a PR when anything changes. Bundled-store age becomes a finding after 30 days. | CRYPTO-REVIEW-004 P3 (14, 15), PRD-016 U-18 | 2 |
 | 2 | **Weak-key tests** on every key seen: EC small scalar (BSGS, \|k\| < 2^32), RSA ROCA, close primes (Fermat), small factors; self-test corpus | CRYPTO-REVIEW-004 P1 (6, 7, 9) | 4 |
 | 3 | **Estate batch GCD and key reuse** as a background job | CRYPTO-REVIEW-004 P1 (8) | 2 |
 | 4 | **Host exposure:** Windows Disallowed store, Linux/macOS trust-store files and `ca-certificates` versions, embedded bundles (Go buildinfo, certifi, Java cacerts), estate view "hosts exposed to a distrusted CA or key" | CRYPTO-REVIEW-004 P2 | 5 |

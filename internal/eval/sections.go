@@ -70,7 +70,9 @@ type RefInfo struct {
 	Count     int    `json:"count"`
 	AgeDays   int    `json:"ageDays"`
 	Stale     bool   `json:"stale"`
-	Licence   string `json:"licence"`
+	// StaleAfterDays is the age at which this list counts as old (30 days for the trust lists).
+	StaleAfterDays int    `json:"staleAfterDays"`
+	Licence        string `json:"licence"`
 }
 
 // sectionOf maps a finding to its section.
@@ -325,7 +327,7 @@ func referenceData(now time.Time) []RefInfo {
 	for _, s := range refdata.Sources() {
 		age := s.Age(now)
 		out = append(out, RefInfo{Name: s.Name, Source: s.URL, Retrieved: s.Retrieved, Count: s.Count,
-			AgeDays: age, Stale: age > refdata.StaleAfterDays, Licence: s.Licence})
+			AgeDays: age, Stale: s.Stale(now), StaleAfterDays: s.StaleAfterDays, Licence: s.Licence})
 	}
 	return out
 }

@@ -62,6 +62,7 @@ func loadDistrust() {
 					Title: in.Title, Since: in.Since, Summary: in.Summary, Sources: in.Sources})
 			}
 		}
+		addOneCRL(distrust)
 	})
 }
 

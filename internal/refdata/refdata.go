@@ -36,6 +36,18 @@ type Source struct {
 	SHA256    string `json:"sha256"`    // of the downloaded source file(s)
 	Licence   string `json:"licence"`
 	Count     int    `json:"count"`
+	// StaleAfterDays is the age at which this list is flagged as old: TrustStaleAfterDays for the
+	// lists a trust verdict depends on and that change every week or so, StaleAfterDays otherwise.
+	StaleAfterDays int `json:"staleAfterDays"`
+}
+
+// Stale reports whether the list is older than its threshold at now.
+func (s Source) Stale(now time.Time) bool {
+	limit := s.StaleAfterDays
+	if limit == 0 {
+		limit = StaleAfterDays
+	}
+	return s.Age(now) > limit
 }
 
 // Age is how old the list is at now, in whole days.
@@ -49,6 +61,12 @@ func (s Source) Age(now time.Time) int {
 
 // StaleAfterDays is the age at which a list is flagged as old (REQ-TDAT-3).
 const StaleAfterDays = 180
+
+// TrustStaleAfterDays is the age at which the root stores, the CT log list and OneCRL are flagged
+// as old (CRYPTO-REVIEW-004 item 15). Root programs add and remove CAs every few weeks and a
+// release carries a snapshot refreshed weekly, so a month-old snapshot means "upgrade": trust
+// verdicts may miss a removal or a newly blocked CA.
+const TrustStaleAfterDays = 30
 
 const (
 	licenceCCADB  = "CCADB Data Usage Terms (CDLA-Permissive-2.0); attribution: Common CA Database (CCADB)"
@@ -176,7 +194,12 @@ func LookupDHPrime(sha string) (DHPrime, bool) {
 func Sources() []Source {
 	m, c, d, l, t := mozillaSource, chromeSource, dhSource, ctSource, lifetimeSource
 	m.Count, c.Count, d.Count, l.Count, t.Count = len(mozillaRoots), len(chromeRoots), len(dhPrimes), len(ctLogs), len(lifetimeLimits)
-	return []Source{m, c, l, d, t, distrustSource()}
+	o := onecrlSource
+	o.Count = len(onecrlKeys) + len(onecrlCerts)
+	m.StaleAfterDays, c.StaleAfterDays, l.StaleAfterDays, o.StaleAfterDays = TrustStaleAfterDays, TrustStaleAfterDays, TrustStaleAfterDays, TrustStaleAfterDays
+	ds := distrustSource()
+	d.StaleAfterDays, t.StaleAfterDays, ds.StaleAfterDays = StaleAfterDays, StaleAfterDays, StaleAfterDays
+	return []Source{m, c, l, d, t, ds, o}
 }
 
 // RootCertificates returns every root of the bundled stores once, for checking
