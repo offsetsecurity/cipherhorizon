@@ -2005,7 +2005,9 @@ summary.ver-head-row > .ver-groups { grid-column: 3 / 5; grid-row: 2; }
 .lvltag-must { color: var(--text-2); }
 .std-limits { margin-top: 10px; font-size: 13.5px; color: var(--text-2); } .std-limits ul { margin: 6px 0 0 18px; }
 .stdcount b { font-variant-numeric: tabular-nums; } .stdcount-all b { color: var(--good); } .stdcount-none b { color: var(--bad); } .stdcount-some b { color: var(--warn); }
-.stdrows { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.stdpanel { grid-column: 1 / -1; }
+.stdrows { display: grid; grid-template-columns: 1fr; gap: 10px 32px; margin-top: 8px; }
+@media (min-width: 1100px) { .stdrows { grid-template-columns: 1fr 1fr; } }
 .stdrow { display: grid; grid-template-columns: minmax(160px, 1.2fr) minmax(120px, 2fr) minmax(150px, 1.3fr); gap: 12px; align-items: center; }
 .stdrow-name { display: flex; flex-direction: column; min-width: 0; } .stdrow-name b { font-size: 13.5px; } .stdrow-pub { font-size: 12px; color: var(--muted); }
 .stdrow-bar { display: flex; gap: 2px; height: 12px; border-radius: 2px; overflow: hidden; background: var(--surface-2); }
