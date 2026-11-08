@@ -35,7 +35,7 @@ post-quantum authenticated. Each protocol states its own rules. The TLS rules ar
 | **L1** Exposed | TLS 1.3 works, and no post-quantum group is accepted. | yes |
 | **L2** Hybrid available | A standardised hybrid group is accepted, but a current client does not end up using it. | yes |
 | **L3** Hybrid negotiated | A current client (Go `crypto/tls`, which offers `X25519MLKEM768` first) negotiates a standardised hybrid group; or the server ranks a hybrid group first. | no |
-| **L4** PQ-authenticated | L3, plus post-quantum authentication: a presented ML-DSA / SLH-DSA certificate, or an ML-DSA signature scheme the signature stage proved accepted (control refused). The authentication dimension says which. | no |
+| **L4** PQ-authenticated | L3, plus post-quantum authentication a current client gets: a presented ML-DSA / SLH-DSA certificate. A server that holds an ML-DSA key but serves a classical certificate by default (the signature stage proved the scheme accepted, control refused) stays L3 with the authentication dimension *post-quantum available* (eval/16). | no |
 
 Notes that matter when reading a result:
 
@@ -44,7 +44,7 @@ Notes that matter when reading a result:
 - **Only key exchange protects recorded traffic.** Certificates are about future forgery, not about a recording
   made today, so a classical certificate does not stop an endpoint reaching L3; it is shown as a separate
   dimension, and only post-quantum authentication (a presented ML-DSA certificate, or one the signature stage
-  proved the server holds) lifts L3 to L4.
+  presents to a current client) lifts L3 to L4; a key held only for ML-DSA clients is reported as available, at L3.
 - The overview shows three dimensions (key establishment, authentication, symmetric strength) each with its own
   evidence tier and sources, and an ordered list of next steps.
 
@@ -90,7 +90,7 @@ not marked down twice.
 The result lists each deduction (rule ID, title, severity, points), any ceiling that changed the outcome, and what is
 **not measured**: live revocation status (the staple is read; the CA is not asked), and active exploit probes
 (Heartbleed, ROBOT, CCS injection). HTTP Strict Transport Security is measured by default (the HTTP stage sends one
-`GET /`; `--http-checks=false` turns it off, and the HTTP section then says *Not checked* and why). Weaknesses
+`GET /`; Settings → Scanning on a server, or `--http-checks=false` on the CLI, turns it off, and the HTTP section then says *Not checked* and why). Weaknesses
 inferable from what a server offers (POODLE, Sweet32, FREAK, Logjam, CRIME, BEAST, RC4) appear as `inferred`
 findings and are scored like any other; an attack name is a label on its finding, so it never counts twice.
 
@@ -144,7 +144,7 @@ lifetime limit and the CT requirement. The readiness level is unaffected by trus
 - **Fetching is guarded.** Plain `http` URLs only, no credentials, at most 4 per certificate, 16 MiB per CRL, 10 s
   per fetch, 90 s for the stage, 3 redirects (each re-checked), no environment proxy. Every connection's real
   address is checked after DNS: loopback, link-local (cloud metadata), private (RFC 1918, fc00::/7,
-  100.64.0.0/10), unspecified and multicast are refused unless `--revocation-private` is set (an internal CA's
+  100.64.0.0/10), unspecified and multicast are refused unless "CRL servers on private addresses" is on in Settings → Scanning (`--revocation-private` on the CLI; an internal CA's
   CRL server). Results are cached per URL until the CRL's nextUpdate (at most a day), failures for 5 minutes.
 - **Revocation is a status, not a gate.** A revoked certificate stays on the path; the trust verdict and every
   other rule are unchanged. A current CRL that does not list the leaf counts, like a verified staple, as

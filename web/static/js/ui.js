@@ -68,10 +68,19 @@ export function statusPill(status) {
   return h('span', { class: `pill st-${status}` }, label);
 }
 
+/** A citation's short name: "RFC 9325", "CVE-2014-3566", "NIST SP 800-52 Rev. 2", else the title's first clause. */
+export function citeShort(title) {
+  const m = /^(RFC \d+|CVE-\d{4}-\d+|NIST (?:SP|IR|FIPS) [\w.\- ]+?(?= Rev\.| Part|:)|NIST SP [\w.\- ]+ Rev\. \d|FIPS \d+|IANA [A-Za-z ]+ registry|CA\/Browser Forum[^:(]*)/i.exec(title);
+  if (m) return m[1].trim();
+  const cut = title.split(/[:(]/)[0].trim();
+  return cut.length > 44 ? `${cut.slice(0, 42)}…` : cut;
+}
+
+/** Sources as a row of small chips: the short name shown, the full title on hover, the link opens it. */
 export function citations(list) {
   if (!list || !list.length) return null;
-  return h('ul', { class: 'cites' }, list.map((c) => h('li', null,
-    h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, c.title))));
+  return h('div', { class: 'cites', role: 'list', 'aria-label': 'Sources' }, h('span', { class: 'cites-label' }, 'Sources'),
+    list.map((c) => h('a', { class: 'cite', role: 'listitem', href: c.url, target: '_blank', rel: 'noopener noreferrer', title: c.title }, citeShort(c.title))));
 }
 
 export function certExpiry(iso) {

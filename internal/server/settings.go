@@ -67,6 +67,9 @@ func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
 			"maxConcurrentScans": s.cfg.MaxConcurrentScans, "retentionPerAsset": store.Retention,
 			"sessionIdleMinutes": int(s.sessionIdle().Minutes()), "sessionMaxHours": int(s.sessionMax().Hours()),
 		},
+		// scanning: the options every scan runs with, changeable here (0.5.1); the command line
+		// sets their starting values.
+		"scanning": s.cfg.Runner.ScanConfig(),
 	})
 }
 

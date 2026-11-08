@@ -43,6 +43,7 @@ var auditedRoutes = map[string]auditSpec{
 var selfAuditedRoutes = map[string]bool{
 	"POST /api/v1/auth/setup":                                 true,
 	"PUT /api/v1/settings/sign-in":                            true,
+	"PUT /api/v1/settings/scanning":                           true,
 	"POST /api/v1/auth/login":                                 true,
 	"POST /api/v1/auth/logout":                                true,
 	"POST /api/v1/auth/password":                              true,

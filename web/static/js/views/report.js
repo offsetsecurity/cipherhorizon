@@ -385,13 +385,15 @@ function checkFound(c, fs, ctx) {
         (f.labels || []).length ? h('span', { class: 'issue-area' }, `enables ${f.labels.join(', ')}`) : null,
         h('span', { class: 'issue-toggle' }, h('span', { class: 't-show' }, 'Details'), h('span', { class: 't-hide' }, 'Hide'))),
       h('div', { class: 'issue-body' },
-        h('p', null, h('b', null, 'What we saw: '), fs.length > 1 ? null : [f.detail, ' ', evidenceBadge(f.evidence)]),
-        fs.length > 1 ? h('ul', { class: 'facts' }, fs.map((x) => h('li', null, x.detail, ' ', evidenceBadge(x.evidence)))) : null,
-        h('p', null, h('b', null, 'Why it matters: '), whyOf(f, profileOf(ctx))),
-        h('p', { class: 'fix' }, h('b', null, 'Fix: '), f.remediation),
-        citations(f.citations),
-        c.section !== 'vulnerabilities' ? h('a', { href: `#sec-${c.section}`, class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goDetails(c.section); } },
-          `See ${sectionTitleIn(profileOf(ctx), c.section)} in Configuration →`) : null,
+        h('dl', { class: 'factgrid' },
+          h('dt', null, 'Seen'),
+          h('dd', null, fs.length > 1 ? h('ul', { class: 'facts' }, fs.map((x) => h('li', null, x.detail, ' ', evidenceBadge(x.evidence)))) : [f.detail, ' ', evidenceBadge(f.evidence)]),
+          h('dt', null, 'Why it matters'), h('dd', null, whyOf(f, profileOf(ctx))),
+          h('dt', null, 'Fix'), h('dd', { class: 'factgrid-fix' }, f.remediation)),
+        h('div', { class: 'issue-foot' },
+          citations(f.citations),
+          c.section !== 'vulnerabilities' ? h('a', { href: `#sec-${c.section}`, class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goDetails(c.section); } },
+            `See ${sectionTitleIn(profileOf(ctx), c.section)} in Configuration →`) : null),
         ctx.triageControls ? ctx.triageControls(c.id) : null)));
 }
 
@@ -498,8 +500,14 @@ function summaryStrip(ctx, sections) {
     chips = stores.length ? h('div', { class: 'trust-chips' }, stores.map((t) => h('span', { class: `tchip ${t.trusted ? 'tchip-good' : 'tchip-bad'}` }, `${t.store} ${t.trusted ? '✓' : '✕'}`)), oldStoresChip(ctx.ev))
       : h('div', { class: 'sumtile-sub' }, 'trust not analysed by this scan version');
   }
+  // A server that holds a post-quantum key beside the classical certificate a default client gets:
+  // say so on the tile, or L4 beside an ECDSA certificate reads as a contradiction.
+  const auth = r.authentication || {};
+  const pqHeld = /^post-quantum/.test(auth.status || '') && leaf && !/^(ML-DSA|SLH-DSA)/.test(leaf.publicKey?.algorithm || '');
+  const pqChip = pqHeld ? h('div', { class: 'sumtile-sub pq-held', title: auth.detail || '' },
+    h('span', { class: 'tchip tchip-good' }, '⬢ ML-DSA key held'), ' · served only to clients that offer ML-DSA; shown here is the certificate current clients get') : null;
   const cert = tile('#sec-certificates', 'sumtile-cert', 'Certificate',
-    h('div', { class: 'sumtile-figure' }, h('span', { class: `sumtile-big ${ctone}` }, certFig), h('span', { class: 'sumtile-sub' }, certSub)), certBar, chips);
+    h('div', { class: 'sumtile-figure' }, h('span', { class: `sumtile-big ${ctone}` }, certFig), h('span', { class: 'sumtile-sub' }, certSub)), certBar, chips, pqChip);
   return h('div', { class: 'sumstrip', role: 'group', 'aria-label': 'Where this endpoint stands' },
     ready, hyg, strength, cert,
     notChecked.length ? tile(`#sec-${notChecked[0].id}`, 'lv1', 'Not checked',

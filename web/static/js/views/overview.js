@@ -21,7 +21,7 @@ const problemsOf = (d) => (d ? d.critical + d.high + d.medium + (d.low || 0) : 0
 // the rule that reaches it (the scale is shared, the rubric is each protocol's own).
 const SCALE = [
   [4, 'L4', 'PQ-authenticated', 'Post-quantum key exchange and post-quantum authentication.',
-    'L3 and an ML-DSA certificate, presented or held.', 'L3 and an ML-DSA host key (ssh-mldsa44-ed25519).'],
+    'L3 and an ML-DSA certificate presented to a current client (one held only for ML-DSA clients reads as available, at L3).', 'L3 and an ML-DSA host key (ssh-mldsa44-ed25519).'],
   [3, 'L3', 'Hybrid negotiated', 'A current client gets a post-quantum hybrid key exchange.',
     'Go’s client negotiates X25519MLKEM768.', 'OpenSSH 10.6 negotiates mlkem768x25519 or sntrup761.'],
   [2, 'L2', 'Hybrid available', 'Offered, but a current client does not get it by default.',

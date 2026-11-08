@@ -74,6 +74,7 @@ export const api = {
   standardsSummary: () => request('GET', '/api/v1/standards/summary'),
   settings: () => request('GET', '/api/v1/settings'),
   setSignIn: (body) => request('PUT', '/api/v1/settings/sign-in', body),
+  setScanning: (body) => request('PUT', '/api/v1/settings/scanning', body),
   summary: (days = 14) => request('GET', `/api/v1/summary?days=${days}`),
 
   // Every network endpoint, TLS and SSH (PRD-008); hosts are api.hosts().

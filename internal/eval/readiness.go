@@ -107,7 +107,11 @@ func assessReadiness(c *ctx) Readiness {
 			r.Level = LevelHybridAvail
 		}
 	}
-	if r.Level == LevelHybridNeg && (hasPQCertificate(rep) || len(pqSchemes(rep)) > 0) {
+	// L4 is what a client gets: a post-quantum certificate presented. A server that holds an
+	// ML-DSA key but serves a classical certificate to current clients stays L3; the authentication
+	// dimension says the post-quantum key is available (eval/16; the scale's "available" versus
+	// "negotiated" distinction, as for key exchange).
+	if r.Level == LevelHybridNeg && hasPQCertificate(rep) {
 		r.Level = LevelPQAuth
 	}
 	r.Label = LevelLabel(r.Level)
@@ -149,6 +153,10 @@ func assessReadiness(c *ctx) Readiness {
 	r.Authentication = authDimension(rep)
 	r.Symmetric = symmetricDimension(c)
 	r.Summary, r.NextSteps = narrative(r.Level)
+	if r.Level == LevelHybridNeg && r.Authentication.Status == "post-quantum available" {
+		r.Summary += " The server also holds a post-quantum (ML-DSA) key, served only to clients that offer it; current clients are authenticated classically, so this is L3, not L4."
+		r.NextSteps = append([]string{"Present the ML-DSA certificate by default once your clients verify it; until then the classical certificate is what they get."}, r.NextSteps...)
+	}
 	r.Citations = []Citation{citHNDL, citRFC10024, citFIPS203, citIR8547, citOpenSSL35, citGoMLKEM}
 	return r
 }
@@ -177,7 +185,7 @@ func narrative(level int) (string, []string) {
 		return "A current client negotiates a standardised hybrid key exchange: recorded traffic is protected against harvest-now-decrypt-later.",
 			[]string{"Keep the hybrid group enabled and preferred.", "Track post-quantum certificates (ML-DSA, FIPS 204) as CAs and clients support them."}
 	default:
-		return "Hybrid key exchange and post-quantum authentication: the server presents, or holds and accepts, a post-quantum (ML-DSA) certificate.",
+		return "Hybrid key exchange and post-quantum authentication: the server presents a post-quantum (ML-DSA) certificate to a current client.",
 			[]string{"Maintain; retain classical fallback only while clients require it."}
 	}
 }
@@ -223,9 +231,9 @@ func authDimension(rep *tlsprobe.Report) Dimension {
 	// The certificate a default client got is classical, but the signature stage may have shown
 	// the server also holds a post-quantum key (PRD-008 REQ-PQS-5).
 	if names := pqSchemes(rep); len(names) > 0 {
-		d.Status = "post-quantum"
-		d.Detail = "The server accepted " + strings.Join(names, ", ") + " when it was the only signature scheme offered, so it holds a post-quantum key for it. " +
-			"The certificate a default client received uses " + strings.Join(algs, ", ") + "."
+		d.Status = "post-quantum available"
+		d.Detail = "The server accepted " + strings.Join(names, ", ") + " when it was the only signature scheme offered, so it holds a post-quantum key and serves it to clients that ask for it. " +
+			"A current client receives " + strings.Join(algs, ", ") + ", so its authentication today is classical: post-quantum authentication is available, not yet presented."
 		return d
 	}
 	d.Status = "classical"

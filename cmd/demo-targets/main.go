@@ -230,7 +230,7 @@ func main() {
 
 Post-quantum certificates:
   %s   mldsa-only         TLS 1.3, an ML-DSA-65 certificate only, hybrid   -> expect L4
-  %s   mldsa-dual         an ECDSA and an ML-DSA-65 certificate, hybrid    -> expect L4
+  %s   mldsa-dual         an ECDSA and an ML-DSA-65 certificate, hybrid    -> expect L3, PQ authentication available
 
 SSH servers (add with ssh://, e.g. ssh://%s):
 %s

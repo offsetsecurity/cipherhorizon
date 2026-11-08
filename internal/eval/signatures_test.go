@@ -24,18 +24,22 @@ func sigResult(control string, accepted ...string) *tlsprobe.SignatureResult {
 	return r
 }
 
-// REQ-PQS-5: a dual-certificate server whose default certificate is classical reaches L4 on the
-// signature stage's evidence, and the authentication dimension says which evidence.
-func TestDualCertificateServerReachesL4(t *testing.T) {
+// REQ-PQS-5, revised in eval/15: a dual-certificate server whose default certificate is classical
+// stays L3 (a current client is authenticated classically); the signature stage's evidence makes
+// the authentication dimension "post-quantum available" and the summary says why it is not L4.
+func TestDualCertificateServerIsL3WithPQAuthAvailable(t *testing.T) {
 	r := modern()
 	r.Signatures = sigResult(tlsprobe.SigRefused, "ecdsa_secp256r1_sha256", "mldsa65")
 	ev := eval.Evaluate(r, now)
-	if ev.Readiness.Level != eval.LevelPQAuth {
-		t.Fatalf("level %d, want L4", ev.Readiness.Level)
+	if ev.Readiness.Level != eval.LevelHybridNeg {
+		t.Fatalf("level %d, want L3", ev.Readiness.Level)
 	}
 	a := ev.Readiness.Authentication
-	if a.Status != "post-quantum" || !strings.Contains(a.Detail, "ML-DSA-65") || !strings.Contains(a.Detail, "only signature scheme offered") {
+	if a.Status != "post-quantum available" || !strings.Contains(a.Detail, "ML-DSA-65") || !strings.Contains(a.Detail, "only signature scheme offered") {
 		t.Errorf("authentication %+v", a)
+	}
+	if !strings.Contains(ev.Readiness.Summary, "not L4") {
+		t.Errorf("summary does not say why it is not L4: %s", ev.Readiness.Summary)
 	}
 	if ids(ev)["PQC.CLASSICAL-AUTH"] {
 		t.Error("PQC.CLASSICAL-AUTH raised although the server holds an ML-DSA key")
