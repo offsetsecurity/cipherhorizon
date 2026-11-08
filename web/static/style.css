@@ -2017,3 +2017,14 @@ a.stdrow-seg:hover { filter: brightness(1.15); }
 .fleet-good { color: var(--good); }
 .help-stds { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; } .help-std summary { cursor: pointer; } .help-std table { margin-top: 8px; }
 @media (max-width: 720px) { .stdrow { grid-template-columns: 1fr; gap: 6px; } }
+
+/* Client simulation (PRD-018) */
+.cl-table td, .cl-table th { vertical-align: top; }
+.cl-name .sub { color: var(--muted); font-size: 12px; }
+.cl-why { color: var(--text-2); }
+.cl-fail td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+.cl-pq { color: var(--good); font-weight: 600; }
+.cl-flags { display: flex; flex-wrap: wrap; gap: 4px; }
+.cl-group { margin-top: 16px; }
+.cl-failing { margin: 10px 0 0; color: var(--text-2); }
+.clcard .stackbar { margin-top: 10px; }
