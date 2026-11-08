@@ -57,7 +57,7 @@ func Validate(s *Served, store *Store, now time.Time, sctTimes []time.Time, dl *
 		// instead of the bare error crypto/x509 gives when it drops such a path.
 		if dl.Len() > 0 {
 			for _, p := range Paths(s, store) {
-				if on := dl.ListedOnPath(p); len(on) > 0 {
+				if on := dl.ListedOnPathIn(p, store.Name); len(on) > 0 {
 					res.Distrust, res.Listed, res.Path = listedReason(on), on, chainSHAs(p)
 					return res
 				}
@@ -87,7 +87,7 @@ func Validate(s *Served, store *Store, now time.Time, sctTimes []time.Time, dl *
 		if !ok {
 			continue
 		}
-		if on := dl.ListedOnPath(ch); len(on) > 0 {
+		if on := dl.ListedOnPathIn(ch, store.Name); len(on) > 0 {
 			reasons = append(reasons, listedReason(on))
 			if listed == nil {
 				listed, listedPath = on, ch

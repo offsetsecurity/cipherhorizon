@@ -200,7 +200,8 @@ function certificateSection(ctx, tone) {
       stores.map((t) => h('span', { class: `tchip ${t.trusted ? 'tchip-good' : t.expiredOnly ? 'tchip-warn' : 'tchip-bad'}`, title: t.trusted ? `path of ${(t.path || []).length}` : (t.distrust || t.error || 'no path to a root in this store') },
         `${t.store} ${t.trusted ? '✓' : '✕'}`)),
       v.names && v.names.host ? h('span', { class: `tchip ${v.names.matchedBy ? 'tchip-good' : 'tchip-bad'}`, title: v.names.matchedBy ? `matched by ${v.names.matchedBy}` : `checked: ${(v.names.checked || []).join(', ')}` },
-        v.names.matchedBy ? 'Name matches ✓' : 'Name does not match ✕') : null);
+        v.names.matchedBy ? 'Name matches ✓' : 'Name does not match ✕') : null,
+      oldStoresChip(ctx.ev));
     panel.replaceChildren(...[
       v.noSni ? h('div', { class: 'callout info', role: 'note' }, h('b', null, 'Only clients that send no server name see this chain. '), 'It is shown for information and is not scored.') : null,
       trust,
@@ -256,6 +257,17 @@ const cnOf = (dn) => { const m = /(?:^|,\s*)CN=([^,]+)/.exec(dn || ''); return m
 
 // crlSummary reads the CRL lookups of a chain view: one line per certificate on the served path,
 // and an overall verdict. Revocation is a status beside trust: this never changes the trust chips.
+// oldStoresChip warns, beside a trust verdict, that the bundled root stores this evaluation used
+// were already old when it ran: a CA removed or blocked since then is not reflected. It says
+// nothing about the endpoint, so it is a chip, not a finding.
+export function oldStoresChip(ev) {
+  const old = (ev && ev.referenceData || []).filter((r) => r.stale && /root store/i.test(r.name));
+  if (!old.length) return null;
+  const r = old[0];
+  return h('span', { class: 'tchip tchip-warn', title: `This verdict used root stores retrieved ${r.retrieved}, ${r.ageDays} days old when the scan was evaluated. Upgrade CipherHorizon for current root stores, then re-evaluate.` },
+    `Stores ${r.ageDays} days old`);
+}
+
 export function crlSummary(v, cr) {
   const results = v.crl || [];
   const chain = (cr && cr.chain) || [];

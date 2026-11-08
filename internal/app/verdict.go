@@ -310,6 +310,10 @@ func writeVerdict(w io.Writer, target string, ev eval.Evaluation) error {
 			fmt.Fprintf(&b, "    %s\n", f.Title)
 		}
 	}
+	if r, ok := oldRootStores(ev); ok {
+		fmt.Fprintf(&b, "\n  The root stores in this version were retrieved %s (%d days before this evaluation): a CA\n"+
+			"  removed or blocked since then is not reflected in the trust verdict. Upgrade CipherHorizon.\n", r.Retrieved, r.AgeDays)
+	}
 	_, err := io.WriteString(w, b.String())
 	return err
 }
@@ -320,4 +324,14 @@ func changesText(n int) string {
 		return "1 change"
 	}
 	return strconv.Itoa(n) + " changes"
+}
+
+// oldRootStores returns the bundled root store an evaluation flagged as old, if any.
+func oldRootStores(ev eval.Evaluation) (eval.RefInfo, bool) {
+	for _, r := range ev.ReferenceData {
+		if r.Stale && strings.Contains(strings.ToLower(r.Name), "root store") {
+			return r, true
+		}
+	}
+	return eval.RefInfo{}, false
 }

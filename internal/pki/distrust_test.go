@@ -123,3 +123,32 @@ func TestPathsFollowsCrossSigns(t *testing.T) {
 		t.Errorf("paths to an unrelated root: %d", len(p))
 	}
 }
+
+// TestDistrustByIssuerAndSerial covers root-program revocations (OneCRL) that name a CA
+// certificate only by its issuer and serial number: the path is kept and the entry reported,
+// and a sibling with another serial under the same issuer is not caught.
+func TestDistrustByIssuerAndSerial(t *testing.T) {
+	root := pkitest.NewRoot(t, "Root", pkitest.CAOpts{})
+	inter := root.Intermediate(t, "Revoked CA", pkitest.CAOpts{})
+	sibling := root.Intermediate(t, "Sibling CA", pkitest.CAOpts{})
+	leaf := inter.Leaf(t, pkitest.LeafOpts{})
+	dl := pki.NewDistrust()
+	l := compromised
+	l.Kind, l.Name = pki.KindCADistrust, "Revoked CA"
+	issuer, serial, _ := strings.Cut(pki.IssuerSerialKey(inter.Cert), ":")
+	dl.AddIssuerSerial(issuer, serial, l)
+
+	r := pki.Validate(analyze(t, leaf, inter.Cert), store(t, "S", true, rootOf(root)), epoch, nil, dl)
+	if r.Trusted || !strings.Contains(r.Distrust, `"Revoked CA" which root programs have blocked`) || len(r.Path) != 3 {
+		t.Errorf("issuer+serial entry: %+v", r)
+	}
+	if _, ok := dl.Lookup(sibling.Cert); ok {
+		t.Error("a sibling under the same issuer with another serial matched")
+	}
+	if _, ok := dl.LookupHashes(pki.Fingerprint(inter.Cert), pki.SPKIFingerprint(inter.Cert)); ok {
+		t.Error("LookupHashes matched an issuer+serial entry: facts-only certificates cannot be matched that way")
+	}
+	if dl.Len() != 1 || dl.Has(pki.SPKIFingerprint(inter.Cert)) {
+		t.Errorf("Len %d / Has", dl.Len())
+	}
+}

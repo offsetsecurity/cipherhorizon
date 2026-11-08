@@ -55,7 +55,7 @@ export async function render(root) {
   if (ref) {
     root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Reference data'),
       h('p', { class: 'text-2' }, 'Endpoints are judged against these dated lists, compiled into this version. Nothing is downloaded while it runs. A list older than ',
-        `${ref.staleAfterDays} days is flagged.`),
+        `${ref.staleAfterDays} days is flagged; the root stores, the CT log list and OneCRL after ${ref.trustStaleAfterDays || 30} days, since root programs change them every few weeks.`),
       h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
         h('thead', null, h('tr', null, ['List', 'Entries', 'Retrieved', 'Licence'].map((c) => h('th', { scope: 'col' }, c)))),
         h('tbody', null, ref.lists.map((l) => h('tr', null,
