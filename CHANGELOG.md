@@ -21,9 +21,12 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   name shown, the full title on hover) instead of a list; on the Findings page each place is a row with what was
   seen beside it, no disclosure to open; on a report's Weaknesses tab the detail is a Seen / Why it matters / Fix
   grid. The same chips replace the source lists everywhere.
-- **A post-quantum key held beside a classical certificate is said on the Summary.** A server that presents an
-  ML-DSA certificate only to clients that offer ML-DSA reads L4 while the Certificate tile shows the ECDSA or RSA
-  certificate current clients get; the tile now says the ML-DSA key is held and what the shown certificate is.
+- **L4 means a post-quantum certificate a client actually gets.** A server that holds an ML-DSA key but presents
+  it only to clients that offer ML-DSA, serving ECDSA or RSA to everyone else, was L4; it is now **L3** with the
+  authentication dimension *post-quantum available*, the Summary saying why, and the Certificate tile saying the
+  ML-DSA key is held and what the shown certificate is. The scale now treats authentication as it treats key
+  exchange: available is not negotiated. Evaluation version `eval/16`; stored results are re-evaluated at launch,
+  so such endpoints move from L4 to L3.
 
 ## [0.5.0] - 2026-11-08
 

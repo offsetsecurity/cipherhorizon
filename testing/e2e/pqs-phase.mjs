@@ -1,6 +1,8 @@
 // Post-quantum signatures in TLS (STRATEGY-002 C1; PRD-008 WP-A), through the browser on demo-targets:
 // 9458 serves only an ML-DSA-65 certificate and picks it before answering (as OpenSSL does); 9459
-// serves ECDSA and ML-DSA-65 certificates. Both have hybrid key exchange, so both are L4.
+// serves ECDSA and ML-DSA-65 certificates. Both have hybrid key exchange: the first is L4 (the
+// post-quantum certificate is what a client gets), the second L3 with post-quantum authentication
+// available (current clients get the ECDSA certificate).
 
 export async function pqsPhase({ check, js, go, sleep, shot }) {
   const add = await js(`return fetch('/api/v1/assets/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'cipherhorizon' },
@@ -20,8 +22,8 @@ export async function pqsPhase({ check, js, go, sleep, shot }) {
   await sleep(1500);
   const text = await js(`return document.querySelector('main').innerText`);
   const pq = await js(`return [...document.querySelectorAll('#sec-key-exchange .gchip-pq')].map((c) => c.textContent + ' ' + (c.querySelector('svg.pqg-safe') ? 'safe' : ''))`);
-  check('E2E-PQS.1', 'the ML-DSA-only and the dual-certificate servers are L4, and Configuration lists mldsa65 as accepted (post-quantum)',
-    done.length === 2 && done.every((a) => a?.lastDone?.readinessLevel === 4) &&
+  check('E2E-PQS.1', 'the ML-DSA-only server is L4, the dual-certificate server L3 (post-quantum authentication available, not presented), and Configuration lists mldsa65 as accepted',
+    done.length === 2 && done[0]?.lastDone?.readinessLevel === 4 && done[1]?.lastDone?.readinessLevel === 3 &&
     /Signature schemes, TLS 1\.3/.test(text) && pq.some((c) => /mldsa65/.test(c) && /ML-DSA-65/.test(c)),
     JSON.stringify(done.map((a) => [a?.port, a?.lastDone?.readinessLevel, a?.latest?.error])));
   await shot('tls-signature-schemes');

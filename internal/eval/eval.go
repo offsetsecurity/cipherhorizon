@@ -19,8 +19,9 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/15"
+const Version = "eval/16"
 
+// eval/16: L4 needs a presented post-quantum certificate; a held ML-DSA key reads "post-quantum available" at L3.
 // eval/15 (PRD-018): every TLS evaluation carries the client simulation (Evaluation.Clients).
 // eval/14 (PRD-017): every evaluation carries its verdicts against the published standards
 // (Evaluation.Standards), judged from the same facts as the findings.

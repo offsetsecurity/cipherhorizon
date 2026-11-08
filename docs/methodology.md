@@ -35,7 +35,7 @@ post-quantum authenticated. Each protocol states its own rules. The TLS rules ar
 | **L1** Exposed | TLS 1.3 works, and no post-quantum group is accepted. | yes |
 | **L2** Hybrid available | A standardised hybrid group is accepted, but a current client does not end up using it. | yes |
 | **L3** Hybrid negotiated | A current client (Go `crypto/tls`, which offers `X25519MLKEM768` first) negotiates a standardised hybrid group; or the server ranks a hybrid group first. | no |
-| **L4** PQ-authenticated | L3, plus post-quantum authentication: a presented ML-DSA / SLH-DSA certificate, or an ML-DSA signature scheme the signature stage proved accepted (control refused). The authentication dimension says which. | no |
+| **L4** PQ-authenticated | L3, plus post-quantum authentication a current client gets: a presented ML-DSA / SLH-DSA certificate. A server that holds an ML-DSA key but serves a classical certificate by default (the signature stage proved the scheme accepted, control refused) stays L3 with the authentication dimension *post-quantum available* (eval/16). | no |
 
 Notes that matter when reading a result:
 
@@ -44,7 +44,7 @@ Notes that matter when reading a result:
 - **Only key exchange protects recorded traffic.** Certificates are about future forgery, not about a recording
   made today, so a classical certificate does not stop an endpoint reaching L3; it is shown as a separate
   dimension, and only post-quantum authentication (a presented ML-DSA certificate, or one the signature stage
-  proved the server holds) lifts L3 to L4.
+  presents to a current client) lifts L3 to L4; a key held only for ML-DSA clients is reported as available, at L3.
 - The overview shows three dimensions (key establishment, authentication, symmetric strength) each with its own
   evidence tier and sources, and an ordered list of next steps.
 

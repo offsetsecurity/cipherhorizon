@@ -393,7 +393,7 @@ function checkFound(c, fs, ctx) {
         h('div', { class: 'issue-foot' },
           citations(f.citations),
           c.section !== 'vulnerabilities' ? h('a', { href: `#sec-${c.section}`, class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goDetails(c.section); } },
-            `${sectionTitleIn(profileOf(ctx), c.section)} in Configuration →`) : null),
+            `See ${sectionTitleIn(profileOf(ctx), c.section)} in Configuration →`) : null),
         ctx.triageControls ? ctx.triageControls(c.id) : null)));
 }
 
@@ -503,7 +503,7 @@ function summaryStrip(ctx, sections) {
   // A server that holds a post-quantum key beside the classical certificate a default client gets:
   // say so on the tile, or L4 beside an ECDSA certificate reads as a contradiction.
   const auth = r.authentication || {};
-  const pqHeld = auth.status === 'post-quantum' && leaf && !/^(ML-DSA|SLH-DSA)/.test(leaf.publicKey?.algorithm || '');
+  const pqHeld = /^post-quantum/.test(auth.status || '') && leaf && !/^(ML-DSA|SLH-DSA)/.test(leaf.publicKey?.algorithm || '');
   const pqChip = pqHeld ? h('div', { class: 'sumtile-sub pq-held', title: auth.detail || '' },
     h('span', { class: 'tchip tchip-good' }, '⬢ ML-DSA key held'), ' · served only to clients that offer ML-DSA; shown here is the certificate current clients get') : null;
   const cert = tile('#sec-certificates', 'sumtile-cert', 'Certificate',
