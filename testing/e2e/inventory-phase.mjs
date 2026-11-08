@@ -42,7 +42,8 @@ export async function inventoryPhase({ check, js, go, sleep, shot, api, BASE }) 
     text = await js(`return document.querySelector('main').innerText`);
   }
   check('E2E-HI.2', 'the machine page shows platform and policy as tiles (FIPS, TPM, disk encryption)',
-    /Platform and policy/.test(text) && /FIPS mode[\s\S]{0,40}On/.test(text) && /TPM[\s\S]{0,40}Present/.test(text) && /Disk encryption/.test(text), text.slice(0, 160));
+    /Platform and policy/.test(text) && /FIPS mode[\s\S]{0,40}On/.test(text) && /TPM[\s\S]{0,40}Present/.test(text) && /Disk encryption/.test(text),
+    JSON.stringify(text.slice(Math.max(0, text.indexOf('Platform and policy')), text.indexOf('Platform and policy') + 260)));
   check('E2E-HI.3', 'the installed OpenSSL is listed with its version and its ML-KEM algorithms',
     /OpenSSL \(installed\)/.test(text) && /KEM: .*ML-KEM-768/.test(text) && /X25519MLKEM768/.test(text), (text.match(/OpenSSL \(installed\)[^\n]*/) || [''])[0]);
   check('E2E-HI.4', 'services listening show the process, its sockets and the crypto stack it loaded, and none seen for a static binary',
