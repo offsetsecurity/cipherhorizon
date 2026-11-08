@@ -36,7 +36,7 @@ fix.
 - `TestTLS13HellosOfferMLDSA`
 - `TestAnMLDSAOnlyServerIsSeen`, `TestAnMLDSAOnlyServerIsL4`
 - `TestSignatureStageListsAcceptedSchemes`, `TestSignatureStageControlCatchesServersThatIgnoreTheList`
-- `TestDualCertificateServerReachesL4`
+- `TestDualCertificateServerReachesL4` (renamed `TestDualCertificateServerIsL3WithPQAuthAvailable` in 0.5.1, when REQ-PQS-5 was revised)
 - `TestEndpointCBOMListsAcceptedSignatureAlgorithms`
 - `TestOldReportsEvaluateUnchanged`
 - `TestDocsNameTheGoVersion`

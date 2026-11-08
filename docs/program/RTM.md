@@ -267,7 +267,7 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-PQS-2 | P0 | WP-A | PRD-008 | — | TestAnMLDSAOnlyServerIsSeen, TestAnMLDSAOnlyServerIsL4 | done | hermetic server picks its certificate before answering, as OpenSSL does; before the fix it read as no TLS 1.3, L0 |
 | REQ-PQS-3 | P0 | WP-A | PRD-008 | — | TestSignatureStageListsAcceptedSchemes | done | 15 connections; each hello carries real key shares so a Go server cannot answer with HelloRetryRequest before choosing |
 | REQ-PQS-4 | P0 | WP-A | PRD-008 | — | TestSignatureStageControlCatchesServersThatIgnoreTheList | done | control code point 0xFE01 (private use) |
-| REQ-PQS-5 | P0 | WP-A | PRD-008 | — | TestDualCertificateServerReachesL4 | done | control accepted keeps L3; ML-DSA without a hybrid group stays L1 |
+| REQ-PQS-5 | P0 | WP-A | PRD-008 | — | TestDualCertificateServerIsL3WithPQAuthAvailable | done | revised in eval/16: a held ML-DSA key is "post-quantum available" at L3; control accepted keeps L3; ML-DSA without a hybrid group stays L1 |
 | REQ-PQS-6 | P0 | WP-A | PRD-008 | — | TestEndpointCBOMListsAcceptedSignatureAlgorithms, script:testing/e2e/pqs-phase.mjs#E2E-PQS.1 | done | report Configuration tab, PDF stage table and endpoint CBOM |
 | REQ-PQS-7 | P0 | WP-A | PRD-008 | — | TestOldReportsEvaluateUnchanged | done | a report without the stage shows it as not collected |
 | REQ-PQS-8 | P1 | WP-A | PRD-008 | — | script:testing/e2e/pqs-phase.mjs#E2E-PQS.1 | done | demo-targets base+18 (ML-DSA only) and base+19 (ECDSA + ML-DSA), both L4 in the journey |
