@@ -31,13 +31,18 @@ awk -v v="$version" -v d="$date" '
 # (or points at the tag itself for the first release).
 url="$(sed -n 's#^\[Unreleased\]: \(.*\)/compare/.*#\1#p' "$tmp" | head -1)"
 if [ -n "$url" ]; then
-  prev="$(grep -oE '^\[[0-9][^]]*\]' "$tmp" | head -1 | tr -d '[]' || true)"
-  sed -i.bak "s#^\[Unreleased\]: .*#[Unreleased]: $url/compare/v$version...HEAD#" "$tmp"
+  # The release before this one is the next version heading down the file (headings are newest first).
+  prev="$(grep -oE '^## \[[0-9][^]]*\]' "$tmp" | sed -n '2p' | sed 's/^## \[//; s/\]$//' || true)"
   if [ -n "$prev" ]; then
-    printf '[%s]: %s/compare/v%s...v%s\n' "$version" "$url" "$prev" "$version" >> "$tmp"
+    newlink="[$version]: $url/compare/v$prev...v$version"
   else
-    printf '[%s]: %s/releases/tag/v%s\n' "$version" "$url" "$version" >> "$tmp"
+    newlink="[$version]: $url/releases/tag/v$version"
   fi
+  # The new link goes right under [Unreleased], so the list stays newest first.
+  awk -v u="[Unreleased]: $url/compare/v$version...HEAD" -v n="$newlink" '
+    index($0, "[Unreleased]: ") == 1 { print u; print n; next }
+    { print }
+  ' "$tmp" > "$tmp.bak" && mv "$tmp.bak" "$tmp"
   rm -f "$tmp.bak"
 fi
 mv "$tmp" "$f"
