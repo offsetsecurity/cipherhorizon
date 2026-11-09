@@ -28,7 +28,11 @@ import (
 var inventoryTabs = map[string]func(c cdx.Component) bool{
 	"algorithm": func(c cdx.Component) bool { return assetType(c) == cdx.CryptoAssetTypeAlgorithm },
 	"key":       func(c cdx.Component) bool { return assetType(c) == cdx.CryptoAssetTypeRelatedCryptoMaterial },
-	"protocol":  func(c cdx.Component) bool { return assetType(c) == cdx.CryptoAssetTypeProtocol },
+	// A protocol version something accepts. A machine's configuration records (bom-ref "config/...")
+	// are policy as written, shown on the machine's page, not versions seen in use.
+	"protocol": func(c cdx.Component) bool {
+		return assetType(c) == cdx.CryptoAssetTypeProtocol && !strings.HasPrefix(c.BOMRef, "config/")
+	},
 	"software": func(c cdx.Component) bool {
 		return c.CryptoProperties == nil && (c.Type == cdx.ComponentTypeLibrary || c.Type == cdx.ComponentTypeApplication || c.Type == cdx.ComponentTypeFramework)
 	},

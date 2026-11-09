@@ -10,6 +10,34 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Changed
+
+- **The README is shorter and current.** New screenshots from 0.6.0, taken from the demo servers, with the
+  machine page and the Inventory among them; the Docker quick start runs the published image and no longer needs
+  a checkout; the check counts are the product's (over 60 for TLS, 19 for SSH); the documentation table lists the
+  standards, client, CBOM model and reference data pages. The site pages carry the same counts.
+- `scripts/prepare-release.sh` sets the container image version the README and the install guide show, so they
+  cannot fall behind a release again (the install guide still said 0.4.0).
+- `testing/e2e/screenshots.mjs` uploads a demo machine and takes only the images the README shows.
+
+### Fixed
+
+- **The Inventory listed a machine's configuration records as protocol versions.** "nginx TLS configuration" and
+  the SSH server's policy appeared under *Protocol versions* with a "current" badge. That list is now the protocol
+  versions seen in use; configuration stays on the machine's page and in the CBOM.
+- The readiness trend no longer sizes an allocation from the request's `days` (it was already bounded to 366; the
+  code scanning alert `go/uncontrolled-allocation-size` could not see the bound).
+- Two control bytes left in interface source files by an editing tool: a backspace where a regular expression
+  meant a word boundary (so a TLS report could say finite-field DH was "not offered" when a DH suite was
+  accepted but its prime was not recorded), and a NUL used as a separator, which made Git treat
+  the machine page's source as a binary file.
+
+### Removed
+
+- `docs/engineering/RELEASE-PLAN-0.4.1-0.5.0.md`, a finished internal plan, moved to internal product
+  documentation; four screenshots no page used.
+
+
 ## [0.6.0] - 2026-11-09
 
 ### Added

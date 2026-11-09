@@ -17,6 +17,7 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
+  <a href="#what-it-does">What it does</a> ·
   <a href="#what-is-in-it">Features</a> ·
   <a href="#how-it-compares">How it compares</a> ·
   <a href="docs/methodology.md">Methodology</a> ·
@@ -42,40 +43,37 @@ quantum-vulnerable cryptography, and what to fix first. It runs on your network 
 
 ## Quick start
 
-Pick one. Downloads (Linux, macOS, Windows; amd64 and arm64) are on the [Releases page](../../releases).
+Pick one, then open <http://127.0.0.1:8080>, type an address and press Enter.
 
 **Docker or Podman**
 
 ```sh
-docker compose up -d          # or: podman compose up -d
+docker run -d --name cipherhorizon -p 127.0.0.1:8080:8080 -v cipherhorizon-data:/data ghcr.io/offsetsecurity/cipherhorizon:0.6.0
 ```
 
-**Debian, Ubuntu** (on RHEL or Fedora: `sudo dnf install ./cipherhorizon-<version>-1.x86_64.rpm`)
+**Debian, Ubuntu**, with the `.deb` from the [Releases page](../../releases) (on RHEL or Fedora:
+`sudo dnf install ./cipherhorizon-<version>-1.x86_64.rpm`)
 
 ```sh
 sudo apt install ./cipherhorizon_<version>_amd64.deb
 ```
 
-**Windows**, in a terminal run as administrator: a service that starts at boot
+**Windows**, with the zip from the [Releases page](../../releases), in a terminal run as administrator: a service
+that starts at boot
 
 ```powershell
 cipherhorizon.exe service install
 ```
 
-**Any OS**, from the release archive, running in this terminal
+**Any OS** (Linux, macOS, Windows; amd64 and arm64), from the release archive, running in this terminal
 
 ```sh
 cipherhorizon serve
 ```
 
-Each OS, where the data lives, backup, upgrade and removal: [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md).
-
-Open <http://127.0.0.1:8080>, type an address, press Enter. Sign-in is off until you want it: turn it on in
-**Settings** to give a team accounts and roles, or start with `--sign-in on`.
-
-Another port: `cipherhorizon serve --port 9000`, or set `CIPHERHORIZON_PORT=9000` (containers and services; the
-health check follows it). If the port is taken, `serve` says so and suggests the next one. Every way of running it:
-[Choosing the port](docs/engineering/INSTALL.md#choosing-the-port).
+Sign-in is off until you want it: turn it on in **Settings** to give a team accounts and roles, or start with
+`--sign-in on`. Another port: `cipherhorizon serve --port 9000` or `CIPHERHORIZON_PORT=9000`. Each OS, where the data
+lives, backup, upgrade and removal: [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md).
 
 From the command line, no server needed:
 
@@ -90,54 +88,58 @@ cipherhorizon tls scan --fail-on standard=nist-sp800-52r2 www.example.gov   # ex
 
 Scan only systems you own or are authorised to test.
 
-## Three things it does well
+## What it does
 
-**Post-quantum readiness, protocol by protocol.** One question across everything: is recorded traffic exposed to
-harvest-now-decrypt-later? Every TLS endpoint and SSH server gets a level from L0 (the protocol in use cannot carry
-a post-quantum key exchange) to L4 (post-quantum key exchange and authentication), each protocol by its own stated
-rules. Systems are ranked for migration by exposure and by how long their data must stay secret.
+### 1. Says where each endpoint stands on post-quantum
 
-**Scanners that show their work.** The TLS scanner is its own wire implementation: every protocol from SSLv2 to
-TLS 1.3, every cipher suite and key-exchange group (including `X25519MLKEM768`), the signature schemes (ML-DSA
-included), the certificate chain against the bundled root stores, OCSP stapling, CT and HSTS. It reads the certificate
-a server really serves even when only legacy suites reach it, names a root whose private key is public, and says
-*unknown* for what it cannot know (revocation, without contacting the CA) instead of guessing. Its 58 checks each
-say what they found or that they passed, why it matters, what to do and their sources; the TLS hygiene score (0 to
-100) shows its arithmetic. The SSH auditor reads what a server offers, negotiates as OpenSSH 10.6 would (ML-KEM hybrid
-included), verifies every host key, and never logs in. It judges the server against a cited baseline and writes the
-`sshd_config` lines that would make it meet it. Both are checked against real servers: OpenSSL for trust, OpenSSH
-9.2 and 10.0 for SSH.
+One question across everything: is recorded traffic exposed to harvest-now-decrypt-later? Every TLS endpoint and SSH
+server gets a level from **L0** (the protocol in use cannot carry a post-quantum key exchange) to **L4** (post-quantum
+key exchange and authentication), each protocol by its own stated rules. Systems are ranked for migration by exposure
+and by how long their data must stay secret.
 
-**An inventory you can hand over.** Two short, readable scripts (PowerShell and shell) inventory a machine without
-installing anything; CBOMs from other tools can be imported. TLS endpoints, SSH servers and machines merge into one
-CycloneDX 1.7 CBOM, with PDF reports for each endpoint and for the whole inventory, and the OMB M-23-02 items per system.
+### 2. Scans TLS and SSH in depth, and shows its work
 
-| A TLS endpoint: where it stands, then the three things to fix first | STARTTLS services, the same depth |
+The TLS scanner is its own wire implementation: every protocol from SSLv2 to TLS 1.3, every cipher suite and
+key-exchange group (`X25519MLKEM768` included), the signature schemes (ML-DSA included), and the certificate chain
+against the Mozilla and Chrome root stores. Each of its checks says what it found, why it matters, what to do and its
+source; the TLS hygiene score (0 to 100) shows its arithmetic. The SSH auditor negotiates as OpenSSH 10.6 would,
+verifies every host key, never logs in, and writes the `sshd_config` lines that meet a cited baseline. What it cannot
+know, it reports as *unknown* instead of guessing.
+
+| A TLS endpoint: where it stands, then what to fix first | STARTTLS services, the same depth |
 |---|---|
-| ![A TLS endpoint report: readiness L3, the TLS hygiene score, what to fix](docs/img/report-hybrid.png) | ![An SMTP endpoint scanned through STARTTLS](docs/img/report-starttls.png) |
-| **SSH servers: readiness and the baseline, never a score** | **The `sshd_config` lines that meet the baseline** |
-| ![The SSH servers page: readiness, baseline verdict, findings and host key per server](docs/img/ssh-servers.png) | ![An SSH server's Configuration tab: the baseline verdict, the sshd_config lines to copy, and what the baseline requires](docs/img/report-ssh-baseline.png) |
+| ![A TLS endpoint report: readiness L3, the TLS hygiene score, the weakest strength, the certificate, and what to fix first](docs/img/report-hybrid.png) | ![An SMTP endpoint scanned through STARTTLS](docs/img/report-starttls.png) |
+| **SSH servers: readiness and the baseline, never a score** | **An SSH server: what a current client gets, every method in bits** |
+| ![The SSH servers page: readiness, baseline verdict, findings and host key per server](docs/img/ssh-servers.png) | ![An SSH server's Configuration tab: what a current client negotiates, and every key exchange method in bits against the baseline](docs/img/report-ssh-baseline.png) |
+
+### 3. Inventories machines, and hands over one CBOM
+
+Two readable scripts (PowerShell and shell) inventory a machine without installing anything and without reading key
+material. TLS endpoints, SSH servers, machines and CBOMs imported from other tools merge into one CycloneDX 1.7 CBOM,
+with PDF reports and the OMB M-23-02 items per system.
+
+| A machine: platform state, coverage, algorithms and services | The inventory: everything seen, and what to replace first |
+|---|---|
+| ![A machine page: quantum-vulnerable and quantum-safe algorithm counts, FIPS mode, TPM, disk encryption, and how much the inventory could see](docs/img/machine.png) | ![The Inventory: algorithms by post-quantum status, the quantum-vulnerable ones most used, and protocol versions](docs/img/inventory.png) |
 
 ## What is in it
 
 | | |
 |---|---|
-| **TLS endpoints** | Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group (hybrids such as `X25519MLKEM768` included), the TLS 1.3 signature schemes (ML-DSA included), the certificate chain against the Mozilla and Chrome root stores or your own CA, OCSP stapling, Certificate Transparency and HSTS; DH parameters tested for primality. STARTTLS for SMTP, IMAP, POP3, FTP, XMPP, LDAP and PostgreSQL. 58 cited checks and the TLS hygiene score. |
-| **SSH servers** | Identification and algorithm lists, negotiation as OpenSSH 10.6 would (the ML-KEM hybrid included), every host key fetched and verified (Ed25519, ECDSA, RSA, ML-DSA and the composite `ssh-mldsa44-ed25519`), 18 cited checks, and the CipherHorizon SSH baseline 2026 with the `sshd_config` lines to meet it. It never logs in. |
-| **Classical strength** | Every algorithm, key and cipher suite in bits, computed with NIST's own methods (the GNFS estimate for RSA and DH, half the order for curves, SP 800-57 for ciphers and hashes). A suite is as strong as its weakest part and names it, on the report, the PDF, the CLI, the Inventory, SSH reports and the CBOM (`classicalSecurityLevel`). Every algorithm is classed as asymmetric, symmetric or hash; each report shows every suite part by part and every algorithm by class, drawn as bits bars on one scale. |
-| **One page to check a setup** | Each report has a Summary (readiness, hygiene, the weakest strength and the certificate as figures, then the three things to fix first) and a Configuration that reads in a reviewer's order: every TLS version folded to one line that says whether it should be on and how its suites rate, opening to its suites part by part; the certificate chain; key exchange and signatures; revocation; protocol features; every algorithm by class. SSH reports read the same way, ending with the baseline and its `sshd_config` lines. |
-| **Certificates** | Open any certificate in a chain to read the whole X.509 document: its chain, validity, key and signature with their strengths, names and uses, every extension decoded, fingerprints, and the PEM to copy or download. |
-| **Post-quantum readiness** | L0 to L4 for every TLS endpoint and SSH server, each protocol by its own stated rules, with harvest-now-decrypt-later exposure. |
-| **Machines** | Two readable inventory scripts (PowerShell, shell) gather a machine's cryptography by meaning: platform state (FIPS, TPM, disk encryption, Secure Boot), what its OpenSSL and OpenSSH can do, the TLS, SSH, VPN and authentication settings of the system and its servers, certificates and which provider holds each key, and every listening service with the libraries it loaded. Nothing is installed, no key material is read, and a signature can only pick a query the engine itself defines. |
-| **Inventory** | TLS endpoints, SSH servers, machines and imported CBOMs merged into one CycloneDX 1.7 (or 1.6) CBOM: every algorithm with its OID where one exists (the exact certificate signature algorithm, ECDH on each named curve, legacy ciphers such as 3DES and RC4), certificates with their serial and SHA-256 fingerprint. |
-| **Charts you can act on** | Every chart opens what it counts: a readiness level opens the endpoints at that level, a ring segment the quantum-vulnerable algorithms, an expiry bar the certificates expiring in that window, a point on the history the scan it stands for. The filter stays in the address, so a filtered list can be bookmarked and Back returns to the chart. |
-| **Findings and systems** | Findings across everything, grouped by problem, with triage; systems ranked for migration by exposure and how long their data must stay secret; OMB M-23-02 export per system. |
-| **Published standards** | Every scan judged, clause by clause, against RFC 9325 (BCP 195), NIST SP 800-52 Rev. 2, BSI TR-02102-2 and -4, the ANSSI TLS guide, Mozilla Modern and Intermediate, PCI DSS v4.0.1 4.2.1 and the CNSA 2.0 profiles: each clause with the document's section number, whether it holds, and what was seen. A checklist per standard on the report, the PDF and as CSV; the fleet's standing on the Overview; `--fail-on standard=ID` in CI. The verdicts are the documents', read from the documents ([docs/standards.md](docs/standards.md)). |
-| **Client simulation** | What two dozen named clients, from current Chrome, Safari, Java 21 and OpenSSL 3.5 to Android 4.4, Java 6 and IE 8, would negotiate with each TLS endpoint: version, suite, group, forward secrecy, post-quantum, or why they cannot connect. Computed from the scan, nothing sent ([docs/clients.md](docs/clients.md)). |
-| **Reports** | PDF reports per TLS endpoint, per SSH server and for the whole inventory; CycloneDX, CSV and JSON downloads. |
+| **TLS endpoints** | SSLv2 to TLS 1.3, every suite and group, signature schemes, the chain against the Mozilla and Chrome root stores or your own CA, OCSP stapling, CRLs, Certificate Transparency, HSTS, DH primes tested. STARTTLS for 7 protocols. Over 60 cited checks. |
+| **SSH servers** | Algorithm lists, negotiation as OpenSSH 10.6 would, every host key verified (ML-DSA and the composite `ssh-mldsa44-ed25519` included), 19 cited checks, and the CipherHorizon SSH baseline 2026 with the `sshd_config` lines to meet it. |
+| **Post-quantum readiness** | L0 to L4 for every TLS endpoint and SSH server, with harvest-now-decrypt-later exposure. |
+| **Classical strength** | Every algorithm, key and cipher suite in bits, by NIST's methods. A suite is as strong as its weakest part, and names it. |
+| **Published standards** | Each scan judged clause by clause against RFC 9325, NIST SP 800-52 Rev. 2, BSI TR-02102-2 and -4, the ANSSI TLS guide, Mozilla Modern and Intermediate, PCI DSS v4.0.1 and CNSA 2.0 ([docs/standards.md](docs/standards.md)). |
+| **Client simulation** | What two dozen named clients, from current Chrome to Java 6 and IE 8, would negotiate with each TLS endpoint, or why they cannot connect ([docs/clients.md](docs/clients.md)). |
+| **Certificates** | Any certificate in a chain as the whole X.509 document: validity, key and signature strength, every extension decoded, the PEM to copy. |
+| **Machines** | Platform state (FIPS, TPM, disk encryption, Secure Boot), what OpenSSL and OpenSSH can do, TLS, SSH, VPN and authentication settings, certificates and which provider holds each key, and every listening service with the libraries it loaded. |
+| **Inventory** | Everything merged into one CycloneDX 1.7 (or 1.6) CBOM: algorithms with their OIDs, certificates with serial and fingerprint. Every chart opens what it counts. |
+| **Findings and systems** | Findings grouped by problem, with triage; systems ranked for migration; OMB M-23-02 export per system. |
+| **Reports** | PDF per TLS endpoint, per SSH server and for the whole inventory; CycloneDX, CSV and JSON downloads. |
 | **Over time** | Schedules, history, and what changed between two scans. |
 | **For teams** | Sign-in when you want it: administrator, analyst and viewer roles, an exportable activity log. |
-| **For pipelines** | `tls scan` and `ssh scan` from the command line with `--fail-on` gates (exit 3), JSON and CBOM output, and the REST API (`/api/v1/openapi.json`). |
+| **For pipelines** | `tls scan` and `ssh scan` with `--fail-on` gates (exit 3), JSON and CBOM output, and the REST API (`/api/v1/openapi.json`). |
 
 ## How it compares
 
@@ -177,14 +179,14 @@ The readiness level, the TLS hygiene score and the SSH baseline are this project
   but the scans you start. A scan contacts only its target.
 - **It passes its own scan.** Served over HTTPS, it speaks TLS 1.2 (forward-secret AEAD only) and TLS 1.3 with the
   hybrid post-quantum key exchange, sends HSTS, and the test suite scans it with its own scanner.
-- **Accounts when you want them.** Sign-in is off for one person on their own machine and one click away for a
-  team: administrator, analyst and viewer roles, PBKDF2 password hashes, sessions that end, lock-outs, and every
-  sign-in and change in an activity log an administrator can export. A server on the network will not start open
+- **Accounts when you want them.** Administrator, analyst and viewer roles, PBKDF2 password hashes, sessions that
+  end, lock-outs, and an activity log an administrator can export. A server on the network will not start open
   unless told to (`--open-network`).
 - **Limits you set.** `--scan-allow` restricts what can be scanned; loopback, link-local and cloud-metadata
   addresses are refused by default.
-- **Verifiable releases.** Signed checksums (Sigstore), an SBOM per archive, build provenance, and the inventory
-  scripts' hashes from `cipherhorizon scripts list`.
+- **Inventory scripts you can read.** They install nothing, read no key material, and can only run the queries the
+  script itself defines; `cipherhorizon scripts list` prints their hashes.
+- **Verifiable releases.** Signed checksums (Sigstore), an SBOM per archive and build provenance.
 
 Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 
@@ -192,13 +194,17 @@ Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 
 | | |
 |---|---|
+| [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md) | Installing on each OS, the port, where the data lives, backup, upgrade, removal |
 | [docs/deploy.md](docs/deploy.md) | Docker, Caddy with automatic HTTPS, systemd, Windows, backups |
 | [docs/CI.md](docs/CI.md) | `tls scan` and `ssh scan --fail-on`, and a GitHub Actions example |
 | [docs/methodology.md](docs/methodology.md) | Every check, the readiness levels, the TLS hygiene score, the SSH baseline |
 | [docs/tls-scanning.md](docs/tls-scanning.md) | How the TLS scanner works and what it sends |
 | [docs/ssh-scanning.md](docs/ssh-scanning.md) | How the SSH auditor works, what it sends, and the SSH baseline |
+| [docs/standards.md](docs/standards.md), [docs/clients.md](docs/clients.md) | The published standards, clause by clause; the simulated clients and their sources |
 | [docs/estate-guide.md](docs/estate-guide.md) | Systems, machines, migration order |
 | [docs/importing.md](docs/importing.md), [docs/exporting.md](docs/exporting.md) | CBOM in and out, OMB M-23-02 |
+| [docs/cbom-model.md](docs/cbom-model.md) | What a CipherHorizon CBOM contains, and which parts are CycloneDX |
+| [docs/reference-data.md](docs/reference-data.md) | The root stores and other dated lists compiled into the binary |
 | [docs/architecture.md](docs/architecture.md) | How it is built |
 | `/api/v1/openapi.json` on a running server | The API |
 
@@ -212,7 +218,7 @@ cipherhorizon serve --allow-loopback         # loopback scans are refused unless
 `demo-targets` prints what each server is and what to expect: a hybrid post-quantum server (L3), classical TLS 1.3
 (L1), TLS 1.2 only (L0), a deliberately terrible SSLv3 server, a slow one, a private CA chain, one STARTTLS
 service per protocol, and SSH servers from an SSH-1 banner (L0) to an ML-DSA host key (L4), one of them hardened to
-meet the baseline.
+meet the baseline. The screenshots on this page are these servers.
 
 ## Building and testing
 
@@ -227,8 +233,8 @@ node testing/e2e/journey.mjs        # the browser journey, see testing/README.md
 ```
 
 The interface is plain HTML, CSS and JavaScript modules embedded with `go:embed`; storage is SQLite through a pure-Go
-driver; the TLS scanner and the SSH auditor are their own wire implementations (`internal/tlsprobe`, `internal/sshprobe`). The design rules are in
-[DESIGN.md](DESIGN.md).
+driver; the TLS scanner and the SSH auditor are their own wire implementations (`internal/tlsprobe`,
+`internal/sshprobe`). The design rules are in [DESIGN.md](DESIGN.md).
 
 ## Contributing
 

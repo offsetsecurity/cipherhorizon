@@ -6,7 +6,7 @@
 import { authFetch as fetch } from './authfetch.mjs';
 
 // Shaped on a real Ubuntu 26.04 run (the fixture in internal/machinefacts/interpret_v3_test.go, trimmed).
-const FACTS = [
+export const FACTS = [
   'cipherhorizon-machine-facts\t3', 'script\tlinux-sh\t3.0.0', 'host\tname\tweb-e2e', 'host\tos\tlinux', 'host\tprivilege\tadmin',
   'host\tcollected\t2026-11-09T10:00:00Z', 'signatures\t2026.11.09',
   'fact\tlinux.platform.kernel\tquery\tos.kernel\tLinux 6.18.3-amd64 x86_64', 'ran\tlinux.platform.kernel\t1',

@@ -247,7 +247,8 @@ func (s *Store) trend(days int, now time.Time) ([]TrendPoint, error) {
 		return nil, err
 	}
 
-	out := make([]TrendPoint, 0, days)
+	// Grown by append, not sized from days: the caller bounds days, and nothing here allocates on its word.
+	out := []TrendPoint{}
 	for d := 0; d < days; d++ {
 		dayEnd := startDay.AddDate(0, 0, d+1)
 		pt := TrendPoint{Date: startDay.AddDate(0, 0, d).Format("2006-01-02"), Levels: map[int]int{}}

@@ -233,7 +233,7 @@ function keyExchangeSection(ctx, tone) {
     chipRow('Finite-field DH', dh ? h('span', { class: `gchip${dh.primeBits < 2048 ? ' gchip-bad' : ''}`, title: ev.dhGroup ? `${ev.dhGroup.name} (${ev.dhGroup.source})` : 'a prime that is not a published group' },
       `${dh.primeBits}-bit prime`, ev.dhGroup ? ` · ${ev.dhGroup.name}` : ' · custom')
       // A DHE or anonymous DH suite was accepted but no prime was recorded: say that, never "not offered".
-      : (rep.suites || []).some((x) => /^(DHE|DH)/.test(x.kx || '') || /_DHE?_|_DH_anon_/.test(x.name || '')) ? h('span', { class: 'gchip', title: 'A finite-field DH suite was accepted, but the prime was not recorded by this scan' }, 'offered · prime not recorded')
+      : (rep.suites || []).some((x) => /^(DHE|DH)\b/.test(x.kx || '') || /_DHE?_|_DH_anon_/.test(x.name || '')) ? h('span', { class: 'gchip', title: 'A finite-field DH suite was accepted, but the prime was not recorded by this scan' }, 'offered · prime not recorded')
         : h('span', { class: 'gchip' }, 'not offered')),
     sig ? chipRow('Signature schemes, TLS 1.3', sig.control !== 'refused'
       ? h('span', { class: 'gchip', title: sig.control === 'accepted' ? 'The server answers whatever is offered, so its keys cannot be told' : (sig.controlWhy || 'no clear answer') }, 'could not be told')
