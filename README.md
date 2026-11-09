@@ -48,7 +48,7 @@ Pick one, then open <http://127.0.0.1:8080>, type an address and press Enter.
 **Docker or Podman**
 
 ```sh
-docker run -d --name cipherhorizon -p 127.0.0.1:8080:8080 -v cipherhorizon-data:/data ghcr.io/offsetsecurity/cipherhorizon:0.6.0
+docker run -d --name cipherhorizon -p 127.0.0.1:8080:8080 -v cipherhorizon-data:/data ghcr.io/offsetsecurity/cipherhorizon:0.6.1
 ```
 
 **Debian, Ubuntu**, with the `.deb` from the [Releases page](../../releases) (on RHEL or Fedora:

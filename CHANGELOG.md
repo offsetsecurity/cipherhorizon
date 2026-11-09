@@ -10,6 +10,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-09
+
 ### Changed
 
 - **The README is shorter and current.** New screenshots from 0.6.0, taken from the demo servers, with the
@@ -1085,7 +1087,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Storage:** SQLite only. Up to 50 snapshots of up to 32 MiB are kept per machine; there is no overall storage
   budget yet.
 
-[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.4.1...v0.5.0
