@@ -2,7 +2,7 @@
 
 **Synthetic.** Small documents written for this repository, modelled on the structure of what real
 producers emit (IBM CBOMkit / sonar-cryptography, CBOM-Lens 1.7, CBOMkit Theia) and on the real
-samples profiled in `docs/product/RESEARCH-003`. They are not copies: the licences of the real
+samples profiled in RESEARCH-003 (internal). They are not copies: the licences of the real
 samples are not all verified (PRD-003 OQ-5), so none is vendored.
 
 To check against real documents, point `CIPHERHORIZON_INTEROP_DIR` at a directory of them; the

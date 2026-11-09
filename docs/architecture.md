@@ -10,7 +10,7 @@
 ```
 
 Design record: [docs/decisions](decisions) (ADR-0001 to ADR-0010) and the program in
-[host-discovery-program.md](host-discovery-program.md). The rules, in short:
+host-discovery-program (internal). The rules, in short:
 
 - **Sensors observe; they never infer.** A sensor (`internal/sense`) returns `evidence.Batch`:
   observations (a package is installed, a file exists) and *coverage* (what it looked at and what it could
@@ -22,7 +22,7 @@ Design record: [docs/decisions](decisions) (ADR-0001 to ADR-0010) and the progra
   `libcrypto-3-x64.dll`) is listed as present and is never credited with capability.
 - **No claim is stronger than its weakest evidence.** Every derived fact names the observations it rests on;
   `evidence.Graph.Add` rejects one that claims more than they support, and the CBOM projection re-checks the
-  whole graph before writing anything. See [evidence model](../artifacts/evidence-model.md).
+  whole graph before writing anything. See evidence model (internal).
 - **Absence is earned.** A sensor that could not read something reports it (`Coverage`, `unknown(reason)`);
   the CBOM lists what was not seen (`cipherhorizon:not-seen`), and a run below Administrator/root says so
   ([ADR-0009](decisions/ADR-0009-privilege-disclosure-and-redaction.md)).
@@ -34,7 +34,7 @@ Built-in sensors: `apt` (Debian, Ubuntu, Kali: the dpkg database), `pe-files` (l
 Windows: a bounded walk of install locations plus a hand-written, fuzzed PE version-resource reader),
 `windows-cng` (what Windows itself provides) and `cert-files` (X.509 certificates held as files on Linux: trust
 stores and service directories; public metadata only, never a key; see ADR-0015 and
-`docs/host-discovery/stage-3-certificates-report.md`).
+stage-3-certificates-report (internal)).
 
 ### The sensor contract (`internal/sense`)
 

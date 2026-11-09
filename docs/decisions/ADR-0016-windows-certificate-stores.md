@@ -1,6 +1,6 @@
 # ADR-0016: Windows certificate store enumeration
 
-- **Status:** Accepted, conditional on the written syscall review (`docs/host-discovery/wp3-security-review.md`) and the oracle comparison
+- **Status:** Accepted, conditional on the written syscall review (wp3-security-review (internal)) and the oracle comparison
 - **Date:** 2026-09-26
 - **Deciders:** Product Manager, Security Architect
 - **Amends:** ADR-0013 ("nothing opens or enumerates a certificate"), ADR-0005 decision 4

@@ -30,6 +30,17 @@ suite:
 so a stale binary or old test database is never mistaken for current output. `make check` (build, vet, gofmt, tests, UI script syntax) runs everything a PR needs locally; `make help` lists the
 rest. `go vet ./...` and `gofmt -l .` (expect no output) should be clean before you open a PR.
 
+## What lives in this repository, and what does not
+
+This repository holds the code, its tests, the user and operator documentation (`docs/*.md`), the
+changelog, engineering notes (`docs/engineering`) and architecture decision records (`docs/decisions`),
+which explain why the code is the way it is.
+
+Product requirements documents, design and UX reviews, QA reports, audits, strategy notes and working
+artefacts are internal and are kept elsewhere. Where a decision record or the changelog cites one, it is
+named ("PRD-019, internal") rather than linked. Do not add planning documents, reviews or reports here:
+if a decision is worth keeping in public, write it as an ADR.
+
 ## Making a change
 
 1. **Branch off `main`** with a short-lived branch (`feat/...`, `fix/...`, `docs/...`); see
@@ -51,7 +62,7 @@ rest. `go vet ./...` and `gofmt -l .` (expect no output) should be clean before 
 
 Every install upgrades its own database when a new version starts, from whatever version it ran before,
 however many releases it skipped. That only works if these rules hold (the tests enforce most of them; see
-[PRD-016](docs/product/PRD-016-upgrades-and-updates.md) §5.2):
+PRD-016 (internal) §5.2):
 
 - **Add a new step to `migrations` in `internal/store/store.go`; never edit, reorder or remove one that has
   shipped.** Shipped steps are listed in `internal/store/migrations.lock` (`TestMigrationsLock`). Fix a

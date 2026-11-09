@@ -1,14 +1,15 @@
-# RTM: requirements traceability matrix for PRD-003 and PRD-004
+# RTM: requirements traceability matrix
 
 The **only** place a requirement is declared done. Checked by `internal/archtest` (`TestRequirementsTraceability`):
 
-- every `REQ-*` id in [PRD-003](../product/PRD-003-cryptographic-estate-model.md) and [PRD-004](../product/PRD-004-tls-scanner-t1-pki-depth.md) has exactly one row here, and every row here exists in a PRD;
-- a row with status `done` lists at least one test, and every `Test*`/`Fuzz*` name listed exists in a `_test.go` file of the repository;
-- evidence that is not a Go test is written `script:<file>#<check>`, `oracle:<file>` or `report:<doc>#<section>`; those are not resolved automatically, they must point at something that exists in the repository (checked for the file part).
+- a row with status `done` lists at least one test, and every `Test*`/`Fuzz*` name listed exists in a `_test.go` file of the repository, so a test cannot be deleted silently;
+- evidence that is not a Go test is written `script:<file>#<check>`, `oracle:<file>` or `report:<doc>#<section>`; the file part of `script:` and `oracle:` must exist in this repository, a `report:` names an internal document.
 
-Status: `todo` / `in-progress` / `done` / `deferred`. A `deferred` row must say why in *Notes*. Priority and sources are copied from the PRD; if they differ, the PRD wins and this table is corrected.
+The requirement ids come from the product requirements documents (PRD-003 to PRD-015), which are internal product documentation and are not in this repository; the ids, their evidence and their status are public here.
 
-Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estate-model.md) §4). **Source** research finding ([RESEARCH-003](../product/RESEARCH-003-ecosystem-standards-and-design-inputs.md)). **SR** security requirement ([SECARCH-001](../product/SECARCH-001-threat-model-and-security-requirements.md)). **Evidence** tests/oracles/reports.
+Status: `todo` / `in-progress` / `done` / `deferred`. A `deferred` row must say why in *Notes*.
+
+Columns: **WP** work package. **Source** research finding. **SR** security requirement (the coverage table at the end). **Evidence** tests, oracles, reports.
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -19,8 +20,8 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-MOD-5 | P0 | WP-1 | — | SR-10 | TestLegacyDatabaseMigratesWithoutLosingAnything, TestFailedMigrationLeavesTheDatabaseIntact, TestFrozenMigrationsAreUnchanged, TestLegacySnapshotsKeepOnlyTheClassTheyCanProve, TestDBRebuildGraphAndStats, TestBackupIsOwnerOnlyOnUnix | done | found and fixed a real bug: a retry within the same second could not take a backup |
 | REQ-MOD-6 | P0 | WP-1 | E-1, E-2 | SR-03 | TestStreamsAndSourceClassesStaySeparate, TestSchemaRefusesAnObservationWithoutAMethod, TestValidateRefusals, TestHostUploadSourceClassFollowsTheProducer, TestAHostUploadIsImportedUnlessTheChannelSaysOtherwise | done | host upload class follows the producer the document names (documented weaker guarantee until an authenticated push exists; SECARCH-001 T-03) |
 | REQ-MOD-7 | P1 | WP-1 | — | — | TestAnEntityNoLongerObservedIsFlaggedNotDeleted, TestTheSameCertificateIsOneEntity | done |  |
-| REQ-CERT-1 | P0 | WP-3 | K-1 | SR-06, SR-07 | TestEachCertificateInEachStoreIsAnObservation, TestOnlyAllowListedStoresAreRequested, TestAStoreThatFailsMakesTheResultPartialNotFatal, TestAStalledStoreIsGivenUpOn, TestNoKeyMaterialFunctionIsCalled, TestKeyAssociationQueryIsTheOnlyPropertyReadAndHasNoBuffer, TestStoresOutsideTheAllowListAreRefusedBeforeWindowsIsCalled, TestTheRealCertificateStoresAnswerSanely, TestTheRealSensorOnThisMachine, oracle:testing/hostdiscovery/compare-certs.ps1, report:docs/host-discovery/wp3-security-review.md | done | syscall review passed; oracle AGREE on this machine (142 expected, 140 detected, 2 unparseable accounted, 0 extra) with 5 negative controls caught; Server/ARM64/elevated not validated |
-| REQ-CERT-2 | P0 | WP-2 | K-1 | SR-06, SR-16 | TestFindsCertificatesInTrustStoreAndServiceDirs, TestSymbolicLinkRules, TestBudgetsAreEnforcedAndReported, TestDetectAndDeterminism, TestMalformedInputIsCountedNotFatal, TestAnOverriddenRootCannotBeEscapedBySymlinks, oracle:testing/hostdiscovery/compare-certs.sh, report:docs/host-discovery/stage-3-certificates-report.md | done | oracle AGREE on a real Linux-style tree (212 placements, Mozilla bundles); NOT run on a live Linux host; the overridden-root symlink test skips on this machine (no symlink privilege) and runs in Linux CI |
+| REQ-CERT-1 | P0 | WP-3 | K-1 | SR-06, SR-07 | TestEachCertificateInEachStoreIsAnObservation, TestOnlyAllowListedStoresAreRequested, TestAStoreThatFailsMakesTheResultPartialNotFatal, TestAStalledStoreIsGivenUpOn, TestNoKeyMaterialFunctionIsCalled, TestKeyAssociationQueryIsTheOnlyPropertyReadAndHasNoBuffer, TestStoresOutsideTheAllowListAreRefusedBeforeWindowsIsCalled, TestTheRealCertificateStoresAnswerSanely, TestTheRealSensorOnThisMachine, oracle:testing/hostdiscovery/compare-certs.ps1, report:wp3-security-review (internal) | done | syscall review passed; oracle AGREE on this machine (142 expected, 140 detected, 2 unparseable accounted, 0 extra) with 5 negative controls caught; Server/ARM64/elevated not validated |
+| REQ-CERT-2 | P0 | WP-2 | K-1 | SR-06, SR-16 | TestFindsCertificatesInTrustStoreAndServiceDirs, TestSymbolicLinkRules, TestBudgetsAreEnforcedAndReported, TestDetectAndDeterminism, TestMalformedInputIsCountedNotFatal, TestAnOverriddenRootCannotBeEscapedBySymlinks, oracle:testing/hostdiscovery/compare-certs.sh, report:stage-3-certificates-report (internal) | done | oracle AGREE on a real Linux-style tree (212 placements, Mozilla bundles); NOT run on a live Linux host; the overridden-root symlink test skips on this machine (no symlink privilege) and runs in Linux CI |
 | REQ-CERT-3 | P0 | WP-2 | K-2, S-5 | SR-06 | TestFindsCertificatesInTrustStoreAndServiceDirs, TestEachCertificateInEachStoreIsAnObservation, TestOneCertificateSeenByAScanAndByAHostIsOneEntity, TestCertificateObservationsCarryOnlyAllowedMetadata, TestEachOccurrenceOfACertificateIsItsOwnObservation | done |  |
 | REQ-CERT-4 | P0 | WP-2 | K-4 | SR-06, SR-17 | TestNoKeyMaterialIsReadOrReported, TestOnlyCertificateBlocksAreDecoded, FuzzScanPEM, TestCertificateObservationsCarryOnlyAllowedMetadata, TestCertFileMethodIsDeclaredAdjacentToSecrets, TestNothingButCertificatesComesOut, TestOneCertificateSeenByAScanAndByAHostIsOneEntity | done | mutation checks recorded in the WP-2 and WP-3 reviews |
 | REQ-CERT-5 | P0 | WP-2 | K-3 | — | TestEndEntityCertificatesAreListedAndAnchorsAreSummarised, TestASystemListsItsOwnCertificates | done | roots and intermediates summarised; changes to a host's root set reported |
@@ -64,24 +65,24 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-UI-6 | P0 | WP-8 | — | — | TestThirdPartyDocumentsImportWithProvenance, script:testing/e2e/estate-phase.mjs#E2E-22 | done | file, system chosen by the person, detected producer, not-interpreted table, duplicate and refusal handling, withdraw |
 | REQ-UI-7 | P1 | WP-8 (P1) | — | — | script:testing/e2e/estate-phase.mjs#E2E-20, script:testing/e2e/journey.mjs#E2E-12.1 | done | first run shows three equal doors; a next-step line names proposals waiting or systems on evidence alone |
 | REQ-UI-8 | P0 | WP-8 | — | — | TestNoExternalRequests, TestNoInnerHTMLOrEval, TestPageHasNoInlineScriptOrStyle, script:testing/e2e/estate-phase.mjs#E2E-26, script:testing/e2e/security.sh | done | hostile strings (markup, script, RTL override, 400-character values) in system, import tool, certificate subject, owner, notes render inert in all six new views; no horizontal scroll at 390 px or in dark mode; accessible names checked. Known: a bidi override in a name still reorders its own text on screen |
-| REQ-REL-1 | P0 | WP-9 | — | — | report:docs/program/QA-REPORT-002.md | in-progress | CHANGELOG [Unreleased] and README are updated and the migration note is in Changed; the version number and the 0.2.0 cut are made by scripts/prepare-release.sh at release, which has not been run |
-| REQ-REL-2 | P0 | WP-9 | — | — | report:docs/estate-guide.md, report:docs/importing.md, report:docs/exporting.md, report:docs/methodology.md, report:docs/host-discovery/stage-3-certificates-report.md | done | user guide (systems, review, imports, certificates, exports), import and export references, prioritisation methodology with citations, certificate sensor report |
+| REQ-REL-1 | P0 | WP-9 | — | — | report:QA-REPORT-002 (internal) | in-progress | CHANGELOG [Unreleased] and README are updated and the migration note is in Changed; the version number and the 0.2.0 cut are made by scripts/prepare-release.sh at release, which has not been run |
+| REQ-REL-2 | P0 | WP-9 | — | — | report:docs/estate-guide.md, report:docs/importing.md, report:docs/exporting.md, report:docs/methodology.md, report:stage-3-certificates-report (internal) | done | user guide (systems, review, imports, certificates, exports), import and export references, prioritisation methodology with citations, certificate sensor report |
 | REQ-REL-3 | P1 | WP-9 | — | — | script:scripts/rename.sh, report:docs/engineering/RENAME.md | done | rehearsed on a copy: builds, vets and passes the whole suite; the namespace registration and old-document policy are decisions the doc names |
 | REQ-REL-4 | P1 | later | — | — |  | deferred | needs the GitHub repository (owner) |
 | REQ-NFR-1 | P1 | WP-9 | — | — | TestListViewsAtScale | done | measured, not promised: every server list under 1 s at 5,000 systems and 50,000 certificates; the certificate list is 22.6 MB and the UI draws 500 rows at once; the 32 MiB import time is not measured |
-| REQ-NFR-2 | P0 | all | — | — | report:docs/program/QA-REPORT-002.md | done | 12 cross-builds with CGO_ENABLED=0; no new module |
+| REQ-NFR-2 | P0 | all | — | — | report:QA-REPORT-002 (internal) | done | 12 cross-builds with CGO_ENABLED=0; no new module |
 | REQ-NFR-3 | P0 | all | — | — | TestNoSubprocessAnywhereInLibraryCode, TestCollectorLinksNoServerStoreOrScanner, TestSensorsOnlyObserve | done | architecture tests, unchanged in intent; ADR-0015 records the x509 exception |
 | REQ-NFR-4 | P0 | all | — | — | TestNoExternalRequests, TestPageHasNoInlineScriptOrStyle, script:testing/e2e/security.sh | done | no new external request; CSP unchanged |
-| REQ-NFR-5 | P0 | all | — | — | report:docs/program/QA-REPORT-002.md | in-progress | tests, lint and vet green; govulncheck and a licence check have not been run (not installed; installing needs a download) |
+| REQ-NFR-5 | P0 | all | — | — | report:QA-REPORT-002 (internal) | in-progress | tests, lint and vet green; govulncheck and a licence check have not been run (not installed; installing needs a download) |
 | REQ-NFR-6 | P1 | WP-9 | — | — | script:testing/e2e/estate-phase.mjs#NFR-a11y | in-progress | accessible names, keyboard-operable controls and no overflow checked on every new view; contrast not measured by a tool |
 
-## PRD-004 — TLS scanner T1 ([ENG-HANDOFF-003](../product/ENG-HANDOFF-003-tls-t1.md) §4 work packages; tests per [QA-PLAN-004](../product/QA-PLAN-004-tls-t1.md))
+## PRD-004 — TLS scanner T1 (ENG-HANDOFF-003 (internal) §4 work packages; tests per QA-PLAN-004 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
 | REQ-TSTG-1 | P0 | T1b | RESEARCH-004 | — | TestStagesRecorded, TestStagesTLS13Only, TestStagesUnreachable | done |  |
 | REQ-TSTG-2 | P0 | T1b | RESEARCH-004 | — | TestStagesRecorded, TestSectionsAndFixFirst, script:testing/e2e/t1-phase.mjs#T1-E2E.7 | done | probes in words, connections per stage (sum = scan total), inconclusive parts; reference snapshots in How we tested |
-| REQ-TSTG-3 | P0 | T1b | RESEARCH-004 | — | TestLegacyReportsEvaluate, TestRawChainStapleAndSCTs, report:docs/program/QA-REPORT-003.md#legacy | done | 0.2.0 database upgraded and rendered (QA-REPORT-003 §4); /1 never rewritten |
+| REQ-TSTG-3 | P0 | T1b | RESEARCH-004 | — | TestLegacyReportsEvaluate, TestRawChainStapleAndSCTs, report:QA-REPORT-003 (internal) | done | 0.2.0 database upgraded and rendered (QA-REPORT-003 §4); /1 never rewritten |
 | REQ-TSTG-4 | P0 | T1b | RESEARCH-004 | SR-21 | TestStagesRecorded, TestHSTSHeaderParsedInScan, TestHSTSNilWhenNotSpeakingHTTP, script:testing/e2e/t1-phase.mjs#T1-E2E.1 | done | default true on serve and tls scan; About, tls-scanning.md and CHANGELOG state it |
 | REQ-TSTG-5 | P0 | T1b | RESEARCH-004 | SR-19 | TestTargetOnlyTraffic, script:testing/pki/mutations.py | done | recording dialer and lookup; a 301 to another host is not followed |
 | REQ-TCRT-1 | P0 | T1b | RESEARCH-004 | — | TestExtensionFacts, TestRawChainStapleAndSCTs | done | IV class added (CA/B 2.23.140.1.2.3) |
@@ -103,7 +104,7 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-TTRS-4 | P0 | T1c | RESEARCH-004 | — | TestT1TrustMatrix | done |  |
 | REQ-TTRS-5 | P0 | T1c | RESEARCH-004 | — | TestNameMatch, TestT1ChainMatrix | done |  |
 | REQ-TTRS-6 | P1 | T1c | RESEARCH-004 | — | TestRootConstraintsCarried, TestValidate, TestT1TrustMatrix, script:testing/pki/mutations.py | done | distrust-after, sct_not_after, program name constraints; removed CAs are absent |
-| REQ-TREV-1 | P0 | T1b | RESEARCH-004 | SR-23 | TestOCSPAgainstOpenSSL, TestOCSPTamperedAndHostile, FuzzParseOCSP, report:docs/program/QA-REPORT-003.md#fuzz | done |  |
+| REQ-TREV-1 | P0 | T1b | RESEARCH-004 | SR-23 | TestOCSPAgainstOpenSSL, TestOCSPTamperedAndHostile, FuzzParseOCSP, report:QA-REPORT-003 (internal) | done |  |
 | REQ-TREV-2 | P0 | T1c | RESEARCH-004 | — | TestT1RevocationMatrix, script:testing/pki/mutations.py | done |  |
 | REQ-TREV-3 | P0 | T1c | RESEARCH-004 | — | TestT1RevocationMatrix, script:testing/pki/mutations.py | done |  |
 | REQ-TREV-4 | P0 | T1c | RESEARCH-004 | — | TestT1RevocationMatrix | done |  |
@@ -126,31 +127,31 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-TUI-2 | P0 | T1d | RESEARCH-004 | — | TestSectionsAndFixFirst, script:testing/e2e/t1-phase.mjs#T1-E2E.5 | done |  |
 | REQ-TUI-3 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.6, script:testing/e2e/t1-phase.mjs#T1-E2E.14 | done |  |
 | REQ-TUI-4 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.7 | done |  |
-| REQ-TUI-5 | P0 | T1d | RESEARCH-004 | — | TestSectionsAndFixFirst, TestLegacyReportsEvaluate, report:docs/program/QA-REPORT-003.md#legacy | done |  |
+| REQ-TUI-5 | P0 | T1d | RESEARCH-004 | — | TestSectionsAndFixFirst, TestLegacyReportsEvaluate, report:QA-REPORT-003 (internal) | done |  |
 | REQ-TUI-6 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.8, script:testing/e2e/t1-phase.mjs#T1-E2E.12 | done |  |
 | REQ-TUI-7 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.15 | done |  |
 | REQ-TUI-8 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/journey.mjs#E2E-05.4, script:testing/e2e/t1-phase.mjs#T1-E2E.7 | done | Scan details closes the page; History stays a tab |
 | REQ-TUI-9 | P0 | T1d | RESEARCH-004 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.16 | done |  |
 | REQ-TUI-10 | P1 | T1d | RESEARCH-004 | — |  | deferred | History does not yet mark which sections changed; P1, next increment |
-| REQ-TUI-11 | P1 | T1d | RESEARCH-004 | — | report:docs/program/QA-REPORT-003.md#export | done | print/PDF prints the sectioned page; JSON export carries the evaluation with sections |
+| REQ-TUI-11 | P1 | T1d | RESEARCH-004 | — | report:QA-REPORT-003 (internal) | done | print/PDF prints the sectioned page; JSON export carries the evaluation with sections |
 | REQ-TUI-12 | P0 | T1d | RESEARCH-004 | SR-20 | TestPrivateCATrustAnchors, script:testing/e2e/t1-phase.mjs#T1-E2E.9, script:testing/e2e/t1-phase.mjs#T1-E2E.10 | done |  |
 | REQ-TUI-13 | P1 | T1d | RESEARCH-004 | — |  | deferred | Certificates page columns/filters for trust per store, OCSP and SCTs: P1, next increment |
 | REQ-TUI-14 | P0 | T1d | RESEARCH-004 | — | TestUIDoesNotBorrowAnotherScannersRatingVocabulary | done |  |
-| REQ-TNFR-1 | P0 | T1b | RESEARCH-004 | SR-23 | FuzzParseOCSP, FuzzParseSCTList, FuzzParseHSTS, FuzzServedChain, report:docs/program/QA-REPORT-003.md#fuzz | done | Windows fuzz engine stalls on encoding/asn1 targets; campaigns run on Linux (WSL), 6.4-10.5 M execs each |
-| REQ-TNFR-2 | P0 | T1b | RESEARCH-004 | — | report:docs/program/QA-REPORT-003.md#dependencies | done | go.mod unchanged |
+| REQ-TNFR-1 | P0 | T1b | RESEARCH-004 | SR-23 | FuzzParseOCSP, FuzzParseSCTList, FuzzParseHSTS, FuzzServedChain, report:QA-REPORT-003 (internal) | done | Windows fuzz engine stalls on encoding/asn1 targets; campaigns run on Linux (WSL), 6.4-10.5 M execs each |
+| REQ-TNFR-2 | P0 | T1b | RESEARCH-004 | — | report:QA-REPORT-003 (internal) | done | go.mod unchanged |
 | REQ-TNFR-3 | P0 | T1d | RESEARCH-004 | SR-24 | TestNoInnerHTMLOrEval, script:testing/e2e/t1-phase.mjs#T1-E2E.13, script:testing/e2e/security.sh | done |  |
-| REQ-TNFR-4 | P0 | T1c | RESEARCH-004 | — | TestPrivateCATrustAnchors, report:docs/program/QA-REPORT-003.md#legacy | done |  |
-| REQ-TNFR-5 | P0 | T1c | RESEARCH-004 | — | report:docs/program/QA-REPORT-003.md#budget | done | +1 connection (address targets), +2 (named targets) |
+| REQ-TNFR-4 | P0 | T1c | RESEARCH-004 | — | TestPrivateCATrustAnchors, report:QA-REPORT-003 (internal) | done |  |
+| REQ-TNFR-5 | P0 | T1c | RESEARCH-004 | — | report:QA-REPORT-003 (internal) | done | +1 connection (address targets), +2 (named targets) |
 | REQ-TNFR-6 | P0 | T1c | RESEARCH-004 | — | TestOpenAPIDescribesExactlyTheRegisteredRoutes | done | docs/tls-scanning.md, docs/methodology.md |
 | REQ-TNFR-7 | P1 | T1c | RESEARCH-004 | — | TestCertificateExtensionsOnlyIn17 | done | docs/cbom-model.md lists what has no field |
 
-## PRD-005 — Focused flows ([ENG-HANDOFF-004](../product/ENG-HANDOFF-004-focused-flows.md) work packages F1–F8; tests per [QA-PLAN-005](../product/QA-PLAN-005-focused-flows.md))
+## PRD-005 — Focused flows (ENG-HANDOFF-004 (internal) work packages F1–F8; tests per QA-PLAN-005 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
 | REQ-NAV-1 | P0 | F1 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M2, script:testing/e2e/journey.mjs#E2E-14.1 | done | menu Scan, Reports, Inventory, Systems; footer About (plus the vendor credit and version, unchanged) |
 | REQ-NAV-2 | P0 | F1 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M6, script:testing/e2e/estate-phase.mjs#E2E-27.1, script:testing/e2e/t1-phase.mjs#T1-E2E.4 | done | 11 old addresses checked; redirects keep the query (?scan=); detail pages mark their parent active |
-| REQ-NAV-3 | P1 | F1 | RESEARCH-005 | — | TestPrimarySurfacesSpeakTheUsersWords, report:docs/program/QA-REPORT-004.md#measures | done | brand line reads "TLS scanner and CBOM inventory", the short form of the PRD-005 §2 sentence (the space under the brand fits five words); the full sentence leads About and README |
+| REQ-NAV-3 | P1 | F1 | RESEARCH-005 | — | TestPrimarySurfacesSpeakTheUsersWords, report:QA-REPORT-004 (internal) | done | brand line reads "TLS scanner and CBOM inventory", the short form of the PRD-005 §2 sentence (the space under the brand fits five words); the full sentence leads About and README |
 | REQ-NAV-4 | P1 | F1 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.11 | done | count beside Systems in the menu and on the Decisions tab |
 | REQ-HOME-1 | P0 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.0, script:testing/e2e/journey.mjs#F-M1 | done | input focused on load; Enter finds or adds the endpoint, scans and opens #/reports/N |
 | REQ-HOME-2 | P0 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.2 | done |  |
@@ -164,7 +165,7 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-RPT-5 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.7, script:testing/e2e/t1-phase.mjs#T1-E2E.6, script:testing/e2e/t1-phase.mjs#T1-E2E.17 | done | native details elements; Expand all / Collapse all |
 | REQ-RPT-6 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.7, script:testing/e2e/journey.mjs#E2E-05.4 | done |  |
 | REQ-RPT-7 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.8 | done |  |
-| REQ-RPT-8 | P0 | F4 | RESEARCH-005 | — | report:docs/program/QA-REPORT-004.md#f-m3 | done | broken-chain 38.6 %, terrible-legacy 39.8 % (narrow margin), modern-hybrid 28.5 %; the two repeats removed (verdict sentence, IANA flag) stay visible in the section line and the IANA column |
+| REQ-RPT-8 | P0 | F4 | RESEARCH-005 | — | report:QA-REPORT-004 (internal) | done | broken-chain 38.6 %, terrible-legacy 39.8 % (narrow margin), modern-hybrid 28.5 %; the two repeats removed (verdict sentence, IANA flag) stay visible in the section line and the IANA column |
 | REQ-RPT-9 | P0 | F4 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#E2E-F.9, script:testing/e2e/t1-phase.mjs#T1-E2E.16 | done |  |
 | REQ-INV-1 | P0 | F5 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M4, TestInventoryIsTheMergedCBOM | done | deviation: four tiles (algorithms, quantum-vulnerable, certificates, sources); protocol counts are in the API summary, not a tile |
 | REQ-INV-2 | P0 | F5 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M4 | done | deviation: tabs Algorithms, Keys, Certificates, Protocols, Software, Sources ("TLS" is named Protocols; Keys added because keys are a CBOM asset type); suites and groups appear as algorithms, as in the CBOM |
@@ -178,14 +179,14 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-FSYS-3 | P1 | F6 | RESEARCH-005 | — | script:testing/e2e/estate-phase.mjs#E2E-22.3 | done |  |
 | REQ-LANG-1 | P0 | F7 | RESEARCH-005 | — | TestPrimarySurfacesSpeakTheUsersWords | done | checked files: index.html, scan.js, reports.js, inventory.js, systems.js; embedded older views keep some internal words (QA-REPORT-004 §5) |
 | REQ-LANG-2 | P0 | F7 | RESEARCH-005 | — | TestPrimarySurfacesSpeakTheUsersWords | done | with a negative control |
-| REQ-LANG-3 | P1 | F7 | RESEARCH-005 | — | report:docs/program/QA-REPORT-004.md#language | done | README first paragraph and the About hero line |
+| REQ-LANG-3 | P1 | F7 | RESEARCH-005 | — | report:QA-REPORT-004 (internal) | done | README first paragraph and the About hero line |
 | REQ-UNF-1 | P0 | F2 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#F-M1 | done |  |
 | REQ-UNF-2 | P0 | F5 | RESEARCH-005 | — | TestOpenAPIDescribesExactlyTheRegisteredRoutes, TestEveryOpenAPIOperationIsComplete | done | three GET routes added; none changed |
 | REQ-UNF-3 | P0 | F8 | RESEARCH-005 | — | script:testing/e2e/journey.mjs#NFR-a11y.1, script:testing/e2e/journey.mjs#NFR-a11y.2, script:testing/e2e/journey.mjs#E2E-12.14, script:testing/e2e/t1-phase.mjs#T1-E2E.14 | done |  |
 | REQ-UNF-4 | P0 | F5 | RESEARCH-005 | SR-02, SR-12 | TestNoInnerHTMLOrEval, TestPageHasNoInlineScriptOrStyle, script:testing/e2e/security.sh | done | inventory routes behind the token, Origin and Host checks (security.sh 75/75) |
-| REQ-UNF-5 | P0 | F8 | RESEARCH-005 | — | report:docs/program/QA-REPORT-004.md#look | done | screenshots reviewed; the generic dashboard is gone |
+| REQ-UNF-5 | P0 | F8 | RESEARCH-005 | — | report:QA-REPORT-004 (internal) | done | screenshots reviewed; the generic dashboard is gone |
 
-## PRD-006 — Self-evident results, the CBOM up front, signature-driven inventory ([PRD-006](../product/PRD-006-self-evident-results-and-signatures.md); work packages R1 report, R2 evaluation, R3 signatures, R4 flow)
+## PRD-006 — Self-evident results, the CBOM up front, signature-driven inventory (PRD-006 (internal); work packages R1 report, R2 evaluation, R3 signatures, R4 flow)
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -196,17 +197,17 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-RV-5 | P0 | R1 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#E2E-R.2 | done | components table, counts by type, CycloneDX 1.7 and 1.6 downloads, link to Inventory |
 | REQ-RV-6 | P0 | R1 | PRD-006 §1 | — | script:testing/e2e/t1-phase.mjs#T1-E2E.14, script:testing/e2e/journey.mjs#NFR-a11y.2, script:testing/e2e/journey.mjs#E2E-F.7 | done |  |
 | REQ-EV-1 | P0 | R2 | PRD-006 §1 | — | TestChecksListEveryRuleConsideredAndAgreeWithFindings | done | rules eval/5 |
-| REQ-EV-2 | P0 | R2 | PRD-006 §1 | — | report:docs/program/QA-REPORT-005.md#reeval | done | Runner.ReevaluateOutdated on start; verified on a copy of the owner database (4 results to eval/5) |
+| REQ-EV-2 | P0 | R2 | PRD-006 §1 | — | report:QA-REPORT-005 (internal) | done | Runner.ReevaluateOutdated on start; verified on a copy of the owner database (4 results to eval/5) |
 | REQ-SG-1 | P0 | R3 | PRD-006 §1 | — | TestTheDatabaseIsValid | done | internal/signatures/signatures.json: 16 signatures (10 Windows, 6 Linux) and the SSH name map |
 | REQ-SG-2 | P0 | R3 | PRD-006 §1 | — | TestValidationRefusesWhatAnEngineMustNotDo, TestTheDatabaseIsValid | done | no command capability exists; key paths, unknown capabilities or interpretations, bad patterns and stray parameters are refused |
-| REQ-SG-3 | P0 | R3 | PRD-006 §1 | — | TestServedEnginesCarryTheirPlatformsSignatures, report:docs/program/QA-REPORT-005.md#engines | done | engines hold markers only; the PowerShell engine ran on Windows 11 (4 s); the shell engine is syntax-checked and run under Git Bash; real Linux not run here |
+| REQ-SG-3 | P0 | R3 | PRD-006 §1 | — | TestServedEnginesCarryTheirPlatformsSignatures, report:QA-REPORT-005 (internal) | done | engines hold markers only; the PowerShell engine ran on Windows 11 (4 s); the shell engine is syntax-checked and run under Git Bash; real Linux not run here |
 | REQ-SG-4 | P0 | R3 | PRD-006 §1 | — | TestInventoryScriptsAndFactsUpload, script:testing/e2e/journey.mjs#E2E-14.2 | done | GET /api/v1/collector/signatures; the how-to lists every signature: what, from where, how, why |
 | REQ-SG-5 | P0 | R3 | PRD-006 §1 | — | TestSignatureFactsBecomeComponents, TestLinuxFactsBecomeTheCollectorsCBOM | done | library files through the knowledge base; Schannel, SSH, OpenSSL, crypto policy and programs as components; anything else as observed configuration |
 | REQ-SG-6 | P1 | R3 | PRD-006 §1 | — | TestSignatureFactsBecomeComponents | done | one coverage line per signature, including "not present" |
 | REQ-FL-1 | P0 | R4 | PRD-006 §1 | — | script:testing/e2e/journey.mjs#F-M2, script:testing/e2e/estate-phase.mjs#E2E-20.1 | done | Systems in the sidebar footer with its decision count |
-| REQ-FL-2 | P1 | R4 | PRD-006 §1 | — | report:docs/program/QA-REPORT-005.md#flow | done | the CBOM tab links to Inventory; Inventory rows link to reports |
+| REQ-FL-2 | P1 | R4 | PRD-006 §1 | — | report:QA-REPORT-005 (internal) | done | the CBOM tab links to Inventory; Inventory rows link to reports |
 
-## PRD-007 · Launch 1.0 ([PRD-007](../product/PRD-007-launch-1-0.md); work packages WP-1 to WP-9; results in [QA-REPORT-007](QA-REPORT-007.md))
+## PRD-007 · Launch 1.0 (PRD-007 (internal); work packages WP-1 to WP-9; results in QA-REPORT-007 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -218,7 +219,7 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-TR-6 | P0 | WP-1 | PRD-007 | — | FuzzParseFacts, FuzzImportSystemsCSV | done | CI fuzz job on Linux; locally the CSV target ran 272k execs clean, the facts target stalls on Windows (known Go issue) |
 | REQ-TR-7 | P0 | WP-1 | PRD-007 | — | TestScriptsCommandMatchesTheServer, script:testing/e2e/launch-phase.mjs#E2E-14.5 | done | GoReleaser before-hook exports the scripts and inventory-scripts.sha256 into the checksums; not yet run in a release |
 | REQ-TR-8 | P1 | WP-1 | PRD-007 | — | script:testing/e2e/launch-phase.mjs#E2E-14.5 | done | RemoteSigned after Unblock-File verified against a Mark-of-the-Web file on Windows 11 |
-| REQ-TR-9 | P1 | WP-1 | PRD-007 | — | report:docs/program/QA-REPORT-007.md#tr9 | done | x/text v0.41.0; govulncheck: no vulnerabilities; SECURITY.md updated |
+| REQ-TR-9 | P1 | WP-1 | PRD-007 | — | report:QA-REPORT-007 (internal) | done | x/text v0.41.0; govulncheck: no vulnerabilities; SECURITY.md updated |
 | REQ-SS-1 | P0 | WP-2 | PRD-007 | — | TestTheServerPassesItsOwnScan, script:testing/e2e/security.sh | done | six ECDHE AEAD suites in TLS 1.2; CBC and RSA key transport refused (openssl s_client) |
 | REQ-SS-2 | P0 | WP-2 | PRD-007 | — | TestHSTSOnlyOverTLS, script:testing/e2e/security.sh | done | not sent on plain HTTP or for a forged X-Forwarded-Proto |
 | REQ-SS-3 | P0 | WP-2 | PRD-007 | — | TestTheServerPassesItsOwnScan, script:testing/deploy/smoke.sh | done | L3 with only the test certificate findings and two inherent notes |
@@ -244,22 +245,22 @@ Columns: **WP** work package ([ENG-HANDOFF-002](../product/ENG-HANDOFF-002-estat
 | REQ-SX-5 | P1 | WP-6 | PRD-007 | — | script:testing/e2e/launch-phase.mjs#E2E-X.1, script:testing/e2e/screenshots.mjs | done | demo-targets base+11..base+17 |
 | REQ-DP-1 | P0 | WP-7 | PRD-007 | — | script:testing/deploy/smoke.sh | done | 14/14 with Podman 6.0.2 inside its machine; CI runs it with Docker |
 | REQ-DP-2 | P0 | WP-7 | PRD-007 | — | TestComposeFilesAreHardened, script:testing/deploy/smoke.sh | done | compose-caddy.yml not run here: the Caddy image was not among the approved downloads |
-| REQ-DP-3 | P1 | WP-7 | PRD-007 | — | TestSystemdUnitIsSandboxed, report:docs/program/QA-REPORT-007.md#systemd | done | systemd-analyze verify and security 1.5 OK; the binary ran under the unit sandbox |
+| REQ-DP-3 | P1 | WP-7 | PRD-007 | — | TestSystemdUnitIsSandboxed, report:QA-REPORT-007 (internal) | done | systemd-analyze verify and security 1.5 OK; the binary ran under the unit sandbox |
 | REQ-DP-4 | P0 | WP-7 | PRD-007 | — | TestDBBackup, script:testing/deploy/smoke.sh | done | restore documented in docs/deploy.md |
 | REQ-DP-5 | P0 | WP-7 | PRD-007 | — | script:testing/deploy/linux-script.sh | done | 26/26 on Debian 12, UBI 9.6 and Alpine 3.20 |
 | REQ-DP-6 | P0 | WP-7 | PRD-007 | — | report:docs/engineering/RELEASE-CHECKLIST-1.0.md | done | for the owner |
 | REQ-LM-1 | P0 | WP-8 | PRD-007 | — | TestReadmeLinksResolve | done | screenshots from demo data only |
 | REQ-LM-2 | P1 | WP-8 | PRD-007 | — | TestReadmeLinksResolve, TestSiteMakesNoExternalRequests | done | seven pages; the Pages workflow runs once the repository is on GitHub |
 | REQ-LM-3 | P1 | WP-8 | PRD-007 | — | script:testing/e2e/screenshots.mjs | done | docs/img: six light, two dark |
-| REQ-LM-4 | P2 | WP-8 | PRD-007 | — | report:docs/launch/posts/README.md | done | for Offset to review |
+| REQ-LM-4 | P2 | WP-8 | PRD-007 | — | report:README (internal) | done | for Offset to review |
 | REQ-AC-1 | P0 | WP-9 | PRD-007 | — | TestScanScopeRefusesAtAddAndConnect, TestScanScopeParsingAndMatching, script:testing/e2e/security.sh | done | networks enforced on the real remote address of every connection |
 | REQ-AC-2 | P0 | WP-9 | PRD-007 | — | TestEveryChangeIsAudited | done | a route in neither audit table fails the test |
 | REQ-AC-3 | P0 | WP-9 | PRD-007 | — | TestAuditExportIsAdminOnly, script:testing/e2e/launch-phase.mjs#E2E-A.11 | done | formula-safe CSV; filters by person and kind |
 | REQ-AC-4 | P1 | WP-9 | PRD-007 | — | TestScanRecordsWhoStartedIt, script:testing/e2e/launch-phase.mjs#E2E-A.13 | done | person, automation token or schedule; earlier scans show not recorded |
 
-## PRD-008 · Post-quantum signatures in TLS, and SSH endpoints ([PRD-008](../product/PRD-008-pq-signatures-and-ssh.md); WP-A results in [QA-REPORT-008](QA-REPORT-008.md))
+## PRD-008 · Post-quantum signatures in TLS, and SSH endpoints (PRD-008 (internal); WP-A results in QA-REPORT-008 (internal))
 
-WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRATEGY-003](../strategy/STRATEGY-003-multi-protocol-product.md) (a page per protocol, baseline conformance). Results in QA-REPORT-008 §5 to §8.
+WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per STRATEGY-003 (internal) (a page per protocol, baseline conformance). Results in QA-REPORT-008 §5 to §8.
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -312,10 +313,10 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-SHN-1 | P0 | WP-F | PRD-008 | — | TestHardenedServerMeetsTheBaseline, script:testing/e2e/ssh-phase.mjs#E2E-H.1b | done | base+20..27; base+27 meets the baseline |
 | REQ-SHN-2 | P0 | WP-F | PRD-008 | — | oracle:testing/ssh/oracle.sh | done | 37 AGREE, 0 DISAGREE; the baseline lines pass sshd -t and the rescan meets the baseline on 9.2 and 10.0 |
 | REQ-SHN-3 | P0 | WP-F | PRD-008 | — | report:docs/ssh-scanning.md | done | and methodology.md (SSH), CI.md, README |
-| REQ-SHN-4 | P0 | WP-F | PRD-008 | — | report:docs/program/QA-REPORT-008.md | done |  |
+| REQ-SHN-4 | P0 | WP-F | PRD-008 | — | report:QA-REPORT-008 (internal) | done |  |
 | REQ-SHN-5 | P0 | WP-F | PRD-008 | — | FuzzIdentification, FuzzKEXINIT, FuzzHostKeyBlob, FuzzKEXReply | done | 3.2M to 5.2M executions each, clean |
 
-## PRD-009 · Charts you can act on, quiet motion, a chosen port, a complete CBOM ([PRD-009](../product/PRD-009-interactive-charts-motion-port-cbom.md); results in [QA-REPORT-009](QA-REPORT-009.md))
+## PRD-009 · Charts you can act on, quiet motion, a chosen port, a complete CBOM (PRD-009 (internal); results in QA-REPORT-009 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -327,8 +328,8 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-CHT-6 | P0 | WP-1 | PRD-009 | — | TestChartsAreKeyboardReachable, script:testing/e2e/charts-phase.mjs#E2E-CHT-6 | done |  |
 | REQ-MOT-1 | P1 | WP-2 | PRD-009 | — | script:testing/e2e/charts-phase.mjs#E2E-MOT-1 | done |  |
 | REQ-MOT-2 | P2 | WP-2 | PRD-009 | — | TestCountUpIsUsedOnlyForFigures, script:testing/e2e/charts-phase.mjs#E2E-MOT-2 | done | ends on its value even when the tab is hidden |
-| REQ-MOT-3 | P2 | WP-2 | PRD-009 | — | report:docs/product/UX-REVIEW-009-charts-and-motion.md | done |  |
-| REQ-MOT-4 | P1 | WP-2 | PRD-009 | — | TestMotionRulesAreRespected, report:docs/product/UX-REVIEW-009-charts-and-motion.md | done |  |
+| REQ-MOT-3 | P2 | WP-2 | PRD-009 | — | report:UX-REVIEW-009-charts-and-motion (internal) | done |  |
+| REQ-MOT-4 | P1 | WP-2 | PRD-009 | — | TestMotionRulesAreRespected, report:UX-REVIEW-009-charts-and-motion (internal) | done |  |
 | REQ-MOT-5 | P0 | WP-2 | PRD-009 | — | TestMotionRulesAreRespected, script:testing/e2e/charts-phase.mjs#E2E-MOT-R | done | `.progress-fill` width is the one stated exception |
 | REQ-PORT-1 | P0 | WP-3 | PRD-009 | — | TestServePortFlag, TestServeAddrAndPortConflict, TestServeListensOnTheGivenPort | done |  |
 | REQ-PORT-2 | P0 | WP-3 | PRD-009 | — | TestServePortFromEnvironment, TestHealthcheckFollowsPortEnvironment, TestServeAndHealthcheckFollowThePortEnvironment | done |  |
@@ -340,9 +341,9 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-CBM-4 | P1 | WP-4 | PRD-009 | — | TestCatalogueOIDsAreCited | done | C-4 |
 | REQ-CBM-5 | P1 | WP-4 | PRD-009 | — | TestCertificateSerialAndFingerprintIn17 | done | C-5 |
 | REQ-CBM-6 | P2 | WP-4 | PRD-009 | — | TestSuiteAlgorithmsAreUnique | done | C-6 |
-| REQ-CBM-7 | P1 | WP-4 | PRD-009 | — | report:docs/product/CBOM-REVIEW-002-oids-and-completeness.md | done | docs/cbom-model.md, tls-scanning.md, exporting.md |
+| REQ-CBM-7 | P1 | WP-4 | PRD-009 | — | report:CBOM-REVIEW-002-oids-and-completeness (internal) | done | docs/cbom-model.md, tls-scanning.md, exporting.md |
 
-## PRD-010 · Classical strength for every detected algorithm ([PRD-010](../product/PRD-010-classical-strength.md); results in [QA-REPORT-010](QA-REPORT-010.md))
+## PRD-010 · Classical strength for every detected algorithm (PRD-010 (internal); results in QA-REPORT-010 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -356,7 +357,7 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-STR-8 | P0 | — | ENH-001 | — | TestCBOMCarriesClassicalSecurityLevel, TestLegacyOutputIsPreserved | done | host goldens regenerated; the legacy test allows exactly this addition |
 | REQ-STR-9 | P1 | — | ENH-001 | — | report:docs/methodology.md, script:testing/e2e/strength-phase.mjs#E2E-STR-3 | done | Help (the report's legend opens it at the topic), cbom-model, CHANGELOG, README |
 
-## PRD-011 · Every algorithm by class, and a flow that explains itself ([PRD-011](../product/PRD-011-algorithm-classes-and-flow.md); results in [QA-REPORT-011](QA-REPORT-011.md))
+## PRD-011 · Every algorithm by class, and a flow that explains itself (PRD-011 (internal); results in QA-REPORT-011 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -375,7 +376,7 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-UXF-5 | P2 | — | UX-REVIEW-010 | — | script:testing/e2e/classes-phase.mjs#E2E-UXF-2 | done |  |
 | REQ-CLS-9 | P1 | — | ENH-002 | — | report:docs/methodology.md | done | Help, CHANGELOG, README |
 
-## PRD-012 · Open any certificate and read the whole X.509 document ([PRD-012](../product/PRD-012-certificate-viewer.md); results in [QA-REPORT-011](QA-REPORT-011.md))
+## PRD-012 · Open any certificate and read the whole X.509 document (PRD-012 (internal); results in QA-REPORT-011 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -389,7 +390,7 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-XV-8 | P1 | — | ENH-003 | — | script:testing/e2e/x509-phase.mjs#E2E-XV-5 | done |  |
 | REQ-XV-9 | P2 | — | ENH-003 | — | report:docs/methodology.md | done | Help › Scan a TLS endpoint; openapi.json |
 
-## PRD-013 · Instruments, not paragraphs ([PRD-013](../product/PRD-013-visual-rebuild.md); results in [QA-REPORT-012](QA-REPORT-012.md))
+## PRD-013 · Instruments, not paragraphs (PRD-013 (internal); results in QA-REPORT-012 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -404,10 +405,10 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-VIS-9 | P2 | — | UX-DESIGN-011 | — | TestHeartbeatIsProbed | done | 0-RTT stays not probed |
 | REQ-VIS-10 | P2 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-6 | done | the whole SSH report was rebuilt in PRD-014 (REQ-SSV-2) |
 | REQ-VIS-11 | P0 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-7, script:testing/e2e/x509-phase.mjs#E2E-XV-5 | done | contrast measured on instrument text, light and dark |
-| REQ-VIS-12 | P0 | — | UX-DESIGN-011 | — | report:docs/product/CRYPTO-REVIEW-001-visual-rebuild.md, report:docs/program/QA-REPORT-012.md | done |  |
+| REQ-VIS-12 | P0 | — | UX-DESIGN-011 | — | report:CRYPTO-REVIEW-001-visual-rebuild (internal), report:QA-REPORT-012 (internal) | done |  |
 | REQ-VIS-13 | P1 | — | UX-DESIGN-011 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-FOLD | done | owner request after PR #23 opened |
 
-## PRD-014 · The SSH report, as instruments ([PRD-014](../product/PRD-014-ssh-instruments.md); results in [QA-REPORT-013](QA-REPORT-013.md))
+## PRD-014 · The SSH report, as instruments (PRD-014 (internal); results in QA-REPORT-013 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -419,9 +420,9 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-SSV-6 | P1 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-8 | done | requirement tiles link to their source |
 | REQ-SSV-7 | P1 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-10 | done | the host key tile's tone follows its strength (CRYPTO-REVIEW-002 fix 1) |
 | REQ-SSV-8 | P0 | — | UX-DESIGN-012 | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-7, script:testing/e2e/visual-phase.mjs#E2E-VIS-9, script:testing/e2e/ssh-phase.mjs#E2E-H.2b | done | contrast measured on the SSH instruments too |
-| REQ-SSV-9 | P0 | — | UX-DESIGN-012 | — | report:docs/product/CRYPTO-REVIEW-002-ssh-instruments.md, report:docs/program/QA-REPORT-013.md | done |  |
+| REQ-SSV-9 | P0 | — | UX-DESIGN-012 | — | report:CRYPTO-REVIEW-002-ssh-instruments (internal), report:QA-REPORT-013 (internal) | done |  |
 
-## PRD-015 · Accuracy on real scans ([PRD-015](../product/PRD-015-accuracy-on-real-scans.md); results in [QA-REPORT-014](QA-REPORT-014.md))
+## PRD-015 · Accuracy on real scans (PRD-015 (internal); results in QA-REPORT-014 (internal))
 
 | Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
 |---|---|---|---|---|---|---|---|
@@ -434,7 +435,7 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per [STRA
 | REQ-ACC-7 | P0 | — | owner review | — | script:testing/e2e/visual-phase.mjs#E2E-FIX-1 | done |  |
 | REQ-ACC-8 | P0 | — | owner review | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-FOLD | done | supersedes REQ-VIS-13's open-when-needed rule |
 | REQ-ACC-9 | P0 | — | owner review | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-ALIGN | done | measured in the browser |
-| REQ-ACC-10 | P0 | — | owner review | — | report:docs/product/CRYPTO-REVIEW-003-real-scans.md, report:docs/program/QA-REPORT-014.md | done | eval/12 |
+| REQ-ACC-10 | P0 | — | owner review | — | report:CRYPTO-REVIEW-003-real-scans (internal), report:QA-REPORT-014 (internal) | done | eval/12 |
 
 ## Security requirements (SECARCH-001) coverage
 

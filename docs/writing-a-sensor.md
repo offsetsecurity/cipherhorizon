@@ -3,7 +3,7 @@
 A sensor looks at one kind of thing on a host (a package database, a file tree, later a certificate store) and
 reports **what it saw**: nothing more. `internal/sense/debian` (the dpkg database) and `internal/sense/pefiles`
 (loose crypto libraries on Windows) are the references. Read
-[the evidence model](../artifacts/evidence-model.md) and [ADR-0001](decisions/ADR-0001-evidence-pipeline.md) first:
+the evidence model (internal) and [ADR-0001](decisions/ADR-0001-evidence-pipeline.md) first:
 the rules below follow from them.
 
 ## The one rule

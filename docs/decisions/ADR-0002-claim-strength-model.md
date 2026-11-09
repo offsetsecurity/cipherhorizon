@@ -2,7 +2,7 @@
 
 - **Status:** Proposed (Agent 3), pending Agent 4 challenge
 - **Date:** 2026-09-24
-- **Related:** ADR-0001, `artifacts/evidence-model.md`
+- **Related:** ADR-0001, evidence-model (internal)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR-0019 — SSH endpoints: our own prober, the shared evaluation shape, Go 1.27
 
-Status: accepted, 2026-10-12. Requirements: [PRD-008](../product/PRD-008-pq-signatures-and-ssh.md).
+Status: accepted, 2026-10-12. Requirements: PRD-008 (internal).
 
 ## Context
 

@@ -3,7 +3,7 @@
 - **Status:** Accepted (pending owner-run trademark clearance, which is a launch gate, not a build gate)
 - **Date:** 2026-09-26
 - **Deciders:** Product Manager, Security Architect
-- **Evidence:** [RESEARCH-003 §1](../product/RESEARCH-003-ecosystem-standards-and-design-inputs.md)
+- **Evidence:** RESEARCH-003 §1 (internal)
 
 ## Context
 

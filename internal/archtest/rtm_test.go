@@ -9,39 +9,19 @@ import (
 	"testing"
 )
 
-// The requirements traceability matrix (docs/program/RTM.md) is the only place a
-// requirement is declared done. These tests keep it honest: it cannot drift from
-// the product requirements document, and "done" cannot be claimed without tests
-// that exist.
-
-// prdPaths are the product requirements documents whose requirements the matrix traces.
-var prdPaths = []string{
-	"../../docs/product/PRD-003-cryptographic-estate-model.md",
-	"../../docs/product/PRD-004-tls-scanner-t1-pki-depth.md",
-	"../../docs/product/PRD-005-product-focus-and-flows.md",
-	"../../docs/product/PRD-006-self-evident-results-and-signatures.md",
-	"../../docs/product/PRD-007-launch-1-0.md",
-	"../../docs/product/PRD-008-pq-signatures-and-ssh.md",
-	"../../docs/product/PRD-009-interactive-charts-motion-port-cbom.md",
-	"../../docs/product/PRD-010-classical-strength.md",
-	"../../docs/product/PRD-011-algorithm-classes-and-flow.md",
-	"../../docs/product/PRD-012-certificate-viewer.md",
-	"../../docs/product/PRD-013-visual-rebuild.md",
-	"../../docs/product/PRD-014-ssh-instruments.md",
-	"../../docs/product/PRD-015-accuracy-on-real-scans.md",
-}
+// The requirements traceability matrix (docs/engineering/RTM.md) is the only place a
+// requirement is declared done. This test keeps it honest: "done" cannot be claimed without
+// evidence, and every test it names must exist, so a test cannot be deleted silently.
+//
+// The product requirements documents the ids come from are internal (they live in the
+// product-docs repository), so the matrix is no longer cross-checked against them here.
 
 const (
-	secarchDoc = "../../docs/product/SECARCH-001-threat-model-and-security-requirements.md"
-	rtmPath    = "../../docs/program/RTM.md"
-	repoRoot   = "../.."
+	rtmPath  = "../../docs/engineering/RTM.md"
+	repoRoot = "../.."
 )
 
-var (
-	reqDeclared = regexp.MustCompile(`(?m)^\| \*\*(REQ-[A-Z]+-\d+)\*\* \|`)
-	srDeclared  = regexp.MustCompile(`\*\*(SR-\d+)\*\*`)
-	testName    = regexp.MustCompile(`\b(Test|Fuzz)[A-Za-z0-9_]+\b`)
-)
+var testName = regexp.MustCompile(`\b(Test|Fuzz)[A-Za-z0-9_]+\b`)
 
 type rtmRow struct {
 	id, status, evidence, notes string
@@ -111,22 +91,10 @@ func goTestNames(t *testing.T) map[string]bool {
 }
 
 func TestRequirementsTraceability(t *testing.T) {
-	declared := map[string]bool{}
-	for _, p := range prdPaths {
-		n := 0
-		for _, m := range reqDeclared.FindAllStringSubmatch(readFile(t, p), -1) {
-			if declared[m[1]] {
-				t.Errorf("%s is declared by more than one PRD", m[1])
-			}
-			declared[m[1]] = true
-			n++
-		}
-		if n == 0 {
-			t.Fatalf("no requirement ids found in %s: has its table format changed?", p)
-		}
-	}
-
 	rows := rtmRows(t)
+	if len(rows) < 100 {
+		t.Fatalf("only %d requirement rows found in the RTM: has its table format changed?", len(rows))
+	}
 	seen := map[string]bool{}
 	tests := goTestNames(t)
 	statuses := map[string]bool{"todo": true, "in-progress": true, "done": true, "deferred": true}
@@ -136,9 +104,6 @@ func TestRequirementsTraceability(t *testing.T) {
 			t.Errorf("%s appears twice in the RTM", r.id)
 		}
 		seen[r.id] = true
-		if !declared[r.id] {
-			t.Errorf("%s is in the RTM but not declared in the PRD", r.id)
-		}
 		if !statuses[r.status] {
 			t.Errorf("%s has status %q; want todo, in-progress, done or deferred", r.id, r.status)
 		}
@@ -159,19 +124,15 @@ func TestRequirementsTraceability(t *testing.T) {
 		}
 		checkEvidenceFiles(t, r)
 	}
-	for id := range declared {
-		if !seen[id] {
-			t.Errorf("%s is declared in the PRD but has no RTM row", id)
-		}
-	}
 }
 
-// checkEvidenceFiles resolves the file part of script:, oracle: and report: items.
+// checkEvidenceFiles resolves the file part of script: and oracle: items, which are in this
+// repository. A report: item names an internal document and is not resolved here.
 func checkEvidenceFiles(t *testing.T, r rtmRow) {
 	t.Helper()
 	for _, item := range strings.Split(r.evidence, ",") {
 		item = strings.TrimSpace(item)
-		for _, prefix := range []string{"script:", "oracle:", "report:"} {
+		for _, prefix := range []string{"script:", "oracle:"} {
 			if !strings.HasPrefix(item, prefix) {
 				continue
 			}
@@ -186,35 +147,36 @@ func checkEvidenceFiles(t *testing.T, r rtmRow) {
 	}
 }
 
-// Every security requirement in SECARCH-001 must be assigned to at least one
-// requirement in the matrix's coverage table, so a threat cannot be written down
-// and then forgotten.
+// Every security requirement in the matrix's coverage table names at least one requirement
+// that exists in the matrix, so a threat cannot be written down and then left unassigned.
 func TestSecurityRequirementsAreCovered(t *testing.T) {
-	declared := map[string]bool{}
-	for _, m := range srDeclared.FindAllStringSubmatch(readFile(t, secarchDoc), -1) {
-		declared[m[1]] = true
+	reqs := map[string]bool{}
+	for _, r := range rtmRows(t) {
+		reqs[r.id] = true
 	}
-	if len(declared) == 0 {
-		t.Fatal("no security requirement ids found in SECARCH-001")
-	}
-	covered := map[string]bool{}
+	reqID := regexp.MustCompile(`REQ-[A-Z]+-\d+`)
+	n := 0
 	for _, line := range strings.Split(readFile(t, rtmPath), "\n") {
 		if !strings.HasPrefix(line, "| SR-") {
 			continue
 		}
+		n++
 		cells := strings.Split(strings.Trim(strings.TrimSpace(line), "|"), "|")
-		if len(cells) >= 3 && strings.Contains(cells[1], "REQ-") && strings.TrimSpace(cells[2]) != "" {
-			covered[strings.TrimSpace(cells[0])] = true
+		if len(cells) < 3 || strings.TrimSpace(cells[2]) == "" {
+			t.Errorf("%s names no requirement or no mutation check", strings.TrimSpace(cells[0]))
+			continue
+		}
+		ids := reqID.FindAllString(cells[1], -1)
+		if len(ids) == 0 {
+			t.Errorf("%s names no requirement", strings.TrimSpace(cells[0]))
+		}
+		for _, id := range ids {
+			if !reqs[id] {
+				t.Errorf("%s is assigned to %s, which is not in the matrix", strings.TrimSpace(cells[0]), id)
+			}
 		}
 	}
-	for id := range declared {
-		if !covered[id] {
-			t.Errorf("%s is declared in SECARCH-001 but the RTM coverage table names no requirement and no mutation check for it", id)
-		}
-	}
-	for id := range covered {
-		if !declared[id] {
-			t.Errorf("%s is in the RTM coverage table but not declared in SECARCH-001", id)
-		}
+	if n == 0 {
+		t.Fatal("no security requirement rows found in the RTM coverage table")
 	}
 }

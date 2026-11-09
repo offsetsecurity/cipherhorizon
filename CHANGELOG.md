@@ -46,6 +46,14 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   Samba folders; the package filter covers servers, runtimes, PKCS#11 and TPM tools. Windows certificate
   collection adds the Disallowed, Remote Desktop and WebHosting stores.
 
+### Removed
+
+- **Internal documents are no longer in this repository.** Product requirements, design and UX reviews, QA
+  reports, audits, strategy, launch and programme records (`docs/product`, `docs/program`, `docs/strategy`,
+  `docs/audit`, `docs/launch`, `docs/host-discovery`) moved to internal product documentation. Decision records
+  and this changelog now name them ("PRD-019, internal") instead of linking. The requirements traceability
+  matrix stays, at `docs/engineering/RTM.md`, and still fails the build when a test it cites is deleted.
+
 ### Upgrade notes
 
 - No database migration. Upload a fresh inventory with the version 3 scripts to see the new sections; earlier
@@ -75,7 +83,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
-- **Published standards, clause by clause** ([PRD-017](docs/product/PRD-017-standards.md)). Every scan is judged
+- **Published standards, clause by clause** (PRD-017 (internal)). Every scan is judged
   against the published standards the program carries, from the facts the findings already rest on: for TLS,
   RFC 9325 (BCP 195), NIST SP 800-52 Rev. 2, BSI TR-02102-2 (2026-01), the ANSSI TLS guide v1.2, Mozilla Server
   Side TLS 6.0 (Modern and Intermediate), PCI DSS v4.0.1 Requirement 4.2.1 and the CNSA 2.0 TLS profile; for
@@ -94,7 +102,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - Standards are transcribed from the documents themselves (`docs/standards.md` names each edition and what a
     network scan cannot assess). They are the documents' judgements, not this product's: the readiness level
     and the TLS hygiene score are unchanged.
-- **Client simulation** ([PRD-018](docs/product/PRD-018-client-simulation.md)). Every TLS report has a **Clients**
+- **Client simulation** (PRD-018 (internal)). Every TLS report has a **Clients**
   tab: what each of two dozen named clients (current Chrome, Edge, Firefox and Safari; Android 14, 10, 7 and 4.4;
   Java 21, 11, 8, 7 and 6; OpenSSL 3.5, 3.0, 1.1.1 and 1.0.2; Go; Windows 11 and 10 Schannel; IE 11 on Windows 7
   and IE 8 on XP) would negotiate with the server: version, cipher suite, key-exchange group, forward secrecy and
@@ -125,7 +133,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 ### Security
 
 - **Distrusted CA keys are reported, on any Go version**
-  ([CRYPTO-REVIEW-004](docs/product/CRYPTO-REVIEW-004-emudhra-weak-ca-keys.md)). A new bundled distrust list is
+  (CRYPTO-REVIEW-004 (internal)). A new bundled distrust list is
   matched by key (SPKI SHA-256) and by certificate fingerprint. Its first entry is the eight eMudhra intermediate CAs
   of October 2026, whose P-384 private keys are below 256, with their Sectigo cross-signs. The new rule
   `CERT.DISTRUSTED-KEY` (critical) fires on served chains and on certificates found on hosts, in files and in
@@ -150,7 +158,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - **Tested:** fixtures are produced by OpenSSL (`testing/pki/make-crl.sh`), including IDP scope, partitions,
     delta and wrong-key CRLs, and a fuzz target runs in CI.
   - Settings and Help show whether lookups are on.
-- **Safer upgrades** ([PRD-016](docs/product/PRD-016-upgrades-and-updates.md) Phase 0). The server still upgrades
+- **Safer upgrades** (PRD-016 (internal) Phase 0). The server still upgrades
   its database at launch, from any earlier version, after a backup; now it also:
   - refuses to run two servers on one database, and refuses to upgrade a database another CipherHorizon process
     is using (a `<database>.lock` file next to it; the OS releases the lock if the process dies);
@@ -192,8 +200,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
-- **Classical strength for every detected algorithm** ([PRD-010](docs/product/PRD-010-classical-strength.md),
-  [ENH-001](docs/product/ENH-001-cipher-strength.md)). Strengths are computed with NIST's own methods, and the tests
+- **Classical strength for every detected algorithm** (PRD-010 (internal),
+  ENH-001 (internal)). Strengths are computed with NIST's own methods, and the tests
   reproduce NIST's published tables:
   - RSA and finite-field DH by the General Number Field Sieve estimate (FIPS 140-3 IG D.B, SP 800-56B Rev. 2
     Appendix D);
@@ -213,7 +221,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - **SSH reports** (page and PDF): a strength for every key exchange, host key (by the presented key's size),
     cipher and MAC.
   - **CBOM:** `classicalSecurityLevel` on every algorithm with a strength (1.6 and 1.7).
-- **Every algorithm by class: asymmetric, symmetric, hash** ([PRD-011](docs/product/PRD-011-algorithm-classes-and-flow.md), #20).
+- **Every algorithm by class: asymmetric, symmetric, hash** (PRD-011 (internal), #20).
   - A TLS report's Configuration ends with *Every algorithm, by class*: one lane per class, each algorithm with its
     role, a bits bar, its post-quantum status and the suites or certificates that use it, the weakest ringed.
   - Every suite row shows its parts (cipher, key exchange, signature, MAC, key-derivation hash) as cells with their
@@ -222,7 +230,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - The report's CBOM tab has a *Classical strength* column.
   - The PDF and `tls scan --details` list the algorithms by class, and the CLI lists each suite's parts.
   - API: the evaluation (`eval/10`) carries `algorithms`, and every suite part carries its `class`.
-- **Open any certificate and read the whole X.509 document** ([PRD-012](docs/product/PRD-012-certificate-viewer.md), #21).
+- **Open any certificate and read the whole X.509 document** (PRD-012 (internal), #21).
   - Every certificate in the chain and the CBOM tab opens its page.
   - The page shows the chain it was served in, its validity, the key and the issuer's signature with their strengths
     and post-quantum status, its names and uses, every extension with its criticality and decoded value, the
@@ -231,7 +239,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
     too.
 
 - **Instruments, not paragraphs: the report, the certificate page and the Inventory are rebuilt**
-  ([PRD-013](docs/product/PRD-013-visual-rebuild.md), [UX-DESIGN-011](docs/product/UX-DESIGN-011-instruments-not-paragraphs.md)).
+  (PRD-013 (internal), UX-DESIGN-011 (internal)).
   One set of shared instruments draws every quantity the same way on every page: a 0 to 256 bits bar over the
   strength bands, a strength chip, a part cell, a post-quantum glyph, a status tile, a validity bar, the hygiene
   gauge and the readiness stepper. Each says in words what it shows.
@@ -245,16 +253,16 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
     each part ends with the issues found in it. HSTS shows the header as sent.
   - **Inventory:** algorithms *By class* and *By classical strength* (`?strength=`: broken, below-112, 112, 128,
     192, 256, not-rated), each bar opening its list; the list is weakest first, with a bits bar.
-  - **SSH reports** ([PRD-014](docs/product/PRD-014-ssh-instruments.md),
-    [UX-DESIGN-012](docs/product/UX-DESIGN-012-ssh-instruments.md)) get the same one-stop Configuration: version and
+  - **SSH reports** (PRD-014 (internal),
+    UX-DESIGN-012 (internal)) get the same one-stop Configuration: version and
     software (what a current client gets, as a banner), key exchange (readiness, then each method as a row with its
     bits bar, post-quantum glyph and baseline mark), host keys (a card per key), ciphers, MACs and compression, and
     the baseline (a tile per requirement linking to its source, the changes as chips in their parts, the
     `sshd_config` lines). The Summary has the same four-figure strip, and the baseline is line 1 of *Fix first*.
-    Checked by [CRYPTO-REVIEW-002](docs/product/CRYPTO-REVIEW-002-ssh-instruments.md).
+    Checked by CRYPTO-REVIEW-002 (internal).
   - **Scanner:** a TLS scan records whether the server negotiates the heartbeat extension (RFC 6520).
   - Every number and claim on these screens was checked against its source
-    ([CRYPTO-REVIEW-001](docs/product/CRYPTO-REVIEW-001-visual-rebuild.md)).
+    (CRYPTO-REVIEW-001 (internal)).
 
 ### Changed
 
@@ -282,8 +290,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Fixed
 
-- **Reports on real servers say the right thing** ([PRD-015](docs/product/PRD-015-accuracy-on-real-scans.md),
-  [CRYPTO-REVIEW-003](docs/product/CRYPTO-REVIEW-003-real-scans.md); eval/12, stored scans are re-evaluated on start):
+- **Reports on real servers say the right thing** (PRD-015 (internal),
+  CRYPTO-REVIEW-003 (internal); eval/12, stored scans are re-evaluated on start):
   - a server whose only suites Go's TLS client will not offer (3DES, RC4, NULL, small DH) had its no-SNI fallback
     certificate reported as its own; the served chain is now read from the scanner's raw TLS 1.2 handshakes, which
     also finds an RSA certificate a server keeps for RSA-only clients. Scan such servers again;
@@ -311,7 +319,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 ### Changed
 
 - **The remote TLS CBOM says how it knows each fact, and keeps every identifier it read**
-  ([AUDIT-TLS-CBOM-001](docs/audit/AUDIT-TLS-CBOM-001-remote-tls-cbom.md)). All of it is additive: new components,
+  (AUDIT-TLS-CBOM-001 (internal)). All of it is additive: new components,
   `cipherhorizon:*` properties, and CycloneDX 1.7 fields the schema defines. See docs/cbom-model.md.
   - **Evidence states.** Every component has `cipherhorizon:evidence`:
     - `observed`: a ServerHello, or a certificate and what it states;
@@ -348,7 +356,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 ### Added
 
 - **Charts you can act on.** Every chart mark that counts something opens it, already filtered
-  ([PRD-009](docs/product/PRD-009-interactive-charts-motion-port-cbom.md), [UX-DESIGN-008](docs/product/UX-DESIGN-008-interactive-charts-and-motion.md)):
+  (PRD-009 (internal), UX-DESIGN-008 (internal)):
   - **Overview:**
     - a readiness level opens the TLS endpoints or SSH servers at that level (both, as two links, when both
       protocols are there);
@@ -385,7 +393,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Changed
 
-- **The CBOM lists what it used to leave out** ([CBOM-REVIEW-002](docs/product/CBOM-REVIEW-002-oids-and-completeness.md)).
+- **The CBOM lists what it used to leave out** (CBOM-REVIEW-002 (internal)).
   Consumers keyed on component counts will see more components:
   - **Legacy bulk ciphers:** a suite's 3DES, RC4 (export RC4-40 included), DES and RC2 cipher is now an algorithm
     asset, with its cited classical status. Before, a server accepting only such suites had none of them in its CBOM.
@@ -505,7 +513,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   first. `--details` adds the raw protocol, suite, group and certificate tables that used to be the whole output.
 - `tls scan --json` emits one `{target, report, evaluation}` object per target instead of an array of bare reports.
 
-### Changed (owner review, [UX-REVIEW-008](docs/product/UX-REVIEW-008-screen-by-screen.md))
+### Changed (owner review, UX-REVIEW-008 (internal))
 
 - **Sign-in is off by default:**
   - **Turning it on:** in the new **Settings** page, which creates the first administrator in the same step.
@@ -531,7 +539,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   disagreed because one counted keys.
 - **Reports:** the OMB M-23-02 export uses one system picker.
 
-### Added (launch 1.0, [PRD-007](docs/product/PRD-007-launch-1-0.md); results in [QA-REPORT-007](docs/program/QA-REPORT-007.md))
+### Added (launch 1.0, PRD-007 (internal); results in QA-REPORT-007 (internal))
 
 - **Windows version information and icon.** `cipherhorizon.exe` and `cipherhorizon-collector.exe` now show their version (file version `MAJOR.MINOR.PATCH.0`, product version in full), product name, publisher, description and the padlock icon under Properties > Details, instead of a blank version (0.0.0.0). Release builds take them from the tag (`scripts/winres.sh`, run by GoReleaser).
 - **STARTTLS** for SMTP (and submission), IMAP, POP3, FTP, XMPP, LDAP and PostgreSQL.
@@ -604,7 +612,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   - **Defaults:** sign-in is on; `--no-login` keeps the single-user loopback mode. `--token` remains an
     automation token for scripts and CI.
 - **Visual redesign** to a written design system, [DESIGN.md](DESIGN.md) (audit:
-  [UX-AUDIT-006](docs/product/UX-AUDIT-006-visual-redesign.md)).
+  UX-AUDIT-006 (internal)).
   - One flat accent taken from the logo, cool graphite neutrals, and hairlines instead of shadows.
   - One radius system (6/8/12, 4 for badges).
   - Sentence-case labels; mono for machine values.
@@ -747,7 +755,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   collector only when it names this product as its producer; anything else is imported.
 - New API routes: `/api/v1/systems*`, `/api/v1/entities`, `/api/v1/graph/stats`. Tests now walk the real route table to
   check that every route needs the token and every mutating route refuses forged, cross-origin and wrongly typed requests.
-- **Certificates, WP-2 and WP-3** (PRD-003 REQ-CERT; ADR-0015, ADR-0016; `docs/host-discovery/stage-3-certificates-report.md`). Two new sensors describe the X.509
+- **Certificates, WP-2 and WP-3** (PRD-003 REQ-CERT; ADR-0015, ADR-0016; stage-3-certificates-report (internal)). Two new sensors describe the X.509
   certificates a host holds, **public metadata only, never a key**: `cert-files` (Linux trust stores and service
   directories) and `windows-certs` (the MY, Root, CA, TrustedPeople, TrustedPublisher and AuthRoot system stores, for the machine
   and the current user, through a new bounded, read-only, reviewed layer in `internal/winapi`). Each certificate carries its **key
@@ -784,7 +792,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **M-23-02 structure** (REQ-EXP-3): `GET /api/v1/systems/{id}/m2302.json` and `.csv` give the nine items for a system, each marked provided or not provided and by whom. It supports the structure; it does not claim compliance.
   Not yet covered: the supplier of software (item 5). The operating system (item 6) comes from the machine's own collector upload.
 - **OpenAPI 3.1** (REQ-EXP-5): `GET /api/v1/openapi.json`, written by hand, with tests that fail when it and the route table disagree or a GET route answers a status it does not list.
-- **The estate UI, WP-8** (PRD-003 REQ-UI; `docs/product/UX-DESIGN-002-estate-ui.md`). The home page is now the **Estate**: systems in the order to
+- **The estate UI, WP-8** (PRD-003 REQ-UI; UX-DESIGN-002-estate-ui (internal)). The home page is now the **Estate**: systems in the order to
   look at them, each row expandable to its four cited rules and marked when it rests on evidence alone. New pages: a **system** (why it is
   ranked there, a details editor with an audit trail, services and machines with per-endpoint CBOM download, certificates with key sizes, matches with undo,
   imported sources, coverage, M-23-02 export, history), **Certificates** (filter by expiry, key, signature, origin; trust anchors summarised; changes to a machine's roots),
@@ -806,7 +814,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Changed
 
-- **Navigation rebuilt around one place per kind of thing** ([UX-DESIGN-005](docs/product/UX-DESIGN-005-navigation.md)).
+- **Navigation rebuilt around one place per kind of thing** (UX-DESIGN-005 (internal)).
   A **Scan a URL** button tops the sidebar on every page. The menu is **Overview**; *Results*: **Endpoints**,
   **Machines**, **Findings**, **Inventory**; *Plan & share*: **Systems**, **Reports**. Overview keeps the scan box on
   top and adds six tiles (endpoints, machines, findings, post-quantum, inventory, next certificate expiry), the latest
@@ -922,7 +930,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added (to 2026-09-26)
 
-- **Windows collector, stage 2: native cryptography** (`docs/host-discovery/stage-2-report.md`, ADR-0013): a new
+- **Windows collector, stage 2: native cryptography** (stage-2-report (internal), ADR-0013): a new
   `windows-cng` sensor **asks Windows** what it provides: the CNG algorithm registry and providers, key storage
   providers and legacy CSPs, with each algorithm attributed to the provider that offers it (`capable`, `probed`).
   Post-quantum parameter sets (ML-KEM 512/768/1024, ML-DSA 44/65/87) are confirmed by asking Windows to accept them,
@@ -931,7 +939,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   third-party providers are listed by name and never loaded. The sensor runs only for a live Windows host, never for a
   `--root` override or an image.
 - A new platform package, `internal/winapi`, holds every Windows cryptography call (hand-written, bounded, reviewed:
-  `docs/host-discovery/stage-2-security-review.md`); the architecture test now allows only it and `hostinfo` to use
+  stage-2-security-review (internal)); the architecture test now allows only it and `hostinfo` to use
   `unsafe` or `x/sys/windows`.
 - Catalogue: SHA-1, MD5, MD4, MD2, SHA3-256/384/512, RC4, RC2, DES, 3DES and the ML-KEM and ML-DSA families, with OIDs
   read from their sources. Retired algorithms carry a **cited classical status** (RFCs 6149, 6150, 6151, 6194, 7465, FIPS
@@ -979,7 +987,7 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   certificates carry their chain role; the negotiated flag now covers the negotiated suite's cipher, key exchange
   and authentication; and the document states what its edges mean.
 
-- Host discovery rebuilt as an **evidence pipeline** (`docs/host-discovery-program.md`, ADR-0001 to ADR-0010):
+- Host discovery rebuilt as an **evidence pipeline** (host-discovery-program (internal), ADR-0001 to ADR-0010):
   sensors observe and never infer; capability is applied afterwards from cited knowledge; no claim is stronger than
   the weakest evidence it rests on; the document states its coverage, blind spots and privilege. `cipherhorizon run`
   now also works on **Windows** (`pe-files` sensor: loose crypto libraries such as a bundled OpenSSL, read from
