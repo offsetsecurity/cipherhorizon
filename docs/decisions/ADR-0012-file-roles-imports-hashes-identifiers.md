@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-26
-- **Context for:** an external review of the Windows CBOM (see `docs/host-discovery/stage-1-report.md`)
+- **Context for:** an external review of the Windows CBOM (see stage-1-report (internal))
 
 ## Context
 
@@ -66,5 +66,5 @@ lengths a provider supports (probed capability).
 
 - It does not evaluate Windows' DLL search order, delay-loaded imports or `LoadLibrary` calls, so a missing edge
   proves nothing.
-- It does not verify signatures (see `docs/host-discovery/authenticode-investigation.md`).
+- It does not verify signatures (see authenticode-investigation (internal)).
 - It does not link a consumer to a provider in a different directory, even when the import names match.

@@ -2,7 +2,7 @@
 
 The visual source of truth for the web UI (`web/static`). Read it before building or changing a page. When this
 file and the code disagree, the code is wrong. The audit that led here is in
-[docs/product/UX-AUDIT-006-visual-redesign.md](docs/product/UX-AUDIT-006-visual-redesign.md).
+UX-AUDIT-006-visual-redesign (internal).
 
 ---
 
@@ -27,7 +27,7 @@ auditor."
 **The Offset theme.** CipherHorizon is an Offset Security product and looks like one: Offset's warm paper and
 navy ink, its blue, its three typefaces, its 4px shape and its one signature angle (−27.6°, the angle of the Offset
 logo). The values below were read from offsetsecurity.net's own stylesheet
-([docs/launch/05-brand-and-messaging.md](docs/launch/05-brand-and-messaging.md)).
+(recorded in the internal brand and messaging note).
 
 **Logo.** A flat app icon: a white padlock on a rounded square of Offset blue (`--primary`).
 - **Plain.** One colour per shape: no gradient, stroke, glow or shadow. It borrows nothing from the Offset mark;

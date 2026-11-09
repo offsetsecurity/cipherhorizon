@@ -14,7 +14,7 @@
 # It fails on any false positive, any version mismatch, and any OpenSSL capability the version does not justify.
 #
 # STATUS: written and reviewed, NOT YET RUN on a Linux host (no Linux environment was available when
-# the pipeline was built). Until it has run, Linux is "fixtures only" (docs/host-discovery-program.md).
+# the pipeline was built). Until it has run, Linux is "fixtures only" (the host discovery programme record, internal).
 set -euo pipefail
 
 BIN="${1:?usage: $0 /path/to/cipherhorizon-collector-linux}"

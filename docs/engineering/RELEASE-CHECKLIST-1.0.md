@@ -49,4 +49,4 @@ On a machine that has never built the project:
 - [ ] Tag `v1.0.0` on `main`, let the workflow publish, check the release page.
 - [ ] Docs site: none for now (owner, 2026-10-14). `site/` is kept and link-checked; to publish it, restore the
   `pages` workflow from git history (removed in the commit after v0.1.0) and turn on Pages.
-- [ ] Launch posts from `docs/launch/posts/` reviewed by Offset and scheduled.
+- [ ] Launch posts (internal launch folder) reviewed by Offset and scheduled.

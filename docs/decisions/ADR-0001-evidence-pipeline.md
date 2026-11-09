@@ -2,7 +2,7 @@
 
 - **Status:** Proposed (Agent 3), pending Agent 4 challenge
 - **Date:** 2026-09-24
-- **Related:** ADR-0002, ADR-0004, `artifacts/evidence-model.md`, `artifacts/collector-contract.md`
+- **Related:** ADR-0002, ADR-0004, evidence-model (internal), collector-contract (internal)
 
 ## Context
 

@@ -31,7 +31,7 @@ internal/              all library code; nothing here is a public Go API
   version/             build identity, stamped at link time by the release build
 web/static/            the UI: plain HTML/CSS/ES modules, embedded with go:embed (no npm, no build step)
 testing/               golden files, vendored schemas, browser E2E journey, live security script
-docs/                  user and design docs; docs/product = product/QA/release reports; docs/engineering = this
+docs/                  user docs; docs/decisions = ADRs; docs/engineering = this (product, QA and release reports are internal)
 scripts/               release helpers (release-notes, prepare-release, set-owner)
 .github/               CI, release, CodeQL workflows; issue/PR templates; Dependabot
 ```
@@ -119,9 +119,9 @@ Nothing has been pushed yet. Do this once, in order:
    8. `docs: product, QA and engineering documentation`
    Commit with `-s` for the DCO. (If slicing is more effort than it is worth for an initial import, one
    `chore: initial public import` commit is acceptable; the history from then on is what matters.)
-4. **Decide what not to publish.** `artifacts/` is a QA hand-off bundle (33 screenshots, logs, duplicated
-   copies of `docs/product`); `docs/product` is the canonical copy. Prefer `git rm -r --cached artifacts`
-   before the first push, since screenshots and logs re-generate from `testing/e2e` and duplicated docs rot.
+4. **Decide what not to publish.** `artifacts/` is a QA hand-off bundle (screenshots, logs) and is ignored
+   by git: screenshots and logs re-generate from `testing/e2e`. Product, QA and release reports are internal
+   documentation and are not kept in this repository (see CONTRIBUTING).
 5. `git remote add origin git@github.com:<owner>/cipherhorizon.git && git push -u origin main`.
 6. **Apply the settings and rulesets above.** The required checks only become selectable after CI has run once,
    so push, let CI run, then turn the rules on.

@@ -18,7 +18,7 @@ LF-terminated on every OS (`.gitattributes`).
 ## End-to-end in a real browser (`e2e/`)
 
 `e2e/journey.mjs` drives the shipped UI in Chrome/Edge over the DevTools protocol (no dependencies, Node 22+)
-through the whole workflow in [PRD-001](../docs/product/PRD-001-posture-workbench.md): add endpoints (single and
+through the whole workflow in PRD-001 (internal): add endpoints (single and
 bulk), scan, watch progress, cancel, read readiness, change a target and compare history, upload a host CBOM,
 hostile-input, dark mode and phone-width layout. It asserts as it goes and saves screenshots and `results.json`.
 

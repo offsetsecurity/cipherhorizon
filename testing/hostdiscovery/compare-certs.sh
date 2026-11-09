@@ -19,9 +19,9 @@
 # script reads the live host.
 #
 # STATUS: RUN against a real Linux-style tree (Git for Windows ships the Mozilla CA bundles under
-# etc/pki/ca-trust/extracted/pem; see docs/host-discovery/stage-3-certificates-report.md).
+# etc/pki/ca-trust/extracted/pem; see the stage 3 certificates report, internal).
 # NOT yet run on a live Linux host (the development machine has no working Linux environment:
-# docs/program/TRACKER.md OA-3).
+# the programme tracker, internal, OA-3).
 set -u
 CBOM=${1:?usage: compare-certs.sh host.cbom.json}
 command -v openssl >/dev/null || { echo "openssl is required"; exit 2; }
