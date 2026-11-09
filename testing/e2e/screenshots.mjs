@@ -5,12 +5,14 @@
 //   cipherhorizon serve --no-login --allow-loopback --db shots.db --addr 127.0.0.1:8092 &
 //   node testing/e2e/screenshots.mjs --base http://127.0.0.1:8092 --out docs/img
 //
-// It adds the demo targets, scans them, waits, and saves PNGs of the main pages in light and dark.
+// It adds the demo targets, scans them, uploads a demo machine, waits, and saves PNGs of the pages the
+// README and the site show (the Overview also in dark).
 // BROWSER may name Chrome or Edge; the default is Edge on Windows, else google-chrome.
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { FACTS } from './inventory-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8092');
@@ -39,6 +41,10 @@ for (let i = 0; i < 240; i++) {
   if (!running.length && !queued.length) break;
   await sleep(1000);
 }
+// A demo machine: the facts file the browser journey uploads, under a name that reads as a server.
+const up = await fetch(`${BASE}/api/v1/hosts/ingest`, { method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-Requested-With': 'cipherhorizon' }, body: FACTS.replaceAll('web-e2e', 'web-01') });
+if (!up.ok) throw new Error(`hosts/ingest: ${up.status} ${await up.text()}`);
+const machine = (await up.json()).asset;
 const assets = await api('GET', '/api/v1/assets?kind=endpoint');
 const byPort = Object.fromEntries(assets.map((a) => [a.port, a]));
 
@@ -63,19 +69,18 @@ await send('Page.enable');
 const shots = [
   ['overview', '#/'],
   ['report-hybrid', `#/endpoints/${byPort[DEMO].id}`],
-  ['report-legacy', `#/endpoints/${byPort[DEMO + 3].id}`],
   ['report-starttls', `#/endpoints/${byPort[DEMO + 11].id}`],
-  ['endpoints', '#/endpoints'],
   ['ssh-servers', '#/ssh'],
-  ['report-ssh', `#/ssh/${byPort[DEMO + 20].id}`],
   ['report-ssh-baseline', `#/ssh/${byPort[DEMO + 20].id}?tab=configuration`],
+  ['machine', `#/machines/${machine.id}`],
   ['inventory', '#/inventory'],
 ];
 for (const dark of [false, true]) {
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] });
-  for (const [name, hash] of shots) {
-    if (dark && !['overview', 'report-hybrid'].includes(name)) continue;
+  for (const [name, hash, height] of shots) {
+    if (dark && name !== 'overview') continue;
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: height || 900, deviceScaleFactor: 1, mobile: false });
     await send('Page.navigate', { url: `${BASE}/${hash}` });
     await sleep(1800);
     const shot = await send('Page.captureScreenshot', { format: 'png' });

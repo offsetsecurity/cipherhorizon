@@ -46,6 +46,11 @@ if [ -n "$url" ]; then
   rm -f "$tmp.bak"
 fi
 mv "$tmp" "$f"
+# The container image the README and the install guide tell people to run is this release's.
+for doc in README.md docs/engineering/INSTALL.md; do
+  sed -i -E "s#(ghcr\.io/offsetsecurity/cipherhorizon:)[0-9]+\.[0-9]+\.[0-9]+#\\1$version#g" "$doc"
+done
+
 echo "CHANGELOG.md: Unreleased is now $version ($date). Review it, then commit."
 
 # Database migrations this release ships become history: lock them, so no later change can edit what
