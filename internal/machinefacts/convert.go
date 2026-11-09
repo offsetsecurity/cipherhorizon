@@ -116,6 +116,7 @@ func ToCBOM(ctx context.Context, f *Facts, o Options) (*cdx.BOM, error) {
 		cb.refs[a.Component.BOMRef] = true
 	}
 	cb.build(f.Items)
+	cb.annotateCertificates(assets)
 	assets = append(assets, cb.assets...)
 	props = append(props, cb.props...)
 	props = append(props, coverage(db, f)...)
@@ -133,8 +134,9 @@ func ToCBOM(ctx context.Context, f *Facts, o Options) (*cdx.BOM, error) {
 		props = append(props, cbom.Property("script-note", n))
 	}
 	if f.OS == "windows" {
-		props = append(props, cbom.Property("not-seen", "Windows CNG algorithms and providers, and the import tables of program files: the script does not collect them (the Go collector can, built from source)"))
+		props = append(props, cbom.Property("not-seen", "The import tables of program files (which library each program links): the script does not read them (the Go collector can, built from source)"))
 	}
+	props = append(props, cbom.Property("not-seen", "Cryptography linked statically into programs (Go, Rust, Node, Java's own providers): only the program's version says what it carries"))
 	bom, _ := cbom.Build(assets, cbom.Options{
 		Tool:               cbom.Tool{Name: "cipherhorizon", Version: o.ToolVersion},
 		HostName:           res.Graph.Host.Name,

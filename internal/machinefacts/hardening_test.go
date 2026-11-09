@@ -69,7 +69,11 @@ func runShellEngine(t *testing.T) {
 		t.Fatal(err)
 	}
 	sigs := filepath.Join(t.TempDir(), "sigs.txt")
-	if err := os.WriteFile(sigs, []byte("signatures\ttest\nsig\tTEST.FILE\tfile\tnames=libdemo-*.so\troots="+root+"\n"), 0o600); err != nil {
+	sigText := "signatures\ttest\nsig\tTEST.FILE\tfile\tnames=libdemo-*.so\troots=" + root + "\n" +
+		"sig\tTEST.QUERY\tquery\tquery=os.kernel\n" + // a query the engine defines
+		"sig\tTEST.BADQUERY\tquery\tquery=rm -rf /\n" + // never run: not in the table
+		"sig\tTEST.LISTENERS\tlisteners\n"
+	if err := os.WriteFile(sigs, []byte(sigText), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	script := filepath.Join(t.TempDir(), "s.sh")
@@ -93,6 +97,24 @@ func runShellEngine(t *testing.T) {
 	}
 	if strings.Contains(string(raw), "decoy") {
 		t.Errorf("the working directory leaked into the facts:\n%s", raw)
+	}
+	// PRD-019 D1: a query id outside the engine's table is skipped by name; a known one yields
+	// query facts (uname exists wherever sh does); listeners either run or say why not.
+	if !strings.Contains(string(raw), "skip\tTEST.BADQUERY\tquery rm -rf / is not in this engine") {
+		t.Errorf("an unknown query must be skipped and named:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "fact\tTEST.QUERY\tquery\tos.kernel\t") {
+		t.Errorf("the os.kernel query produced no fact:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "ran\tTEST.LISTENERS\t") {
+		t.Errorf("the listeners capability did not report:\n%s", raw)
+	}
+	f, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("the engine's output does not parse: %v", err)
+	}
+	if f.Skipped["TEST.BADQUERY"] == "" {
+		t.Errorf("skipped: %v", f.Skipped)
 	}
 	fi, err := os.Stat(out)
 	if err != nil {

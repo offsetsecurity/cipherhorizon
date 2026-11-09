@@ -53,7 +53,9 @@ function whereOf(sig) {
   const p = sig.params || {};
   const list = (v) => (v || '').split('|').join(', ');
   switch (sig.capability) {
-    case 'registry': return `${p.key}${p.depth && p.depth !== '0' ? ` (and ${p.depth} levels below)` : ''}: ${list(p.values)}`;
+    case 'registry': return `${p.key}${p.depth && p.depth !== '0' ? ` (and ${p.depth} levels below)` : ''}${p.subkeys === 'yes' ? ': the names of its sub-keys' : ''}${p.values ? `: ${list(p.values)}` : ''}`;
+    case 'query': return `the engine's fixed query "${p.query}"${p.match ? `, lines matching ${p.match}` : ''}`;
+    case 'listeners': return 'listening TCP and UDP sockets, the owning process, its executable and the cryptographic libraries loaded into it';
     case 'certstore': return `${list(p.locations)} stores: ${list(p.stores)}`;
     case 'file': return `${list(p.names)} under ${list(p.roots)}`;
     case 'program': return `installed programs matching ${p.match}`;
@@ -64,7 +66,9 @@ function whereOf(sig) {
   }
 }
 
-/** Everything the scripts collect, from the signature database (PRD-006 REQ-SG-4). */
+/** Everything the scripts collect, from the signature database (PRD-006 REQ-SG-4), by platform
+ * and area, each item saying where it looks, how, why, and whether it needs administrator rights
+ * (PRD-019 REQ-HI-5). */
 export function signaturesList() {
   const box = h('details', { class: 'more signatures-list' }, h('summary', null, 'What the scripts collect, item by item'));
   let loaded = false;
@@ -72,18 +76,42 @@ export function signaturesList() {
     if (!box.open || loaded) return;
     loaded = true;
     api.inventorySignatures().then((db) => {
+      const areas = db.areas || [];
       const per = (platform) => db.signatures.filter((x) => x.platform === platform);
+      const platformBlock = (pl) => {
+        const sigs = per(pl);
+        const admin = sigs.filter((x) => x.needs === 'admin').length;
+        const panels = {};
+        const nav = h('div', { class: 'tabs subtabs', role: 'tablist' });
+        const body = h('div');
+        const show = (a) => {
+          clear(body); body.appendChild(panels[a]);
+          for (const t of nav.children) t.setAttribute('aria-selected', t.dataset.area === a ? 'true' : 'false');
+        };
+        const present = areas.filter((a) => sigs.some((x) => x.area === a.id));
+        for (const a of present) {
+          const list = sigs.filter((x) => x.area === a.id);
+          panels[a.id] = h('div', { class: 'tablewrap' }, h('table', { class: 'compact sigtable' },
+            h('thead', null, h('tr', null, ['What', 'From where', 'Why'].map((c) => h('th', { scope: 'col' }, c)))),
+            h('tbody', null, list.map((x) => h('tr', null,
+              h('td', null, h('b', null, x.title), x.needs === 'admin' ? h('span', { class: 'tag', title: 'A standard user sees part of this or nothing; run the script as Administrator or root for all of it.' }, pl === 'windows' ? 'Administrator' : 'root') : null,
+                h('div', { class: 'hint mono' }, `${x.id} · ${x.capability}`)),
+              h('td', null, h('code', null, whereOf(x)), h('div', { class: 'hint' }, x.how)),
+              h('td', { class: 'muted' }, x.why))))));
+          nav.appendChild(h('button', { type: 'button', role: 'tab', class: 'tab', 'data-area': a.id, onclick: () => show(a.id) }, `${a.title} `, h('span', { class: 'count' }, String(list.length))));
+        }
+        if (present.length) show(present[0].id);
+        return h('div', { class: 'sigplatform' },
+          h('h4', null, `${pl === 'windows' ? 'Windows' : 'Linux'}: ${sigs.length} signatures${admin ? `, ${admin} of them fuller with ${pl === 'windows' ? 'Administrator' : 'root'} rights` : ''}`),
+          nav, body);
+      };
+      const queries = db.queries || {};
       box.append(
         h('p', { class: 'hint' }, `Signature database ${db.version}. ${db.about}`),
-        ...['windows', 'linux'].map((pl) => h('div', null,
-          h('h4', null, pl === 'windows' ? `Windows (${per(pl).length})` : `Linux (${per(pl).length})`),
-          h('div', { class: 'tablewrap' }, h('table', { class: 'compact sigtable' },
-            h('thead', null, h('tr', null, ['What', 'From where', 'How', 'Why'].map((c) => h('th', { scope: 'col' }, c)))),
-            h('tbody', null, per(pl).map((x) => h('tr', null,
-              h('td', null, h('b', null, x.title), h('div', { class: 'hint mono' }, x.id)),
-              h('td', null, h('code', null, whereOf(x))),
-              h('td', { class: 'muted' }, x.how),
-              h('td', { class: 'muted' }, x.why)))))))));
+        platformBlock('windows'), platformBlock('linux'),
+        h('details', { class: 'more' }, h('summary', null, 'The fixed queries each engine can run'),
+          h('p', { class: 'hint' }, 'A query signature can only pick one of these; the command line of each is written in the engine itself, read-only, with a timeout. Nothing in the database can add one.'),
+          ...Object.keys(queries).sort().map((pl) => h('p', { class: 'small' }, h('b', null, pl === 'windows' ? 'Windows: ' : 'Linux: '), h('code', null, (queries[pl] || []).join('  '))))));
     }).catch((e) => { box.appendChild(h('p', { class: 'hint' }, e.message)); });
   });
   return box;
@@ -108,7 +136,7 @@ export function collectSteps(onUpload) {
     '-H "Authorization: Bearer $CIPHERHORIZON_TOKEN" --data-binary @cipherhorizon-facts-$(hostname).txt';
   return h('ol', { class: 'steps' },
     step(1, 'Get the script for the machine',
-      h('p', null, 'A short script in plain text: PowerShell for Windows (5.1 or later), shell for Linux (Debian, Ubuntu, RHEL, Fedora, SUSE, Alpine). Each is a small engine with a few read-only capabilities; what it collects comes from this server’s signature database, written into the script and listed below. It installs nothing, changes nothing, runs no other program and makes no network connection.'),
+      h('p', null, 'A script in plain text: PowerShell for Windows (5.1 or later), shell for Linux (Debian, Ubuntu, RHEL, Fedora, SUSE, Alpine). Each is a small engine with a few read-only capabilities; what it collects comes from this server’s signature database, written into the script and listed below. It installs nothing, changes nothing and makes no network connection. The only programs it runs are the machine’s own query tools (openssl, ssh, ss and the like on Linux; certutil, netsh and ssh on Windows), each with fixed read-only arguments written in the engine, never taken from the database.'),
       inventoryScriptsBlock(),
       h('details', { class: 'more verify-scripts' }, h('summary', null, 'Check the script before you run it'),
         h('p', { class: 'hint' }, 'The SHA-256 of the file you downloaded must match the one shown above:'),
@@ -122,7 +150,7 @@ export function collectSteps(onUpload) {
         commandBlock(WINDOWS_CMD_FALLBACK, 'fallback Windows command')),
       h('p', null, 'On Linux (as root for the fullest picture):'), commandBlock(LINUX_CMD, 'Linux command'),
       h('p', { class: 'hint' }, 'It writes ', h('code', null, 'cipherhorizon-facts-<machine>.txt'),
-        ': the machine’s name and operating system, its cryptographic packages and its public certificates. Plain text, one fact per line: open it and check what will leave the machine. Private keys are never read.')),
+        ': the machine’s name and operating system; its platform state (FIPS, TPM, Secure Boot, disk encryption); its cryptographic packages, libraries and runtimes with versions; what the installed OpenSSL and OpenSSH can do; the TLS, SSH, VPN and authentication settings of the system and its servers; its public certificates and which provider holds each private key; and the listening services with the libraries each loaded. Plain text, one fact per line: open it and check what will leave the machine. Private keys are never read.')),
     step(3, 'Upload the file here',
       h('p', null, 'This server turns the facts into a CycloneDX CBOM with a post-quantum verdict for every algorithm. Upload again whenever you want a fresh picture; each upload is kept so you can compare.'),
       onUpload ? button('Upload the file', onUpload, 'primary') : null,

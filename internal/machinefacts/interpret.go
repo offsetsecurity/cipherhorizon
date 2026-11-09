@@ -123,6 +123,10 @@ type configBuilder struct {
 	assets []collector.CryptoAsset
 	refs   map[string]bool
 	props  []cdx.Property
+	// PRD-019: the installed OpenSSL's default suites (for the OpenSSL defaults component) and
+	// the key provider of each personal certificate, by common name (for the certificate components).
+	opensslSuites []cdx.CipherSuite
+	keyProviders  [][2]string
 }
 
 func (b *configBuilder) add(a collector.CryptoAsset) {
@@ -214,15 +218,57 @@ func (b *configBuilder) build(items []Item) {
 		}
 		sch = append(sch, prop("schannel:"+strings.ToLower(m[1]), what+": "+state))
 	}
-	if len(sch) > 0 || len(suites) > 0 {
-		props := append([]cdx.Property{prop("config-source", "Windows registry (Schannel)")}, sch...)
-		if len(suites) > 0 {
+	// PRD-019: the effective order and curves, as Windows reports them.
+	var effective []cdx.CipherSuite
+	var effVersions, curves []string
+	for _, it := range byInterp["tls-cipher-suites"] {
+		if it.Kind != "query" || len(it.Fields) < 2 {
+			continue
+		}
+		l := strings.TrimSpace(it.Fields[1])
+		switch it.Fields[0] {
+		case "tls.cipher-suites":
+			f := strings.Fields(l)
+			if len(f) == 0 {
+				continue
+			}
+			effective = append(effective, cdx.CipherSuite{Name: f[0]})
+			if len(f) > 1 {
+				effVersions = append(effVersions, strings.Split(strings.Join(f[1:], " "), "/")...)
+			}
+		case "tls.curves":
+			curves = append(curves, l)
+		}
+	}
+	if len(sch) > 0 || len(suites) > 0 || len(effective) > 0 {
+		source := "Windows registry (Schannel)"
+		if len(effective) > 0 {
+			source += ", Get-TlsCipherSuite"
+		}
+		props := append([]cdx.Property{prop("config-area", "tls"), prop("config-source", source)}, sch...)
+		switch {
+		case len(suites) > 0 && len(effective) > 0:
+			props = append(props, prop("schannel:suite-order", "set on this machine; the effective order is shown"))
+			suites = effective
+		case len(suites) > 0:
 			props = append(props, prop("schannel:suite-order", "set on this machine (otherwise the Windows default applies)"))
-		} else {
+		case len(effective) > 0:
+			props = append(props, prop("schannel:suite-order", "Windows default; the effective order is shown"))
+			suites = effective
+		default:
 			props = append(props, prop("schannel:suite-order", "Windows default"))
+		}
+		if len(effVersions) > 0 {
+			props = append(props, prop("schannel:effective-versions", strings.Join(dedupe(effVersions), ", ")))
+		}
+		if len(curves) > 0 {
+			props = append(props, prop("schannel:curves-effective", strings.Join(dedupe(curves), ", ")))
 		}
 		b.add(protocolComponent("config/protocol/windows-schannel", "Windows Schannel (TLS)", cdx.CryptoProtocolTypeTLS, props, suites))
 	}
+
+	// PRD-019: the installed OpenSSL first, so its default suites reach the defaults component.
+	b.buildOpenSSL(byInterp["openssl-build"])
 
 	// SSH servers: the configured algorithms, and the host key types.
 	sshMap := b.db.Maps["ssh"]
@@ -266,9 +312,13 @@ func (b *configBuilder) build(items []Item) {
 				continue
 			}
 			directive := f[0]
-			prim := map[string]cdx.CryptoPrimitive{"kexalgorithms": cdx.CryptoPrimitiveKeyAgree, "ciphers": cdx.CryptoPrimitiveAE, "macs": cdx.CryptoPrimitiveMAC,
-				"hostkeyalgorithms": cdx.CryptoPrimitiveSignature, "pubkeyacceptedalgorithms": cdx.CryptoPrimitiveSignature}[strings.ToLower(directive)]
+			prim, isList := map[string]cdx.CryptoPrimitive{"kexalgorithms": cdx.CryptoPrimitiveKeyAgree, "ciphers": cdx.CryptoPrimitiveAE, "macs": cdx.CryptoPrimitiveMAC,
+				"hostkeyalgorithms": cdx.CryptoPrimitiveSignature, "pubkeyacceptedalgorithms": cdx.CryptoPrimitiveSignature, "pubkeyacceptedkeytypes": cdx.CryptoPrimitiveSignature,
+				"casignaturealgorithms": cdx.CryptoPrimitiveSignature}[strings.ToLower(directive)]
 			sshProps = append(sshProps, prop("ssh:"+strings.ToLower(directive), strings.Join(f[1:], " ")))
+			if !isList {
+				continue // HostKey, Include, Port, Match…: recorded, not read as algorithm names
+			}
 			for _, n := range strings.Split(strings.TrimLeft(f[1], "+-^"), ",") {
 				if n == "" {
 					continue
@@ -282,8 +332,8 @@ func (b *configBuilder) build(items []Item) {
 		}
 	}
 	if len(sources) > 0 {
-		props := append([]cdx.Property{prop("config-source", strings.Join(sources, ", "))}, sshProps...)
-		a := protocolComponent("config/protocol/ssh-server", "SSH server (OpenSSH)", cdx.CryptoProtocolTypeSSH, props, nil)
+		props := append([]cdx.Property{prop("config-area", "ssh"), prop("config-source", strings.Join(sources, ", "))}, sshProps...)
+		a := protocolComponent("config/protocol/ssh-server", "SSH server (OpenSSH), as written", cdx.CryptoProtocolTypeSSH, props, nil)
 		a.Provides = dedupe(sshRefs)
 		b.add(a)
 	}
@@ -300,9 +350,13 @@ func (b *configBuilder) build(items []Item) {
 			}
 		}
 	}
-	if len(osl) > 0 {
-		props := append([]cdx.Property{prop("config-source", strings.Join(dedupe(oslSrc), ", "))}, osl...)
-		b.add(protocolComponent("config/protocol/openssl-defaults", "OpenSSL system defaults (TLS)", cdx.CryptoProtocolTypeTLS, props, nil))
+	if len(osl) > 0 || len(b.opensslSuites) > 0 {
+		if len(b.opensslSuites) > 0 {
+			oslSrc = append(oslSrc, "openssl ciphers -v")
+			osl = append(osl, prop("openssl:default-cipher-suites", fmt.Sprintf("%d suites, shown below", len(b.opensslSuites))))
+		}
+		props := append([]cdx.Property{prop("config-area", "tls"), prop("config-source", strings.Join(dedupe(oslSrc), ", "))}, osl...)
+		b.add(protocolComponent("config/protocol/openssl-defaults", "OpenSSL system defaults (TLS)", cdx.CryptoProtocolTypeTLS, props, b.opensslSuites))
 	}
 
 	// System crypto policy.
@@ -311,6 +365,10 @@ func (b *configBuilder) build(items []Item) {
 			b.props = append(b.props, prop("crypto-policy", strings.TrimSpace(it.Fields[1])))
 		}
 	}
+
+	// PRD-019: platform, runtimes, the installed OpenSSH, TLS and VPN configuration, authentication
+	// policy, key providers, bindings, listening services and the kernel.
+	b.buildV3(byInterp)
 
 	// Installed programs that bring their own cryptography.
 	for _, it := range byInterp["software"] {
@@ -329,15 +387,11 @@ func (b *configBuilder) build(items []Item) {
 		b.add(collector.CryptoAsset{Component: c})
 	}
 
-	// Everything else is recorded as observed configuration (REQ-SG-5): a new signature
-	// reaches the CBOM without code.
-	for interp, list := range byInterp {
-		switch interp {
-		case "schannel-protocols", "schannel-ciphers", "schannel-suite-order", "ssh-config", "ssh-host-key", "openssl-config", "crypto-policy", "software", "library-file":
-			continue
-		}
-		for _, it := range list {
-			b.props = append(b.props, prop("observed-config", fmt.Sprintf("%s: %s", titleOf(b.db, it.Sig), strings.Join(it.Fields, " = "))))
+	// A signature the database no longer (or not yet) has is still recorded, as observed
+	// configuration (REQ-SG-5): nothing a machine reported is lost.
+	for _, it := range byInterp["config"] {
+		if _, known := b.db.ByID(it.Sig); !known {
+			b.props = append(b.props, prop("observed-config", fmt.Sprintf("%s: %s", it.Sig, strings.Join(it.Fields, " = "))))
 		}
 	}
 }

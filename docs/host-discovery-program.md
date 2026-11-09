@@ -12,7 +12,17 @@ Test / ground truth → CBOM review → Gatekeeper** (fail or research-needed se
 
 Level 0 (foundation) and Level 1 (present) **passed the gate** ([gate decision](../artifacts/gate-decision-level-1.md)),
 with a scope statement that must travel with it: **Windows at the standard-user tier on one machine; Debian-family on
-fixtures only.** Levels 2-7 have not been started.
+fixtures only.** Levels 2-7 have not been started *for the Go collector*.
+
+**The inventory scripts (2026-11-09, [PRD-019](product/PRD-019-host-inventory.md), [ADR-0020](decisions/ADR-0020-engine-queries.md))**
+now reach further than the collector: L1 present (packages, libraries, runtimes, programs), L2 capable (what the installed
+OpenSSL and OpenSSH list, kernel algorithms, Windows' effective suites), L3 provisioned (certificates, host keys with sizes,
+which provider holds each private key), L4 policy (system, server, SSH, VPN and authentication settings, FIPS, disk
+encryption, Secure Boot), L5 bound (HTTP.sys and IIS bindings, certificate paths in server configuration, sockets to
+processes) and L6 loaded (the cryptographic libraries mapped into each listening process). Validated by running the real
+engines: Windows 11 as a standard user (this machine), Ubuntu 26.04 in WSL as root and as an unprivileged user (OpenSSL
+3.5.5, OpenSSH 10.2 with sshd, nginx). Not validated: Windows as Administrator, RHEL-family crypto-policies, macOS (not a
+target). Runtime evidence (L7) stays out of scope for a script.
 
 | # | Agent | Artefact | Status |
 |---|---|---|---|

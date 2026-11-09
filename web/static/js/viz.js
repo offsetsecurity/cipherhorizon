@@ -100,7 +100,7 @@ export function statusTile(name, state, tone = 'na', href, onclick, detail) {
   const tag = href ? 'a' : 'div';
   return h(tag, { class: `stile stile-${tone}`, href: href || null, onclick: onclick || null },
     h('span', { class: 'stile-head' }, h('span', { class: 'stile-glyph', 'aria-hidden': 'true' }, GLYPH[tone] || '·'), h('b', null, name),
-      h('span', { class: 'sr-only' }, ` (${{ good: 'good', attention: 'needs attention', problem: 'problem', na: 'does not apply' }[tone]})`)),
+      h('span', { class: 'sr-only' }, ` (${{ good: 'good', attention: 'needs attention', problem: 'problem', na: 'does not apply', info: 'for information' }[tone] || tone})`)),
     h('span', { class: 'stile-state' }, state),
     detail ? h('code', { class: 'stile-detail' }, detail) : null);
 }
