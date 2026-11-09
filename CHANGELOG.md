@@ -21,6 +21,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - `scripts/prepare-release.sh` sets the container image version the README and the install guide show, so they
   cannot fall behind a release again (the install guide still said 0.4.0).
 - `testing/e2e/screenshots.mjs` uploads a demo machine and takes only the images the README shows.
+- CI runs on every pull request, documentation-only ones included: `main` requires its checks, so a pull
+  request that changed only Markdown (a release cut, for one) could not be merged.
 
 ### Fixed
 
