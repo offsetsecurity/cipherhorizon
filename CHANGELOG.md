@@ -10,6 +10,31 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **An MCP server (PRD-020).** `cipherhorizon mcp` speaks the Model Context Protocol (revision 2026-07-28,
+  through the official Go SDK) so an assistant such as Claude Desktop, Claude Code, Cursor or VS Code can use
+  CipherHorizon: `tls_scan` and `ssh_scan` run the same probe and judgement as the scan commands and return
+  the verdict text beside a structured summary (readiness, hygiene or baseline, standards, what to fix first,
+  findings); with `--server URL`, the fleet of a running CipherHorizon is offered through its API
+  (`fleet_summary`, `endpoints_list`, `endpoint_get`, `endpoint_add`, `scan_start`, `scan_get`,
+  `findings_list`, `standards_summary`, `machines_list`, `machine_get`, `inventory_summary`, `cbom_get`).
+  The standards clause by clause, the SSH baselines, the simulated clients and the readiness scale are
+  resources; `assess_endpoint` and `fleet_review` are prompts. Stdio by default; `--listen` serves stateless
+  Streamable HTTP with a bearer key. The assistant is treated as an untrusted caller: `--scan-allow` applies
+  the server's scan guard to ad-hoc scans, `--read-only` removes every tool that changes the server,
+  `--no-scan` removes the scan tools. `docs/mcp.md` has the client configurations.
+- `serve --mcp` serves the same at `/mcp` on the web server, behind its sign-in or token; each tool call is an
+  API call made as the caller, so roles and the activity log apply unchanged. `--mcp-scan` adds the ad-hoc
+  scan tools there.
+
+### Changed
+
+- The container image no longer gets a `latest` tag on a `0.x` release (`DISTRIBUTION.md` promised none
+  before 1.0; the image-tagging step's default added one anyway).
+- `SECURITY.md` names GitHub private vulnerability reporting as the channel; the placeholder address is gone.
+
+
 ## [0.6.1] - 2026-11-09
 
 ### Changed

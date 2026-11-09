@@ -110,6 +110,9 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
+          # The default flavour adds "latest" to every tag that looks like a release version, 0.x included;
+          # DISTRIBUTION.md promises no "latest" before 1.0, so only the explicit entry below may add it.
+          flavor: latest=false
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}},enable=${{ needs.verify.outputs.prerelease == 'false' }}

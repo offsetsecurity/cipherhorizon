@@ -16,8 +16,7 @@ before reporting. Security fixes ship as a patch release with a GitHub Security 
 **Please do not open a public GitHub issue for a security vulnerability.**
 
 Report it privately using GitHub's [private vulnerability reporting](../../security/advisories/new) for this
-repository (Security tab → "Report a vulnerability"), or email **`<maintainer-security-contact — set this
-before publishing>`**. Include:
+repository (Security tab → "Report a vulnerability"); it is enabled and reaches the maintainers directly. Include:
 
 - what you found and why it is a vulnerability (not just unexpected behaviour);
 - steps to reproduce, ideally against `cmd/demo-targets` or another target you control — see "Scope" below;

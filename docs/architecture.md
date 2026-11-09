@@ -126,6 +126,16 @@ server-flight parsers, fuzzed), `registry` (cipher suites and groups generated f
 an alert, a closed connection, or "inconclusive") and leaves judging them to the evaluation layer. Details,
 method and limits: [tls-scanning.md](tls-scanning.md).
 
+## The assistant interface (`internal/mcpserver`)
+
+A Model Context Protocol server over the same two layers. Its scan tools call `tlsprobe`/`sshprobe` and
+`eval` directly and return the CLI's verdict text beside a bounded structured summary; its fleet tools are
+thin typed calls on the HTTP API (never the store), so roles, the audit trail and the scan scope apply to an
+assistant as they do to the web interface. `cipherhorizon mcp` runs it over stdio or Streamable HTTP;
+`serve --mcp` mounts it at `/mcp` with an in-process round trip to the API that carries the caller's
+credentials. The verdict writers are injected from the CLI package to keep the dependency one-way. Usage and
+safety controls: [mcp.md](mcp.md).
+
 ## Roadmap
 
 Done: host inventory (apt), CBOM 1.6 builder, cited PQC algorithm verdicts, TLS probe engine (M1).
