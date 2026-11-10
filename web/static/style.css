@@ -1686,6 +1686,8 @@ a.stile:hover { border-color: var(--border-strong); text-decoration: none; }
 .fixlist .action-title { font-size: 15px; font-weight: 600; }
 .fixlist .action-fix { font-size: 13.5px; color: var(--text-2); }
 .checksbar .stackbar { margin: 4px 0 10px; }
+.checksbar .checks-aside { margin: 8px 0 0; font-size: 13px; }
+.rank-fallback { white-space: nowrap; }
 .area-tiles { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 .area-tiles .stile { min-height: 44px; }
 .stile-detail { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }

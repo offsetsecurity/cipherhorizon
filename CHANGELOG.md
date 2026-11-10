@@ -10,6 +10,18 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Fixed
+
+- **The report page counted checks that did not run.** It said "64 checks run" where `tls scan` said "60 run"
+  for the same scan: the page's figure included the checks that could not run and those that do not apply to the
+  service. The Summary, the Weaknesses tab and the PDF now count a check as run only when it gave a result, and
+  say the rest beside the figure ("4 more could not run").
+- **The Inventory's *Replace first* list mixed in a certificate's name and counted fallbacks.** It ranked keys
+  with algorithms, and a key is named by its certificate, so a host name appeared among the algorithms; the list
+  is now algorithms only (the key's algorithm has its own row). And an endpoint that accepts a quantum-safe key
+  exchange such as X25519MLKEM768 no longer counts against the classical group it keeps for older clients: the
+  row counts the endpoints with nothing quantum-safe, and notes the others as "fallback on N more".
+
 ## [0.6.1] - 2026-11-09
 
 ### Changed

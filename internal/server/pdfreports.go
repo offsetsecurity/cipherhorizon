@@ -121,12 +121,10 @@ func (s *Server) inventoryPDF(w http.ResponseWriter, _ *http.Request) {
 	}
 	in := reportpdf.InventoryInput{Version: s.cfg.Version, Generated: d.GeneratedAt, Totals: d.Totals, Quantum: d.Quantum,
 		Algorithms: items("algorithm"), Keys: items("key"), Protocols: items("protocol"), Software: items("software")}
-	byName := map[string]reportpdf.InvItem{}
-	for _, it := range append(append([]reportpdf.InvItem{}, in.Algorithms...), in.Keys...) {
-		byName[it.Kind+"\x00"+it.Name] = it
-	}
-	for _, r := range d.ReplaceFirst {
-		in.Replace = append(in.Replace, byName[r.Kind+"\x00"+r.Name])
+	for _, r := range replaceFirst(inventoryRows(inv, "algorithm")) {
+		it := invItem(toDash(r.inventoryRow, "algorithm"), r.inventoryRow)
+		it.Fallback = r.fallback
+		in.Replace = append(in.Replace, it)
 	}
 	for _, p := range d.ByPurpose {
 		in.ByPurpose = append(in.ByPurpose, reportpdf.InvPurpose{Purpose: p.Purpose, Vulnerable: p.Vulnerable, Safe: p.Safe, Unknown: p.Unknown})
