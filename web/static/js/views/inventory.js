@@ -255,13 +255,14 @@ async function dashboard(root) {
   // Replace first.
   const rf = d.replaceFirst || [];
   const maxPlaces = Math.max(1, ...rf.map((r) => r.places));
-  grid.appendChild(card('Replace first', 'quantum-vulnerable, most used first',
+  grid.appendChild(card('Replace first', 'quantum-vulnerable algorithms, most used first',
     rf.length
       ? h('ol', { class: 'rank-list', 'data-chart': 'rank' }, rf.map((r, i) => h('li', mark({ class: 'rank-row' },
-        `#/inventory/${r.kind === 'key' ? 'keys' : 'algorithms'}?name=${encodeURIComponent(r.name)}&quantum=vulnerable`,
+        `#/inventory/algorithms?name=${encodeURIComponent(r.name)}&quantum=vulnerable`,
         `${shownName(r.name)}, ${seenOn(r)}: open it in the list`, { tip: shownName(r.name), sub: seenOn(r) }),
         h('span', { class: 'rank-n' }, String(i + 1)),
-        h('span', { class: 'rank-name' }, h('b', { title: r.name }, shownName(r.name)), h('small', null, r.purpose || (r.kind === 'key' ? 'certificate key' : humanDetail(r.detail)))),
+        h('span', { class: 'rank-name' }, h('b', { title: r.name }, shownName(r.name)), h('small', null, r.purpose || humanDetail(r.detail),
+          r.fallback ? h('span', { class: 'rank-fallback', title: `${plural(r.fallback, 'more endpoint')} still accept${r.fallback === 1 ? 's' : ''} it, beside a quantum-safe key exchange: there it is the fallback for older clients, not something to replace.` }, ` · fallback on ${r.fallback} more`) : null)),
         hbar([{ n: r.places, tone: 'bad' }], maxPlaces, { label: seenOn(r) }),
         h('span', { class: 'rank-count' }, seenOn(r)))))
       : h('p', { class: 'muted' }, 'Nothing quantum-vulnerable has been found.'),

@@ -115,7 +115,7 @@ export async function launchPhase({ check, js, go, sleep, shot, viewport, clickT
   await sleep(1200);
   const rep = await js(`return { head: document.querySelector('.report-head')?.innerText || '', text: document.querySelector('main').innerText }`);
   check('E2E-X.1', 'an SMTP endpoint added with STARTTLS is scanned through it: the report says "via STARTTLS (SMTP)", readiness L3, HTTP does not apply',
-    smtp?.starttls === 'smtp' && done?.lastDone?.readinessLevel === 3 && /via STARTTLS \(SMTP\)/.test(rep.head) && /do not apply/.test(rep.text),
+    smtp?.starttls === 'smtp' && done?.lastDone?.readinessLevel === 3 && /via STARTTLS \(SMTP\)/.test(rep.head) && /do(es)? not apply/.test(rep.text),
     JSON.stringify({ starttls: smtp?.starttls, level: done?.lastDone?.readinessLevel, head: rep.head.slice(0, 120) }));
   await shot('report-starttls');
 

@@ -120,20 +120,31 @@ func (x *endpoint) checks() {
 	if len(cs) == 0 {
 		return
 	}
-	found, clean, skipped := 0, 0, 0
+	// A check that could not run, or does not apply, is not counted as run: the web page and the
+	// command line count the same way.
+	found, clean, skipped, na := 0, 0, 0, 0
 	for _, c := range cs {
 		switch c.Result {
 		case "found":
 			found++
 		case "not-found":
 			clean++
+		case "not-applicable":
+			na++
 		default:
 			skipped++
 		}
 	}
+	notRun := ""
+	if skipped > 0 {
+		notRun += fmt.Sprintf(" %d more could not run.", skipped)
+	}
+	if na > 0 {
+		notRun += fmt.Sprintf(" %d not applicable to this service.", na)
+	}
 	x.h1("Every check run")
-	x.p(body(fmt.Sprintf("%d checks: %d found something, %d passed", len(cs), found, clean)),
-		body(map[bool]string{true: fmt.Sprintf(", %d could not run", skipped), false: ""}[skipped > 0]+". "),
+	x.p(body(fmt.Sprintf("%d checks run: %d found something, %d passed.", found+clean, found, clean)),
+		body(notRun+" "),
 		soft("A passed check says what was confirmed; a found one names the problem."))
 	for _, id := range x.sectionIDs() {
 		s := x.sectionByID(id)

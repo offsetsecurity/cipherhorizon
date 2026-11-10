@@ -117,6 +117,14 @@ function checksOf(ev) {
   return uniqueFindings(ev).map((f) => ({ id: f.id, title: f.title, section: f.section, severity: f.severity, result: 'found' }));
 }
 
+/** What was not run, in one sentence; empty when every check ran. */
+function notRunText(skipped, na) {
+  const parts = [];
+  if (skipped) parts.push(`${skipped} more could not run`);
+  if (na) parts.push(`${na} ${na === 1 ? 'does' : 'do'} not apply to this service`);
+  return parts.length ? `${parts.join('; ')}. Weaknesses lists them.` : '';
+}
+
 /**
  * summaryView is for anyone: the verdict, how much was checked, and the action items in plain
  * words (PRD-006 REQ-RV-2).
@@ -188,13 +196,15 @@ export function summaryView(ctx) {
     { n: problems, label: problems === 1 ? 'problem' : 'problems', tone: 'problem' },
     { n: cnt('found') - problems, label: 'to note', tone: 'attention' },
     { n: cnt('not-found'), label: 'passed', tone: 'good' },
-    { n: cnt('not-checked'), label: 'could not run', tone: 'na' },
-    { n: cnt('not-applicable'), label: 'do not apply', tone: 'na' },
   ]);
+  // A check that could not run, or does not apply to this service, was not run: it is said beside the
+  // count, never inside it, so the page, the command line and the PDF give the same number.
+  const ran = cnt('found') + cnt('not-found');
+  const aside = notRunText(cnt('not-checked'), cnt('not-applicable'));
   wrap.appendChild(h('section', { class: 'card checksbar', 'aria-labelledby': 'checks-h' },
-    h('div', { class: 'cfg-head' }, h('h2', { id: 'checks-h', class: 'coverage-line' }, `${cs.length} checks run`),
+    h('div', { class: 'cfg-head' }, h('h2', { id: 'checks-h', class: 'coverage-line' }, `${ran} checks run`),
       h('a', { href: '#', class: 'xlink', onclick: (e) => { e.preventDefault(); ctx.goTab('weaknesses'); } }, 'See every check')),
-    sb.bar, sb.legend));
+    sb.bar, sb.legend, aside ? h('p', { class: 'muted checks-aside' }, aside) : null));
 
   // The published standards, as verdict chips (PRD-017); the Standards tab has the clauses.
   const stdc = standardsCard(ctx);
@@ -323,12 +333,12 @@ export function weaknessesView(ctx) {
       } }, `${label} `, h('span', { class: 'chkfilter-n' }, String(c)))));
   wrap.appendChild(h('section', { class: 'card chktotals', 'aria-label': 'Checks run' },
     h('p', { class: 'chktotals-line' },
-      h('b', null, `${checks.length} checks run. `),
+      h('b', null, `${n('found') + n('not-found')} checks run. `),
       problems ? h('span', { class: 'cov-found' }, `${problems} found a problem`) : h('span', { class: 'cov-clean' }, 'None found a problem'), ', ',
       notes ? [h('span', null, `${notes} found something to note`), ', '] : null,
-      h('span', { class: 'cov-clean' }, `${n('not-found')} passed`),
-      n('not-checked') ? [', ', h('span', { class: 'cov-skip' }, `${n('not-checked')} could not run`)] : null,
-      n('not-applicable') ? [', ', h('span', { class: 'muted' }, `${n('not-applicable')} do not apply to this service`)] : null, '.'),
+      h('span', { class: 'cov-clean' }, `${n('not-found')} passed`), '.',
+      n('not-checked') ? [' ', h('span', { class: 'cov-skip' }, `${n('not-checked')} more could not run.`)] : null,
+      n('not-applicable') ? [' ', h('span', { class: 'muted' }, `${n('not-applicable')} do not apply to this service.`)] : null),
     filterBar));
 
   for (const [sid, title] of profileOf(ctx).sections) {

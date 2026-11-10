@@ -55,8 +55,10 @@ func TestDownloadsAreGeneratedPDFs(t *testing.T) {
 		Totals       map[string]int `json:"totals"`
 		Quantum      map[string]int `json:"quantum"`
 		ReplaceFirst []struct {
-			Name   string `json:"name"`
-			Places int    `json:"places"`
+			Name     string `json:"name"`
+			Kind     string `json:"kind"`
+			Places   int    `json:"places"`
+			Fallback int    `json:"fallback"`
 		} `json:"replaceFirst"`
 		Protocols []struct {
 			Name   string `json:"name"`
@@ -80,6 +82,23 @@ func TestDownloadsAreGeneratedPDFs(t *testing.T) {
 		if d.ReplaceFirst[i].Places > d.ReplaceFirst[i-1].Places {
 			t.Errorf("replace first is ordered by how widely used: %+v", d.ReplaceFirst)
 		}
+	}
+	// Replace first names algorithms only (a key is named by its certificate), and an endpoint that
+	// also accepts a hybrid group does not count against the classical group it keeps as a fallback.
+	sawX25519 := false
+	for _, r := range d.ReplaceFirst {
+		if r.Kind != "algorithm" {
+			t.Errorf("replace first lists algorithms only: %+v", r)
+		}
+		if r.Name == "X25519" {
+			sawX25519 = true
+			if r.Places != 1 || r.Fallback != 1 {
+				t.Errorf("X25519 counts the classical-only endpoint, and is a fallback on the hybrid one: %+v", r)
+			}
+		}
+	}
+	if !sawX25519 {
+		t.Errorf("X25519 is still to replace where nothing quantum-safe is accepted: %+v", d.ReplaceFirst)
 	}
 	if len(d.Sources) != 2 || d.Sources[0].Kind != "endpoint" || d.Sources[0].Items == 0 {
 		t.Errorf("sources: %+v", d.Sources)

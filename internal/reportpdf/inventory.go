@@ -12,6 +12,7 @@ import (
 type InvItem struct {
 	Name, Kind, Detail, Purpose, Quantum string
 	Endpoints, Machines, Imports         int
+	Fallback                             int      // Replace first: endpoints left out, where it is only the fallback beside a quantum-safe key exchange
 	Places                               []string // "name (endpoint)" ...
 	LastSeen                             time.Time
 	Legacy                               bool
@@ -150,18 +151,19 @@ func Inventory(in InventoryInput) ([]byte, error) {
 	}
 	if len(in.Replace) > 0 {
 		x.h2("Replace first")
-		x.f.Add(para(5, soft("Quantum-vulnerable algorithms and keys, the most widely used first.")))
+		x.f.Add(para(5, soft("Quantum-vulnerable algorithms, the most widely used first. An endpoint that also accepts a quantum-safe key exchange is not counted against the classical one it keeps as a fallback.")))
 		var rows [][]pdf.Cell
 		for i, it := range in.Replace {
 			what := it.Purpose
 			if what == "" {
 				what = it.Kind
 			}
-			if what == "key" {
-				what = "certificate key"
+			on := seenOn(it)
+			if it.Fallback > 0 {
+				on += fmt.Sprintf(" (a fallback on %d more)", it.Fallback)
 			}
 			rows = append(rows, []pdf.Cell{txt(fmt.Sprint(i+1), pdf.Bold, text2), txt(shownName(it.Name), pdf.Bold, ink), txt(what, pdf.Regular, text2),
-				txt(seenOn(it), pdf.Regular, ink), txt(strings.Join(it.Places, ", "), pdf.Regular, muted)})
+				txt(on, pdf.Regular, ink), txt(strings.Join(it.Places, ", "), pdf.Regular, muted)})
 		}
 		x.table([]pdf.Col{{Title: "#", W: 0.3}, {Title: "Name", W: 2.2}, {Title: "Purpose", W: 1.4}, {Title: "Seen on", W: 1.3}, {Title: "Where", W: 2.4}}, rows)
 	}

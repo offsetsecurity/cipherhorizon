@@ -23,7 +23,8 @@ type dashRow struct {
 	Endpoints int        `json:"endpoints"`
 	Machines  int        `json:"machines"`
 	Imports   int        `json:"imports"`
-	Legacy    bool       `json:"legacy,omitempty"` // a protocol version that is deprecated
+	Fallback  int        `json:"fallback,omitempty"` // Replace first: endpoints left out because they also accept a quantum-safe key exchange
+	Legacy    bool       `json:"legacy,omitempty"`   // a protocol version that is deprecated
 	LastSeen  *time.Time `json:"lastSeen,omitempty"`
 }
 
@@ -113,6 +114,62 @@ func legacyProtocol(name string) bool {
 	return false
 }
 
+// replaceRow is one row of Replace first: an algorithm with only the places that still depend on it.
+type replaceRow struct {
+	inventoryRow
+	fallback int // endpoints left out: they accept this algorithm and a quantum-safe key exchange
+}
+
+// replaceFirst picks the quantum-vulnerable algorithms to replace first, the most widely used first.
+//
+// It lists algorithms only. A key is named by its certificate, and replacing it means replacing its
+// algorithm, which has its own row. And an endpoint that accepts a quantum-safe key exchange (a
+// hybrid group such as X25519MLKEM768) has already done the replacing: the classical group it
+// still accepts is the fallback for older clients, so that endpoint does not count against it.
+func replaceFirst(algorithms []inventoryRow) []replaceRow {
+	safeKex := map[string]bool{}
+	for _, r := range algorithms {
+		if r.Quantum != "quantum-safe" || purposeOf(r.Detail) != "Key exchange" {
+			continue
+		}
+		for _, p := range r.Places {
+			if p.Kind == "endpoint" {
+				safeKex[p.String()] = true
+			}
+		}
+	}
+	var out []replaceRow
+	for _, r := range algorithms {
+		if r.Quantum != "quantum-vulnerable" {
+			continue
+		}
+		row := replaceRow{inventoryRow: r}
+		if purposeOf(r.Detail) == "Key exchange" {
+			row.Places = make([]sourceLabel, 0, len(r.Places))
+			for _, p := range r.Places {
+				if safeKex[p.String()] {
+					row.fallback++
+					continue
+				}
+				row.Places = append(row.Places, p)
+			}
+		}
+		if len(row.Places) > 0 {
+			out = append(out, row)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if len(out[i].Places) != len(out[j].Places) {
+			return len(out[i].Places) > len(out[j].Places)
+		}
+		return out[i].Name < out[j].Name
+	})
+	if len(out) > 8 {
+		out = out[:8]
+	}
+	return out
+}
+
 func toDash(r inventoryRow, kind string) dashRow {
 	d := dashRow{Name: r.Name, Kind: kind, Detail: r.Detail, Quantum: r.Quantum, Places: len(r.Places), LastSeen: r.Seen}
 	for _, p := range r.Places {
@@ -146,7 +203,6 @@ func (s *Server) buildDashboard() (*inventoryDashboard, error) {
 		ReplaceFirst: []dashRow{}, ByPurpose: []purposeRow{}, Protocols: []dashRow{}, Software: []dashRow{}, Sources: []sourceRow{}}
 	sources := map[string]*sourceRow{}
 	purposes := map[string]*purposeRow{}
-	var vulnerable []dashRow
 	for _, kind := range []string{"algorithm", "key", "protocol", "software"} {
 		rows := inventoryRows(inv, kind)
 		d.Totals[kind] = len(rows)
@@ -169,7 +225,6 @@ func (s *Server) buildDashboard() (*inventoryDashboard, error) {
 				switch r.Quantum {
 				case "quantum-vulnerable":
 					d.Quantum["vulnerable"]++
-					vulnerable = append(vulnerable, dr)
 				case "quantum-safe":
 					d.Quantum["safe"]++
 				default:
@@ -198,16 +253,11 @@ func (s *Server) buildDashboard() (*inventoryDashboard, error) {
 			}
 		}
 	}
-	sort.SliceStable(vulnerable, func(i, j int) bool {
-		if vulnerable[i].Places != vulnerable[j].Places {
-			return vulnerable[i].Places > vulnerable[j].Places
-		}
-		return vulnerable[i].Name < vulnerable[j].Name
-	})
-	if len(vulnerable) > 8 {
-		vulnerable = vulnerable[:8]
+	for _, r := range replaceFirst(inventoryRows(inv, "algorithm")) {
+		dr := toDash(r.inventoryRow, "algorithm")
+		dr.Fallback = r.fallback
+		d.ReplaceFirst = append(d.ReplaceFirst, dr)
 	}
-	d.ReplaceFirst = append(d.ReplaceFirst, vulnerable...)
 	for _, p := range purposeOrder {
 		if pr := purposes[p]; pr != nil {
 			d.ByPurpose = append(d.ByPurpose, *pr)
