@@ -129,6 +129,8 @@ type HostKey struct {
 	Verified    bool              `json:"verified"`
 	VerifyNote  string            `json:"verifyNote,omitempty"`
 	Certificate *wire.Certificate `json:"certificate,omitempty"`
+	// KeyTests is what the weak-key tests found on this key; nil in a report made before them.
+	KeyTests *tlsprobe.KeyTests `json:"keyTests,omitempty"`
 }
 
 // HostKeyAttempt is what asking for one host key algorithm gave.

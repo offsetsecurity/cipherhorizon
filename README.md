@@ -164,7 +164,7 @@ protocols, keep track of it, and show the evidence.
 
 ## Standards
 
-[NIST IR 8547](https://csrc.nist.gov/pubs/ir/8547/ipd) (transition timeline) ·
+[NIST IR 8547](https://csrc.nist.gov/pubs/ir/8547/final) (transition timeline) ·
 [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) ML-KEM ·
 [FIPS 204](https://csrc.nist.gov/pubs/fips/204/final) ML-DSA · FIPS 205 SLH-DSA ·
 [RFC 8446](https://www.rfc-editor.org/rfc/rfc8446) and [RFC 9325](https://www.rfc-editor.org/rfc/rfc9325) (TLS) ·

@@ -37,6 +37,10 @@ type PublicKey struct {
 // Blob is the key exactly as the server sent it.
 func (k *PublicKey) Blob() []byte { return k.blob }
 
+// Crypto returns the key as a crypto.PublicKey (*rsa.PublicKey, *ecdsa.PublicKey, ...), or nil
+// for a type this package does not parse into one.
+func (k *PublicKey) Crypto() crypto.PublicKey { return k.key }
+
 // Certificate is the part of an OpenSSH certificate (PROTOCOL.certkeys) a report shows.
 type Certificate struct {
 	KeyType       string    `json:"keyType"`

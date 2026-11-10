@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/weakkey"
 )
 
 // SchemaVersion identifies the JSON shape of Report. It changes only with a
@@ -85,6 +86,9 @@ type Report struct {
 	// leaf as with SNI), "different" (a separate certificate result with NoSNI
 	// set), "failed", or empty when not attempted (the target is an address).
 	NoSNI string `json:"noSni,omitempty"`
+	// Resumption is what the scan learned about session resumption and early data; nil when it
+	// was not probed (an earlier report, no full handshake, certificate checks turned off).
+	Resumption *Resumption `json:"resumption,omitempty"`
 	// CRLLookups is set when the scan fetched the CRLs the served certificates name (Options.CRL).
 	// Without it, an absent CRL result means "not looked up", never "not revoked".
 	CRLLookups bool `json:"crlLookups,omitempty"`
@@ -333,6 +337,9 @@ type CertInfo struct {
 	Wildcards        []string          `json:"wildcards,omitempty"`
 	LifetimeDays     int               `json:"lifetimeDays,omitempty"`
 	RSAExponent      int               `json:"rsaExponent,omitempty"`
+	// KeyTests is what the weak-key tests found on this certificate's public key, set by the scan
+	// on served certificates; nil when they were not run (an earlier report, an imported certificate).
+	KeyTests *KeyTests `json:"keyTests,omitempty"`
 
 	// AUDIT-TLS-CBOM-001 additions (optional; absent in earlier reports, never invented).
 	SignatureParams string          `json:"signatureParams,omitempty"` // RSASSA-PSS parameters, in words
@@ -368,6 +375,22 @@ type KeyInfo struct {
 	OID       string `json:"oid"`       // the SubjectPublicKeyInfo algorithm OID
 	Bits      int    `json:"bits,omitempty"`
 	Curve     string `json:"curve,omitempty"`
+}
+
+// KeyTests records the weak-key tests run on one public key (internal/weakkey): which ran, and
+// what they proved. Ran is empty for a key type with no such test (Ed25519, ML-DSA).
+type KeyTests struct {
+	Ran  []weakkey.Kind     `json:"ran"`
+	Weak []weakkey.Weakness `json:"weak,omitempty"`
+}
+
+// TestKey runs the weak-key tests on a public key.
+func TestKey(pub any) *KeyTests {
+	kt := &KeyTests{Ran: weakkey.Tests(pub), Weak: weakkey.Check(pub)}
+	if kt.Ran == nil {
+		kt.Ran = []weakkey.Kind{}
+	}
+	return kt
 }
 
 // AlgInfo names an algorithm and carries its OID.

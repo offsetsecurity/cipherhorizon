@@ -126,10 +126,14 @@ var bcp195 = Standard{
 		req("sig-hash", "§4.5", LevelMust, "The certificate is not signed with SHA-1 or MD5 (MUST NOT)", func(t *tlsCheck) Verdict { return t.certSignedSHA2() }),
 		req("hsts", "§3.2", LevelShould, "Web servers use HTTP Strict Transport Security (SHOULD)", func(t *tlsCheck) Verdict { return t.hstsAtLeast(1) }),
 		req("stapling", "§7.5", LevelShould, "The server supports OCSP stapling (SHOULD)", func(t *tlsCheck) Verdict { return t.ocspStapled() }),
+		req("ticket-lifetime", "§3.4", LevelMust, "Session ticket validity is limited to a reasonable duration (MUST)", func(t *tlsCheck) Verdict { return t.ticketLifetime() }),
+		req("resume-dhe", "§3.4", LevelShould, "TLS 1.3 resumption completes a fresh key exchange, psk_dhe_ke (SHOULD)", func(t *tlsCheck) Verdict { return t.resumesWithKeyExchange() }),
+		req("early-data", "§3.10", LevelMust, "0-RTT early data is avoided unless the application protocol defines its use (MUST)", func(t *tlsCheck) Verdict { return t.earlyData() }),
 	},
 	NotAssessed: []string{
 		"§3.7 SNI and §3.8 ALPN support (the scan always sends both, so a refusal is not observable)",
-		"§3.4 session-ticket key rotation and lifetime", "§3.10 0-RTT data", "§4.6 the truncated HMAC extension (never offered by the scan)",
+		"§3.4 how often the ticket-encryption key is changed, and the cipher that protects the ticket (inside the server)",
+		"§4.6 the truncated HMAC extension (never offered by the scan)",
 		"§7.4 reuse of ephemeral DH values across connections",
 	},
 }
@@ -851,4 +855,86 @@ var cnsa2TLS = Standard{
 		"draft §8.1: that non-CNSA signature algorithms are refused (the scan proves acceptance, not refusal of every other scheme)",
 		"Whether the system is a national security system at all",
 	},
+}
+
+// ---- session resumption (RFC 9325 sections 3.4 and 3.10) -------------------------------------------
+
+// ticketLifetime judges the lifetime the server's tickets state. RFC 9325 asks for "a reasonable
+// duration (e.g., half as long as ticket-encryption key validity)" beside a key changed "e.g., once
+// every week"; RFC 8446 caps a TLS 1.3 ticket at seven days. Seven days is the line drawn here, and
+// the detail gives the figure so a reader can apply a stricter one.
+func (t *tlsCheck) ticketLifetime() Verdict {
+	r := t.rep.Resumption
+	if r == nil {
+		return notAssessed("session resumption was not probed")
+	}
+	issued := false
+	for _, v := range []*tlsprobe.ResumeResult{r.TLS13, r.TLS12} {
+		if v != nil && v.Tickets > 0 {
+			issued = true
+		}
+	}
+	if !issued {
+		return notApplicable("the server issues no session tickets")
+	}
+	stated, unspecified := ticketLifetimes(r)
+	var parts []string
+	long := false
+	for _, ver := range []string{"TLS 1.3", "TLS 1.2"} {
+		if s, ok := stated[ver]; ok {
+			parts = append(parts, fmt.Sprintf("%s tickets state %s", ver, duration(s)))
+			long = long || s > maxTicketLifetime
+		}
+	}
+	switch {
+	case long:
+		return notMet(strings.Join(parts, "; ") + ": more than seven days")
+	case len(parts) == 0 && unspecified:
+		return notAssessed("the TLS 1.2 ticket gives no lifetime (a hint of 0 means unspecified), so its validity is not visible to a scan")
+	case len(parts) == 0:
+		return notAssessed("the tickets' contents could not be read")
+	}
+	detail := strings.Join(parts, "; ")
+	if unspecified {
+		detail += "; the TLS 1.2 ticket gives no lifetime"
+	}
+	return met(detail + " (the RFC's own example is half a weekly key rotation, 3.5 days)")
+}
+
+// resumesWithKeyExchange: the scan's client offers psk_dhe_ke only, so a TLS 1.3 session that
+// resumed did so with a fresh key exchange.
+func (t *tlsCheck) resumesWithKeyExchange() Verdict {
+	r := t.rep.Resumption
+	switch {
+	case r == nil:
+		return notAssessed("session resumption was not probed")
+	case r.TLS13 == nil:
+		return notApplicable("TLS 1.3 is not supported")
+	case r.TLS13.Tickets == 0:
+		return notApplicable("the server issues no TLS 1.3 session tickets")
+	case r.TLS13.Resumed == nil:
+		return notAssessed("the second connection gave no answer")
+	case !*r.TLS13.Resumed:
+		return notApplicable("the server did not resume the session it issued a ticket for")
+	}
+	return met("a TLS 1.3 session resumed with a key share (the scan offers psk_dhe_ke only)")
+}
+
+// earlyData: a server whose tickets allow no early data meets the clause outright. One that allows
+// it may still be within the RFC (HTTP has RFC 8470), which a scan cannot see, so it is not judged.
+func (t *tlsCheck) earlyData() Verdict {
+	r := t.rep.Resumption
+	switch {
+	case r == nil:
+		return notAssessed("session resumption was not probed")
+	case r.TLS13 == nil:
+		return notApplicable("TLS 1.3 is not supported")
+	case r.TLS13.Tickets == 0:
+		return met("the server issues no TLS 1.3 session tickets, so it accepts no early data")
+	case r.TLS13.MaxEarlyData == nil:
+		return notAssessed("the tickets' contents could not be read")
+	case *r.TLS13.MaxEarlyData == 0:
+		return met("the server's tickets allow no early data")
+	}
+	return notAssessed(fmt.Sprintf("the server's tickets allow up to %d bytes of early data; whether the application follows a profile for it (RFC 8470 for HTTP) is not visible to a scan", *r.TLS13.MaxEarlyData))
 }

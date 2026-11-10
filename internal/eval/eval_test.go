@@ -12,6 +12,7 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/weakkey"
 )
 
 var now = time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
@@ -144,8 +145,18 @@ func terrible() *tlsprobe.Report {
 		c.Chain[0].NotBefore = now.AddDate(0, 1, 0)
 		c.Chain[0].SHA256 = "future"
 	})
-	small := cert("RSA", 1536, func(c *tlsprobe.CertResult) { c.Chain[0].SHA256 = "small" })
-	tinyEC := cert("ECDSA", 192, func(c *tlsprobe.CertResult) { c.Chain[0].SHA256 = "tinyec" })
+	small := cert("RSA", 1536, func(c *tlsprobe.CertResult) {
+		c.Chain[0].SHA256 = "small"
+		c.Chain[0].KeyTests = &tlsprobe.KeyTests{Ran: []weakkey.Kind{weakkey.RSASmallFactor, weakkey.RSAClosePrimes, weakkey.RSAROCA}, Weak: []weakkey.Weakness{
+			{Kind: weakkey.RSASmallFactor, Detail: "the modulus is divisible by 3"},
+			{Kind: weakkey.RSAClosePrimes, Detail: "the two primes are close"},
+			{Kind: weakkey.RSAROCA, Detail: "the modulus has the RSALib form"}}}
+	})
+	tinyEC := cert("ECDSA", 192, func(c *tlsprobe.CertResult) {
+		c.Chain[0].SHA256 = "tinyec"
+		c.Chain[0].KeyTests = &tlsprobe.KeyTests{Ran: []weakkey.Kind{weakkey.ECSmallScalar}, Weak: []weakkey.Weakness{
+			{Kind: weakkey.ECSmallScalar, Detail: "the private key is 4"}}}
+	})
 
 	return &tlsprobe.Report{
 		Protocols: protocols("TLSv1.1", "TLSv1.0", "SSLv3", "SSLv2"),
@@ -157,6 +168,10 @@ func terrible() *tlsprobe.Report {
 		},
 		Certificates: []tlsprobe.CertResult{expired, soon, untrusted, future, small, tinyEC},
 		HSTS:         ptr(false),
+		Resumption: &tlsprobe.Resumption{
+			TLS13: &tlsprobe.ResumeResult{Tickets: 2, LifetimeSeconds: ptr(uint32(7200)), MaxEarlyData: ptr(uint32(16384)), Resumed: ptr(true)},
+			TLS12: &tlsprobe.ResumeResult{Tickets: 1, LifetimeSeconds: ptr(uint32(30 * 24 * 3600)), Resumed: ptr(true)},
+		},
 	}
 }
 

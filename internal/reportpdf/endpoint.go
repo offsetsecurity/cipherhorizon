@@ -1326,6 +1326,41 @@ func (x *endpoint) features() sectionContent {
 		row("TLS compression", f.Compression, "ACCEPTED", toneBad, "REFUSED", toneGood)
 		row("TLS_FALLBACK_SCSV (RFC 7507)", f.FallbackSCSV, "ENFORCED", toneGood, "NOT ENFORCED", toneWarn)
 		row("Client certificate requested", f.ClientCertRequested, "REQUESTED", toneInfo, "NOT REQUESTED", toneInfo)
+		if r := x.rep.Resumption; r != nil {
+			for _, v := range []struct {
+				name string
+				res  *tlsprobe.ResumeResult
+			}{{"TLS 1.3", r.TLS13}, {"TLS 1.2", r.TLS12}} {
+				if v.res == nil {
+					continue
+				}
+				c := chipCell("NO TICKET", toneInfo)
+				switch {
+				case v.res.Tickets == 0:
+				case v.res.Resumed != nil && *v.res.Resumed:
+					c = chipCell("RESUMES", toneInfo)
+				case v.res.Resumed != nil:
+					c = chipCell("DOES NOT RESUME", toneInfo)
+				default:
+					c = chipCell("TICKET ISSUED", toneInfo)
+				}
+				label := "Session resumption, " + v.name
+				if l := v.res.LifetimeSeconds; l != nil && *l > 0 {
+					label += fmt.Sprintf(" (tickets state %s)", (time.Duration(*l) * time.Second).String())
+				}
+				rows = append(rows, []pdf.Cell{txt(label, pdf.Regular, ink), c})
+			}
+			if e := r.TLS13; e != nil {
+				c := chipCell("NOT DETERMINED", toneInfo)
+				switch {
+				case e.MaxEarlyData != nil && *e.MaxEarlyData > 0:
+					c = chipCell("ACCEPTED", toneWarn)
+				case e.MaxEarlyData != nil || e.Tickets == 0:
+					c = chipCell("NOT ACCEPTED", toneGood)
+				}
+				rows = append(rows, []pdf.Cell{txt("Early data (0-RTT)", pdf.Regular, ink), c})
+			}
+		}
 		x.table([]pdf.Col{{Title: "Feature", W: 3}, {Title: "Result", W: 1.4}}, rows)
 	}}
 }

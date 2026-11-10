@@ -273,6 +273,12 @@ func Scan(ctx context.Context, t Target, opts Options) (rep *Report, err error) 
 			} else {
 				rev.Reason = "CRL lookups are off for this scan, so only a stapled OCSP response can say whether the certificate is revoked"
 			}
+			if rep.Negotiated != nil && rep.Negotiated.Error == "" {
+				p.progress("testing session resumption")
+				_, has12 := legacy[wire.VersionTLS12]
+				rep.Resumption = p.resumption(ctx, tls13 != nil, has12)
+				probes = append(append([]string(nil), probes...), probesResumption)
+			}
 			rep.Stages = append(rep.Stages, sc.end(StageCerts, OutcomeDone, "", "", probes), rev)
 		}
 	}

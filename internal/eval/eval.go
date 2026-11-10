@@ -287,6 +287,22 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 		if strings.HasPrefix(checks[i].ID, "REV.") && checks[i].Result == "not-found" && !rep.CRLLookups {
 			checks[i].Result = "not-checked"
 		}
+		// The resumption checks are decided by the resumption probe, which rides on the full
+		// handshakes and so runs even for a TLS 1.3-only server, where the hello-features stage
+		// does not apply.
+		if id := checks[i].ID; id == "FEAT.EARLY-DATA" || id == "FEAT.TICKET-LIFETIME" {
+			switch {
+			case checks[i].Result == "found":
+			case resumptionChecked(rep, id):
+				checks[i].Result = "not-found"
+			default:
+				checks[i].Result = "not-checked"
+			}
+		}
+		// The weak-key checks ran only if the scan tested the keys (a report from 0.8.0 on).
+		if strings.HasPrefix(checks[i].ID, "KEY.") && checks[i].Result == "not-found" && !keyTestsRan(rep) {
+			checks[i].Result = "not-checked"
+		}
 	}
 	ev.Checks = checks
 	ev.FixFirst = fixFirst(findings)

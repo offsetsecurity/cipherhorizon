@@ -55,8 +55,8 @@ var (
 	citFIPS203 = Citation{Title: "NIST FIPS 203: ML-KEM", URL: "https://doi.org/10.6028/NIST.FIPS.203"}
 	citFIPS204 = Citation{Title: "NIST FIPS 204: ML-DSA", URL: "https://doi.org/10.6028/NIST.FIPS.204"}
 	citIR8547  = Citation{
-		Title: "NIST IR 8547 (initial public draft): Transition to Post-Quantum Cryptography Standards",
-		URL:   "https://csrc.nist.gov/pubs/ir/8547/ipd",
+		Title: "NIST IR 8547 (October 2026): Transition to Post-Quantum Cryptography Standards",
+		URL:   "https://csrc.nist.gov/pubs/ir/8547/final",
 	}
 	citHNDL = Citation{
 		Title: "CISA/NSA/NIST: Quantum-Readiness: Migration to Post-Quantum Cryptography (harvest now, decrypt later)",

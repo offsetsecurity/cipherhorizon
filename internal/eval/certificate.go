@@ -34,7 +34,7 @@ var quantumVulnerableKeys = map[string]bool{
 	"RSA": true, "RSASSA-PSS": true, "ECDSA": true, "Ed25519": true, "Ed448": true, "DSA": true, "X25519": true, "X448": true,
 }
 
-// The dates NIST IR 8547 (initial public draft) gives for the transition: quantum-vulnerable
+// The dates NIST IR 8547 (October 2026) gives for the transition: quantum-vulnerable
 // public-key algorithms to be deprecated by 2030 and disallowed by 2035.
 var (
 	pqcDeprecatedAfter = time.Date(2030, 12, 31, 23, 59, 59, 0, time.UTC)

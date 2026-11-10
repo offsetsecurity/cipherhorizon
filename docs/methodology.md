@@ -22,7 +22,7 @@ No rule fires without at least one citation; a test (`TestEveryRuleFiresAndIsCit
 
 **This scale is the project's own. It is not a standard.** Each fact behind a level is cited separately: the
 IANA supported-groups registry and RFC 10024 (hybrid key agreement for TLS 1.3), FIPS 203/204 (ML-KEM, ML-DSA),
-NIST IR 8547 (draft), and the CISA/NSA/NIST quantum-readiness factsheet for harvest-now-decrypt-later (HNDL).
+NIST IR 8547, and the CISA/NSA/NIST quantum-readiness factsheet for harvest-now-decrypt-later (HNDL).
 
 The levels mean the same thing for every protocol: L1 exposed, L3 protected by a hybrid key exchange, L4
 post-quantum authenticated. Each protocol states its own rules. The TLS rules are below; the SSH rules are in

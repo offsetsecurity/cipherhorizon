@@ -18,12 +18,19 @@ const MEANING = {
 const SOURCES = [
   ['FIPS 203 (ML-KEM)', 'https://csrc.nist.gov/pubs/fips/203/final'],
   ['FIPS 204 (ML-DSA)', 'https://csrc.nist.gov/pubs/fips/204/final'],
-  ['NIST IR 8547 (draft): transition to post-quantum cryptography standards', 'https://csrc.nist.gov/pubs/ir/8547/ipd'],
+  ['NIST IR 8547: transition to post-quantum cryptography standards', 'https://csrc.nist.gov/pubs/ir/8547/final'],
   ['IANA TLS Supported Groups registry', 'https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8'],
   ['RFC 9325: recommendations for secure use of TLS', 'https://www.rfc-editor.org/rfc/rfc9325'],
   ['RFC 4253: the SSH transport layer protocol', 'https://www.rfc-editor.org/rfc/rfc4253'],
   ['RFC 9142: key exchange method updates and recommendations for SSH', 'https://www.rfc-editor.org/rfc/rfc9142'],
   ['RFC 10042: hybrid post-quantum key exchange with ML-KEM in SSH', 'https://www.rfc-editor.org/rfc/rfc10042'],
+];
+const DATES = [
+  ['After 2030', 'RSA, ECDSA, EdDSA, Diffie-Hellman and ECDH are deprecated; 112-bit symmetric strength is disallowed.'],
+  ['After 2035', 'Those public-key algorithms are disallowed.'],
+  ['2 January 2030', 'Federal systems support TLS 1.3.'],
+  ['31 December 2030', 'Federal high-value systems use post-quantum key establishment.'],
+  ['31 December 2031', 'Federal high-value systems use post-quantum signatures.'],
 ];
 const KIND_WORDS = { kex: 'Key exchange', 'host-key': 'Host keys', cipher: 'Ciphers', mac: 'MACs', compression: 'Compression' };
 
@@ -102,7 +109,12 @@ export async function render(root) {
       h('div', { class: 'readylist' }, LEVELS.slice().reverse().map(({ level, name, short }) =>
         h('div', { class: 'readylist-row' },
           h('span', { class: `badge lvbadge ${levelClass(level)}` }, h('b', null, short), ` ${name}`),
-          h('p', null, MEANING[level]))))),
+          h('p', null, MEANING[level])))),
+      h('h3', null, 'The dates behind the scale'),
+      h('p', { class: 'text-2' }, 'From NIST IR 8547 (final, October 2026). The last three rows are for United States federal systems, under Executive Order 14412 and OMB M-26-15; others use them as a yardstick.'),
+      h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
+        h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'When'), h('th', { scope: 'col' }, 'What'))),
+        h('tbody', null, DATES.map(([when, what]) => h('tr', null, h('th', { scope: 'row', class: 'nowrap' }, when), h('td', null, what))))))),
     sec('score', 'The TLS hygiene score',
       h('p', null, 'A TLS endpoint’s score starts at 100 and takes off points for each finding on it: 40 for a critical one, 20 for high, 10 for medium, 4 for low. ',
         'Each distinct problem counts once. A critical finding limits the score to 29 and a high one to 74, so a serious problem cannot be averaged away.'),

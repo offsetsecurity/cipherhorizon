@@ -340,12 +340,11 @@ function featuresSection(ctx, tone) {
     t('Compression', f.compression, 'Accepted: exposed to CRIME', 'Refused', 'problem', 'good'),
     known(f.encryptThenMac) ? statusTile('Encrypt-then-MAC', f.encryptThenMac ? 'Supported (RFC 7366)' : cbc ? 'Not offered: the CBC suites stay MAC-then-encrypt' : 'Not offered; no CBC suite needs it', f.encryptThenMac ? 'good' : cbc ? 'attention' : 'na')
       : statusTile('Encrypt-then-MAC', 'Not determined', 'na'),
-    t('Session tickets', f.sessionTickets, 'Issued', 'Not issued', 'na', 'na'),
+    ...resumptionTiles(rep, f, t),
     statusTile('ALPN', rep.negotiated && rep.negotiated.alpn ? `Negotiated ${rep.negotiated.alpn}` : 'None negotiated', 'na'),
     t('Client certificates', f.clientCertRequested, 'Requested (mutual TLS)', 'Not requested', 'na', 'na'),
     known(f.heartbeat) ? statusTile('Heartbeat', f.heartbeat ? 'Negotiated: nothing needs it (where Heartbleed lived)' : 'Not negotiated', f.heartbeat ? 'attention' : 'good')
       : statusTile('Heartbeat', 'Not probed: no TLS 1.2 handshake answered', 'na'),
-    statusTile('0-RTT early data', 'Not probed yet', 'na'),
     hsts,
   ];
   return section('sec-features', 'Protocol features', tone, h('span', { class: 'cfg-aside' }, 'Each says what was found and whether that is right.'),
@@ -435,3 +434,43 @@ export function weakestAlgorithm(ev) {
     || (allowed(a) - allowed(b)))[0] || null;
 }
 
+
+/** Seconds as the largest whole unit: 7200 -> "2 hours". */
+function span(seconds) {
+  for (const [n, word] of [[86400, 'day'], [3600, 'hour'], [60, 'minute']]) {
+    if (seconds >= n && seconds % n === 0) return `${seconds / n} ${word}${seconds / n === 1 ? '' : 's'}`;
+  }
+  return `${seconds} second${seconds === 1 ? '' : 's'}`;
+}
+
+/**
+ * Session tickets, resumption and early data, from the resumption probe (rep.resumption). A report
+ * made before the probe keeps the one tile it had and says the rest was not probed.
+ */
+function resumptionTiles(rep, f, t) {
+  const r = rep.resumption;
+  if (!r) {
+    return [t('Session tickets', f.sessionTickets, 'Issued', 'Not issued', 'na', 'na'),
+      statusTile('0-RTT early data', 'Not probed in this scan', 'na')];
+  }
+  const vers = [['TLS 1.3', r.tls13], ['TLS 1.2', r.tls12]].filter(([, v]) => v);
+  const issuing = vers.filter(([, v]) => v.tickets > 0);
+  const lives = issuing.filter(([, v]) => v.lifetimeSeconds).map(([name, v]) => ({ name, s: v.lifetimeSeconds }));
+  const long = lives.some((l) => l.s > 7 * 86400);
+  const same = lives.length > 1 && lives.every((l) => l.s === lives[0].s);
+  const lifeText = !lives.length ? '' : same || lives.length === 1 ? `valid ${span(lives[0].s)}` : lives.map((l) => `${l.name}: ${span(l.s)}`).join(', ');
+  const tickets = !issuing.length ? statusTile('Session tickets', 'Not issued', 'na')
+    : statusTile('Session tickets', `Issued${lifeText ? ` · ${lifeText}` : ' · no lifetime stated'}`, long ? 'attention' : 'na');
+
+  const resumed = vers.filter(([, v]) => v.resumed === true).map(([name]) => name);
+  const tried = vers.filter(([, v]) => v.resumed === true || v.resumed === false);
+  const resume = !tried.length ? statusTile('Session resumption', issuing.length ? 'Not determined' : 'No ticket to resume with', 'na')
+    : statusTile('Session resumption', resumed.length ? `Resumes with a ticket (${resumed.join(', ')})` : 'A second connection did not resume', 'na');
+
+  const e = r.tls13;
+  const early = !e ? statusTile('0-RTT early data', 'Does not apply: TLS 1.3 is not supported', 'na')
+    : e.maxEarlyData > 0 ? statusTile('0-RTT early data', `Accepted, up to ${e.maxEarlyData.toLocaleString()} bytes: replayable`, 'attention')
+      : e.maxEarlyData === 0 || e.tickets === 0 ? statusTile('0-RTT early data', 'Not accepted', 'good')
+        : statusTile('0-RTT early data', 'Not determined: the tickets could not be read', 'na');
+  return [tickets, resume, early];
+}

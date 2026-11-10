@@ -277,7 +277,9 @@ func (p *prober) describeChain(source string, st *tls.ConnectionState) CertResul
 	chain := st.PeerCertificates
 	res := CertResult{Source: source}
 	for _, c := range chain {
-		res.Chain = append(res.Chain, describeCert(c))
+		ci := describeCert(c)
+		ci.KeyTests = TestKey(c.PublicKey)
+		res.Chain = append(res.Chain, ci)
 	}
 	leaf := chain[0]
 	res.OCSPStaple, res.TLSSCTs = p.revocationData(st)
