@@ -35,7 +35,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - The container image no longer gets a `latest` tag on a `0.x` release (`DISTRIBUTION.md` promised none
   before 1.0; the image-tagging step's default added one anyway).
 - `SECURITY.md` names GitHub private vulnerability reporting as the channel; the placeholder address is gone.
-
 - Dependencies: `go.yaml.in/yaml/v3` 3.0.6 and `modernc.org/sqlite` 1.61.1.
 
 ### Fixed
