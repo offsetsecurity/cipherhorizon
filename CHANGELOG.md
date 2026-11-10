@@ -10,6 +10,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-10
+
 ### Added
 
 - **Weak-key tests on every served key.** A scan now tests the public key of each certificate the server sends, and
@@ -1158,7 +1160,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Storage:** SQLite only. Up to 50 snapshots of up to 32 MiB are kept per machine; there is no overall storage
   budget yet.
 
-[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.5.1...v0.6.0
