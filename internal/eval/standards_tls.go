@@ -292,11 +292,14 @@ var nistSP80052 = Standard{
 		req("compression", "§3.7", LevelMust, "Only the null compression method is enabled", func(t *tlsCheck) Verdict {
 			return t.feature(t.rep.Features.Compression, false, "DEFLATE compression is refused", "the server accepted DEFLATE compression", "compression was not probed")
 		}),
+		req("early-data", "§3.4.3.2, §3.6", LevelShould, "0-RTT early data is not accepted by the server (should not)", func(t *tlsCheck) Verdict { return t.noEarlyData() }),
 	},
 	NotAssessed: []string{
 		"§3.3.3 FIPS 140 validation of the cryptographic module", "§3.4.1.2 SNI handling (the scan always sends SNI)",
+		"§3.4.3.2 replay protection where early data is accepted",
+		"§3.6 short lifetimes for resumption information and frequent key replacement (the document sets no figure; the report states the ticket lifetime)",
 		"§3.4.1.4 processing of the signature_algorithms extension", "§3.4.2.8 the truncated HMAC extension (never offered)",
-		"§3.5 client authentication", "§3.6 session resumption lifetimes and 0-RTT", "§3.8 operational controls",
+		"§3.5 client authentication", "§3.8 operational controls",
 	},
 }
 
@@ -489,10 +492,12 @@ var bsiTR021022 = Standard{
 			}
 			return t.feature(t.rep.Features.ExtendedMasterSecret, true, "extended_master_secret is echoed", "extended_master_secret is not echoed", "the extension was not observed")
 		}),
+		req("psk-mode", "§3.4.1, Table 9", LevelMust, "TLS 1.3 resumption uses a recommended pre-shared key mode (psk_dhe_ke until 2032+)", func(t *tlsCheck) Verdict { return t.resumesWithKeyExchange() }),
+		req("early-data", "§3.4.1", LevelShould, "0-RTT data is not accepted (not recommended)", func(t *tlsCheck) Verdict { return t.noEarlyData() }),
 	},
 	NotAssessed: []string{
 		"§3.3.3 the TLS 1.2 signature_algorithms values accepted (the scan enumerates signature schemes for TLS 1.3 only)",
-		"§3.3.4.2 truncated HMAC (never offered)", "§3.4.1 PSK modes and 0-RTT", "§3.5 certification-path requirements of TR-03116-4",
+		"§3.3.4.2 truncated HMAC (never offered)", "§3.4.1 whether psk_ke, the mode without forward secrecy, is also accepted (the scan offers psk_dhe_ke only)", "§3.5 certification-path requirements of TR-03116-4",
 		"§4 key storage, ephemeral-key deletion and random numbers",
 	},
 }
@@ -588,6 +593,11 @@ var anssiTLS = Standard{
 				return notAssessed(keyWords(k) + " not classified")
 			})
 		}),
+		req("r20", "R20", LevelMust, "Session tickets live no longer than 24 hours", func(t *tlsCheck) Verdict {
+			return t.ticketLifetimeWithin(24*3600, "24 hours", "")
+		}),
+		req("r21", "R21", LevelShould, "Session resumption completes a Diffie-Hellman key exchange (TLS 1.3)", func(t *tlsCheck) Verdict { return t.resumesWithKeyExchange() }),
+		req("r23", "R23", LevelMust, "The server does not accept 0-RTT data", func(t *tlsCheck) Verdict { return t.noEarlyData() }),
 		req("r28", "R28", LevelShould, "The certificate's ExtendedKeyUsage is appropriate (serverAuth)", func(t *tlsCheck) Verdict { return t.certEKUServerAuth() }),
 		req("r29", "R29", LevelMust, "The certificate carries an appropriate SubjectAlternativeName", func(t *tlsCheck) Verdict { return t.certHasSAN() }),
 		req("r33", "R33", LevelMust, "The certificate names a revocation source (OCSP responder or CRL)", func(t *tlsCheck) Verdict { return t.certRevocationSource(false) }),
@@ -597,7 +607,7 @@ var anssiTLS = Standard{
 	},
 	NotAssessed: []string{
 		"R1, R2 client profiling and up-to-date software", "R12 several cipher suites per client profile", "R14 to R16 the full extension tables",
-		"R17, R18 random-number generation", "R20, R21 session-ticket lifetime and resumption with key exchange", "R23 0-RTT data",
+		"R17, R18 random-number generation", "R21- for TLS 1.2: how often tickets and their encryption keys are deleted (inside the server)",
 		"R27 KeyUsage against the key type", "R30 to R32, R36, R37 PKI operations", "R39 rejecting certificates CT invalidates (a client duty)",
 	},
 }
@@ -864,6 +874,12 @@ var cnsa2TLS = Standard{
 // every week"; RFC 8446 caps a TLS 1.3 ticket at seven days. Seven days is the line drawn here, and
 // the detail gives the figure so a reader can apply a stricter one.
 func (t *tlsCheck) ticketLifetime() Verdict {
+	return t.ticketLifetimeWithin(maxTicketLifetime, "seven days", " (the RFC's own example is half a weekly key rotation, 3.5 days)")
+}
+
+// ticketLifetimeWithin judges the lifetime the server's tickets state against a limit in seconds.
+// ANSSI R20 sets 24 hours.
+func (t *tlsCheck) ticketLifetimeWithin(limit uint32, limitWords, metNote string) Verdict {
 	r := t.rep.Resumption
 	if r == nil {
 		return notAssessed("session resumption was not probed")
@@ -883,12 +899,12 @@ func (t *tlsCheck) ticketLifetime() Verdict {
 	for _, ver := range []string{"TLS 1.3", "TLS 1.2"} {
 		if s, ok := stated[ver]; ok {
 			parts = append(parts, fmt.Sprintf("%s tickets state %s", ver, duration(s)))
-			long = long || s > maxTicketLifetime
+			long = long || s > limit
 		}
 	}
 	switch {
 	case long:
-		return notMet(strings.Join(parts, "; ") + ": more than seven days")
+		return notMet(strings.Join(parts, "; ") + ": more than " + limitWords)
 	case len(parts) == 0 && unspecified:
 		return notAssessed("the TLS 1.2 ticket gives no lifetime (a hint of 0 means unspecified), so its validity is not visible to a scan")
 	case len(parts) == 0:
@@ -898,7 +914,26 @@ func (t *tlsCheck) ticketLifetime() Verdict {
 	if unspecified {
 		detail += "; the TLS 1.2 ticket gives no lifetime"
 	}
-	return met(detail + " (the RFC's own example is half a weekly key rotation, 3.5 days)")
+	return met(detail + metNote)
+}
+
+// noEarlyData is the plain rule several documents state: the server does not accept 0-RTT data
+// (SP 800-52 sections 3.4.3.2 and 3.6, TR-02102-2 section 3.4.1, ANSSI R23).
+func (t *tlsCheck) noEarlyData() Verdict {
+	r := t.rep.Resumption
+	switch {
+	case r == nil:
+		return notAssessed("session resumption was not probed")
+	case r.TLS13 == nil:
+		return notApplicable("TLS 1.3 is not supported")
+	case r.TLS13.Tickets == 0:
+		return met("the server issues no TLS 1.3 session tickets, so it accepts no early data")
+	case r.TLS13.MaxEarlyData == nil:
+		return notAssessed("the tickets' contents could not be read")
+	case *r.TLS13.MaxEarlyData == 0:
+		return met("the server's tickets allow no early data")
+	}
+	return notMet(fmt.Sprintf("the server's tickets allow up to %d bytes of early data", *r.TLS13.MaxEarlyData))
 }
 
 // resumesWithKeyExchange: the scan's client offers psk_dhe_ke only, so a TLS 1.3 session that

@@ -22,8 +22,10 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   and connects again with it. The report says whether the server issues tickets, how long they say they live,
   whether a second connection resumes, and whether the TLS 1.3 tickets allow early data. No early data is sent:
   the allowance is read from the ticket. Two new checks (`FEAT.EARLY-DATA`, `FEAT.TICKET-LIFETIME`), three tiles on
-  the Configuration tab, and three RFC 9325 clauses (§3.4 ticket validity, §3.4 resumption with a key exchange,
-  §3.10 early data) that were *not assessed* now have verdicts.
+  the Configuration tab, and nine standards clauses that were *not assessed* now have verdicts: RFC 9325 §3.4
+  (ticket validity, resumption with a key exchange) and §3.10 (early data); NIST SP 800-52 Rev. 2 §3.4.3.2 and §3.6
+  (no 0-RTT); BSI TR-02102-2 §3.4.1 (pre-shared key mode, no 0-RTT); ANSSI R20 (tickets of 24 hours at most), R21
+  and R23.
 - The Overview's status band has a **Standards** figure: how many of the published standards every endpoint they
   judge meets. It opens the panel with each one.
 - Help lists the dates behind the readiness scale, and its standards catalogue has a contents line that stays in

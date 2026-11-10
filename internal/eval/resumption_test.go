@@ -98,3 +98,47 @@ func TestResumptionChecksAndClauses(t *testing.T) {
 		t.Errorf("unread tickets: %q", got)
 	}
 }
+
+// The same facts decide the matching clauses of SP 800-52 Rev. 2 (sections 3.4.3.2 and 3.6),
+// TR-02102-2 (section 3.4.1) and the ANSSI guide (R20, R21, R23), each read from the document.
+// Unlike RFC 9325, all three say plainly that a server does not accept 0-RTT data, and ANSSI
+// limits a ticket to 24 hours.
+func TestResumptionClausesOfTheOtherStandards(t *testing.T) {
+	base := func(r *tlsprobe.Resumption) eval.Evaluation {
+		rep := terrible()
+		rep.Resumption = r
+		return eval.Evaluate(rep, now)
+	}
+	u := func(v uint32) *uint32 { return &v }
+	yes := true
+	early := [][2]string{{"nist-sp800-52r2", "early-data"}, {"bsi-tr-02102-2", "early-data"}, {"anssi-tls-v1.2", "r23"}}
+
+	none := base(nil)
+	for _, c := range append(early, [2]string{"anssi-tls-v1.2", "r20"}, [2]string{"anssi-tls-v1.2", "r21"}, [2]string{"bsi-tr-02102-2", "psk-mode"}) {
+		if got := clause(t, none, c[0], c[1]); got.Status != eval.ReqNotAssessed {
+			t.Errorf("%s %s without the probe: %+v", c[0], c[1], got)
+		}
+	}
+
+	good := base(&tlsprobe.Resumption{TLS13: &tlsprobe.ResumeResult{Tickets: 2, LifetimeSeconds: u(18 * 3600), MaxEarlyData: u(0), Resumed: &yes}})
+	for _, c := range append(early, [2]string{"anssi-tls-v1.2", "r20"}, [2]string{"anssi-tls-v1.2", "r21"}, [2]string{"bsi-tr-02102-2", "psk-mode"}) {
+		if got := clause(t, good, c[0], c[1]); got.Status != eval.ReqMet {
+			t.Errorf("%s %s on a sound server: %+v", c[0], c[1], got)
+		}
+	}
+
+	// Two days and early data on: RFC 9325's seven-day line is met, ANSSI's 24 hours is not, and
+	// every "no 0-RTT" clause fails.
+	bad := base(&tlsprobe.Resumption{TLS13: &tlsprobe.ResumeResult{Tickets: 2, LifetimeSeconds: u(2 * 24 * 3600), MaxEarlyData: u(14336), Resumed: &yes}})
+	for _, c := range early {
+		if got := clause(t, bad, c[0], c[1]); got.Status != eval.ReqNotMet || !strings.Contains(got.Detail, "14336") {
+			t.Errorf("%s %s with early data on: %+v", c[0], c[1], got)
+		}
+	}
+	if got := clause(t, bad, "anssi-tls-v1.2", "r20"); got.Status != eval.ReqNotMet || !strings.Contains(got.Detail, "more than 24 hours") {
+		t.Errorf("ANSSI R20 with two-day tickets: %+v", got)
+	}
+	if got := clause(t, bad, "bcp195", "ticket-lifetime"); got.Status != eval.ReqMet {
+		t.Errorf("RFC 9325 with two-day tickets: %+v", got)
+	}
+}

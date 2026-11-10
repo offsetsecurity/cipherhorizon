@@ -134,8 +134,12 @@ one `HEAD /` is sent, because some servers issue tickets only after a request.
 Three RFC 9325 clauses are judged from the same facts: §3.4 ticket validity (met at seven days or less; the detail
 gives the figure), §3.4 resumption with a fresh key exchange (the scan offers `psk_dhe_ke` only), and §3.10 early
 data (met when none is allowed; *not assessed* when it is, since HTTP has a profile for it that a scan cannot see).
-The matching clauses of SP 800-52, TR-02102-2 and the ANSSI guide stay *not assessed* until each document is read
-again against these facts.
+The other documents are plainer, and their clauses are judged from the same facts: SP 800-52 Rev. 2 §3.4.3.2 and
+§3.6 (0-RTT data should not be accepted), TR-02102-2 §3.4.1 (Table 9's pre-shared key modes; 0-RTT not
+recommended), and the ANSSI guide's R20 (tickets live no longer than 24 hours), R21 (resumption with a
+Diffie-Hellman exchange) and R23 (the server must not accept 0-RTT data). For these, early data allowed is *not
+met*. SP 800-52 §3.6 also recommends "short lifetimes" without a figure; that stays *not assessed* and the report
+states the lifetime.
 
 ### Rules and changes in eval/13 (CRYPTO-REVIEW-004)
 
