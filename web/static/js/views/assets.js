@@ -313,7 +313,7 @@ export async function render(root, ctx = {}) {
         button('Clear', () => { state.selected.clear(); paint(); }, 'secondary', { class: 'btn btn-secondary btn-sm' })));
     }
 
-    const th = (key, label) => h('th', { scope: 'col', 'aria-sort': state.sort === key ? 'ascending' : 'none' },
+    const th = (key, label) => h('th', { scope: 'col', class: key === 'standards' ? 'col-standards' : null, 'aria-sort': state.sort === key ? 'ascending' : 'none' },
       key ? h('button', { type: 'button', onclick: () => { state.sort = key; state.frozen = null; paint(); } }, label + (state.sort === key ? ' ▲' : '')) : label);
     const allBox = h('input', { type: 'checkbox', 'aria-label': 'Select all shown', checked: list.length > 0 && list.every((a) => state.selected.has(a.id)),
       onchange: (e) => { for (const a of list) e.target.checked ? state.selected.add(a.id) : state.selected.delete(a.id); paint(); } });
@@ -338,11 +338,13 @@ export async function render(root, ctx = {}) {
       h('td', null, h('input', { type: 'checkbox', 'aria-label': `Select ${a.name}`, checked: state.selected.has(a.id),
         onchange: (e) => { e.target.checked ? state.selected.add(a.id) : state.selected.delete(a.id); paint(); } })),
       h('td', { class: 'namecell' }, h('a', { href }, a.name), sub.length ? h('div', { class: 'sub' }, sub.map((x, i) => [i ? (typeof x === 'string' && typeof sub[i - 1] === 'string' ? ' · ' : ' ') : '', x])) : null),
-      h('td', null, d ? [levelBadge(d.readinessLevel), d.hndlExposed ? h('div', { class: 'hint' }, 'exposed to harvest-now-decrypt-later') : null]
+      // Below 1000 px the Standards column folds under this cell (STRATEGY-004 U2).
+      h('td', null, d ? [levelBadge(d.readinessLevel), d.hndlExposed ? h('div', { class: 'hint' }, 'exposed to harvest-now-decrypt-later') : null,
+        h('div', { class: 'hint std-under' }, 'Standards: ', stdWords(d))]
         : (a.latest?.status === 'failed' ? badge('scan failed', 'bad', a.latest.error) : badge('Not scanned', 'none'))),
       protocol === 'ssh'
-        ? [h('td', null, d ? baselineWords(d) : '·'), h('td', { class: 'nowrap' }, d ? stdWords(d) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? hostKeyWords(d) : '·')]
-        : [h('td', null, d ? bandBadge(d.band, d.score) : '·'), h('td', { class: 'nowrap' }, d ? stdWords(d) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? certWords(d.certNotAfter) : '·')],
+        ? [h('td', null, d ? baselineWords(d) : '·'), h('td', { class: 'nowrap col-standards' }, d ? stdWords(d) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? hostKeyWords(d) : '·')]
+        : [h('td', null, d ? bandBadge(d.band, d.score) : '·'), h('td', { class: 'nowrap col-standards' }, d ? stdWords(d) : '·'), h('td', null, d ? findingCounts(d) : '·'), h('td', { class: 'nowrap' }, d ? certWords(d.certNotAfter) : '·')],
       h('td', { class: 'nowrap' }, active ? h('div', null, statusPill(a.latest.status), progressBar(a.latest.progressPct))
         : d ? h('span', { class: 'muted', title: fmtDate(d.finishedAt) }, relTime(d.finishedAt)) : '·'),
       h('td', { class: 'rowactions' },

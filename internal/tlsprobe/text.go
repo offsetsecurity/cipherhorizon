@@ -268,6 +268,9 @@ func (r *Report) writeFeatures(o *out) {
 		}
 		o.fTo(tw, "  %s\t%s\n", it.name, s)
 	}
+	for _, line := range r.Resumption.lines() {
+		o.fTo(tw, "  %s\t%s\n", line[0], line[1])
+	}
 	o.flush(tw)
 }
 

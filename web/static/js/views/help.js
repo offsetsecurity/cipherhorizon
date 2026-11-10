@@ -18,12 +18,19 @@ const MEANING = {
 const SOURCES = [
   ['FIPS 203 (ML-KEM)', 'https://csrc.nist.gov/pubs/fips/203/final'],
   ['FIPS 204 (ML-DSA)', 'https://csrc.nist.gov/pubs/fips/204/final'],
-  ['NIST IR 8547 (draft): transition to post-quantum cryptography standards', 'https://csrc.nist.gov/pubs/ir/8547/ipd'],
+  ['NIST IR 8547: transition to post-quantum cryptography standards', 'https://csrc.nist.gov/pubs/ir/8547/final'],
   ['IANA TLS Supported Groups registry', 'https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8'],
   ['RFC 9325: recommendations for secure use of TLS', 'https://www.rfc-editor.org/rfc/rfc9325'],
   ['RFC 4253: the SSH transport layer protocol', 'https://www.rfc-editor.org/rfc/rfc4253'],
   ['RFC 9142: key exchange method updates and recommendations for SSH', 'https://www.rfc-editor.org/rfc/rfc9142'],
   ['RFC 10042: hybrid post-quantum key exchange with ML-KEM in SSH', 'https://www.rfc-editor.org/rfc/rfc10042'],
+];
+const DATES = [
+  ['After 2030', 'RSA, ECDSA, EdDSA, Diffie-Hellman and ECDH are deprecated; 112-bit symmetric strength is disallowed.'],
+  ['After 2035', 'Those public-key algorithms are disallowed.'],
+  ['2 January 2030', 'Federal systems support TLS 1.3.'],
+  ['31 December 2030', 'Federal high-value systems use post-quantum key establishment.'],
+  ['31 December 2031', 'Federal high-value systems use post-quantum signatures.'],
 ];
 const KIND_WORDS = { kex: 'Key exchange', 'host-key': 'Host keys', cipher: 'Ciphers', mac: 'MACs', compression: 'Compression' };
 
@@ -49,6 +56,18 @@ const TOPICS = [
   ['assistants', 'Assistants (MCP)'],
   ['sources', 'Sources'],
 ];
+
+/** The standards catalogue's own contents line: it stays in view while the catalogue scrolls, and a
+ *  name opens that standard (STRATEGY-004 U5). */
+function stdJump(standards) {
+  return h('nav', { class: 'help-std-jump', 'aria-label': 'Standards in this catalogue' }, standards.map((s) =>
+    h('button', { type: 'button', class: 'jump-chip', onclick: () => {
+      const d = document.getElementById(`std-${s.id}`);
+      if (!d) return;
+      d.open = true;
+      d.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    } }, s.title)));
+}
 
 export async function render(root) {
   const [a, bl, sd] = await Promise.all([api.about().catch(() => ({})), api.sshBaselines().catch(() => null), api.standards().catch(() => null)]);
@@ -102,7 +121,12 @@ export async function render(root) {
       h('div', { class: 'readylist' }, LEVELS.slice().reverse().map(({ level, name, short }) =>
         h('div', { class: 'readylist-row' },
           h('span', { class: `badge lvbadge ${levelClass(level)}` }, h('b', null, short), ` ${name}`),
-          h('p', null, MEANING[level]))))),
+          h('p', null, MEANING[level])))),
+      h('h3', null, 'The dates behind the scale'),
+      h('p', { class: 'text-2' }, 'From NIST IR 8547 (final, October 2026). The last three rows are for United States federal systems, under Executive Order 14412 and OMB M-26-15; others use them as a yardstick.'),
+      h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
+        h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'When'), h('th', { scope: 'col' }, 'What'))),
+        h('tbody', null, DATES.map(([when, what]) => h('tr', null, h('th', { scope: 'row', class: 'nowrap' }, when), h('td', null, what))))))),
     sec('score', 'The TLS hygiene score',
       h('p', null, 'A TLS endpoint’s score starts at 100 and takes off points for each finding on it: 40 for a critical one, 20 for high, 10 for medium, 4 for low. ',
         'Each distinct problem counts once. A critical finding limits the score to 29 and a high one to 74, so a serious problem cannot be averaged away.'),
@@ -133,7 +157,7 @@ export async function render(root) {
       h('p', null, 'Every scan is judged, clause by clause, against the published standards this program carries: for TLS, RFC 9325 (BCP 195), NIST SP 800-52 Rev. 2, BSI TR-02102-2, the ANSSI TLS guide, Mozilla’s Modern and Intermediate profiles, PCI DSS v4.0.1 Requirement 4.2.1 and the CNSA 2.0 profile; for SSH, BSI TR-02102-4 and the CNSA 2.0 SSH profile. The verdicts are on a report’s ', h('b', null, 'Standards'), ' tab, in the endpoint lists, on the Overview, in the PDF and the CSV export, and on the command line.'),
       h('p', null, h('b', null, 'The user story. '), 'An auditor asks “does this endpoint meet PCI DSS?” or a German federal project asks for TR-02102 conformance. The answer is a checklist: each clause of the document, with its section number, whether the endpoint meets it, and what the scan saw. The checklist is the document’s own words paraphrased, never a score; the same facts the findings rest on decide it, so a standard and a finding can never disagree.'),
       h('p', null, h('b', null, 'How a verdict is reached. '), 'A clause is ', h('i', null, 'met'), ', ', h('i', null, 'not met'), ', ', h('i', null, 'not assessed'), ' (the scan holds no evidence either way: a stage did not run, or the document asks for something a network scan cannot see) or ', h('i', null, 'does not apply'), ' (nothing to judge: a CBC rule on a server with no CBC suite). A clause is binding (', code('must'), ': shall, MUST, or a thing the document does not recommend) or a recommendation (', code('should'), '). The endpoint ', h('b', null, 'meets'), ' a standard when no binding clause fails; recommendations not followed are counted beside the verdict. Where a document gives a period of use (BSI’s “use up to” years), the year is applied on the day of evaluation.'),
-      ...(sd && sd.standards ? [h('div', { class: 'help-stds' }, sd.standards.map((s) => h('details', { class: 'help-std' },
+      ...(sd && sd.standards ? [stdJump(sd.standards), h('div', { class: 'help-stds' }, sd.standards.map((s) => h('details', { class: 'help-std', id: `std-${s.id}` },
         h('summary', null, h('b', null, s.title), ` · ${s.publisher}, ${s.edition} · ${s.protocol.toUpperCase()} · ${s.requirements.length} clauses`),
         h('p', null, s.scope, ' ', h('a', { href: s.url, target: '_blank', rel: 'noopener' }, 'The document')),
         h('table', { class: 'compact' }, h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Clause'), h('th', { scope: 'col' }, 'Level'), h('th', { scope: 'col' }, 'Requirement'))),
@@ -145,7 +169,7 @@ export async function render(root) {
       h('p', null, h('b', null, 'How it is computed. '), 'Nothing is sent. The scan has already enumerated every version, suite and group the server accepts and found out who decides the order; each client’s profile is its published defaults (the vendor’s source tree or release notes, named on the profile). The simulation takes the highest common version, then the first suite in the deciding side’s order that both support and whose key exchange the client can complete, then the group the server would pick (with a HelloRetryRequest when the client’s first key share does not match). A client that sends no server name is told it gets the default certificate.'),
       h('p', { class: 'text-2' }, 'The profiles are defaults, not a capture of a particular device: an application can enable or disable versions and suites. Where a default depends on an update (Java 8 before 8u261, Android 4.4 apps enabling TLS 1.2), the profile’s note says so. The list and each profile’s source are in docs/clients.md.')),
     sec('limits', 'What is and is not checked',
-      h('p', null, 'Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group, the certificate chain against the bundled root stores, OCSP stapling, CRL revocation, Certificate Transparency, and session features: 63 checks, each listed on the endpoint’s page as found, passed, not checked or not applicable. Revocation is shown as status unknown unless a stapled response or, with CRL lookups on, a current CRL from the issuer vouches for the certificate.'),
+      h('p', null, 'Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group, the certificate chain against the bundled root stores, OCSP stapling, CRL revocation, Certificate Transparency, session resumption and early data (0-RTT), weak-key tests on every served key, and session features: about 70 checks, each listed on the endpoint’s page as found, passed, not checked or not applicable. Revocation is shown as status unknown unless a stapled response or, with CRL lookups on, a current CRL from the issuer vouches for the certificate.'),
       h('p', null, h('b', null, 'One HTTP request. '), 'Every check exchanges only TLS handshake messages except one: after the handshake, a plain ', code('GET /'),
         ' is sent to read the ', code('Strict-Transport-Security'), ' header (at most 8 KiB, no body kept, no redirect followed). This server has it ',
         h('b', null, a.httpChecks === false ? 'off' : 'on'), '; ', h('a', { href: '#/settings' }, 'Settings → Scanning'), ' turns it off or on (', code('--http-checks'), ' sets the starting value).'),

@@ -215,8 +215,15 @@ export function summaryView(ctx) {
 
   // Each area as a tile: its state and its one line.
   const TONE = { problem: 'problem', attention: 'attention', good: 'good' };
+  // With the standards card above it the Summary runs long, so the areas fold under one line that
+  // still says how they stand (STRATEGY-004 U3); without standards they stay open.
+  const areaCount = (st) => data.filter((d) => d.sec.status === st).length;
+  const areaLine = [[areaCount('problem'), 'with problems'], [areaCount('attention'), 'to look at'], [areaCount('good'), 'good']]
+    .filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(' · ');
+  const areasHead = h('h2', { id: 'areas-h' }, 'By area');
   wrap.appendChild(h('section', { class: 'card areas', id: 'checks', 'aria-labelledby': 'areas-h' },
-    h('h2', { id: 'areas-h' }, 'By area'),
+    h('details', { class: 'areas-fold', open: stdc ? null : '' },
+    h('summary', null, areasHead, h('span', { class: 'areas-line muted' }, areaLine)),
     h('div', { class: 'stiles area-tiles' }, data.map((d) => {
       const t = statusTile(d.title, d.verdict || (STATUS[d.sec.status] || [])[1] || '', TONE[d.sec.status] || 'na', `#sec-${d.id}`, (e) => { e.preventDefault(); ctx.goDetails(d.id); });
       t.classList.add('check-row', `ss-${d.sec.status}`);
@@ -225,7 +232,7 @@ export function summaryView(ctx) {
       t.querySelector('.stile-glyph').replaceWith(statusChip(d.sec.status));
       t.querySelector('.stile-head .sr-only')?.remove();
       return t;
-    }))));
+    })))));
   return wrap;
 }
 

@@ -96,7 +96,7 @@ func TestEveryStandardIsCompleteAndJudged(t *testing.T) {
 	if len(sev.Standards) != len(eval.StandardsFor(eval.ProtocolSSH)) {
 		t.Fatalf("SSH evaluation carries %d standards, want %d", len(sev.Standards), len(eval.StandardsFor(eval.ProtocolSSH)))
 	}
-	if ev.Version != "eval/16" {
+	if ev.Version != "eval/17" {
 		t.Errorf("version %s", ev.Version)
 	}
 }

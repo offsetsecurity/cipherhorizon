@@ -408,6 +408,9 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 		if r := skipped[checks[i].Section]; checks[i].Result == "not-found" && r != "" {
 			checks[i].Result = r
 		}
+		if weakKeyCheck(checks[i].ID) && checks[i].Result == "not-found" && !sshKeyTestsRan(rep.HostKeys) {
+			checks[i].Result = "not-checked"
+		}
 	}
 	ev.Checks = checks
 	ev.FixFirst = fixFirst(findings)

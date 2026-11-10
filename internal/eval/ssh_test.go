@@ -11,6 +11,8 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe"
 	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe/testserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
+	"github.com/offsetsecurity/cipherhorizon/internal/weakkey"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -128,6 +130,10 @@ func TestSSHRules(t *testing.T) {
 		"SSH.HOSTKEY-RSA-SMALL": func(r *sshprobe.Report) {
 			r.HostKeys = append(r.HostKeys, sshprobe.HostKey{Type: "ssh-rsa", Algorithm: "RSA", Bits: 1024, Fingerprint: "SHA256:r"})
 		},
+		"SSH.HOSTKEY-EC-SMALL-SCALAR":  weakHostKey(weakkey.ECSmallScalar),
+		"SSH.HOSTKEY-RSA-SMALL-FACTOR": weakHostKey(weakkey.RSASmallFactor),
+		"SSH.HOSTKEY-RSA-CLOSE-PRIMES": weakHostKey(weakkey.RSAClosePrimes),
+		"SSH.HOSTKEY-RSA-ROCA":         weakHostKey(weakkey.RSAROCA),
 		"SSH.HOSTKEY-BAD-SIGNATURE": func(r *sshprobe.Report) {
 			r.HostKeys[0].Verified, r.HostKeys[0].VerifyNote = false, "the signature did not verify"
 		},
@@ -196,6 +202,9 @@ func TestEverySSHRuleIsCited(t *testing.T) {
 	r.Algorithms.MACC2S = append(r.Algorithms.MACC2S, "none", "hmac-md5", "hmac-sha1", "hmac-sha2-256")
 	r.Algorithms.CompressionC2S = append(r.Algorithms.CompressionC2S, "zlib")
 	r.Algorithms.StrictKex = false
+	for _, k := range []weakkey.Kind{weakkey.ECSmallScalar, weakkey.RSASmallFactor, weakkey.RSAClosePrimes, weakkey.RSAROCA} {
+		weakHostKey(k)(r)
+	}
 	ev := sshEval(r)
 	seen := map[string]bool{}
 	for _, f := range ev.Findings {
@@ -350,5 +359,13 @@ func TestUMAC64AloneIsLow(t *testing.T) {
 	}
 	if s := sev("umac-64-etm@openssh.com", "hmac-md5"); s != eval.Medium {
 		t.Errorf("with hmac-md5: %q", s)
+	}
+}
+
+// weakHostKey adds a host key the scan's key tests proved weak in one way.
+func weakHostKey(kind weakkey.Kind) func(*sshprobe.Report) {
+	return func(r *sshprobe.Report) {
+		r.HostKeys = append(r.HostKeys, sshprobe.HostKey{Type: "ssh-rsa", Algorithm: "RSA", Bits: 2048, Fingerprint: "SHA256:weak-" + string(kind),
+			KeyTests: &tlsprobe.KeyTests{Ran: []weakkey.Kind{kind}, Weak: []weakkey.Weakness{{Kind: kind, Detail: "proof in words"}}}})
 	}
 }

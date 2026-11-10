@@ -72,7 +72,7 @@ type Ranked struct {
 }
 
 var (
-	hndlBeyond = 2030 // NIST IR 8547 (draft): quantum-vulnerable public-key algorithms deprecated by 2030
+	hndlBeyond = 2030 // NIST IR 8547: quantum-vulnerable public-key algorithms deprecated by 2030
 )
 
 type keyed struct {

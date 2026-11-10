@@ -22,7 +22,7 @@ No rule fires without at least one citation; a test (`TestEveryRuleFiresAndIsCit
 
 **This scale is the project's own. It is not a standard.** Each fact behind a level is cited separately: the
 IANA supported-groups registry and RFC 10024 (hybrid key agreement for TLS 1.3), FIPS 203/204 (ML-KEM, ML-DSA),
-NIST IR 8547 (draft), and the CISA/NSA/NIST quantum-readiness factsheet for harvest-now-decrypt-later (HNDL).
+NIST IR 8547, and the CISA/NSA/NIST quantum-readiness factsheet for harvest-now-decrypt-later (HNDL).
 
 The levels mean the same thing for every protocol: L1 exposed, L3 protected by a hybrid key exchange, L4
 post-quantum authenticated. Each protocol states its own rules. The TLS rules are below; the SSH rules are in
@@ -101,6 +101,45 @@ underneath are unchanged and are the primary output; the score is a summary of t
 chain. For internal endpoints, add the private CA to the system's CA bundle (or the server-wide `--ca-bundle`): the
 result is re-evaluated at once and reads "trusted by your CA bundle". Private chains are exempt from the public
 lifetime limit and the CT requirement. The readiness level is unaffected by trust.
+
+### Rules added in eval/17: weak keys, session resumption and early data
+
+**Weak keys.** The scan tests the public key of every certificate the server sends, and every SSH host key, for
+the ways a key can be broken from its public half alone. A positive is a proof (a factor that divides the modulus,
+a scalar that reproduces the public point), except ROCA, which is the published fingerprint. A report made before
+these tests shows the checks as *not checked*.
+
+| Rule (TLS; SSH is `SSH.HOSTKEY-…`) | Severity | Fires when | Source |
+|---|---|---|---|
+| `KEY.EC-SMALL-SCALAR` | critical | an ECDSA key's private scalar, or its distance below the group order, is found by search: below 2^32 on P-256, 2^28 on P-384, 2^26 on P-521. The finding states the scalar | FIPS 186-5 A.2; CA/B Forum BR §4.9.1.2 |
+| `KEY.RSA-SMALL-FACTOR` | critical | the modulus is divisible by a prime below 65536 | FIPS 186-5 A.1 |
+| `KEY.RSA-CLOSE-PRIMES` | critical | Fermat's method factors the modulus within 100 rounds (the two primes agree in about their top half) | CVE-2022-26320; FIPS 186-5 A.1 |
+| `KEY.RSA-ROCA` | high | the modulus has the Infineon RSALib form | CVE-2017-15361 |
+
+Ed25519 and X25519 keys are not searched: the seed is hashed and clamped, so a small seed does not give a small
+scalar. Shared primes across an estate (batch GCD) and certificates read from machine inventories are not tested yet.
+
+**Session resumption and early data.** After the certificate handshakes the scan completes one more full handshake
+per version (TLS 1.3, TLS 1.2), keeps the session ticket, and connects again offering it. It records how many
+tickets the server sent, the lifetime they state, whether the second connection resumed, and, for TLS 1.3, the
+`max_early_data_size` the tickets carry. **No early data is ever sent**: whether the server permits it is the
+server's own statement in the ticket (RFC 8446 §4.6.1). When HTTP checks are on and no TLS 1.3 ticket has arrived,
+one `HEAD /` is sent, because some servers issue tickets only after a request.
+
+| Rule | Severity | Fires when | Source |
+|---|---|---|---|
+| `FEAT.EARLY-DATA` | low | the TLS 1.3 tickets allow early data (0-RTT) | RFC 8446 §8; RFC 9325 §3.10; RFC 8470 |
+| `FEAT.TICKET-LIFETIME` | low | a ticket states a lifetime over seven days | RFC 9325 §3.4; RFC 8446 §4.6.1 |
+
+Three RFC 9325 clauses are judged from the same facts: §3.4 ticket validity (met at seven days or less; the detail
+gives the figure), §3.4 resumption with a fresh key exchange (the scan offers `psk_dhe_ke` only), and §3.10 early
+data (met when none is allowed; *not assessed* when it is, since HTTP has a profile for it that a scan cannot see).
+The other documents are plainer, and their clauses are judged from the same facts: SP 800-52 Rev. 2 §3.4.3.2 and
+§3.6 (0-RTT data should not be accepted), TR-02102-2 §3.4.1 (Table 9's pre-shared key modes; 0-RTT not
+recommended), and the ANSSI guide's R20 (tickets live no longer than 24 hours), R21 (resumption with a
+Diffie-Hellman exchange) and R23 (the server must not accept 0-RTT data). For these, early data allowed is *not
+met*. SP 800-52 §3.6 also recommends "short lifetimes" without a figure; that stays *not assessed* and the report
+states the lifetime.
 
 ### Rules and changes in eval/13 (CRYPTO-REVIEW-004)
 
@@ -300,6 +339,10 @@ and which `sshd_config` lines would make it. No list, total or sort ever adds an
 | `SSH.HOSTKEY-RSA-SHA1` | `ssh-rsa` (SHA-1) signatures | Medium | RFC 8332; OpenSSH 8.8; SP 800-131A |
 | `SSH.HOSTKEY-RSA-SMALL` | An RSA host key under 2048 bits (High); under 3072 (Low) | High | SP 800-131A; SP 800-57 |
 | `SSH.HOSTKEY-BAD-SIGNATURE` | A host key signature did not verify | Medium | RFC 4253 |
+| `SSH.HOSTKEY-EC-SMALL-SCALAR` | An ECDSA host key's private key is found by search | Critical | FIPS 186-5 |
+| `SSH.HOSTKEY-RSA-SMALL-FACTOR` | An RSA host key's modulus has a prime factor below 65536 | Critical | FIPS 186-5 |
+| `SSH.HOSTKEY-RSA-CLOSE-PRIMES` | An RSA host key's primes are close enough for Fermat's method | Critical | CVE-2022-26320 |
+| `SSH.HOSTKEY-RSA-ROCA` | An RSA host key has the ROCA fingerprint | High | CVE-2017-15361 |
 | `SSH.CIPHER-NONE` | The `none` cipher | Critical | RFC 4253 |
 | `SSH.CIPHER-RC4` | RC4 (arcfour) | High | RFC 8758 |
 | `SSH.CIPHER-DES` | Single DES | High | SP 800-131A |
@@ -338,7 +381,8 @@ client list and its sources are in [clients.md](clients.md).
 ## What a scan sends
 
 A few dozen to a few hundred short TLS handshakes per endpoint (a ClientHello, a read of the server's reply,
-close). No application data, no exploit traffic. Concurrency, connection budget and timeouts are bounded
+close), and up to four full handshakes for session resumption. No exploit traffic and no early data; the only
+application data is the HTTP check's one request, and one `HEAD /` when a TLS 1.3 server holds its tickets back. Concurrency, connection budget and timeouts are bounded
 (`--concurrency`, `--timeout`; hard cap of 2000 connections per scan, after which the result is flagged
 incomplete). See [tls-scanning.md](tls-scanning.md) for the probe design and known limits. An SSH scan makes at most 24
 connections and never logs in: [ssh-scanning.md](ssh-scanning.md#what-is-sent).

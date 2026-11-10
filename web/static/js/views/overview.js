@@ -69,7 +69,7 @@ function protocolCard(protocol, list) {
 }
 
 /** Where you stand, as one band of figures; each opens its place. */
-function statusBand(assets, hosts, inv) {
+function statusBand(assets, hosts, inv, stds) {
   const done = assets.filter((a) => a.lastDone);
   let hybrid = 0, problems = 0, withProblems = 0;
   const sev = { critical: 0, high: 0, medium: 0, low: 0 };
@@ -86,13 +86,26 @@ function statusBand(assets, hosts, inv) {
   // Each severity chip opens the findings of that severity (PRD-009 REQ-CHT-4).
   const sevChips = [['critical', 'bad'], ['high', 'bad'], ['medium', 'warn'], ['low', 'neutral']].filter(([k]) => sev[k]).map(([k, t]) =>
     h('a', { class: `badge b-${t} stat-chip`, href: `#/findings?severity=${k}`, 'aria-label': `${sev[k]} ${k}: open the ${k} findings` }, `${sev[k]} ${k}`));
-  return h('section', { class: 'statusband', 'aria-label': 'Where you stand' },
+  // Standards (STRATEGY-004 U4): how many of the published standards every endpoint they judge
+  // meets, where a compliance lead looks first. It opens the panel below, which has each one.
+  const judged = (stds || []).filter((s) => s.meets + s.fails > 0);
+  const metByAll = judged.filter((s) => !s.fails).length;
+  const stdCell = judged.length ? stat('#/', metByAll === judged.length ? 'good' : 'warn', 'Standards', `${metByAll} of ${judged.length}`, [
+    h('span', { class: 'stat-note' }, 'met by every endpoint they judge')]) : null;
+  if (stdCell) {
+    stdCell.querySelector('a.stat').addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('stdpanel-h')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }
+  return h('section', { class: `statusband${stdCell ? ' seven' : ''}`, 'aria-label': 'Where you stand' },
     protocolCard('tls', assets.filter((a) => protocolOf(a) === 'tls')),
     protocolCard('ssh', assets.filter((a) => protocolOf(a) === 'ssh')),
     stat('#/machines', '', 'Machines', String(hosts.length), [
       h('span', { class: 'stat-note' }, hosts.length ? plural(hostVuln, 'quantum-vulnerable component') : 'run the inventory script to add one')]),
     stat('#/findings', problems ? 'bad' : 'good', 'Findings', String(problems), [
       h('span', { class: 'stat-note' }, problems ? `problems on ${withProblems} of ${done.length} scanned` : 'no problems found')], sevChips),
+    stdCell,
     stat('#/findings', done.length && hybrid === done.length ? 'good' : 'warn', 'Post-quantum', done.length ? `${hybrid} of ${done.length}` : 'none', [
       h('span', { class: 'stat-note' }, 'use post-quantum key exchange, across every protocol'),
       exposed ? h('span', { class: 'stat-note fleet-warn' }, `${exposed} exposed to harvest-now-decrypt-later`) : null]),
@@ -239,7 +252,7 @@ export async function render(root) {
     lower.appendChild(h('p', { class: 'overview-empty' }, 'Scan an endpoint above, or inventory a machine, and this page shows where you stand.'));
     return null;
   }
-  band.replaceWith(statusBand(assets, hosts, inv));
+  band.replaceWith(statusBand(assets, hosts, inv, stds.standards || []));
   countLevels(assets);
   const shown = assets.filter((a) => a.lastDone || a.latest)
     .sort((a, b) => new Date(b.lastDone?.finishedAt || b.latest?.queuedAt || 0) - new Date(a.lastDone?.finishedAt || a.latest?.queuedAt || 0))

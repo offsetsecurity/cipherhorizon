@@ -52,8 +52,8 @@ var (
 		"https://arxiv.org/abs/quant-ph/0301141",
 	}
 	refIR8547 = Reference{
-		"NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035",
-		"https://csrc.nist.gov/pubs/ir/8547/ipd",
+		"NIST IR 8547 (October 2026), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035",
+		"https://csrc.nist.gov/pubs/ir/8547/final",
 	}
 	refNISTCategories = Reference{
 		"NIST PQC security categories: 1/3/5 are defined by AES-128/192/256 key search, 2/4 by SHA-256/SHA-384 collision search",

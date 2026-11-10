@@ -10,6 +10,36 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Weak-key tests on every served key.** A scan now tests the public key of each certificate the server sends, and
+  each SSH host key, for the ways a key can be broken from its public half alone: an elliptic-curve private key
+  small enough to find by search (as in the 2026 eMudhra CA keys; the finding states the key), an RSA modulus with
+  a small factor, RSA primes close enough for Fermat's method, and the ROCA defect of Infineon's RSALib. Four new
+  checks for TLS (`KEY.*`) and four for SSH (`SSH.HOSTKEY-*`). A positive is a proof, except ROCA, which is the
+  published fingerprint.
+- **Session resumption and 0-RTT.** A TLS scan completes one more handshake per version, keeps the session ticket
+  and connects again with it. The report says whether the server issues tickets, how long they say they live,
+  whether a second connection resumes, and whether the TLS 1.3 tickets allow early data. No early data is sent:
+  the allowance is read from the ticket. Two new checks (`FEAT.EARLY-DATA`, `FEAT.TICKET-LIFETIME`), three tiles on
+  the Configuration tab, and nine standards clauses that were *not assessed* now have verdicts: RFC 9325 §3.4
+  (ticket validity, resumption with a key exchange) and §3.10 (early data); NIST SP 800-52 Rev. 2 §3.4.3.2 and §3.6
+  (no 0-RTT); BSI TR-02102-2 §3.4.1 (pre-shared key mode, no 0-RTT); ANSSI R20 (tickets of 24 hours at most), R21
+  and R23.
+- The Overview's status band has a **Standards** figure: how many of the published standards every endpoint they
+  judge meets. It opens the panel with each one.
+- Help lists the dates behind the readiness scale, and its standards catalogue has a contents line that stays in
+  view.
+
+### Changed
+
+- **NIST IR 8547 is cited as the final publication** (October 2026), not the 2024 draft, in findings, the CBOM, the
+  PDF and Help. The dates are unchanged; Help adds the federal dates of Executive Order 14412 and OMB M-26-15.
+- The evaluation is `eval/17`. A scan stored by an earlier version shows the new checks as *not checked* until the
+  endpoint is scanned again.
+- On an endpoint's Summary the *By area* tiles fold under one line when the standards card is shown; below 1000 px
+  the endpoint lists show the standards count under the readiness level in place of a column.
+
 ## [0.7.0] - 2026-11-10
 
 ### Added

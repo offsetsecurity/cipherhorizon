@@ -519,7 +519,7 @@ func addKey(rep *Report, k *wire.PublicKey, alg string, v wire.Verified) {
 	}
 	rep.HostKeys = append(rep.HostKeys, HostKey{Type: k.Type, Algorithm: k.Algorithm, Bits: k.Bits, Curve: k.Curve, PQ: k.PQ,
 		Fingerprint: k.Fingerprint, Blob: base64.StdEncoding.EncodeToString(k.Blob()), ServedBy: []string{alg},
-		Verified: v.OK, VerifyNote: v.Note, Certificate: k.Cert})
+		Verified: v.OK, VerifyNote: v.Note, Certificate: k.Cert, KeyTests: tlsprobe.TestKey(k.Crypto())})
 }
 
 // algorithmsOf breaks a KEXINIT into the report's lists.

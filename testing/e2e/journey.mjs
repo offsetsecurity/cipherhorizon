@@ -504,7 +504,7 @@ async function main() {
   check('E2E-F.3', 'Overview lists the latest results, each with its verdict and a link to its report, and what to fix first', home.rows >= 1 && home.rows <= 6 && home.verdicts === home.rows && home.links && home.fix > 0, JSON.stringify(home).slice(0, 300));
   check('E2E-F.4', 'Overview has one status band with a card per protocol and a figure per question, each opening its place, and the readiness scale L4 to L0 as the legend (DESIGN.md §8, UX-DESIGN-007 §5)',
     home.scale === 'L4L3L2L1L0' &&
-    home.tiles.join('|') === 'TLS endpoints>#/endpoints|SSH servers>#/ssh|Machines>#/machines|Findings>#/findings|Post-quantum>#/findings|Inventory>#/inventory', home.tiles.join('|'));
+    home.tiles.join('|') === 'TLS endpoints>#/endpoints|SSH servers>#/ssh|Machines>#/machines|Findings>#/findings|Standards>#/|Post-quantum>#/findings|Inventory>#/inventory', home.tiles.join('|'));
   await go('#/endpoints');
   await sleep(900);
   const reps = await js(`const rows = [...document.querySelectorAll('main tbody tr')];

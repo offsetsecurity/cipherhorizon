@@ -87,7 +87,7 @@
         },
         {
           "name": "cipherhorizon:pqc:basis",
-          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+          "value": "NIST IR 8547 (October 2026), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/final>"
         },
         {
           "name": "cipherhorizon:pqc:basis",
@@ -163,7 +163,7 @@
         },
         {
           "name": "cipherhorizon:pqc:basis",
-          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+          "value": "NIST IR 8547 (October 2026), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/final>"
         },
         {
           "name": "cipherhorizon:pqc:basis",
@@ -205,7 +205,7 @@
         },
         {
           "name": "cipherhorizon:pqc:basis",
-          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+          "value": "NIST IR 8547 (October 2026), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/final>"
         },
         {
           "name": "cipherhorizon:pqc:basis",
@@ -452,7 +452,7 @@
         },
         {
           "name": "cipherhorizon:pqc:basis",
-          "value": "NIST IR 8547 (initial public draft, Nov 2024), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/ipd>"
+          "value": "NIST IR 8547 (October 2026), Transition to Post-Quantum Cryptography Standards: lists RSA, ECDSA, EdDSA, DH and ECDH as quantum-vulnerable, to be deprecated by 2030 and disallowed by 2035 <https://csrc.nist.gov/pubs/ir/8547/final>"
         },
         {
           "name": "cipherhorizon:pqc:basis",
