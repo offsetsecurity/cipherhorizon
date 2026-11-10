@@ -28,7 +28,9 @@ cipherhorizon serve                 # http://127.0.0.1:8080; data in your per-us
 
 Open the address and scan. Add
 `--allow-loopback` to scan services on the same machine, `--scan-allow 10.0.0.0/8` (repeatable;
-networks, addresses or domains) to limit what may be scanned at all.
+networks, addresses or domains) to limit what may be scanned at all. `--mcp` serves the fleet to
+assistants at `/mcp` behind the same sign-in ([mcp.md](mcp.md)); in the container, the unit and the
+service it is the same flag.
 
 ## Docker or Podman
 

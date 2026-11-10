@@ -80,6 +80,8 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return scriptsCmd(args[1:], env)
 	case "user", "users":
 		return userCmd(args[1:], env)
+	case "mcp":
+		return mcpCmd(ctx, args[1:], env)
 	case "healthcheck":
 		return healthcheckCmd(ctx, args[1:], env)
 	case "service":
@@ -125,6 +127,7 @@ Usage:
   cipherhorizon scripts list|export DIR   the inventory scripts' hashes, from this binary
   cipherhorizon user list|add|reset-password|unlock [--db FILE] [USERNAME]
   cipherhorizon plugins       list the built-in sensors
+  cipherhorizon mcp [--server URL --token TOKEN] [--listen HOST:PORT --key KEY]   Model Context Protocol server
   cipherhorizon healthcheck [--addr HOST:PORT] [--tls]   for a container orchestrator; see below
   cipherhorizon service install|status|start|stop|uninstall   Windows: run as a service (administrator)
   cipherhorizon version
@@ -169,6 +172,11 @@ front (name that proxy with --trusted-proxy so rate limits see real client addre
 Beyond loopback without sign-in the server refuses to start unless --open-network says it
 is meant to be open. --token (or CIPHERHORIZON_TOKEN) adds an automation
 token for scripts, which act as an analyst. Data is kept in --db (SQLite).
+
+mcp serves the assistant protocol (MCP) on stdin/stdout: tls_scan and ssh_scan run the same
+probe and judgement as the scan commands; with --server, the fleet of a running CipherHorizon
+is offered through its API; --listen serves Streamable HTTP instead. cipherhorizon mcp -h lists
+the options; docs/mcp.md has the client configurations.
 
 healthcheck asks a running "serve" for its health, without a token, and exits 0 or 1; it is
 what the container image's HEALTHCHECK runs, since the distroless base has no shell or curl.

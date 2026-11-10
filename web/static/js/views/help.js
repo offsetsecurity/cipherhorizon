@@ -46,6 +46,7 @@ const TOPICS = [
   ['charts', 'Charts and filtered lists'],
   ['server', 'Running the server'],
   ['cli', 'Command line and CI'],
+  ['assistants', 'Assistants (MCP)'],
   ['sources', 'Sources'],
 ];
 
@@ -175,6 +176,12 @@ export async function render(root) {
       cmd("cipherhorizon tls scan --fail-on 'level<L3,severity>=high' api.example.com\ncipherhorizon ssh scan --fail-on baseline bastion.example.com"),
       h('p', { class: 'text-2' }, 'Conditions: ', code('level<L3'), ', ', code('score<70'), ' (TLS), ', code('baseline'), ' (SSH), ', code('severity>=high'), ', ', code('finding=PROTO.TLS10'),
         '. Scripts can use this server’s API with an automation token; the API is described at ', h('a', { href: '/api/v1/openapi.json' }, '/api/v1/openapi.json'), '.')),
+    sec('assistants', 'Assistants (MCP)',
+      h('p', null, 'An assistant that can call tools (Claude Desktop, Claude Code, Cursor, VS Code) can use CipherHorizon through the Model Context Protocol: scan an endpoint and read the verdict, quote the standard clause behind a finding, or look over the fleet.'),
+      cmd('claude mcp add cipherhorizon -- cipherhorizon mcp\ncipherhorizon mcp --server https://cipherhorizon.example.net --read-only --scan-allow 10.0.0.0/8\ncipherhorizon serve --mcp'),
+      h('p', null, code('cipherhorizon mcp'), ' speaks MCP on stdin and stdout and offers ', code('tls_scan'), ' and ', code('ssh_scan'), ', the same probe and judgement as the scan commands. With ', code('--server'), ' it also offers this server’s fleet: endpoints and their verdicts, stored scans, findings, standards, the inventory. ',
+        code('serve --mcp'), ' serves the same at ', code('/mcp'), ' behind this server’s sign-in, each call under the caller’s role.'),
+      h('p', { class: 'text-2' }, 'The assistant is an untrusted caller: ', code('--scan-allow'), ' limits what it may scan, ', code('--read-only'), ' leaves it nothing that changes the server, ', code('--no-scan'), ' leaves it the stored results only. The client configurations are in docs/mcp.md.')),
     sec('sources', 'Sources', citations(SOURCES.map(([title, url]) => ({ title, url })))));
 
   root.appendChild(h('div', { class: 'help-layout' }, toc, body));

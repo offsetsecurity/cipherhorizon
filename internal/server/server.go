@@ -60,6 +60,11 @@ type Config struct {
 	MaxConcurrentScans int
 	Log                *slog.Logger
 	Now                func() time.Time
+
+	// MCP, when set, is served at /mcp behind the same identification as the API (a bearer token
+	// or a signed-in session; the local operator when sign-in is off). It is the Model Context
+	// Protocol handler serve --mcp builds (PRD-020); nil leaves the path unregistered.
+	MCP http.Handler
 }
 
 // Server is the HTTP handler and its dependencies.
@@ -384,5 +389,13 @@ func (s *Server) routes() {
 	// Unknown API paths get a JSON 404. Registered for GET only so that a wrong
 	// method on a real path is answered 405 by the mux rather than swallowed here.
 	m.HandleFunc("GET /api/", func(w http.ResponseWriter, _ *http.Request) { writeErr(w, http.StatusNotFound, "no such API endpoint") })
+	if s.cfg.MCP != nil {
+		// Stateless Streamable HTTP is POST only; the handler answers GET and DELETE 405 itself.
+		h := s.mcpGuard(s.cfg.MCP)
+		for _, method := range []string{"POST", "GET", "DELETE"} {
+			m.Handle(method+" /mcp", h)
+		}
+		s.routeTable = append(s.routeTable, "POST /mcp")
+	}
 	m.Handle("GET /", web.Handler()) // GET only, so a wrong method on an API path is a 405, not swallowed here
 }

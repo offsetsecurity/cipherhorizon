@@ -18,6 +18,7 @@ import (
 
 	"github.com/offsetsecurity/cipherhorizon/internal/auth"
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/mcpserver"
 	"github.com/offsetsecurity/cipherhorizon/internal/revocation"
 	"github.com/offsetsecurity/cipherhorizon/internal/server"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
@@ -198,6 +199,10 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		"Off by default, server-wide: it contacts each CA's CRL server (plain HTTP), hosts other than the scanned targets. Private and loopback "+
 		"addresses are refused unless --revocation-private is set")
 	crlPrivate := fl.Bool("revocation-private", false, "with --revocation, also fetch CRLs from private (RFC 1918, unique-local) and loopback addresses: an internal CA's CRL server")
+	mcpOn := fl.Bool("mcp", false, "serve the Model Context Protocol at /mcp (Streamable HTTP) for assistants: the fleet tools, behind the same "+
+		"sign-in or token as the API, each call under the caller's role. See cipherhorizon mcp -h and docs/mcp.md")
+	mcpScan := fl.Bool("mcp-scan", false, "with --mcp, also offer tls_scan and ssh_scan at /mcp: ad-hoc scans from this server's network "+
+		"position, within its scan scope, for every signed-in caller whatever the role")
 	caBundle := fl.String("ca-bundle", "", "PEM file of private CA certificates every scan is also judged against (\"trusted by your CA bundle\"). "+
 		"Certificates only: a file containing a private-key block is refused")
 	var allowedHosts, trustedProxies, scanAllow stringList
@@ -362,8 +367,21 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	if n := runner.ReevaluateOutdated(); n > 0 {
 		log.Info("re-evaluated the latest results with the current rules", "endpoints", n, "rules", eval.Version)
 	}
+	var mcpHandler http.Handler
+	inproc := &inProcessTransport{}
+	if *mcpOn {
+		m := mcpserver.New(mcpserver.Options{
+			Version: version.Version, Log: log, NoScan: !*mcpScan,
+			Scan:    mcpserver.ScanOptions{Guard: guard, Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
+			Fleet:   &mcpserver.Fleet{Base: "http://127.0.0.1", Client: &http.Client{Transport: inproc}},
+			Verdict: writeVerdict, Details: writeDetails, Now: env.Now,
+		})
+		mcpHandler = m.Handler(mcpserver.HTTPOptions{ForwardCredentials: true})
+	} else if *mcpScan {
+		warnf(env, "--mcp-scan does nothing without --mcp")
+	}
 	srv := server.New(server.Config{
-		Store: st, Runner: runner, Guard: guard,
+		Store: st, Runner: runner, Guard: guard, MCP: mcpHandler,
 		Token: *token, AllowedHosts: allowedHosts, TrustedProxies: proxies,
 		RequireLogin: *signInMode == "on", ForbidLogin: *signInMode == "off", AllowOpen: loopback || *openNetwork, SetupCode: setupCode, SetupCodeExpires: setupExpires, SecureCookies: useTLS,
 		SessionIdle: *sessionIdle, SessionMax: *sessionMax,
@@ -373,6 +391,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		Log:                log,
 	})
 
+	inproc.set(srv.Handler())
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		if isAddrInUse(err) {
@@ -417,6 +436,13 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		mode += ", automation token accepted"
 	}
 	_, _ = fmt.Fprintf(env.Stderr, "cipherhorizon %s: UI and API on %s://%s (%s), database %s\n", version.Version, scheme, ln.Addr(), mode, *dbPath)
+	if mcpHandler != nil {
+		what := "fleet tools"
+		if *mcpScan {
+			what += " and ad-hoc scans"
+		}
+		_, _ = fmt.Fprintf(env.Stderr, "MCP (Model Context Protocol) at %s://%s/mcp: %s, with the same credentials\n", scheme, ln.Addr(), what)
+	}
 	if setupCode != "" {
 		_, _ = fmt.Fprintf(env.Stderr, "\nfirst run: no account exists yet. Open %s://%s and create the administrator with this one-time setup code:\n\n    %s\n\n"+
 			"(it is shown only here; it stops working once the administrator exists, or at %s; restart the server for a new one)\n\n",
