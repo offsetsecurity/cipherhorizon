@@ -10,6 +10,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-10
+
 ### Added
 
 - **An MCP server (PRD-020).** `cipherhorizon mcp` speaks the Model Context Protocol (revision 2026-07-28,
@@ -33,6 +35,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - The container image no longer gets a `latest` tag on a `0.x` release (`DISTRIBUTION.md` promised none
   before 1.0; the image-tagging step's default added one anyway).
 - `SECURITY.md` names GitHub private vulnerability reporting as the channel; the placeholder address is gone.
+
+- Dependencies: `go.yaml.in/yaml/v3` 3.0.6 and `modernc.org/sqlite` 1.61.1.
 
 ### Fixed
 
@@ -1125,7 +1129,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Storage:** SQLite only. Up to 50 snapshots of up to 32 MiB are kept per machine; there is no overall storage
   budget yet.
 
-[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/offsetsecurity/cipherhorizon/compare/v0.5.0...v0.5.1
