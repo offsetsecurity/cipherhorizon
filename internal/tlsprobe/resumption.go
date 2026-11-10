@@ -141,9 +141,16 @@ func (p *prober) resume(ctx context.Context, version uint16) *ResumeResult {
 	if nudge {
 		alpn = []string{"http/1.1"}
 	}
+	// The handshakes are the certificate stage's own (which judges the chain), pinned to one
+	// version and given a session cache.
+	if p.clientConfig == nil {
+		res.Note = "the certificate handshakes did not run"
+		return res
+	}
 	cfg := func() *tls.Config {
-		return &tls.Config{InsecureSkipVerify: true, ServerName: p.target.SNI, //nolint:gosec // the certificate stage judges the chain; this one only resumes
-			MinVersion: version, MaxVersion: version, NextProtos: alpn, ClientSessionCache: cache}
+		c := p.clientConfig()
+		c.MinVersion, c.MaxVersion, c.NextProtos, c.ClientSessionCache = version, version, alpn, cache
+		return c
 	}
 
 	// First connection: a full handshake, kept open just long enough to receive the tickets.

@@ -3,6 +3,7 @@ package tlsprobe
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -135,6 +136,11 @@ type prober struct {
 
 	sem   chan struct{}
 	conns atomic.Int64
+
+	// clientConfig makes the configuration of the scan's full handshakes. The certificate stage
+	// sets it, and every later full handshake (session resumption) starts from it, so the scanner
+	// has one place that decides how it completes a handshake with a server it does not yet trust.
+	clientConfig func() *tls.Config
 
 	rndMu sync.Mutex
 

@@ -60,6 +60,7 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		return &tls.Config{InsecureSkipVerify: true, ServerName: p.target.SNI, //nolint:gosec // verified explicitly below
 			MinVersion: tls.VersionTLS10, NextProtos: []string{"h2", "http/1.1"}}
 	}
+	p.clientConfig = base
 
 	var clientCertRequested bool
 	first := base()
