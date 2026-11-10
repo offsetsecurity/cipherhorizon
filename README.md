@@ -140,6 +140,7 @@ with PDF reports and the OMB M-23-02 items per system.
 | **Over time** | Schedules, history, and what changed between two scans. |
 | **For teams** | Sign-in when you want it: administrator, analyst and viewer roles, an exportable activity log. |
 | **For pipelines** | `tls scan` and `ssh scan` with `--fail-on` gates (exit 3), JSON and CBOM output, and the REST API (`/api/v1/openapi.json`). |
+| **For assistants** | An MCP server (`cipherhorizon mcp`, or `/mcp` on the web server): scan from Claude, Cursor or VS Code, ask about the fleet, quote the standard behind a finding; scope, read-only and role controls. |
 
 ## How it compares
 
@@ -197,6 +198,7 @@ Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 | [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md) | Installing on each OS, the port, where the data lives, backup, upgrade, removal |
 | [docs/deploy.md](docs/deploy.md) | Docker, Caddy with automatic HTTPS, systemd, Windows, backups |
 | [docs/CI.md](docs/CI.md) | `tls scan` and `ssh scan --fail-on`, and a GitHub Actions example |
+| [docs/mcp.md](docs/mcp.md) | Using CipherHorizon from an assistant (Model Context Protocol): the tools, the safety controls, client setup |
 | [docs/methodology.md](docs/methodology.md) | Every check, the readiness levels, the TLS hygiene score, the SSH baseline |
 | [docs/tls-scanning.md](docs/tls-scanning.md) | How the TLS scanner works and what it sends |
 | [docs/ssh-scanning.md](docs/ssh-scanning.md) | How the SSH auditor works, what it sends, and the SSH baseline |

@@ -8,7 +8,8 @@ For the owner. Each step names how to check it. The general procedure is in
 - [ ] Choose the GitHub organisation and repository. Run `scripts/set-owner.sh <owner>` (module path
       `github.com/offsetsecurity/cipherhorizon` in every Go file) and check `go build ./... && go test ./...`.
 - [ ] Decide whether the name stays (ADR-0014). If not: [RENAME.md](RENAME.md).
-- [ ] Put the security contact in `SECURITY.md` (the placeholder `<maintainer-security-contact ...>`).
+- [x] `SECURITY.md` names a reporting channel (GitHub private vulnerability reporting; add an e-mail address
+      if the organisation wants one).
 - [ ] `grep -rn "example/cipherhorizon\|<owner>\|OWNER/" --include=*.go --include=*.md --include=*.yml .`
       finds nothing that should have changed.
 

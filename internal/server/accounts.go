@@ -311,6 +311,35 @@ func (s *Server) auth(next http.Handler) http.Handler {
 	})
 }
 
+// mcpGuard identifies the caller of /mcp as auth does for the API: the MCP handler's tools then
+// call the API in-process with the caller's own credentials, so the roles apply to each call.
+// An account that must change its password gets nothing here, as it gets nothing from the API.
+func (s *Server) mcpGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok, bad := s.identify(r)
+		if !ok {
+			if bad {
+				s.log.Warn("authentication failed", "method", r.Method, "path", r.URL.Path, "remote", s.clientOf(r))
+				select {
+				case <-time.After(authFailDelay):
+				case <-r.Context().Done():
+				}
+			}
+			if s.signInOn() {
+				writeErr(w, http.StatusUnauthorized, "sign in to continue")
+			} else {
+				writeErr(w, http.StatusUnauthorized, "a valid bearer token is required")
+			}
+			return
+		}
+		if p.MustChange {
+			writeErr(w, http.StatusForbidden, "change your password before continuing")
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, p)))
+	})
+}
+
 // roles applies authorize to every identified API request.
 func (s *Server) roles(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
