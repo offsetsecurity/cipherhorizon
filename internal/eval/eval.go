@@ -19,8 +19,10 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/16"
+const Version = "eval/17"
 
+// eval/17: weak-key rules (KEY.*, SSH.HOSTKEY-*) from the scan's key tests; session resumption and
+// early data (FEAT.EARLY-DATA, FEAT.TICKET-LIFETIME) and three RFC 9325 clauses judged from them.
 // eval/16: L4 needs a presented post-quantum certificate; a held ML-DSA key reads "post-quantum available" at L3.
 // eval/15 (PRD-018): every TLS evaluation carries the client simulation (Evaluation.Clients).
 // eval/14 (PRD-017): every evaluation carries its verdicts against the published standards

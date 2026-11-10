@@ -126,8 +126,8 @@ with PDF reports and the OMB M-23-02 items per system.
 
 | | |
 |---|---|
-| **TLS endpoints** | SSLv2 to TLS 1.3, every suite and group, signature schemes, the chain against the Mozilla and Chrome root stores or your own CA, OCSP stapling, CRLs, Certificate Transparency, HSTS, DH primes tested. STARTTLS for 7 protocols. Over 60 cited checks. |
-| **SSH servers** | Algorithm lists, negotiation as OpenSSH 10.6 would, every host key verified (ML-DSA and the composite `ssh-mldsa44-ed25519` included), 19 cited checks, and the CipherHorizon SSH baseline 2026 with the `sshd_config` lines to meet it. |
+| **TLS endpoints** | SSLv2 to TLS 1.3, every suite and group, signature schemes, the chain against the Mozilla and Chrome root stores or your own CA, OCSP stapling, CRLs, Certificate Transparency, HSTS, DH primes tested, session resumption and 0-RTT, weak-key tests on every served key. STARTTLS for 7 protocols. Over 60 cited checks. |
+| **SSH servers** | Algorithm lists, negotiation as OpenSSH 10.6 would, every host key verified (ML-DSA and the composite `ssh-mldsa44-ed25519` included), 23 cited checks, and the CipherHorizon SSH baseline 2026 with the `sshd_config` lines to meet it. |
 | **Post-quantum readiness** | L0 to L4 for every TLS endpoint and SSH server, with harvest-now-decrypt-later exposure. |
 | **Classical strength** | Every algorithm, key and cipher suite in bits, by NIST's methods. A suite is as strong as its weakest part, and names it. |
 | **Published standards** | Each scan judged clause by clause against RFC 9325, NIST SP 800-52 Rev. 2, BSI TR-02102-2 and -4, the ANSSI TLS guide, Mozilla Modern and Intermediate, PCI DSS v4.0.1 and CNSA 2.0 ([docs/standards.md](docs/standards.md)). |

@@ -18,6 +18,7 @@ type chachaOpener struct{ key [32]byte }
 
 var errChachaAuth = errors.New("chacha20-poly1305: message authentication failed")
 
+// Open authenticates and decrypts one message; the first argument is unused (cipher.AEAD's dst).
 func (c *chachaOpener) Open(_, nonce, ciphertext, aad []byte) ([]byte, error) {
 	if len(nonce) != 12 || len(ciphertext) < 16 {
 		return nil, errChachaAuth

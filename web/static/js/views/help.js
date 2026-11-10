@@ -57,6 +57,18 @@ const TOPICS = [
   ['sources', 'Sources'],
 ];
 
+/** The standards catalogue's own contents line: it stays in view while the catalogue scrolls, and a
+ *  name opens that standard (STRATEGY-004 U5). */
+function stdJump(standards) {
+  return h('nav', { class: 'help-std-jump', 'aria-label': 'Standards in this catalogue' }, standards.map((s) =>
+    h('button', { type: 'button', class: 'jump-chip', onclick: () => {
+      const d = document.getElementById(`std-${s.id}`);
+      if (!d) return;
+      d.open = true;
+      d.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    } }, s.title)));
+}
+
 export async function render(root) {
   const [a, bl, sd] = await Promise.all([api.about().catch(() => ({})), api.sshBaselines().catch(() => null), api.standards().catch(() => null)]);
   root.appendChild(h('div', { class: 'page-head' },
@@ -145,7 +157,7 @@ export async function render(root) {
       h('p', null, 'Every scan is judged, clause by clause, against the published standards this program carries: for TLS, RFC 9325 (BCP 195), NIST SP 800-52 Rev. 2, BSI TR-02102-2, the ANSSI TLS guide, Mozilla’s Modern and Intermediate profiles, PCI DSS v4.0.1 Requirement 4.2.1 and the CNSA 2.0 profile; for SSH, BSI TR-02102-4 and the CNSA 2.0 SSH profile. The verdicts are on a report’s ', h('b', null, 'Standards'), ' tab, in the endpoint lists, on the Overview, in the PDF and the CSV export, and on the command line.'),
       h('p', null, h('b', null, 'The user story. '), 'An auditor asks “does this endpoint meet PCI DSS?” or a German federal project asks for TR-02102 conformance. The answer is a checklist: each clause of the document, with its section number, whether the endpoint meets it, and what the scan saw. The checklist is the document’s own words paraphrased, never a score; the same facts the findings rest on decide it, so a standard and a finding can never disagree.'),
       h('p', null, h('b', null, 'How a verdict is reached. '), 'A clause is ', h('i', null, 'met'), ', ', h('i', null, 'not met'), ', ', h('i', null, 'not assessed'), ' (the scan holds no evidence either way: a stage did not run, or the document asks for something a network scan cannot see) or ', h('i', null, 'does not apply'), ' (nothing to judge: a CBC rule on a server with no CBC suite). A clause is binding (', code('must'), ': shall, MUST, or a thing the document does not recommend) or a recommendation (', code('should'), '). The endpoint ', h('b', null, 'meets'), ' a standard when no binding clause fails; recommendations not followed are counted beside the verdict. Where a document gives a period of use (BSI’s “use up to” years), the year is applied on the day of evaluation.'),
-      ...(sd && sd.standards ? [h('div', { class: 'help-stds' }, sd.standards.map((s) => h('details', { class: 'help-std' },
+      ...(sd && sd.standards ? [stdJump(sd.standards), h('div', { class: 'help-stds' }, sd.standards.map((s) => h('details', { class: 'help-std', id: `std-${s.id}` },
         h('summary', null, h('b', null, s.title), ` · ${s.publisher}, ${s.edition} · ${s.protocol.toUpperCase()} · ${s.requirements.length} clauses`),
         h('p', null, s.scope, ' ', h('a', { href: s.url, target: '_blank', rel: 'noopener' }, 'The document')),
         h('table', { class: 'compact' }, h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Clause'), h('th', { scope: 'col' }, 'Level'), h('th', { scope: 'col' }, 'Requirement'))),
@@ -157,7 +169,7 @@ export async function render(root) {
       h('p', null, h('b', null, 'How it is computed. '), 'Nothing is sent. The scan has already enumerated every version, suite and group the server accepts and found out who decides the order; each client’s profile is its published defaults (the vendor’s source tree or release notes, named on the profile). The simulation takes the highest common version, then the first suite in the deciding side’s order that both support and whose key exchange the client can complete, then the group the server would pick (with a HelloRetryRequest when the client’s first key share does not match). A client that sends no server name is told it gets the default certificate.'),
       h('p', { class: 'text-2' }, 'The profiles are defaults, not a capture of a particular device: an application can enable or disable versions and suites. Where a default depends on an update (Java 8 before 8u261, Android 4.4 apps enabling TLS 1.2), the profile’s note says so. The list and each profile’s source are in docs/clients.md.')),
     sec('limits', 'What is and is not checked',
-      h('p', null, 'Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group, the certificate chain against the bundled root stores, OCSP stapling, CRL revocation, Certificate Transparency, and session features: 63 checks, each listed on the endpoint’s page as found, passed, not checked or not applicable. Revocation is shown as status unknown unless a stapled response or, with CRL lookups on, a current CRL from the issuer vouches for the certificate.'),
+      h('p', null, 'Every protocol from SSLv2 to TLS 1.3, every cipher suite and key-exchange group, the certificate chain against the bundled root stores, OCSP stapling, CRL revocation, Certificate Transparency, session resumption and early data (0-RTT), weak-key tests on every served key, and session features: about 70 checks, each listed on the endpoint’s page as found, passed, not checked or not applicable. Revocation is shown as status unknown unless a stapled response or, with CRL lookups on, a current CRL from the issuer vouches for the certificate.'),
       h('p', null, h('b', null, 'One HTTP request. '), 'Every check exchanges only TLS handshake messages except one: after the handshake, a plain ', code('GET /'),
         ' is sent to read the ', code('Strict-Transport-Security'), ' header (at most 8 KiB, no body kept, no redirect followed). This server has it ',
         h('b', null, a.httpChecks === false ? 'off' : 'on'), '; ', h('a', { href: '#/settings' }, 'Settings → Scanning'), ' turns it off or on (', code('--http-checks'), ' sets the starting value).'),

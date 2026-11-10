@@ -91,12 +91,14 @@ type oneSession struct {
 	puts int
 }
 
+// Get returns the held session (tls.ClientSessionCache).
 func (c *oneSession) Get(string) (*tls.ClientSessionState, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.s, c.s != nil
 }
 
+// Put keeps the session the library just received (tls.ClientSessionCache).
 func (c *oneSession) Put(_ string, s *tls.ClientSessionState) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -332,7 +334,7 @@ func tickets13(stream []byte, keylog string, suite uint16) ([]ticket, error) {
 		}
 		copy(nonce, iv)
 		for i := 0; i < 8; i++ {
-			nonce[len(nonce)-1-i] ^= byte(seq >> (8 * i))
+			nonce[len(nonce)-1-i] ^= byte(seq >> (8 * i)) //nolint:gosec // one byte of the sequence number, by design
 		}
 		plain, err := aead.Open(nil, nonce, body, header)
 		if err != nil {
@@ -451,8 +453,8 @@ func trafficAEAD(suite uint16, secret []byte) (opener, []byte, error) {
 func expandLabel(h func() hash.Hash, secret []byte, label string, n int) ([]byte, error) {
 	full := "tls13 " + label
 	info := make([]byte, 0, 4+len(full))
-	info = binary.BigEndian.AppendUint16(info, uint16(n))
-	info = append(info, byte(len(full)))
+	info = binary.BigEndian.AppendUint16(info, uint16(n)) //nolint:gosec // n is 12, 16 or 32
+	info = append(info, byte(len(full)))                  //nolint:gosec // a label of a few bytes
 	info = append(info, full...)
 	info = append(info, 0)
 	return hkdf.Expand(h, secret, string(info), n)

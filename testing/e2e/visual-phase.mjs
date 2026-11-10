@@ -199,9 +199,9 @@ export async function visualPhase({ check, js, go, sleep, shot, viewport }) {
   const f = rep.features || {};
   const tone = (v, good) => (v === undefined || v === null ? 'stile-na' : v === good ? 'stile-good' : 'stile-problem');
   const r = ev.readiness || {};
-  check('E2E-VIS-4', 'key exchange, revocation and features are chips and tiles that agree with the scan; 0-RTT says it was not probed (PRD-013 REQ-VIS-5)',
-    ['Secure renegotiation', 'Extended master secret', 'Downgrade protection', 'Compression', 'Encrypt-then-MAC', 'Session tickets', 'ALPN', 'Client certificates', 'Heartbeat', '0-RTT early data', 'HSTS'].every((x) => feat.names.includes(x))
-      && feat.reneg.tone === tone(f.secureRenegotiation, true) && feat.comp.tone === tone(f.compression, false) && /^Not probed/.test(feat.rtt.state)
+  check('E2E-VIS-4', 'key exchange, revocation and features are chips and tiles that agree with the scan; resumption and 0-RTT say what the probe found (PRD-013 REQ-VIS-5)',
+    ['Secure renegotiation', 'Extended master secret', 'Downgrade protection', 'Compression', 'Encrypt-then-MAC', 'Session tickets', 'Session resumption', 'ALPN', 'Client certificates', 'Heartbeat', '0-RTT early data', 'HSTS'].every((x) => feat.names.includes(x))
+      && feat.reneg.tone === tone(f.secureRenegotiation, true) && feat.comp.tone === tone(f.compression, false) && (rep.resumption?.tls13 ? /^(Not accepted|Accepted|Not determined)/.test(feat.rtt.state) : /^Does not apply/.test(feat.rtt.state))
       && (f.heartbeat === undefined ? /^Not probed/.test(feat.hb.state) : /egotiated/.test(feat.hb.state))
       && ['OCSP stapling', 'Must-staple', 'OCSP and CRL', 'Certificate Transparency'].every((x) => feat.rev.includes(x))
       && feat.ready === (r.level < 0 ? '?' : `L${r.level}`) && feat.lstep === Math.max(0, r.level + 1) && feat.groups > 0,

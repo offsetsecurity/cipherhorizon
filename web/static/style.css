@@ -1145,10 +1145,11 @@ a.stat:hover .stat-label::after { color: var(--primary); }
 .firstfix-title { font-weight: 550; min-width: 0; }
 .firstfix-row > .muted { grid-column: 2; font-size: var(--fs-sm); }
 .overview-empty { color: var(--muted); }
+@media (min-width: 1241px) { .statusband.seven { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 
 @media (max-width: 1240px) {
   .statusband { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .stat-cell:nth-child(4) { border-left: 0; }
+  .stat-cell:nth-child(4), .stat-cell:nth-child(7) { border-left: 0; }
   .stat-cell:nth-child(n+4) { border-top: 1px solid var(--border); }
 }
 @media (max-width: 1100px) {
@@ -1189,7 +1190,7 @@ tr.rowlink:hover .namecell > a { text-decoration: underline; }
 td.rowactions { white-space: nowrap; text-align: right; }
 td.rowactions .btn + .btn { margin-left: .35rem; }
 .open-report { font-weight: 600; color: var(--primary); }
-.sevcounts { display: inline-flex; flex-wrap: nowrap; gap: .25rem; }
+.sevcounts { display: inline-flex; flex-wrap: nowrap; gap: .25rem; white-space: nowrap; }
 .ok-text { color: var(--good); font-weight: 550; font-size: var(--fs-sm); }
 .tabbody > div > .tablewrap th, .tabbody > div > .tablewrap td { padding-left: .7rem; padding-right: .7rem; }
 .fleet-warn { color: var(--warn); font-weight: 550; }
@@ -2017,6 +2018,17 @@ summary.ver-head-row > .ver-groups { grid-column: 3 / 5; grid-row: 2; }
 a.stdrow-seg:hover { filter: brightness(1.15); }
 .stdrow-figs { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; } .stdrow-pct { font-variant-numeric: tabular-nums; }
 .fleet-good { color: var(--good); }
+.help-std-jump { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; background: var(--bg); border-bottom: 1px solid var(--border); }
+.help-std-jump .jump-chip { cursor: pointer; font: inherit; font-size: 12.5px; }
+.help-std { scroll-margin-top: 96px; }
+.std-under { display: none; }
+@media (max-width: 1000px) { .col-standards { display: none; } .std-under { display: block; } }
+.areas-fold > summary { display: flex; align-items: baseline; gap: 12px; cursor: pointer; list-style: none; }
+.areas-fold > summary::-webkit-details-marker { display: none; }
+.areas-fold > summary h2 { margin: 0; }
+.areas-fold > summary::after { content: 'Show'; margin-left: auto; color: var(--link, var(--accent)); font-size: 13px; }
+.areas-fold[open] > summary::after { content: 'Hide'; }
+.areas-fold[open] > summary { margin-bottom: 12px; }
 .help-stds { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; } .help-std summary { cursor: pointer; } .help-std table { margin-top: 8px; }
 @media (max-width: 720px) { .stdrow { grid-template-columns: 1fr; gap: 6px; } }
 

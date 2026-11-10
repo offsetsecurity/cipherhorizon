@@ -146,8 +146,8 @@ func TestECSmallScalar(t *testing.T) {
 		}
 		// Well beyond the reach is not found, and not claimed.
 		far := big.NewInt(reach * 4)
-		x, y := c.ScalarBaseMult(far.Bytes()) //nolint:staticcheck // as above
-		if ws := Check(&ecdsa.PublicKey{Curve: c, X: x, Y: y}); len(ws) != 0 {
+		x, y := c.ScalarBaseMult(far.Bytes())                                  //nolint:staticcheck // as above
+		if ws := Check(&ecdsa.PublicKey{Curve: c, X: x, Y: y}); len(ws) != 0 { //nolint:staticcheck // as above
 			t.Errorf("%s: a scalar beyond the reach was reported: %+v", c.Params().Name, ws)
 		}
 		if Reach(c.Params().Name) == 0 {
@@ -157,8 +157,8 @@ func TestECSmallScalar(t *testing.T) {
 	if Reach("P-256") != 32 || Reach("P-384") != 28 || Reach("P-521") != 26 || Reach("P-224") != 0 {
 		t.Errorf("reach: %d %d %d", Reach("P-256"), Reach("P-384"), Reach("P-521"))
 	}
-	x, y := elliptic.P256().ScalarBaseMult([]byte{4}) //nolint:staticcheck // as above
-	ws := Check(&ecdsa.PublicKey{Curve: elliptic.P256(), X: x, Y: y})
+	x, y := elliptic.P256().ScalarBaseMult([]byte{4})                 //nolint:staticcheck // as above
+	ws := Check(&ecdsa.PublicKey{Curve: elliptic.P256(), X: x, Y: y}) //nolint:staticcheck // as above
 	if len(ws) != 1 || ws[0].Detail != "the private key is 4: a search over small numbers finds it, so anyone can sign as this key" {
 		t.Errorf("the finding gives the scalar as proof: %+v", ws)
 	}
@@ -168,7 +168,7 @@ func BenchmarkECSearchP256(b *testing.B) {
 	s := searchFor(elliptic.P256())
 	s.once.Do(s.init)
 	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	x, y := k.X, k.Y //nolint:staticcheck // benchmark of the search itself
+	x, y := k.X, k.Y
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		s.find(x, y)
