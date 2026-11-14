@@ -4,6 +4,7 @@
 cipherhorizon tls scan example.internal:443            # readable report
 cipherhorizon tls scan --json host1 host2:8443         # JSON array, one report per target
 cipherhorizon tls scan --cbom example.internal:443     # CycloneDX CBOM, one target at a time
+cipherhorizon tls cbom --from result.json              # the same CBOM from a saved --json result, no scan
 ```
 
 Scan only systems you own or are authorised to test. A scan makes a few hundred short handshakes.
@@ -88,6 +89,27 @@ legacy cipher such as RC4, a named curve this program does not carry an OID for,
 an internet-draft) is still named in the suite text or certificate; it simply gets no algorithm reference
 rather than an invented one.
 
+## CBOM from a saved result (`tls cbom --from`)
+
+`cipherhorizon tls cbom --from FILE [--spec 1.7|1.6]` writes the CBOM of a scan that was saved earlier with
+`tls scan --json`. It opens no connection and resolves no name, so one scan can give both the report and the CBOM.
+
+```sh
+cipherhorizon tls scan --json example.org:443 > result.json
+cipherhorizon tls cbom --from result.json > example.cbom.json
+cipherhorizon tls scan --json example.org:443 | cipherhorizon tls cbom --from -
+```
+
+- FILE is everything `tls scan --json` printed, unchanged: the array, holding exactly one result. `--from -` reads
+  stdin.
+- The input must be valid JSON, an array with one element, whose `report` is present and has `schemaVersion`
+  `tls-report/2`. Anything else is exit 1 with nothing on stdout.
+- The CBOM has the same content as `tls scan --cbom` gives for that report. Only the serial number and the
+  timestamp differ. The endpoint is named from `report.target` (host and port); the tool version is that of the
+  program that writes the CBOM, not the one that scanned.
+- Exit codes: 0 when the CBOM was written; 2 when it was written and the report is marked incomplete, as
+  `tls scan --cbom` does; 1 when nothing was written.
+
 ## Scanning a name at a chosen address (`--connect-to`)
 
 `cipherhorizon tls scan --connect-to ADDRESS NAME[:PORT]` scans one address for one name and makes no name
@@ -141,7 +163,8 @@ With `--connect-to`, the address given there is the one checked, and no lookup i
 
 A name that does not resolve is not a refusal; the result is the same as without the flag. The flag covers the
 connections to the target. `--revocation` fetches from a CA's server under its own address rules, and
-`--revocation-private` cannot be combined with `--public`.
+`--revocation-private` cannot be combined with `--public`. `--os-trust` hands the chain to the operating system's
+verifier, which on some systems fetches missing intermediates itself; leave it off where `--public` matters.
 
 ## Safety
 

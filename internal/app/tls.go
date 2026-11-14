@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
 	"time"
 
@@ -30,13 +31,28 @@ const tlsNotice = `notice: "tls scan" connects to each target and makes a few hu
         This result is not saved anywhere: run "cipherhorizon serve" for history, scheduling and a fleet dashboard.
 `
 
-// tlsCmd implements "cipherhorizon tls scan [flags] TARGET...".
+// tlsUsage lists the tls commands. Callers that drive this program read it to learn what a
+// build can do, so each command keeps its own line.
+const tlsUsage = `usage: cipherhorizon tls scan [flags] HOST[:PORT]...
+       cipherhorizon tls cbom --from FILE|- [--spec 1.7|1.6]
+       cipherhorizon tls standards
+`
+
+// tlsCmd implements "cipherhorizon tls scan [flags] TARGET...", "tls cbom" and "tls standards".
 func tlsCmd(ctx context.Context, args []string, env Env) int {
-	if len(args) > 0 && args[0] == "standards" {
-		return standardsCmd(env, "tls")
+	if len(args) > 0 {
+		switch args[0] {
+		case "standards":
+			return standardsCmd(env, "tls")
+		case "cbom":
+			return tlsCBOMCmd(args[1:], env)
+		case "help", "-h", "-help", "--help":
+			_, _ = fmt.Fprint(env.Stdout, tlsUsage)
+			return ExitOK
+		}
 	}
 	if len(args) == 0 || args[0] != "scan" {
-		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...\n       cipherhorizon tls standards")
+		_, _ = fmt.Fprint(env.Stderr, tlsUsage)
 		return ExitFatal
 	}
 
@@ -340,6 +356,93 @@ func guardDial(g server.Guard, inner dialFunc) dialFunc {
 		}
 		return inner(ctx, network, addr)
 	}
+}
+
+// maxSavedResult bounds what "tls cbom --from" reads. A result with every certificate chain is
+// well under a megabyte.
+const maxSavedResult = 64 << 20
+
+// tlsCBOMCmd implements "cipherhorizon tls cbom --from FILE [--spec 1.7|1.6]": the CBOM of a
+// saved "tls scan --json" result. It opens no connection and resolves no name.
+func tlsCBOMCmd(args []string, env Env) int {
+	fl := flag.NewFlagSet("tls cbom", flag.ContinueOnError)
+	fl.SetOutput(env.Stderr)
+	from := fl.String("from", "", "the `FILE` holding what \"tls scan --json\" printed for one target: the whole array, with its one result. - reads stdin")
+	spec := fl.String("spec", cbom.DefaultSpec, "CycloneDX version of the CBOM: 1.7 or 1.6")
+	fl.Usage = func() {
+		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls cbom --from FILE|- [--spec 1.7|1.6]")
+		fl.PrintDefaults()
+	}
+	if err := fl.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return ExitOK
+		}
+		return ExitFatal
+	}
+	if *from == "" || fl.NArg() > 0 {
+		fl.Usage()
+		return ExitFatal
+	}
+
+	var raw []byte
+	var err error
+	if *from == "-" {
+		in := env.Stdin
+		if in == nil {
+			in = os.Stdin
+		}
+		raw, err = io.ReadAll(io.LimitReader(in, maxSavedResult+1))
+	} else {
+		raw, err = readFileLimit(*from, maxSavedResult+1)
+	}
+	if err != nil {
+		return fatalf(env, "reading the scan result: %v", err)
+	}
+	if len(raw) > maxSavedResult {
+		return fatalf(env, "the scan result is larger than %d MiB", maxSavedResult>>20)
+	}
+	rep, err := savedReport(raw)
+	if err != nil {
+		return fatalf(env, "%v", err)
+	}
+	if err := writeTLSCBOM(env, rep, rep.Target, *spec); err != nil {
+		return fatalf(env, "%v", err)
+	}
+	if rep.Incomplete {
+		return ExitIncomplete
+	}
+	return ExitOK
+}
+
+func readFileLimit(name string, limit int64) ([]byte, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close() //nolint:errcheck // read only
+	return io.ReadAll(io.LimitReader(f, limit))
+}
+
+// savedReport reads the report out of what "tls scan --json" printed: an array with exactly one
+// result, whose report is of the current schema.
+func savedReport(raw []byte) (*tlsprobe.Report, error) {
+	var results []struct {
+		Report *tlsprobe.Report `json:"report"`
+	}
+	if err := json.Unmarshal(raw, &results); err != nil {
+		return nil, fmt.Errorf("the scan result is not what \"tls scan --json\" prints (a JSON array of results): %w", err)
+	}
+	if len(results) != 1 {
+		return nil, fmt.Errorf("the scan result holds %d results; a CBOM has one subject, so it must hold exactly one", len(results))
+	}
+	rep := results[0].Report
+	if rep == nil {
+		return nil, errors.New("the scan result has no report")
+	}
+	if rep.SchemaVersion != tlsprobe.SchemaVersion {
+		return nil, fmt.Errorf("the report's schemaVersion is %q; this program reads %q", rep.SchemaVersion, tlsprobe.SchemaVersion)
+	}
+	return rep, nil
 }
 
 // writeTLSCBOM turns one scan's report into a CycloneDX CBOM (protocols, cipher

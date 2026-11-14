@@ -27,6 +27,7 @@ const (
 
 // Env carries everything Main needs from the outside world.
 type Env struct {
+	Stdin  io.Reader // "tls cbom --from -" reads it; nil means os.Stdin
 	Stdout io.Writer // the CBOM goes here unless an output file is configured
 	Stderr io.Writer // progress, warnings and the PQC summary
 
@@ -124,6 +125,7 @@ func usage(w io.Writer) {
 Usage:
   cipherhorizon run [--config FILE] [-o FILE] [--root DIR] [--redact-host]
   cipherhorizon tls scan [flags] HOST[:PORT]...
+  cipherhorizon tls cbom --from FILE|- [--spec 1.7|1.6]   the CBOM of a saved "tls scan --json" result
   cipherhorizon ssh scan [flags] HOST[:PORT]...
   cipherhorizon ssh baselines
   cipherhorizon tls standards | ssh standards   the published standards every scan is judged against
@@ -172,6 +174,9 @@ worst first. Flags go before targets:
                   the command with exit 1 and nothing on stdout. For a scanner offered to others
   --timeout, --concurrency, --max-connections, --min-interval, --no-certs, --http-checks
 Scan only systems you are authorised to test.
+
+tls cbom --from FILE writes the same CBOM as tls scan --cbom from a result saved with
+tls scan --json (one target), without connecting anywhere. --from - reads stdin.
 
 serve runs the web UI and API: add endpoints, scan them, watch progress, see history and
 post-quantum readiness. Sign-in is off until someone turns it on in Settings, which creates

@@ -21,6 +21,10 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **`tls scan --connect-to ADDRESS`: scan a name at a chosen address.** The scan connects to that address, sends
   the target's host name as the server name, judges the certificate against the name, and makes no name lookup.
   One target, which must be a host name. With `--public` the address is checked first.
+- **`tls cbom --from FILE`: the CBOM of a saved scan.** Reads what `tls scan --json` printed for one target (a
+  file, or `-` for stdin) and writes the same CycloneDX CBOM as `tls scan --cbom`, without connecting anywhere.
+  `--spec 1.7|1.6` as on the scan. Exit 2 when the saved report is marked incomplete.
+- `cipherhorizon tls -h` prints the `tls` commands and exits 0.
 
 ## [0.8.0] - 2026-11-10
 

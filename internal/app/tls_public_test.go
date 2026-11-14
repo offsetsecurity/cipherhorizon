@@ -46,15 +46,22 @@ func (f *fakeNet) lookup(_ context.Context, host string) ([]net.IP, error) {
 // runNet is run with the network replaced by f.
 func runNet(t *testing.T, f *fakeNet, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
+	return runEnv(t, func(e *app.Env) { e.Dial, e.LookupIP = f.dial, f.lookup }, args...)
+}
+
+// runEnv is run with the Env changed by set.
+func runEnv(t *testing.T, set func(*app.Env), args ...string) (code int, stdout, stderr string) {
+	t.Helper()
 	var out, errOut bytes.Buffer
-	code = app.Main(context.Background(), args, app.Env{
+	env := app.Env{
 		Stdout: &out, Stderr: &errOut, OS: "linux",
 		Tier:      func() string { return "user" },
 		Now:       func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) },
 		NewSerial: func() string { return "urn:uuid:00000000-0000-4000-8000-000000000000" },
 		Hostname:  func() (string, error) { return "fixture-host", nil },
-		Dial:      f.dial, LookupIP: f.lookup,
-	})
+	}
+	set(&env)
+	code = app.Main(context.Background(), args, env)
 	return code, out.String(), errOut.String()
 }
 
