@@ -18,6 +18,9 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   reserved and cloud-metadata addresses are refused, and an IPv6 address that carries an IPv4 one is judged by the
   address inside it. A refusal exits 1 with nothing on stdout and one stderr line that starts
   `cipherhorizon: target address is not allowed`. Without the flag nothing changes.
+- **`tls scan --connect-to ADDRESS`: scan a name at a chosen address.** The scan connects to that address, sends
+  the target's host name as the server name, judges the certificate against the name, and makes no name lookup.
+  One target, which must be a host name. With `--public` the address is checked first.
 
 ## [0.8.0] - 2026-11-10
 

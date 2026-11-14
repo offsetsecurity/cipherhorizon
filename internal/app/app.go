@@ -166,6 +166,8 @@ worst first. Flags go before targets:
   --fail-on COND  exit 3 when a target meets COND (repeatable, or comma separated):
                   level<L3, score<70, severity>=high, finding=PROTO.TLS10; a target that
                   cannot be scanned also fails. For CI: see docs/CI.md
+  --connect-to ADDRESS  scan this address for the one target, a host name; the name is the
+                  server name and the name the certificate is judged against; no name lookup
   --public        connect only to addresses on the public internet; any other address ends
                   the command with exit 1 and nothing on stdout. For a scanner offered to others
   --timeout, --concurrency, --max-connections, --min-interval, --no-certs, --http-checks

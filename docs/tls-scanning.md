@@ -88,6 +88,26 @@ legacy cipher such as RC4, a named curve this program does not carry an OID for,
 an internet-draft) is still named in the suite text or certificate; it simply gets no algorithm reference
 rather than an invented one.
 
+## Scanning a name at a chosen address (`--connect-to`)
+
+`cipherhorizon tls scan --connect-to ADDRESS NAME[:PORT]` scans one address for one name and makes no name
+lookup. It is for a caller that has already resolved the name, and for testing one server behind a name before
+DNS points at it.
+
+- ADDRESS is one IPv4 or IPv6 address, written alone: no port, no brackets, no zone. The port is the target's.
+- The target's host name is the server name in every handshake that can carry one, and the name the certificate
+  is judged against.
+- It takes exactly one target, and the target must be a host name. A bad address, more than one target, or a
+  target that is itself an address is a usage error: exit 1, nothing on stdout, no connection.
+
+In the result, `report.target.host` and `report.target.sni` are the name, `report.address` is `ADDRESS:port`
+(an IPv6 address in brackets), `report.addresses` holds the one address, and with `--json` the top-level `target`
+is `name:port`.
+
+```sh
+cipherhorizon tls scan --json --connect-to 198.51.100.7 www.example.org:443
+```
+
 ## Public addresses only (`--public`)
 
 `cipherhorizon tls scan --public HOST[:PORT]...` connects only to addresses on the public internet. It is for a
@@ -116,6 +136,8 @@ A refusal ends the command before anything is scanned, also when another target 
 - exit code 1;
 - nothing on stdout: no report, and with `--json` no array, not even `[]`;
 - one line on stderr that starts `cipherhorizon: target address is not allowed`, followed by the address and why.
+
+With `--connect-to`, the address given there is the one checked, and no lookup is made.
 
 A name that does not resolve is not a refusal; the result is the same as without the flag. The flag covers the
 connections to the target. `--revocation` fetches from a CA's server under its own address rules, and

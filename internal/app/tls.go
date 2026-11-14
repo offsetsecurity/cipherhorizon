@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -67,6 +68,9 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 	public := fl.Bool("public", false, "connect only to addresses on the public internet. Every target's address is checked before the first connection, "+
 		"and again on each connection. A loopback, private, carrier-NAT, link-local, unique-local, documentation, reserved or cloud-metadata address "+
 		"ends the command: exit 1, nothing on stdout, and one line on stderr that starts \"cipherhorizon: target address is not allowed\"")
+	connectTo := fl.String("connect-to", "", "scan this `ADDRESS` instead of resolving the target's name: one IPv4 or IPv6 address, no port and no brackets. "+
+		"The target's host name is still the server name in every handshake and the name the certificate is judged against; no name lookup is made. "+
+		"Exactly one target, which must be a host name; its port is the port scanned")
 	fl.Usage = func() {
 		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...  (flags must come before targets)")
 		fl.PrintDefaults()
@@ -117,17 +121,36 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		crlIssuers = refdata.RootCertificates()
 	}
 
-	// With --public no connection is made, and nothing is printed, until every target's address
-	// is known to be public. A refusal in the dial hook alone would not end the command: the
-	// scan would report the target as not reached.
 	dial, lookup := env.Dial, env.LookupIP
-	if *public {
-		guard := server.Guard{Public: true}
-		checked, err := publicTargets(ctx, guard, targets, lookup, *timeout)
+	var pinned net.IP // the --connect-to address
+	connectToSet := false
+	fl.Visit(func(f *flag.Flag) { connectToSet = connectToSet || f.Name == "connect-to" })
+	if connectToSet { // also when it was given empty: that is an error, not "resolve the name"
+		pinned, err = connectToAddress(*connectTo, targets)
 		if err != nil {
 			return fatalf(env, "%v", err)
 		}
-		dial, lookup = guardDial(guard, dial), checked
+		// The scan asks for the name's addresses once; this is the whole answer, so no DNS
+		// query is made.
+		lookup = func(context.Context, string) ([]net.IP, error) { return []net.IP{pinned}, nil }
+	}
+
+	// With --public no connection is made, and nothing is printed, until every target's address
+	// is known to be public. A refusal in the dial hook alone would not end the command: the
+	// scan would report the target as not reached.
+	if *public {
+		guard := server.Guard{Public: true}
+		if pinned != nil {
+			if err := guard.CheckIP(pinned); err != nil {
+				return fatalf(env, "%v", err)
+			}
+		} else {
+			lookup, err = publicTargets(ctx, guard, targets, lookup, *timeout)
+			if err != nil {
+				return fatalf(env, "%v", err)
+			}
+		}
+		dial = guardDial(guard, dial)
 	}
 
 	_, _ = fmt.Fprint(env.Stderr, tlsNotice)
@@ -237,6 +260,21 @@ type (
 	dialFunc   = func(ctx context.Context, network, addr string) (net.Conn, error)
 	lookupFunc = func(ctx context.Context, host string) ([]net.IP, error)
 )
+
+// connectToAddress reads --connect-to: one IP literal, for exactly one target that is a host name.
+func connectToAddress(arg string, targets []tlsprobe.Target) (net.IP, error) {
+	addr, err := netip.ParseAddr(arg)
+	if err != nil || addr.Zone() != "" {
+		return nil, fmt.Errorf("--connect-to %q: not an IPv4 or IPv6 address (give the address alone: no port, no brackets, no zone)", arg)
+	}
+	if len(targets) != 1 {
+		return nil, errors.New("--connect-to takes exactly one target: the address is where that one name is scanned")
+	}
+	if net.ParseIP(targets[0].Host) != nil {
+		return nil, fmt.Errorf("--connect-to needs a host name as the target, and %s is an address; scan the address itself, without the flag", targets[0].Host)
+	}
+	return net.IP(addr.AsSlice()), nil
+}
 
 // publicTargets is the --public check made before any connection: every target's address, or
 // every address its name resolves to, must be allowed by the guard. The first refusal is
