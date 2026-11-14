@@ -88,6 +88,39 @@ legacy cipher such as RC4, a named curve this program does not carry an OID for,
 an internet-draft) is still named in the suite text or certificate; it simply gets no algorithm reference
 rather than an invented one.
 
+## Public addresses only (`--public`)
+
+`cipherhorizon tls scan --public HOST[:PORT]...` connects only to addresses on the public internet. It is for a
+scanner that runs targets other people name, where a scan of an internal address would be a way into the
+network the scanner sits in. Without the flag nothing changes.
+
+Before the first connection, every target's address is checked: the address itself, or every address its name
+resolves to. One refused address refuses the name. The scan then connects to the addresses that were checked (the
+name is not resolved again), and every connection checks the real remote address once more.
+
+Refused:
+
+- loopback, the unspecified address and `0.0.0.0/8`;
+- private ranges (`10/8`, `172.16/12`, `192.168/16`), carrier NAT (`100.64/10`) and IPv6 unique-local (`fc00::/7`);
+- link-local, multicast and broadcast;
+- documentation (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`, `3fff::/20`) and benchmark
+  (`198.18.0.0/15`, `2001:2::/48`) ranges;
+- `192.0.0.0/24`, reserved `240.0.0.0/4`, IPv6 site-local (`fec0::/10`), discard-only (`100::/64`) and local-use
+  NAT64 (`64:ff9b:1::/48`);
+- the cloud metadata addresses the server's guard lists;
+- an IPv6 address that carries an IPv4 one (IPv4-mapped, NAT64, 6to4, Teredo, IPv4-compatible) when the address
+  inside it is refused.
+
+A refusal ends the command before anything is scanned, also when another target was allowed:
+
+- exit code 1;
+- nothing on stdout: no report, and with `--json` no array, not even `[]`;
+- one line on stderr that starts `cipherhorizon: target address is not allowed`, followed by the address and why.
+
+A name that does not resolve is not a refusal; the result is the same as without the flag. The flag covers the
+connections to the target. `--revocation` fetches from a CA's server under its own address rules, and
+`--revocation-private` cannot be combined with `--public`.
+
 ## Safety
 
 - Every connection goes through one gate: a concurrency cap (default 4), an optional minimum spacing

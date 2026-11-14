@@ -22,8 +22,15 @@ import (
 // well-known metadata addresses outside those ranges. Loopback is refused unless
 // AllowLoopback is set. Private (RFC 1918) ranges are allowed: scanning internal
 // systems is the point of a self-hosted tool.
+//
+// Public is the stricter profile for a scanner offered to anyone ("tls scan --public"): only
+// addresses on the public internet are allowed. It also refuses loopback (AllowLoopback is
+// ignored), private, carrier-NAT, unique-local, documentation, benchmark and reserved ranges,
+// and judges an IPv6 address that embeds an IPv4 one by the embedded address.
 type Guard struct {
 	AllowLoopback bool
+	// Public refuses every address that is not on the public internet.
+	Public bool
 	// Scope, when set, limits scans further to the operator's --scan-allow list.
 	Scope *Scope
 
@@ -52,6 +59,55 @@ var (
 	nat64 = mustCIDR("64:ff9b::/96")
 )
 
+// notPublic are the ranges the Public profile refuses beyond the fixed rules; private (RFC 1918)
+// and unique-local addresses are tested with net.IP.IsPrivate.
+var notPublic = []struct {
+	net  *net.IPNet
+	what string
+}{
+	{mustCIDR("100.64.0.0/10"), "a carrier-NAT address"},
+	{mustCIDR("192.0.0.0/24"), "in a range reserved for protocol assignments"},
+	{mustCIDR("192.0.2.0/24"), "a documentation address"},
+	{mustCIDR("198.51.100.0/24"), "a documentation address"},
+	{mustCIDR("203.0.113.0/24"), "a documentation address"},
+	{mustCIDR("198.18.0.0/15"), "a benchmark address"},
+	{mustCIDR("240.0.0.0/4"), "a reserved address"},
+	{mustCIDR("2001:db8::/32"), "a documentation address"},
+	{mustCIDR("3fff::/20"), "a documentation address"},
+	{mustCIDR("2001:2::/48"), "a benchmark address"},
+	{mustCIDR("100::/64"), "a discard-only address"},
+	{mustCIDR("fec0::/10"), "a site-local address"},
+	{mustCIDR("64:ff9b:1::/48"), "a local-use NAT64 address"},
+}
+
+var (
+	sixToFour    = mustCIDR("2002::/16") // bytes 2-5 are an IPv4 address
+	teredo       = mustCIDR("2001::/32") // bytes 4-7 are the server; bytes 12-15, inverted, the client
+	v4Compatible = mustCIDR("::/96")     // deprecated "::a.b.c.d"
+)
+
+// embeddedIPv4 returns the IPv4 addresses an IPv6 address carries inside it, and the name of the
+// form. An IPv4-mapped address needs no entry: net.IP already treats it as IPv4. NAT64 is
+// handled in CheckIP for every profile.
+func embeddedIPv4(ip net.IP) ([]net.IP, string) {
+	if ip.To4() != nil {
+		return nil, ""
+	}
+	b := ip.To16()
+	switch {
+	case b == nil:
+		return nil, ""
+	case sixToFour.Contains(ip):
+		return []net.IP{b[2:6]}, "6to4"
+	case teredo.Contains(ip):
+		client := net.IPv4(^b[12], ^b[13], ^b[14], ^b[15])
+		return []net.IP{b[4:8], client}, "Teredo"
+	case v4Compatible.Contains(ip):
+		return []net.IP{b[12:16]}, "IPv4-compatible"
+	}
+	return nil, ""
+}
+
 func mustCIDR(s string) *net.IPNet {
 	_, n, err := net.ParseCIDR(s)
 	if err != nil {
@@ -77,12 +133,30 @@ func (g Guard) CheckIP(ip net.IP) error {
 		return fmt.Errorf("%w: %s is a multicast address", ErrBlocked, ip)
 	case ip.IsLinkLocalUnicast():
 		return fmt.Errorf("%w: %s is link-local (this range includes cloud metadata services)", ErrBlocked, ip)
+	case ip.IsLoopback() && g.Public:
+		return fmt.Errorf("%w: %s is a loopback address", ErrBlocked, ip)
 	case ip.IsLoopback() && !g.AllowLoopback:
 		return fmt.Errorf("%w: %s is a loopback address (start the server with --allow-loopback to scan this machine)", ErrBlocked, ip)
 	}
 	for _, b := range extraBlocked {
 		if b != nil && b.Equal(ip) {
 			return fmt.Errorf("%w: %s is a known cloud-metadata address", ErrBlocked, ip)
+		}
+	}
+	if g.Public {
+		if ip.IsPrivate() {
+			return fmt.Errorf("%w: %s is a private address", ErrBlocked, ip)
+		}
+		for _, r := range notPublic {
+			if r.net.Contains(ip) {
+				return fmt.Errorf("%w: %s is %s", ErrBlocked, ip, r.what)
+			}
+		}
+		inner, form := embeddedIPv4(ip)
+		for _, v4 := range inner {
+			if err := g.CheckIP(v4); err != nil {
+				return fmt.Errorf("%w (embedded in the %s address %s)", err, form, ip)
+			}
 		}
 	}
 	if g.pinNets && !g.Scope.ipIn(ip) && (ip.To4() != nil || !nat64.Contains(ip) || !g.Scope.ipIn(ip.To16()[12:16])) {

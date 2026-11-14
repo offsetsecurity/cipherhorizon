@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"runtime"
 	"time"
@@ -40,6 +41,11 @@ type Env struct {
 	// deterministic on any machine.
 	OS   string
 	Tier func() string
+
+	// Dial and LookupIP replace the network for "tls scan": how it connects and how it resolves
+	// a name. nil means the real network. They exist for tests.
+	Dial     func(ctx context.Context, network, addr string) (net.Conn, error)
+	LookupIP func(ctx context.Context, host string) ([]net.IP, error)
 }
 
 // Main runs the CLI and returns the process exit code.
@@ -160,6 +166,8 @@ worst first. Flags go before targets:
   --fail-on COND  exit 3 when a target meets COND (repeatable, or comma separated):
                   level<L3, score<70, severity>=high, finding=PROTO.TLS10; a target that
                   cannot be scanned also fails. For CI: see docs/CI.md
+  --public        connect only to addresses on the public internet; any other address ends
+                  the command with exit 1 and nothing on stdout. For a scanner offered to others
   --timeout, --concurrency, --max-connections, --min-interval, --no-certs, --http-checks
 Scan only systems you are authorised to test.
 

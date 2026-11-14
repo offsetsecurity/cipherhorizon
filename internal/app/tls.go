@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
 	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
 	"github.com/offsetsecurity/cipherhorizon/internal/revocation"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 	"github.com/offsetsecurity/cipherhorizon/internal/version"
@@ -62,6 +64,9 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		"Off by default: it contacts the CA's CRL server (plain HTTP), a host other than the target. Private and loopback addresses are refused "+
 		"unless --revocation-private is set")
 	crlPrivate := fl.Bool("revocation-private", false, "with --revocation, also fetch CRLs from private (RFC 1918, unique-local) and loopback addresses: an internal CA's CRL server")
+	public := fl.Bool("public", false, "connect only to addresses on the public internet. Every target's address is checked before the first connection, "+
+		"and again on each connection. A loopback, private, carrier-NAT, link-local, unique-local, documentation, reserved or cloud-metadata address "+
+		"ends the command: exit 1, nothing on stdout, and one line on stderr that starts \"cipherhorizon: target address is not allowed\"")
 	fl.Usage = func() {
 		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...  (flags must come before targets)")
 		fl.PrintDefaults()
@@ -81,6 +86,9 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 	}
 	if *asCBOM && fl.NArg() > 1 {
 		return fatalf(env, "--cbom takes exactly one target; a CBOM has one subject. Run it once per endpoint")
+	}
+	if *public && *crlPrivate {
+		return fatalf(env, "--revocation-private fetches from private addresses and cannot be combined with --public")
 	}
 	policy, err := parsePolicy(failOn)
 	if err == nil {
@@ -109,6 +117,19 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		crlIssuers = refdata.RootCertificates()
 	}
 
+	// With --public no connection is made, and nothing is printed, until every target's address
+	// is known to be public. A refusal in the dial hook alone would not end the command: the
+	// scan would report the target as not reached.
+	dial, lookup := env.Dial, env.LookupIP
+	if *public {
+		guard := server.Guard{Public: true}
+		checked, err := publicTargets(ctx, guard, targets, lookup, *timeout)
+		if err != nil {
+			return fatalf(env, "%v", err)
+		}
+		dial, lookup = guardDial(guard, dial), checked
+	}
+
 	_, _ = fmt.Fprint(env.Stderr, tlsNotice)
 
 	code := ExitOK
@@ -128,7 +149,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		rep, err := tlsprobe.Scan(ctx, t, tlsprobe.Options{
 			Timeout: *timeout, Concurrency: *concurrency, MaxConnections: *maxConns,
 			MinInterval: *interval, SkipCertificates: *noCerts, HTTPChecks: *httpChecks, OSTrust: *osTrust,
-			CRL: crlFetcher, CRLIssuers: crlIssuers,
+			CRL: crlFetcher, CRLIssuers: crlIssuers, Dial: dial, LookupIP: lookup,
 			Progress: func(msg string) { _, _ = fmt.Fprintf(env.Stderr, "  %s\n", msg) },
 			Now:      env.Now,
 		})
@@ -210,6 +231,77 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		return ExitPolicy
 	}
 	return code
+}
+
+type (
+	dialFunc   = func(ctx context.Context, network, addr string) (net.Conn, error)
+	lookupFunc = func(ctx context.Context, host string) ([]net.IP, error)
+)
+
+// publicTargets is the --public check made before any connection: every target's address, or
+// every address its name resolves to, must be allowed by the guard. The first refusal is
+// returned; it wraps server.ErrBlocked, whose text starts the stderr line callers match on.
+//
+// The lookup it returns answers from what was checked, so the scan connects to an address that
+// was judged and the name is resolved once. A name that does not resolve is not a refusal: the
+// scan reports it as it does without --public.
+func publicTargets(ctx context.Context, g server.Guard, targets []tlsprobe.Target, lookup lookupFunc, timeout time.Duration) (lookupFunc, error) {
+	if lookup == nil {
+		lookup = func(ctx context.Context, host string) ([]net.IP, error) {
+			return net.DefaultResolver.LookupIP(ctx, "ip", host)
+		}
+	}
+	type answer struct {
+		ips []net.IP
+		err error
+	}
+	checked := map[string]answer{}
+	for _, t := range targets {
+		if ip := net.ParseIP(t.Host); ip != nil {
+			if err := g.CheckIP(ip); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if _, done := checked[t.Host]; done {
+			continue
+		}
+		lctx, cancel := context.WithTimeout(ctx, timeout)
+		ips, err := lookup(lctx, t.Host)
+		cancel()
+		for _, ip := range ips {
+			if err := g.CheckIP(ip); err != nil {
+				return nil, fmt.Errorf("%w (%s resolves to it)", err, t.Host)
+			}
+		}
+		checked[t.Host] = answer{ips, err}
+	}
+	return func(_ context.Context, host string) ([]net.IP, error) {
+		a, ok := checked[host]
+		if !ok {
+			return nil, fmt.Errorf("%w: %s was not checked", server.ErrBlocked, host)
+		}
+		return a.ips, a.err
+	}, nil
+}
+
+// guardDial is the second line of --public: every connection of the scan is checked again.
+// The default dialer checks the real remote address as it connects; an injected one is checked
+// by the address it is asked for, which the scan always gives as an IP literal.
+func guardDial(g server.Guard, inner dialFunc) dialFunc {
+	if inner == nil {
+		return g.Dial
+	}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", server.ErrBlocked, err)
+		}
+		if err := g.CheckIP(net.ParseIP(host)); err != nil {
+			return nil, err
+		}
+		return inner(ctx, network, addr)
+	}
 }
 
 // writeTLSCBOM turns one scan's report into a CycloneDX CBOM (protocols, cipher

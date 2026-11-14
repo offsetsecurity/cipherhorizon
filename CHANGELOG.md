@@ -10,6 +10,15 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **`tls scan --public`: public addresses only.** For a scanner that runs targets other people name. Every
+  target's address, or every address its name resolves to, is checked before the first connection and again on
+  each connection. Loopback, private, carrier-NAT, link-local, unique-local, multicast, documentation, benchmark,
+  reserved and cloud-metadata addresses are refused, and an IPv6 address that carries an IPv4 one is judged by the
+  address inside it. A refusal exits 1 with nothing on stdout and one stderr line that starts
+  `cipherhorizon: target address is not allowed`. Without the flag nothing changes.
+
 ## [0.8.0] - 2026-11-10
 
 ### Added
