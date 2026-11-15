@@ -501,7 +501,8 @@ var migrations = []string{
 	`ALTER TABLE scans ADD COLUMN standards TEXT NOT NULL DEFAULT '';`,
 	// 18: finding the host names under a domain (PRD-022). A discovery is one run; its names are a
 	// review list, and none is an endpoint until a person accepts it. Deleting a run deletes its
-	// names; endpoints added from it are ordinary endpoints and stay.
+	// names; endpoints added from it are ordinary endpoints and stay. The index on assets(host) lets a
+	// review list say which names are endpoints already.
 	`CREATE TABLE discoveries (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		domain TEXT NOT NULL,
@@ -527,7 +528,8 @@ var migrations = []string{
 		mail INTEGER NOT NULL DEFAULT 0,
 		accepted_at TEXT,
 		PRIMARY KEY (discovery_id, name)
-	) WITHOUT ROWID;`,
+	) WITHOUT ROWID;
+	CREATE INDEX assets_host ON assets(host);`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same

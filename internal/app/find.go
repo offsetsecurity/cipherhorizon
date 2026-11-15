@@ -40,7 +40,7 @@ func findCmd(ctx context.Context, args []string, env Env) int {
 	fl := flag.NewFlagSet("find", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
 	ct := fl.Bool("ct", false, "also search Certificate Transparency logs; this sends the domain name to "+findCT.Name())
-	wordlist := fl.Bool("wordlist", false, "also try about 2,000 common labels (www, mail, vpn, dev-api ...)")
+	wordlist := fl.Bool("wordlist", false, "also try about 1,600 common labels (www, mail, vpn, dev-api ...)")
 	listFile := fl.String("list", "", "also take names from this file, one per line (- for standard input)")
 	noPorts := fl.Bool("no-ports", false, "do not try any port; print every name that resolves")
 	targets := fl.Bool("targets", false, "print name:port for each port that answered instead of names, ready for tls scan and ssh scan")

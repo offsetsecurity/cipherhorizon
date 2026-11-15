@@ -55,6 +55,8 @@ type DiscoveryName struct {
 	Accepted bool `json:"accepted"`
 	// New says the previous finished run of the same domain did not list the name.
 	New bool `json:"new"`
+	// Tracked says an endpoint with this host already exists, whichever way it was added.
+	Tracked bool `json:"tracked"`
 }
 
 const discoveryCols = `d.id, d.domain, d.sources, d.status, d.stage, d.error, d.report, d.started_by, d.created_at, d.finished_at,
@@ -224,7 +226,8 @@ func (s *Store) DiscoveryNames(id int64) ([]DiscoveryName, error) {
 		return nil, err
 	}
 	rows, err := s.db.Query(`SELECT n.name, n.sources, n.addresses, n.cname, n.external, n.ports, n.refused, n.mail, n.accepted_at IS NOT NULL,
-		? AND NOT EXISTS (SELECT 1 FROM discovery_names o WHERE o.discovery_id = ? AND o.name = n.name)
+		? AND NOT EXISTS (SELECT 1 FROM discovery_names o WHERE o.discovery_id = ? AND o.name = n.name),
+		EXISTS (SELECT 1 FROM assets a WHERE a.host = n.name)
 		FROM discovery_names n WHERE n.discovery_id = ? ORDER BY n.name`, prev.Valid, prev.Int64, id)
 	if err != nil {
 		return nil, err
@@ -234,7 +237,7 @@ func (s *Store) DiscoveryNames(id int64) ([]DiscoveryName, error) {
 	for rows.Next() {
 		var n DiscoveryName
 		var src, addrs, ports string
-		if err := rows.Scan(&n.Name, &src, &addrs, &n.CNAME, &n.External, &ports, &n.Refused, &n.Mail, &n.Accepted, &n.New); err != nil {
+		if err := rows.Scan(&n.Name, &src, &addrs, &n.CNAME, &n.External, &ports, &n.Refused, &n.Mail, &n.Accepted, &n.New, &n.Tracked); err != nil {
 			return nil, err
 		}
 		n.Sources, n.Addresses, n.Ports = []string{}, []string{}, []int{}

@@ -34,7 +34,7 @@ const findMaxNames = 500
 // FindInput is what domain_find takes.
 type FindInput struct {
 	Domain          string `json:"domain" jsonschema:"the domain alone, such as example.com"`
-	Wordlist        bool   `json:"wordlist,omitempty" jsonschema:"also try about 2,000 common labels (www, mail, vpn, dev-api ...); adds a few thousand DNS queries and about a minute"`
+	Wordlist        bool   `json:"wordlist,omitempty" jsonschema:"also try about 1,600 common labels (www, mail, vpn, dev-api ...); adds a few thousand DNS queries and about a minute"`
 	CertificateLogs bool   `json:"certificateLogs,omitempty" jsonschema:"also search Certificate Transparency logs. This sends the domain name to an outside service and works only where the operator turned it on"`
 }
 
@@ -67,7 +67,7 @@ func (s *Server) addFindTool() {
 		Name:  "domain_find",
 		Title: "Find the host names under a domain",
 		Description: "List the host names under a domain: from the domain's own DNS records (name servers, mail servers, SPF, service records), " +
-			"and on request from about 2,000 common labels and from Certificate Transparency logs. Each name is resolved and ports 443, 8443 " +
+			"and on request from about 1,600 common labels and from Certificate Transparency logs. Each name is resolved and ports 443, 8443 " +
 			"and 22 are tried with one TCP connection each (25 on mail servers); nothing else is sent and nothing is stored or added. " +
 			"The answer says which source reported each name and what the run could not see: no source knows every name. " +
 			"Use it only for a domain the user owns or is authorised to test, then offer to scan what answered (tls_scan, ssh_scan) " +

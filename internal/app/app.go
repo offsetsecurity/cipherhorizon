@@ -168,7 +168,7 @@ Scan only systems you are authorised to test.
 
 find lists the host names under a domain, one per line: from the domain's own DNS records,
 and on request from Certificate Transparency logs (--ct, which sends the domain name to
-crt.sh), about 2,000 common labels (--wordlist) and a file of names (--list). It resolves
+crt.sh), about 1,600 common labels (--wordlist) and a file of names (--list). It resolves
 each name and tries ports 443, 8443 and 22; --targets prints name:port for what answered,
 ready for tls scan. No source knows every name; your own DNS zone is the complete list.
 

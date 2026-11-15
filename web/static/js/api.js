@@ -75,6 +75,15 @@ export const api = {
   settings: () => request('GET', '/api/v1/settings'),
   setSignIn: (body) => request('PUT', '/api/v1/settings/sign-in', body),
   setScanning: (body) => request('PUT', '/api/v1/settings/scanning', body),
+  setDiscovery: (body) => request('PUT', '/api/v1/settings/discovery', body),
+
+  // Finding endpoints from a domain (PRD-022).
+  discoveries: () => request('GET', '/api/v1/discoveries'),
+  discovery: (id) => request('GET', `/api/v1/discoveries/${id}`),
+  startDiscovery: (body) => request('POST', '/api/v1/discoveries', body),
+  cancelDiscovery: (id) => request('POST', `/api/v1/discoveries/${id}/cancel`),
+  deleteDiscovery: (id) => request('DELETE', `/api/v1/discoveries/${id}`),
+  acceptDiscovery: (id, body) => request('POST', `/api/v1/discoveries/${id}/accept`, body),
   summary: (days = 14) => request('GET', `/api/v1/summary?days=${days}`),
 
   // Every network endpoint, TLS and SSH (PRD-008); hosts are api.hosts().

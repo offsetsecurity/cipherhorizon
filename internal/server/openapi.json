@@ -3708,7 +3708,7 @@
         }
       },
       "post": {
-        "summary": "Find the host names under a domain. Runs in the background, one at a time; poll GET /api/v1/discoveries/{id}. sources: stored (names in certificates and endpoints already here), dns (the domain's NS, MX, SPF and service records), ct (a Certificate Transparency search; sends the domain to an outside service and must be turned on in Settings first), wordlist (about 2,000 common labels, with wildcard zones detected), list (the names in list, one per line, up to 20,000). Without sources: stored and dns. Nothing is added or scanned until names are accepted.",
+        "summary": "Find the host names under a domain. Runs in the background, one at a time; poll GET /api/v1/discoveries/{id}. sources: stored (names in certificates and endpoints already here), dns (the domain's NS, MX, SPF and service records), ct (a Certificate Transparency search; sends the domain to an outside service and must be turned on in Settings first), wordlist (about 1,600 common labels, with wildcard zones detected), list (the names in list, one per line, up to 20,000). Without sources: stored and dns. Nothing is added or scanned until names are accepted.",
         "tags": [
           "discovery"
         ],

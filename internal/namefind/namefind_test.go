@@ -358,7 +358,7 @@ func TestParseSPF(t *testing.T) {
 func TestLabels(t *testing.T) {
 	l := Labels()
 	if len(l) < 1500 || len(l) > 2500 {
-		t.Errorf("%d labels, want about 2,000", len(l))
+		t.Errorf("%d labels, want about 1,600", len(l))
 	}
 	seen := map[string]bool{}
 	for _, x := range l {

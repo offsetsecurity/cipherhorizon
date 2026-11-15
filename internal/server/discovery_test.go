@@ -128,6 +128,7 @@ type discoveryNameJSON struct {
 	Refused   string   `json:"refused"`
 	Accepted  bool     `json:"accepted"`
 	New       bool     `json:"new"`
+	Tracked   bool     `json:"tracked"`
 }
 
 type discoveryResult struct {
@@ -273,6 +274,9 @@ func TestDiscoveryFindsReviewsAndAccepts(t *testing.T) {
 	}
 	if n := second.name("www.example.com"); !strings.Contains(strings.Join(n.Sources, ","), "stored") {
 		t.Errorf("an endpoint already here is found by the stored source: %+v", n)
+	}
+	if !second.name("www.example.com").Tracked || second.name("fresh.example.com").Tracked {
+		t.Errorf("a name that is already an endpoint says so: www=%v fresh=%v", second.name("www.example.com").Tracked, second.name("fresh.example.com").Tracked)
 	}
 	if res.name("www.example.com").New {
 		t.Error("in a domain's first run nothing is marked new")
