@@ -70,6 +70,8 @@ func Main(ctx context.Context, args []string, env Env) int {
 		return tlsCmd(ctx, args[1:], env)
 	case "ssh":
 		return sshCmd(ctx, args[1:], env)
+	case "find":
+		return findCmd(ctx, args[1:], env)
 	case "serve":
 		return serveCmd(ctx, args[1:], env)
 	case "import":
@@ -121,6 +123,7 @@ Usage:
   cipherhorizon ssh scan [flags] HOST[:PORT]...
   cipherhorizon ssh baselines
   cipherhorizon tls standards | ssh standards   the published standards every scan is judged against
+  cipherhorizon find [--ct] [--wordlist] [--list FILE] [--targets] DOMAIN   the host names under a domain
   cipherhorizon serve [--addr HOST:PORT] [--db FILE] [--tls-cert F --tls-key F] [--token TOKEN] [--no-login]
   cipherhorizon import [--server URL] (--system ID | --new-system NAME) FILE|-
   cipherhorizon db rebuild-graph|stats|backup [--db FILE] [BACKUP-FILE]
@@ -162,6 +165,12 @@ worst first. Flags go before targets:
                   cannot be scanned also fails. For CI: see docs/CI.md
   --timeout, --concurrency, --max-connections, --min-interval, --no-certs, --http-checks
 Scan only systems you are authorised to test.
+
+find lists the host names under a domain, one per line: from the domain's own DNS records,
+and on request from Certificate Transparency logs (--ct, which sends the domain name to
+crt.sh), about 2,000 common labels (--wordlist) and a file of names (--list). It resolves
+each name and tries ports 443, 8443 and 22; --targets prints name:port for what answered,
+ready for tls scan. No source knows every name; your own DNS zone is the complete list.
 
 serve runs the web UI and API: add endpoints, scan them, watch progress, see history and
 post-quantum readiness. Sign-in is off until someone turns it on in Settings, which creates
