@@ -60,6 +60,10 @@
     {
       "name": "inventory",
       "description": "The cryptographic inventory across scans, machines and imported CBOMs (PRD-005)."
+    },
+    {
+      "name": "discovery",
+      "description": "Finding the host names under a domain, reviewing them and adding them as endpoints."
     }
   ],
   "paths": {
@@ -3576,9 +3580,30 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "httpChecks": { "type": "string", "enum": ["on", "off", "default"] },
-                  "crlLookups": { "type": "string", "enum": ["on", "off", "default"] },
-                  "crlPrivate": { "type": "string", "enum": ["on", "off", "default"] }
+                  "httpChecks": {
+                    "type": "string",
+                    "enum": [
+                      "on",
+                      "off",
+                      "default"
+                    ]
+                  },
+                  "crlLookups": {
+                    "type": "string",
+                    "enum": [
+                      "on",
+                      "off",
+                      "default"
+                    ]
+                  },
+                  "crlPrivate": {
+                    "type": "string",
+                    "enum": [
+                      "on",
+                      "off",
+                      "default"
+                    ]
+                  }
                 }
               }
             }
@@ -3657,6 +3682,345 @@
           }
         },
         "operationId": "put_settings_sign_in"
+      }
+    },
+    "/api/v1/discoveries": {
+      "get": {
+        "summary": "Every discovery run, newest first, with whether certificate logs may be searched (settings) and the scan scope.",
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "get_discoveries",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Find the host names under a domain. Runs in the background, one at a time; poll GET /api/v1/discoveries/{id}. sources: stored (names in certificates and endpoints already here), dns (the domain's NS, MX, SPF and service records), ct (a Certificate Transparency search; sends the domain to an outside service and must be turned on in Settings first), wordlist (about 2,000 common labels, with wildcard zones detected), list (the names in list, one per line, up to 20,000). Without sources: stored and dns. Nothing is added or scanned until names are accepted.",
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "post_discoveries",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "description": "The domain alone, such as example.com."
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "stored",
+                        "dns",
+                        "ct",
+                        "wordlist",
+                        "list"
+                      ]
+                    }
+                  },
+                  "list": {
+                    "type": "string",
+                    "description": "Host names, one per line; names outside the domain are left out and counted."
+                  }
+                },
+                "required": [
+                  "domain"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a domain, an unknown source, a domain outside the scan scope, or ct while it is turned off"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "409": {
+            "description": "A discovery is already running"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/discoveries/{id}": {
+      "get": {
+        "summary": "One discovery: its status and stage, what each source did and what the run could not see (report), and every name with the sources that reported it, its addresses, the alias it points at, whether that is outside the domain (external), the ports that answered, why it may not be reached (refused), and whether it is new since the previous run of the same domain.",
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "get_discoveries_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a finished discovery and its names. Endpoints added from it stay.",
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "delete_discoveries_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "The discovery is still running"
+          }
+        }
+      }
+    },
+    "/api/v1/discoveries/{id}/cancel": {
+      "post": {
+        "summary": "Cancel a running discovery. A discovery that already ended is returned unchanged.",
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "post_discoveries_id_cancel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/discoveries/{id}/accept": {
+      "post": {
+        "summary": "Add names of a finished discovery as endpoints, one per port that answered (port 22 as an SSH server, any other as a TLS endpoint), tagged with the domain, and optionally scan them. A name on which nothing answered, or that may not be reached, is skipped and counted. The reply counts names, endpoints added, already present, skipped and scans queued.",
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "post_discoveries_id_accept",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "all": {
+                    "type": "boolean",
+                    "description": "Every name of the run instead of names."
+                  },
+                  "scan": {
+                    "type": "boolean",
+                    "description": "Queue a scan of each endpoint added."
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "The discovery has no result: it is running, failed or was canceled"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/settings/discovery": {
+      "put": {
+        "summary": "Turn the Certificate Transparency source of discovery on or off. On, a discovery that asks for it sends the domain name to the named search service. Off by default. Administrators only when sign-in is on.",
+        "tags": [
+          "server"
+        ],
+        "operationId": "put_settings_discovery",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "certificateTransparency": {
+                    "type": "string",
+                    "enum": [
+                      "on",
+                      "off"
+                    ]
+                  }
+                },
+                "required": [
+                  "certificateTransparency"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The value is not on or off"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
       }
     }
   },
