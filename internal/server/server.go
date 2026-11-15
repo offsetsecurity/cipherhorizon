@@ -61,6 +61,10 @@ type Config struct {
 	Log                *slog.Logger
 	Now                func() time.Time
 
+	// Discovery finds the host names under a domain (PRD-022). Nil leaves its routes answering
+	// that the feature is not available.
+	Discovery *Discoverer
+
 	// MCP, when set, is served at /mcp behind the same identification as the API (a bearer token
 	// or a signed-in session; the local operator when sign-in is off). It is the Model Context
 	// Protocol handler serve --mcp builds (PRD-020); nil leaves the path unregistered.
@@ -303,6 +307,7 @@ func (s *Server) routes() {
 	handle("GET /api/v1/settings", s.getSettings)
 	handle("PUT /api/v1/settings/sign-in", s.putSignIn)
 	handle("PUT /api/v1/settings/scanning", s.putScanSettings)
+	handle("PUT /api/v1/settings/discovery", s.putDiscoverySettings)
 	handle("GET /api/v1/users", s.listUsers)
 	handle("POST /api/v1/users", s.createUser)
 	handle("PATCH /api/v1/users/{id}", s.patchUser)
@@ -379,6 +384,13 @@ func (s *Server) routes() {
 	handle("GET /api/v1/scans/{id}/report.pdf", s.scanPDF)
 
 	handle("GET /api/v1/export/assets.csv", s.exportCSV)
+
+	handle("GET /api/v1/discoveries", s.listDiscoveries)
+	handle("POST /api/v1/discoveries", s.startDiscovery)
+	handle("GET /api/v1/discoveries/{id}", s.getDiscovery)
+	handle("DELETE /api/v1/discoveries/{id}", s.deleteDiscovery)
+	handle("POST /api/v1/discoveries/{id}/cancel", s.cancelDiscovery)
+	handle("POST /api/v1/discoveries/{id}/accept", s.acceptDiscovery)
 
 	handle("POST /api/v1/hosts/ingest", s.ingestHost)
 	handle("GET /api/v1/hosts", s.listHosts)

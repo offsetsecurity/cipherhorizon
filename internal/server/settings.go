@@ -70,6 +70,9 @@ func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request) {
 		// scanning: the options every scan runs with, changeable here (0.5.1); the command line
 		// sets their starting values.
 		"scanning": s.cfg.Runner.ScanConfig(),
+		// discovery: whether finding names under a domain may search certificate logs, which
+		// sends the domain name to an outside service (off unless turned on here).
+		"discovery": s.discoverySettings(),
 	})
 }
 
