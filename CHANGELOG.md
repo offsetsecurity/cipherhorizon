@@ -17,6 +17,10 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   and draws at most 200 rows, and adding and queueing a long list is no longer cut off after a minute.
   [docs/domains.md](docs/domains.md) describes how to get the names under a domain and scan them all.
 
+### Security
+
+- Built with Go 1.27.4 (GO-2026-6859, in the standard library's `net/http`; fixed in Go 1.27.4).
+
 ## [0.8.0] - 2026-11-10
 
 ### Added
