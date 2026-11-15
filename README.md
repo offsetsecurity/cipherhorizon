@@ -197,6 +197,7 @@ Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 |---|---|
 | [docs/engineering/INSTALL.md](docs/engineering/INSTALL.md) | Installing on each OS, the port, where the data lives, backup, upgrade, removal |
 | [docs/deploy.md](docs/deploy.md) | Docker, Caddy with automatic HTTPS, systemd, Windows, backups |
+| [docs/domains.md](docs/domains.md) | Scanning every host under a domain: getting the list of names and adding up to 20,000 at once |
 | [docs/CI.md](docs/CI.md) | `tls scan` and `ssh scan --fail-on`, and a GitHub Actions example |
 | [docs/mcp.md](docs/mcp.md) | Using CipherHorizon from an assistant (Model Context Protocol): the tools, the safety controls, client setup |
 | [docs/methodology.md](docs/methodology.md) | Every check, the readiness levels, the TLS hygiene score, the SSH baseline |

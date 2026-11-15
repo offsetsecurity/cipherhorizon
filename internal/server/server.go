@@ -249,7 +249,12 @@ func extendWriteDeadline(w http.ResponseWriter, log *slog.Logger, d time.Duratio
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+	return decodeMax(w, r, v, maxBody)
+}
+
+// decodeMax is decode for the few requests that may be larger than maxBody.
+func decodeMax(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
