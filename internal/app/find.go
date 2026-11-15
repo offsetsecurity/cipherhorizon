@@ -123,7 +123,7 @@ func findCmd(ctx context.Context, args []string, env Env) int {
 func readNameList(path string) ([]string, error) {
 	var r io.Reader = os.Stdin
 	if path != "-" {
-		f, err := os.Open(path) //nolint:gosec // the operator names the file
+		f, err := os.Open(path)
 		if err != nil {
 			return nil, err
 		}

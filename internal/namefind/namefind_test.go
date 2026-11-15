@@ -333,7 +333,7 @@ func TestRunIsCancelled(t *testing.T) {
 }
 
 func TestNormalizeDomain(t *testing.T) {
-	for in, want := range map[string]string{"Example.COM.": "example.com", "*.example.com": "example.com", " a.b.example.co.uk ": "a.b.example.co.uk"} {
+	for in, want := range map[string]string{"Example.COM.": "example.com", "*.example.com": "example.com", "\ta.b.example.co.uk\n": "a.b.example.co.uk"} {
 		if got, err := NormalizeDomain(in); err != nil || got != want {
 			t.Errorf("%q = %q, %v; want %q", in, got, err, want)
 		}
