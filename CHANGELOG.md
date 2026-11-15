@@ -10,6 +10,10 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Security
+
+- Built with Go 1.27.4 (GO-2026-6859, in the standard library's `net/http`; fixed in Go 1.27.4).
+
 ## [0.8.0] - 2026-11-10
 
 ### Added
