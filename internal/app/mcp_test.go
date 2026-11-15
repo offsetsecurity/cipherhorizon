@@ -285,7 +285,7 @@ func TestMCPCommandListen(t *testing.T) {
 	}
 	cs := mcpClient(t, base, "0123456789abcdef")
 	tools, err := cs.ListTools(context.Background(), nil)
-	if err != nil || len(tools.Tools) != 2 {
+	if err != nil || len(tools.Tools) != 3 { // tls_scan, ssh_scan, domain_find
 		t.Errorf("tools: %v %d", err, len(tools.Tools))
 	}
 	resp, err := http.Get(base + "/healthz")

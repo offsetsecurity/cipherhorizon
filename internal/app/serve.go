@@ -19,6 +19,7 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/auth"
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/mcpserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/namefind"
 	"github.com/offsetsecurity/cipherhorizon/internal/revocation"
 	"github.com/offsetsecurity/cipherhorizon/internal/server"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
@@ -379,6 +380,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		m := mcpserver.New(mcpserver.Options{
 			Version: version.Version, Log: log, NoScan: !*mcpScan,
 			Scan:    mcpserver.ScanOptions{Guard: guard, Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
+			Find:    mcpserver.FindOptions{CT: namefind.CrtSh{}, CTAllowed: discoverer.CTAllowed},
 			Fleet:   &mcpserver.Fleet{Base: "http://127.0.0.1", Client: &http.Client{Transport: inproc}},
 			Verdict: writeVerdict, Details: writeDetails, Now: env.Now,
 		})
