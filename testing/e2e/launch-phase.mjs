@@ -66,7 +66,7 @@ export async function launchPhase({ check, js, go, sleep, shot, viewport, clickT
   check('E2E-S.2', 'Settings shows sign-in (on, set by --sign-in on on this server) and the server\'s configuration with the option for each',
     /Sign-in/.test(sett.text) && /\bOn\b/.test(sett.text) && /--sign-in on/.test(sett.text) && sett.rows >= 7 && /--scan-allow/.test(sett.text), sett.text.slice(0, 300));
   // 0.5.1: the scan options are in Settings, each a switch with its state and an explanation.
-  const scanSet = await js(`return { rows: document.querySelectorAll('.setrow').length, text: document.querySelector('#set-scan-h')?.closest('section')?.innerText || '' }`);
+  const scanSet = await js(`const sec = document.querySelector('#set-scan-h')?.closest('section'); return { rows: sec ? sec.querySelectorAll('.setrow').length : 0, text: sec?.innerText || '' }`);
   check('E2E-S.4', 'Settings has a Scanning card with the HTTP check, CRL lookups and private CRL servers as switches',
     scanSet.rows === 3 && /HTTP check/.test(scanSet.text) && /CRL lookups/.test(scanSet.text) && /private addresses/.test(scanSet.text), scanSet.text.slice(0, 200));
   await shot('settings');
