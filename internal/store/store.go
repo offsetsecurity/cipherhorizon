@@ -499,6 +499,37 @@ var migrations = []string{
 	// 17: a scan's verdicts against the published standards (PRD-017), as a small JSON object of
 	// standard id to verdict, for lists, filters and the fleet summary without opening the evaluation.
 	`ALTER TABLE scans ADD COLUMN standards TEXT NOT NULL DEFAULT '';`,
+	// 18: finding the host names under a domain (PRD-022). A discovery is one run; its names are a
+	// review list, and none is an endpoint until a person accepts it. Deleting a run deletes its
+	// names; endpoints added from it are ordinary endpoints and stay. The index on assets(host) lets a
+	// review list say which names are endpoints already.
+	`CREATE TABLE discoveries (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		domain TEXT NOT NULL,
+		sources TEXT NOT NULL DEFAULT '[]',
+		status TEXT NOT NULL,
+		stage TEXT NOT NULL DEFAULT '',
+		error TEXT NOT NULL DEFAULT '',
+		report TEXT NOT NULL DEFAULT '',
+		started_by TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		finished_at TEXT
+	);
+	CREATE INDEX discoveries_domain ON discoveries(domain, id);
+	CREATE TABLE discovery_names (
+		discovery_id INTEGER NOT NULL REFERENCES discoveries(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		sources TEXT NOT NULL DEFAULT '[]',
+		addresses TEXT NOT NULL DEFAULT '[]',
+		cname TEXT NOT NULL DEFAULT '',
+		external INTEGER NOT NULL DEFAULT 0,
+		ports TEXT NOT NULL DEFAULT '[]',
+		refused TEXT NOT NULL DEFAULT '',
+		mail INTEGER NOT NULL DEFAULT 0,
+		accepted_at TEXT,
+		PRIMARY KEY (discovery_id, name)
+	) WITHOUT ROWID;
+	CREATE INDEX assets_host ON assets(host);`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same

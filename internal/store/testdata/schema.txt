@@ -21,6 +21,7 @@ table assets
   column system_id INTEGER 0 NULL 0 0
   column starttls TEXT 1 'auto' 0 0
   foreign-key systems system_id id NO ACTION NO ACTION
+  index assets_host 0 c 0 (host:0:BINARY)
   index assets_system 0 c 0 (system_id:0:BINARY)
   index sqlite_autoindex_assets_1 1 u 0 (kind:0:BINARY, host:0:BINARY, port:0:BINARY)
 table audit_log
@@ -44,6 +45,31 @@ table auth_events
   column client TEXT 1 '' 0 0
   column detail TEXT 1 '' 0 0
   index auth_events_at 0 c 0 (at:0:BINARY)
+table discoveries
+  column id INTEGER 0 NULL 1 0
+  column domain TEXT 1 NULL 0 0
+  column sources TEXT 1 '[]' 0 0
+  column status TEXT 1 NULL 0 0
+  column stage TEXT 1 '' 0 0
+  column error TEXT 1 '' 0 0
+  column report TEXT 1 '' 0 0
+  column started_by TEXT 1 '' 0 0
+  column created_at TEXT 1 NULL 0 0
+  column finished_at TEXT 0 NULL 0 0
+  index discoveries_domain 0 c 0 (domain:0:BINARY, id:0:BINARY)
+table discovery_names
+  column discovery_id INTEGER 1 NULL 1 0
+  column name TEXT 1 NULL 2 0
+  column sources TEXT 1 '[]' 0 0
+  column addresses TEXT 1 '[]' 0 0
+  column cname TEXT 1 '' 0 0
+  column external INTEGER 1 0 0 0
+  column ports TEXT 1 '[]' 0 0
+  column refused TEXT 1 '' 0 0
+  column mail INTEGER 1 0 0 0
+  column accepted_at TEXT 0 NULL 0 0
+  foreign-key discoveries discovery_id id NO ACTION CASCADE
+  index sqlite_autoindex_discovery_names_1 1 pk 0 (discovery_id:0:BINARY, name:0:BINARY)
 table entities
   column id INTEGER 0 NULL 1 0
   column kind TEXT 1 NULL 0 0
