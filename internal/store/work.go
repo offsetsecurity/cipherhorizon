@@ -216,7 +216,7 @@ func (s *Store) ListWork(f WorkFilter) ([]WorkItem, error) {
 		{"certificate", strings.ToLower(f.Certificate), f.Certificate != ""},
 	} {
 		if c.set {
-			q += ` AND ` + c.col + ` = ?`
+			q += ` AND ` + c.col + ` = ?` //nolint:gosec // c.col comes from the constant list above, never from input
 			args = append(args, c.v)
 		}
 	}
@@ -390,7 +390,7 @@ func (s *Store) MoveWork(id int64, m WorkMove, actor string) (WorkItem, error) {
 		after["approval"] = true
 	}
 	if len(m.Verification) > 0 {
-		after["verification"] = json.RawMessage(m.Verification)
+		after["verification"] = m.Verification
 	}
 	if err := auditWorkTx(tx, now, actor, WorkObject, id, m.Transition, map[string]any{"stage": old.Stage, "marker": old.Marker}, after, m.Note); err != nil {
 		return WorkItem{}, err

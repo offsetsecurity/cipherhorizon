@@ -139,8 +139,10 @@ var (
 	admin    = Actor{Name: "root", Role: RoleAdmin, Person: true}
 	local    = Actor{Name: "local", Role: RoleAdmin}
 	viewer   = Actor{Name: "vic", Role: "viewer", Person: true}
-	verified = func() Verification { return Verification{Status: Verified, Detail: "scan 7 presents a new certificate"} }
-	never    = func() Verification { panic("verification must not be computed for this transition") }
+	verified = func() Verification {
+		return Verification{Status: Verified, Detail: "scan 7 presents a new certificate"}
+	}
+	never = func() Verification { panic("verification must not be computed for this transition") }
 )
 
 func code(err error) string {
