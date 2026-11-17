@@ -35,6 +35,8 @@ type Options struct {
 	// Scan configures the ad-hoc tls_scan and ssh_scan tools. NoScan leaves them out.
 	Scan   ScanOptions
 	NoScan bool
+	// Find configures domain_find, which NoScan also leaves out: it connects to what it finds.
+	Find FindOptions
 
 	// Fleet, when set, adds the tools that read and (unless ReadOnly) change a CipherHorizon
 	// server's fleet through its HTTP API.
@@ -88,6 +90,7 @@ func New(opts Options) *Server {
 		&mcp.ServerOptions{Instructions: s.instructions(), Logger: opts.Log})
 	if !opts.NoScan {
 		s.addScanTools()
+		s.addFindTool()
 	}
 	if opts.Fleet != nil {
 		s.addFleetTools()
@@ -113,7 +116,8 @@ func (s *Server) instructions() string {
 	default:
 		b.WriteString("tls_scan and ssh_scan connect to the target and make a few hundred short handshakes (TLS) or at most 24 " +
 			"connections (SSH); they never log in and never send application data beyond one HTTP GET / for headers. " +
-			"Scan only systems the user is authorised to test. ")
+			"domain_find lists the host names under a domain and tries three ports on each with one connection. " +
+			"Scan and look under only systems and domains the user is authorised to test. ")
 		if s.opts.Scan.Guard.Scope != nil {
 			b.WriteString("The operator limited scans to a scope; a target outside it is refused.\n")
 		} else {

@@ -3,6 +3,7 @@ package server_test
 import (
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -133,6 +134,32 @@ func TestAC01_BulkAddReportsEveryLine(t *testing.T) {
 		if a.Host == "new-1.example" && (len(a.Tags) != 1 || a.Tags[0] != "batch") {
 			t.Errorf("bulk tags = %v", a.Tags)
 		}
+	}
+}
+
+// A list as long as a name-finding tool's output for a large domain is taken in one request
+// (PRD-022 phase 0); one line more is refused before anything is added.
+func TestBulkAddTakesTwentyThousandLines(t *testing.T) {
+	if testing.Short() {
+		t.Skip("adds 20,000 endpoints")
+	}
+	e := newEnv(t)
+	var b strings.Builder
+	for i := range 20000 {
+		fmt.Fprintf(&b, "host-%05d.corp.example\n", i)
+	}
+	full := strings.TrimSuffix(b.String(), "\n")
+	if s := e.call("POST", "/api/v1/assets/bulk", map[string]any{"text": full + "\none-too-many.example"}, nil); s != 400 {
+		t.Fatalf("20,001 lines: status %d, want 400", s)
+	}
+	var out struct{ Added, Duplicate, Invalid int }
+	start := time.Now()
+	if s := e.call("POST", "/api/v1/assets/bulk", map[string]any{"text": full}, &out); s != 200 {
+		t.Fatalf("20,000 lines: status %d", s)
+	}
+	t.Logf("20,000 lines added in %s", time.Since(start).Round(time.Millisecond))
+	if out.Added != 20000 || out.Duplicate != 0 || out.Invalid != 0 {
+		t.Errorf("added=%d duplicate=%d invalid=%d, want 20000/0/0", out.Added, out.Duplicate, out.Invalid)
 	}
 }
 

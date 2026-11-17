@@ -52,6 +52,7 @@ type envCfg struct {
 	scope         []string
 	notOpen       bool // the server listens beyond loopback without --open-network
 	forbidLogin   bool // --sign-in off
+	discovery     server.DiscoveryOptions
 }
 
 type envOpt func(*envCfg)
@@ -135,8 +136,10 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	runner := server.NewRunner(st, guard, ro)
 	ctx, cancel := context.WithCancel(context.Background())
 	runner.Start(ctx)
+	disc := server.NewDiscoverer(st, guard, cfg.discovery)
+	disc.Start(ctx)
 
-	srv := server.New(server.Config{Store: st, Runner: runner, Guard: guard, Token: cfg.token, AllowedHosts: cfg.allowedHosts,
+	srv := server.New(server.Config{Store: st, Runner: runner, Guard: guard, Discovery: disc, Token: cfg.token, AllowedHosts: cfg.allowedHosts,
 		Version: "test", RegistryRetrieved: "2026-09-21", EvalVersion: "eval/1", MaxConcurrentScans: cfg.workers,
 		RequireLogin: cfg.login, ForbidLogin: cfg.forbidLogin, AllowOpen: !cfg.notOpen, SetupCode: cfg.setupCode, SetupCodeExpires: cfg.setupExpires, Now: nowOf(cfg.clock), TrustedProxies: cfg.proxies})
 	ts := httptest.NewServer(srv.Handler())
@@ -144,6 +147,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 		ts.Close()
 		cancel()
 		runner.Wait()
+		disc.Wait()
 		_ = st.Close()
 	})
 	return &env{srv: srv, t: t, st: st, ts: ts, runner: runner, token: cfg.token, dbPath: dbPath}

@@ -11,7 +11,7 @@ Two ways to run it:
 |---|---|---|
 | Where | On the machine that runs the assistant (or any machine, over HTTP) | On the server that already serves the web interface |
 | Transport | stdio by default; `--listen` for Streamable HTTP | Streamable HTTP at `/mcp` |
-| Ad-hoc scans | `tls_scan`, `ssh_scan` (the same probe and judgement as `tls scan` and `ssh scan`) | Only with `--mcp-scan` |
+| Ad-hoc scans | `tls_scan`, `ssh_scan` (the same probe and judgement as `tls scan` and `ssh scan`), `domain_find` | Only with `--mcp-scan` |
 | The fleet | With `--server URL --token TOKEN` | Always; each call runs under the caller's own role |
 | Credentials | The server's automation token, or `--key` for the HTTP listener | The server's sign-in or token, unchanged |
 
@@ -26,6 +26,7 @@ Names are fixed; the assistant sees a description of each, written for it.
 |---|---|---|
 | `tls_scan` | Scan one TLS endpoint now: readiness level, hygiene score, findings with remediation, standards clause by clause, which clients connect. Nothing is stored. | No (connects to the target) |
 | `ssh_scan` | Scan one SSH server now: readiness, baseline conformance with the `sshd_config` lines that would meet it, findings, standards. Never logs in. | No (connects to the target) |
+| `domain_find` | List the host names under a domain from its DNS records and, on request, common labels and Certificate Transparency logs (only where an administrator turned that on); each with its addresses and which of ports 443, 8443 and 22 answer. Nothing is stored or added. | No (DNS queries, and one connection per port) |
 | `fleet_summary` | The Overview in numbers: endpoints by level and band, findings by severity, the trend. | No |
 | `endpoints_list` | Tracked endpoints with their latest verdict; filter by protocol, tag, text or state (`not-ready`, `failing`, `hndl-exposed`, `never-scanned`); paged. | No |
 | `endpoint_get` | One endpoint's latest completed scan, judged, plus its history. | No |
@@ -53,7 +54,7 @@ content it reads. CipherHorizon limits what the tools can do, and you choose how
   `--allow-loopback`) loopback addresses are refused. `--scan-allow 10.0.0.0/8` (repeatable; a network,
   an address, or a domain and the names under it) limits scans to what you name. Without a scope, anything
   routable is scannable, as it is for `tls scan`.
-- **`--no-scan`** removes `tls_scan` and `ssh_scan`: the assistant reads stored results only.
+- **`--no-scan`** removes `tls_scan`, `ssh_scan` and `domain_find`: the assistant reads stored results only.
 - **`--read-only`** removes `endpoint_add` and `scan_start`: nothing the assistant does changes the server.
 - **Roles.** Through `serve --mcp`, each tool call is an API call made as the signed-in user or token:
   a viewer gets read-only automatically; the audit trail records the calls.

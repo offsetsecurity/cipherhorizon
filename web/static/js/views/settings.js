@@ -43,7 +43,7 @@ export async function render(root) {
   async function draw() {
     const [st, auth] = await Promise.all([api.settings(), api.authState()]);
     const s = st.signIn;
-    clear(body).append(signInCard(s, auth), scanningCard(st.scanning, auth), serverCard(st.server));
+    clear(body).append(...[signInCard(s, auth), scanningCard(st.scanning, auth), discoveryCard(st.discovery, auth), serverCard(st.server)].filter(Boolean));
   }
 
   // Scanning (0.5.1): the options every scan runs with, changed here and applied to the next scan.
@@ -86,6 +86,31 @@ export async function render(root) {
       canEdit ? h('div', { class: 'row' }, button('Save', save, 'primary'), (sc.overridden || []).length ? button('Use the command line’s values', reset, 'secondary') : null)
         : h('p', { class: 'hint' }, 'Only an administrator can change these.'));
     return card;
+  }
+
+  // Finding names from a domain: the one source that tells an outside service which domain is
+  // being asked about is off until an administrator turns it on (PRD-022 D2).
+  function discoveryCard(dv, auth) {
+    if (!dv || !dv.available) return null;
+    const canEdit = !auth?.required || auth?.me?.role === 'admin' || auth?.role === 'admin';
+    const on = !!dv.certificateTransparency;
+    const box = h('input', { type: 'checkbox', id: 'disc-ct', checked: on, disabled: !canEdit });
+    return h('section', { class: 'card settings-card', 'aria-labelledby': 'set-disc-h' },
+      h('div', { class: 'settings-head' }, h('h2', { id: 'set-disc-h' }, 'Finding names from a domain')),
+      h('p', null, 'What ', h('a', { href: '#/discover' }, 'Find from a domain'), ' may use to list the host names under a domain. Reading the domain’s DNS records and the names this server already holds is always allowed.'),
+      h('div', { class: 'setrows' }, h('div', { class: 'setrow' },
+        h('div', { class: 'setrow-switch' }, box),
+        h('div', { class: 'setrow-text' },
+          h('label', { for: 'disc-ct', class: 'setrow-label' }, 'Search certificate logs', ' ', badge(on ? 'on' : 'off', on ? 'good' : 'neutral')),
+          h('p', { class: 'setrow-help' }, `Ask ${dv.service} for every name that ever got a public certificate under the domain. It usually finds the most names. `,
+            h('strong', null, `Each search sends the domain name to ${dv.service}, an outside service.`), ' Off, this server contacts nothing but DNS and the hosts it finds.')))),
+      canEdit ? h('div', { class: 'row' }, button('Save', async () => {
+        try {
+          await api.setDiscovery({ certificateTransparency: box.checked ? 'on' : 'off' });
+          toast(box.checked ? 'Certificate log search is on.' : 'Certificate log search is off.', 'success');
+          draw();
+        } catch (e) { toast(e.message, 'error'); }
+      }, 'primary')) : h('p', { class: 'hint' }, 'Only an administrator can change this.'));
   }
 
   function signInCard(s, auth) {
