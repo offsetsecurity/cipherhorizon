@@ -6,9 +6,10 @@
 // attacker may have chosen: it reaches the page as text only.
 import { h, clear, fmtDate, fmtDay, daysUntil } from '../dom.js';
 import { api } from '../api.js';
-import { badge, skeleton, citations, crumbs, copyButton, button } from '../ui.js';
+import { badge, skeleton, citations, crumbs, copyButton, button, modal, toast } from '../ui.js';
 import { validFingerprint, systemHref, keyText, expiryBadge, classLabel, keyAssociation, validId } from '../estate-ui.js';
 import { bitsBar, pqGlyph, lifetimeBar } from '../viz.js';
+import { trackDialog, markerBadge, verifyBadge, verificationOf } from '../work-ui.js';
 
 const cnOf = (dn) => { const m = /CN=([^,]+)/.exec(dn || ''); return m ? m[1] : (dn || ''); };
 const orgOf = (parts) => ((parts || []).find((p) => p.type === 'O') || {}).value || '';
@@ -183,6 +184,7 @@ export async function render(root, { args, query }) {
     x ? h('div', { class: 'row' },
       button('Copy PEM', async (e) => { try { await navigator.clipboard.writeText(x.pem); e.currentTarget.textContent = 'Copied'; } catch { /* refused */ } }, 'secondary'),
       button('Download .pem', () => api.downloadBlob(`${built.stem}.pem`, x.pem, 'application/x-pem-file'), 'secondary')) : null));
+  if (d) root.appendChild(lifecyclePanel(fp, title));
   if (!ribbon && xr && xr.source && validId(xr.source.assetId)) {
     root.appendChild(h('p', { class: 'served-by' }, 'Served by ', h('a', { href: `#/endpoints/${xr.source.assetId}?tab=configuration` }, xr.source.assetName || 'the endpoint'),
       `, certificate ${xr.source.position + 1} of ${xr.source.chainLength}. `, h('a', { href: `#/endpoints/${xr.source.assetId}?tab=configuration` }, 'Back to the chain')));
@@ -208,4 +210,57 @@ export async function render(root, { args, query }) {
         h('p', null, f.detail || ''), f.remediation ? h('p', { class: 'hint' }, f.remediation) : null, citations(f.citations)))
       : h('p', { class: 'hint' }, 'No finding applies to this certificate on the current evidence.')));
   return null;
+}
+
+// ---- lifecycle (PRD-023): who answers for this certificate, how it is renewed, and its work -------
+
+const RENEWAL_WORDS = { acme: 'ACME (automatic)', 'ca-portal': 'CA portal (by hand)', 'cert-manager': 'cert-manager', 'cloud-managed': 'Managed by the cloud provider',
+  'internal-ca': 'Internal CA', manual: 'By hand', vendor: 'By the vendor' };
+
+function lifecyclePanel(fp, title) {
+  const box = h('section', { class: 'card xcard', id: 'cert-lifecycle', 'aria-labelledby': 'x-life' });
+  const paint = async () => {
+    let r;
+    try { r = await api.certLifecycle(fp); } catch { box.hidden = true; return; }
+    const l = r.lifecycle || {};
+    const open = (r.work || []).filter((w) => !['verified', 'complete', 'cancelled'].includes(w.marker));
+    clear(box).append(
+      h('div', { class: 'cfg-head' }, h('h2', { id: 'x-life' }, 'Ownership and renewal'),
+        h('div', { class: 'row' },
+          button('Edit', () => editLifecycle(fp, l, r.renewalMethods || [], paint), 'secondary', { class: 'btn btn-secondary btn-sm', id: 'cert-life-edit' }),
+          open.length ? null : button('Plan renewal', () => trackDialog({ kind: 'certificate', certificate: fp }, { title: `Renew ${title}`, workflow: 'certificate-renewal', owner: l.owner || '',
+            what: 'Closed as verified only when every scanned endpoint that served this certificate serves a different one that is valid for longer.' }), 'primary', { class: 'btn btn-primary btn-sm', id: 'cert-plan' }))),
+      h('dl', { class: 'kv' },
+        h('dt', null, 'Owner'), h('dd', null, l.owner || h('span', { class: 'muted' }, 'not set')),
+        h('dt', null, 'Renewed'), h('dd', null, l.renewal ? RENEWAL_WORDS[l.renewal] || l.renewal : h('span', { class: 'muted' }, 'not recorded')),
+        l.notes ? [h('dt', null, 'Notes'), h('dd', null, l.notes)] : null),
+      (r.work || []).length ? h('ul', { class: 'mini-list mt-sm' }, r.work.map((w) => h('li', null,
+        h('a', { href: `#/work/${w.id}` }, `#${w.id} ${w.title}`), markerBadge(w.marker, w.stageLabel), verifyBadge(verificationOf(w)?.status))))
+        : h('p', { class: 'hint' }, 'No work names this certificate.'));
+  };
+  paint();
+  return box;
+}
+
+function editLifecycle(fp, l, methods, repaint) {
+  modal('Ownership and renewal', (close) => {
+    const err = h('div', { class: 'callout bad', role: 'alert', hidden: true });
+    const owner = h('input', { type: 'text', id: 'life-owner', value: l.owner || '', maxlength: '100', autocomplete: 'off' });
+    const renewal = h('select', { id: 'life-renewal' }, h('option', { value: '' }, 'Not recorded'),
+      methods.map((m) => h('option', { value: m, selected: m === l.renewal }, RENEWAL_WORDS[m] || m)));
+    const notes = h('textarea', { id: 'life-notes', rows: 3, maxlength: '4000' }, l.notes || '');
+    return h('form', { class: 'modal-body', onsubmit: async (e) => {
+      e.preventDefault();
+      try {
+        await api.setCertLifecycle(fp, { owner: owner.value.trim(), renewal: renewal.value, notes: notes.value.trim() });
+        close();
+        toast('Saved', 'success');
+        await repaint();
+      } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+    } }, err,
+    h('label', { for: 'life-owner' }, 'Owner'), owner,
+    h('label', { for: 'life-renewal' }, 'How it is renewed'), renewal,
+    h('label', { for: 'life-notes' }, 'Notes'), notes,
+    h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Save')));
+  });
 }

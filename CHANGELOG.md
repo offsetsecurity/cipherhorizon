@@ -12,15 +12,37 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
-- **Tracked work, with closure the product verifies.** Open a piece of work on a finding, a certificate, an
-  endpoint's readiness target, an endpoint or a system; give it an owner, a due date and prerequisites, and move it
-  through a workflow. Eight workflows are built in (certificate renewal, emergency replacement, TLS or SSH
-  configuration change, post-quantum key exchange, PKI signature migration, library upgrade, vendor-dependent,
-  manual), and an administrator can add their own as JSON. Whatever the workflow, work is marked *verified* only
-  when a scan or upload made after the change shows it in effect: the finding gone, the old certificate no longer
-  served anywhere it was and its replacement valid for longer, or the readiness level reached. Approvals must come
-  from a second signed-in person; exceptions need a reason and an end date; every step is in the audit log. API
-  only in this release (`/api/v1/work`, `/api/v1/workflows`); see [docs/work.md](docs/work.md), ADR-0021.
+- **Work: tracked changes the product verifies.** A new place in the menu follows a fix from the finding to the
+  end: an owner, a due date, a project, the steps of a workflow, an approval, and the moment the change was made.
+  Open it where the problem is: *Plan hybrid key exchange* on an endpoint below L3, *Track* beside a finding,
+  *Plan renewal* on a certificate. Work reaches *Verified by scan* only when a scan or upload made after the change
+  shows it: the finding gone, the old certificate no longer served anywhere it was and its replacement valid for
+  longer, or the readiness level reached. Work the product cannot observe closes as *complete* and is counted
+  apart. Eight workflows are built in (certificate renewal, emergency replacement, TLS or SSH configuration change,
+  post-quantum key exchange, PKI signature migration, library upgrade, vendor-dependent, manual), and an
+  administrator can add their own as JSON; no workflow can mark work verified without the scan, let the requester
+  approve, or accept a risk without an end date. Every step is in the audit log. The Work page shows where all
+  work stands, post-quantum key exchange across the endpoints out of those scanned (the unscanned counted as
+  unknown), and each figure with what it is out of. See [docs/work.md](docs/work.md) and the walkthrough
+  [docs/lifecycle-walkthrough.md](docs/lifecycle-walkthrough.md); ADR-0021.
+- **Suggested work.** *Work, Suggested* lists what the scans point at and nobody has opened: endpoints below
+  hybrid key exchange, untracked critical and high findings, certificates expiring or valid past 2030. Each says why
+  and, where a standard sets a date, which one.
+- **The lifecycle monitor and notifications.** *Work, Needs attention* lists work overdue, due soon or waiting
+  for an approval, accepted risks past their end, **verified work that a later scan contradicts**, certificates
+  expired or expiring (30 and 7 days by default), and **a certificate that changed with no work naming the old
+  one**. An administrator can send each event once to a webhook (*Settings, Notifications*): JSON signed with
+  HMAC-SHA256, or a chat message for Slack and Teams incoming webhooks. The secret is the name of an environment
+  variable, never stored; the webhook obeys the scan guard's address rules. `serve --monitor-every` (default 15
+  minutes) and `--public-url` for absolute links.
+- **Certificate ownership.** A certificate's page records who owns it and how it is renewed, lists the work that
+  names it, and offers *Plan renewal*.
+- **Integrations.** *Settings, Integrations* lists what this server can talk to, what each connector can do, how it
+  authenticates and its limits: the scanner and the webhook are available; issuing and deploying connectors
+  (ACME and step-ca, cert-manager, Ansible, OpenBao, cloud certificate services, e-mail) are listed as planned.
+  ADR-0023 sets the rules they will follow.
+- **Evidence for auditors.** *Work* downloads a CSV and an evidence pack: every piece of work with its workflow, its
+  full history from the audit log, and a verification computed again at export.
 - **Policy catalog.** The standards documents and dated milestones the product acts on (NIST IR 8547's 2030 and
   2035 dates, the federal dates it quotes, FIPS 203/204/205, the drafts that are not final yet) are now data with
   status, date, address and provenance, served at `/api/v1/policy/catalog` (ADR-0022).
@@ -33,8 +55,8 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Upgrade notes
 
-- Schema 19 → 20: adds the tables `workflows`, `work_items` and `work_deps` for tracked work. Nothing existing is
-  changed; the upgrade takes under a second.
+- Schema 19 → 20: adds the tables `workflows`, `work_items`, `work_deps`, `certificate_lifecycle` and
+  `notifications`. Nothing existing is changed; the upgrade takes under a second.
 
 ## [0.9.0] - 2026-11-17
 

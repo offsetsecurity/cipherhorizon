@@ -8,6 +8,7 @@ import { standardsView } from './standards.js';
 import { clientsView } from './clients.js';
 import './report-ssh.js'; // registers the SSH report profile (PRD-008)
 import { PLACES, protocolOf, reportHref, baselineWords } from './assets.js';
+import { trackButton } from '../work-ui.js';
 import { levelBadge, bandBadge, bandTone, bandWord, sevBadge, evidenceBadge, statusPill, citations, button, empty, toast, modal, confirmDialog, crumbs,
   scanProgress, badge, certExpiry, certChain, playEnter } from '../ui.js';
 
@@ -244,6 +245,7 @@ export async function render(root, { args, query, protocol = 'tls' }) {
       h('div', { class: 'row' },
         button(active ? 'Scanning…' : 'Scan again', startScan, 'primary', { class: 'btn btn-primary', disabled: active }),
         shown ? button('Download', exportDialog, 'secondary', { class: 'btn btn-secondary' }) : null,
+        planButton(a),
         moreMenu(a))));
 
     if (active) {
@@ -324,6 +326,16 @@ export async function render(root, { args, query, protocol = 'tls' }) {
       }).catch((e) => { clear(body2); body2.appendChild(h('p', { class: 'callout bad' }, e.message)); });
       return body2;
     });
+  };
+
+  // Tracked work (PRD-023): below L3, the obvious work is hybrid key exchange; otherwise any work on the endpoint.
+  const planButton = (a) => {
+    const lvl = a.lastDone ? a.lastDone.readinessLevel : null;
+    if (lvl !== null && lvl !== undefined && lvl >= 1 && lvl < 3) {
+      return trackButton({ kind: 'readiness', assetId: a.id, targetLevel: 3 }, { title: `Bring ${a.name} to hybrid key exchange`, workflow: 'pq-key-exchange',
+        what: 'Closed as verified only when a later scan shows a current client negotiating a hybrid post-quantum group (L3).' }, 'Plan hybrid key exchange');
+    }
+    return trackButton({ kind: 'endpoint', assetId: a.id }, { title: `Work on ${a.name}`, workflow: 'manual' }, 'Track work');
   };
 
   // Everything that is not reading the report or scanning again sits in one menu.

@@ -359,7 +359,7 @@ func TestCertificateOwnershipIsRecorded(t *testing.T) {
 	}
 }
 
-// REQ-RPT-1: the exports carry every piece of work; the CSV defuses formulas; the evidence pack has the
+// REQ-WEX-1: the exports carry every piece of work; the CSV defuses formulas; the evidence pack has the
 // history and a verification computed at export time.
 func TestWorkExports(t *testing.T) {
 	e := newEnv(t)

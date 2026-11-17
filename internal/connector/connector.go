@@ -62,7 +62,7 @@ func Registry() []Descriptor {
 			Auth:         []string{"HMAC-SHA256 signature over the body, secret read from an environment variable named in Settings"},
 			Config:       []string{"webhook address (http or https)", "format: json or chat", "secret environment variable (optional)", "which events"},
 			Limits:       []string{"one destination", "Teams Workflows webhooks that need an Adaptive Card are not supported", "five delivery attempts per event, then it is marked failed"},
-			Docs:         "docs/work.md#notifications",
+			Docs:         "docs/work.md#the-lifecycle-monitor-and-notifications",
 		},
 		{
 			ID: "acme", Name: "ACME (RFC 8555)", Categories: []string{Issuer}, Status: Planned, Licence: "BSD-3-Clause (golang.org/x/crypto/acme, already a dependency)",

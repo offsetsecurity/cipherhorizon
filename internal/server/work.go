@@ -116,6 +116,8 @@ type workDetail struct {
 	Transitions  []workTransitionView `json:"transitions"`
 	Dependencies []store.WorkDep      `json:"dependencies"`
 	History      []store.AuditEntry   `json:"history"`
+	// Labels names every transition of the workflow, so the history can say what was done in its words.
+	Labels map[string]string `json:"labels"`
 }
 
 func (s *Server) viewWork(w store.WorkItem, now time.Time) (workView, *workflow.Template) {
@@ -354,9 +356,12 @@ func (s *Server) getWork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, t := s.viewWork(it, s.cfg.Now())
-	d := workDetail{workView: v, Dependencies: deps, History: hist, Stages: []workflow.Stage{}, Transitions: []workTransitionView{}}
+	d := workDetail{workView: v, Dependencies: deps, History: hist, Stages: []workflow.Stage{}, Transitions: []workTransitionView{}, Labels: map[string]string{}}
 	if t != nil {
 		d.Stages = t.Stages
+		for _, tr := range t.Transitions {
+			d.Labels[tr.ID] = tr.Label
+		}
 		for _, tr := range t.From(it.Stage) {
 			role := tr.Role
 			if role == "" {

@@ -136,10 +136,39 @@ assistant as they do to the web interface. `cipherhorizon mcp` runs it over stdi
 credentials. The verdict writers are injected from the CLI package to keep the dependency one-way. Usage and
 safety controls: [mcp.md](mcp.md).
 
+## Tracked work and the lifecycle monitor (`internal/workflow`, `internal/policy`, `internal/connector`)
+
+```
+ findings, certificates, readiness ──► suggestions (cited) ──► work (a workflow template, copied per item)
+                                                                 │  approval · prerequisites · exception
+                                                                 ▼
+                                    your tools make the change; the work records it (baseline time)
+                                                                 │
+                     the product's own scan or upload after the baseline ──► verified │ not verified │ waiting
+                                                                 │
+                                   lifecycle monitor ──► needs attention ──► webhook (each event once)
+```
+
+- **Workflows are data** (ADR-0021): JSON templates of stages and transitions, eight built in, custom ones
+  versioned in `workflows`. A piece of work keeps the template it started with. Each stage may carry a marker
+  from a fixed vocabulary, so lists and figures compare any workflow. The engine (`internal/workflow`, pure, no
+  store) enforces what a template cannot switch off: verified only on verification, approval only by a different
+  signed-in person, exceptions with an end date, nothing done while a prerequisite is open.
+- **Verification is computed** (`internal/server/work.go`): from the latest scan or host upload after the change
+  was recorded, never from what anyone typed. History is the append-only `audit_log`.
+- **The monitor** (`internal/server/lifecycle.go`) derives events from work and certificates (overdue, approval
+  needed, exception ended, verified work contradicted by a later scan, expiring certificates, a leaf changed
+  with no work behind it), records them in `notifications` and sends each once to a webhook through the scan
+  guard, signed with a secret named by an environment variable.
+- **The policy catalog** (ADR-0022) is the embedded, validated source of the dated milestones (NIST IR 8547) the
+  evaluation and the suggestions cite.
+- **Connectors** (ADR-0023) are described in a registry; only the scanner and the webhook are available.
+
 ## Roadmap
 
-Done: host inventory (apt), CBOM 1.6 builder, cited PQC algorithm verdicts, TLS probe engine (M1).
+Built: host inventory and collectors, the TLS and SSH scanners, evaluation (readiness, hygiene, standards,
+client simulation), the estate model and correlation, CBOM 1.6/1.7 in and out, the web server and UI, domain
+discovery, the MCP server, tracked work with verified closure and the lifecycle monitor.
 
-Next: cited evaluation rules, PQC-readiness and grading, CBOM `protocol`/`certificate` assets and an HTML
-report (M2); listener discovery and the agent daemon (M3); the ingest server and store (M4); the web UI (M5).
-Later: STARTTLS and SSH probing, drift/alerts, CycloneDX 1.7, more collectors.
+Next: issuing and deploying connectors (ACME first, ADR-0023), notifications by e-mail, migration projects and
+waves as their own objects, per-team scoping.

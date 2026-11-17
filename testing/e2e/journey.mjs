@@ -26,6 +26,7 @@ import { x509Phase } from './x509-phase.mjs';
 import { visualPhase } from './visual-phase.mjs';
 import { inventoryPhase } from './inventory-phase.mjs';
 import { discoverPhase } from './discover-phase.mjs';
+import { workPhase } from './work-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -792,6 +793,7 @@ async function main() {
   await visualPhase({ check, js, go, sleep, shot, viewport });
   await inventoryPhase({ check, js, go, sleep, shot, api, BASE });
   await discoverPhase({ check, js, go, sleep, shot, viewport });
+  await workPhase({ check, js, go, sleep, shot, api, viewport, CONTROL });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');

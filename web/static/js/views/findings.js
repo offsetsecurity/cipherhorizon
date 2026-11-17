@@ -7,6 +7,7 @@ import { h, clear } from '../dom.js';
 import { api } from '../api.js';
 import { sevBadge, evidenceBadge, citations, badge, button, empty, toast, modal, skeleton, crossFade } from '../ui.js';
 import { setQuery } from '../charts.js';
+import { trackButton } from '../work-ui.js';
 
 const SEVERITIES = [['', 'Any severity'], ['critical', 'Critical'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low'], ['info', 'Info'], ['vulnerable', 'Quantum-vulnerable (machine)']];
 const STATUSES = [['', 'Any status'], ['new', 'New'], ['acknowledged', 'Acknowledged'], ['accepted-risk', 'Accepted risk']];
@@ -62,7 +63,9 @@ export async function render(root, ctx = {}) {
         f.status.note ? h('span', { class: 'muted' }, ` ${f.status.note} `) : null,
         button('Clear', async () => { try { await api.clearFindingStatus(f.assetId, f.key); toast('Triage cleared'); redraw(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' })]
       : [button('Acknowledge', async () => { try { await api.setFindingStatus(f.assetId, f.key, 'acknowledged', ''); toast('Acknowledged'); redraw(); } catch (e) { toast(e.message, 'error'); } }, 'secondary', { class: 'btn btn-sm' }),
-        button('Accept risk', () => acceptRiskDialog(f, redraw), 'secondary', { class: 'btn btn-sm' })];
+        button('Accept risk', () => acceptRiskDialog(f, redraw), 'secondary', { class: 'btn btn-sm' }),
+        trackButton({ kind: 'finding', assetId: f.assetId, findingKey: f.key }, { title: `${f.title} on ${f.assetName}`, workflow: 'tls-configuration-change',
+          what: 'Tracked work names an owner and a due date, and is marked verified only when a later scan no longer finds this.' })];
     // One row: where, what was seen there (with its evidence tier), and the triage actions.
     return h('li', { class: 'fgroup-place' },
       h('div', { class: 'fplace-where' },
