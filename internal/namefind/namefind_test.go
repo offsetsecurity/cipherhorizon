@@ -406,3 +406,49 @@ func TestCrtSh(t *testing.T) {
 		t.Error("an answer that is not JSON is an error")
 	}
 }
+
+// A zone like badssl.com's: every name resolves to the same server, and one certificate names
+// thousands of hosts. Each such name is kept and marked, so a reader can tell it from a name with
+// an address of its own; the domain itself is not marked, and the shared address is checked once.
+func TestNamesThatOnlyMatchTheWildcardAreMarked(t *testing.T) {
+	const shared = "198.51.100.7"
+	dns := &fakeDNS{
+		a:   map[string][]string{"example.com": {shared}, "vpn.example.com": {"192.0.2.9"}},
+		any: []string{shared},
+	}
+	ct := []string{"*.example.com", "vpn.example.com"}
+	for i := 0; i < 300; i++ {
+		ct = append(ct, fmt.Sprintf("host%d.example.com", i))
+	}
+	dial, dials := openPorts(shared+":443", "192.0.2.9:443")
+	res, err := Run(context.Background(), Options{Domain: "example.com", Sources: []string{SourceCT}, CT: fakeCT{names: ct},
+		Resolver: dns, Dial: dial, QPS: 100000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Wildcard || fmt.Sprint(res.WildcardAddresses) != "["+shared+"]" {
+		t.Errorf("wildcard = %v %v", res.Wildcard, res.WildcardAddresses)
+	}
+	got := byName(res)
+	if len(got) != 302 {
+		t.Fatalf("%d names, want 302: names from a certificate are kept even when they only match the wildcard", len(got))
+	}
+	marked := 0
+	for _, n := range res.Names {
+		if n.Wildcard {
+			marked++
+			if fmt.Sprint(n.Ports) != "[443]" {
+				t.Errorf("%s ports = %v", n.Name, n.Ports)
+			}
+		}
+	}
+	if marked != 300 {
+		t.Errorf("%d names marked, want the 300 that only match the wildcard", marked)
+	}
+	if got["example.com"].Wildcard || got["vpn.example.com"].Wildcard {
+		t.Errorf("the domain itself and a name with its own address are not marked: %+v %+v", got["example.com"], got["vpn.example.com"])
+	}
+	if *dials != 2*len(WebPorts) {
+		t.Errorf("%d dials, want %d: each address is checked once", *dials, 2*len(WebPorts))
+	}
+}

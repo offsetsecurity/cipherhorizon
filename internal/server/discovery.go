@@ -202,9 +202,9 @@ func (d *Discoverer) run(ctx context.Context, cancel context.CancelFunc, rec sto
 	names := make([]store.DiscoveryName, 0, len(res.Names))
 	for _, n := range res.Names {
 		names = append(names, store.DiscoveryName{Name: n.Name, Sources: n.Sources, Addresses: n.Addresses, CNAME: n.CNAME,
-			External: n.External, Ports: n.Ports, Refused: stripBlocked(n.Refused), Mail: n.Mail})
+			External: n.External, Ports: n.Ports, Refused: stripBlocked(n.Refused), Mail: n.Mail, Wildcard: n.Wildcard})
 	}
-	report := discoveryReport{Sources: res.Sources, Wildcard: res.Wildcard, WildcardCerts: res.WildcardCerts,
+	report := discoveryReport{Sources: res.Sources, Wildcard: res.Wildcard, WildcardAddresses: res.WildcardAddresses, WildcardCerts: res.WildcardCerts,
 		Truncated: res.Truncated, Outside: res.Outside, MaxNames: namefind.DefaultMaxNames,
 		Ports: append([]int{}, namefind.WebPorts...), MailPort: namefind.MailPort}
 	if err := d.st.FinishDiscovery(rec.ID, store.DiscoveryDone, "", report, names); err != nil {
@@ -216,14 +216,16 @@ func (d *Discoverer) run(ctx context.Context, cancel context.CancelFunc, rec sto
 // discoveryReport is what a finished run says besides its names (REQ-DD-12): what each source
 // did, and what the run could not see.
 type discoveryReport struct {
-	Sources       []namefind.SourceReport `json:"sources"`
-	Wildcard      bool                    `json:"wildcard"`
-	WildcardCerts []string                `json:"wildcardCerts"`
-	Truncated     bool                    `json:"truncated"`
-	Outside       int                     `json:"outside"`
-	MaxNames      int                     `json:"maxNames"`
-	Ports         []int                   `json:"ports"`
-	MailPort      int                     `json:"mailPort"`
+	Sources  []namefind.SourceReport `json:"sources"`
+	Wildcard bool                    `json:"wildcard"`
+	// WildcardAddresses are what the zone answers for any name; names that resolve only there are marked.
+	WildcardAddresses []string `json:"wildcardAddresses"`
+	WildcardCerts     []string `json:"wildcardCerts"`
+	Truncated         bool     `json:"truncated"`
+	Outside           int      `json:"outside"`
+	MaxNames          int      `json:"maxNames"`
+	Ports             []int    `json:"ports"`
+	MailPort          int      `json:"mailPort"`
 }
 
 func stripBlocked(reason string) string {

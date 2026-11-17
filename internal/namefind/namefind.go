@@ -102,6 +102,10 @@ type Name struct {
 	Refused string `json:"refused,omitempty"`
 	// Mail says an MX record names this host.
 	Mail bool `json:"mail,omitempty"`
+	// Wildcard says the name resolves only to what the zone answers for any name under the
+	// domain. It may be a real site on that server or no site at all: DNS cannot tell them apart,
+	// and a port that answers there answers for every name.
+	Wildcard bool `json:"wildcard,omitempty"`
 }
 
 // SourceReport says what became of one source.
@@ -120,8 +124,10 @@ type Result struct {
 	Domain  string         `json:"domain"`
 	Names   []Name         `json:"names"`
 	Sources []SourceReport `json:"sources"`
-	// Wildcard says the zone answers for any name; guessed names that only matched it were dropped.
-	Wildcard bool `json:"wildcard"`
+	// Wildcard says the zone answers for any name under the domain, with WildcardAddresses. Names
+	// that resolve only there are marked; guessed names that only matched it were dropped.
+	Wildcard          bool     `json:"wildcard"`
+	WildcardAddresses []string `json:"wildcardAddresses"`
 	// WildcardCerts are wildcard names seen in certificates: names behind them cannot be listed.
 	WildcardCerts []string `json:"wildcardCerts"`
 	// Truncated says collecting stopped at MaxNames.
@@ -256,7 +262,7 @@ func Run(ctx context.Context, o Options) (*Result, error) {
 	defer lim.stop()
 	r := &run{o: o, domain: domain, lim: lim}
 	c := &collector{domain: domain, max: o.MaxNames, names: map[string]*Name{}}
-	res := &Result{Domain: domain, WildcardCerts: []string{}}
+	res := &Result{Domain: domain, WildcardCerts: []string{}, WildcardAddresses: []string{}}
 	c.add(domain, SourceDomain)
 
 	report := func(id, status string, found int, detail string) {
@@ -335,12 +341,18 @@ func Run(ctx context.Context, o Options) (*Result, error) {
 		report(SourceList, "off", 0, "not asked for")
 	}
 
-	// 5. Guessing. A zone that answers for any name would make every guess look real, so the
-	// answers it gives to names that cannot exist are found first and dropped.
-	var wildAddrs map[string]bool
+	// A zone that answers for any name makes every name under it look alive: a name from a
+	// certificate issued years ago, or a guess. What it answers for names that cannot exist is
+	// found first, for every run (three queries), so such names can be told apart.
+	wildAddrs := r.wildcardAddresses(ctx)
+	res.Wildcard = len(wildAddrs) > 0
+	for a := range wildAddrs {
+		res.WildcardAddresses = append(res.WildcardAddresses, a)
+	}
+	sort.Strings(res.WildcardAddresses)
+
+	// 5. Guessing. A guess that only matched the wildcard is dropped below.
 	if want[SourceWordlist] {
-		wildAddrs = r.wildcardAddresses(ctx)
-		res.Wildcard = len(wildAddrs) > 0
 		for _, l := range Labels() {
 			c.add(l+"."+domain, SourceWordlist)
 		}
@@ -383,6 +395,16 @@ func Run(ctx context.Context, o Options) (*Result, error) {
 		r.checkPorts(ctx, c)
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+	}
+
+	// Any other name that resolves only to the wildcard answer is kept and marked. The domain
+	// itself is never covered by its own wildcard, so it is not marked.
+	if res.Wildcard {
+		for n, e := range c.names {
+			if n != domain && len(e.Addresses) > 0 && allIn(e.Addresses, wildAddrs) {
+				e.Wildcard = true
+			}
 		}
 	}
 

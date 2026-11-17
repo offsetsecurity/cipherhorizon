@@ -107,12 +107,15 @@ async function renderHome(root) {
 const FILTERS = {
   all: 'every name found', answering: 'names that answer on a port', external: 'names hosted elsewhere', silent: 'names on which nothing answered',
   unresolved: 'names that do not resolve', new: 'names new since the previous search',
+  wildcard: 'names that resolve only to the address of any name',
 };
 const SHOWN = 300;
 
 function matches(n, f) {
   switch (f) {
-    case 'answering': return n.ports.length > 0;
+    // A name that only matches wildcard DNS answers wherever any name would: not counted here.
+    case 'answering': return n.ports.length > 0 && !n.wildcard;
+    case 'wildcard': return n.wildcard;
     case 'new': return n.new;
     case 'external': return n.external;
     case 'silent': return n.addresses.length > 0 && !n.ports.length;
@@ -184,7 +187,7 @@ async function renderRun(root, id) {
     const anyNew = count('new');
     if (!state.primed) {
       // Start with what a person most likely wants: what answers, runs on their own hosts and is not added yet.
-      for (const n of names) if (addable(n) && !n.external && !n.accepted && !n.tracked) state.selected.add(n.name);
+      for (const n of names) if (addable(n) && !n.external && !n.accepted && !n.tracked && !n.wildcard) state.selected.add(n.name);
       if (!count('answering')) state.filter = 'all';
       state.primed = true;
     }
@@ -201,6 +204,15 @@ async function renderRun(root, id) {
       stat('unresolved', 'Do not resolve', count('unresolved'), 'named somewhere, no address now'),
       anyNew ? stat('new', 'New', anyNew, 'since the previous search', 'warn') : null));
 
+    // Wildcard DNS: every name under the domain resolves, so a name from an old certificate looks
+    // as alive as a real site. Say so once, with the count, and leave those names unchosen.
+    const wild = count('wildcard');
+    if (wild) {
+      body.appendChild(h('div', { class: 'callout', role: 'note' },
+        h('strong', null, `Every name under ${d.domain} resolves to ${(rep.wildcardAddresses || []).join(', ')}. `),
+        `So ${plural(wild, 'name')} that ${wild === 1 ? 'resolves' : 'resolve'} only there look alive whether or not a site is behind them, and what answers there answers for any name. They are listed and not chosen. `,
+        state.filter === 'wildcard' ? null : button('List them', () => { state.filter = 'wildcard'; state.shown = SHOWN; paintResult(d, names); }, 'secondary', { class: 'btn btn-secondary btn-sm' })));
+    }
     if (state.result) body.appendChild(state.result);
 
     // The names.
@@ -232,7 +244,7 @@ async function renderRun(root, id) {
         } catch (e) { toast(e.message, 'error'); go.disabled = false; }
       }, 'primary', { id: 'disc-accept', disabled: !picked.length });
       clear(selbar).append(
-        h('span', { class: 'selbar-count' }, h('strong', null, picked.length.toLocaleString()), ` of ${names.filter(addable).length.toLocaleString()} answering names chosen`),
+        h('span', { class: 'selbar-count' }, h('strong', null, picked.length.toLocaleString()), ` of ${names.filter((n) => addable(n) && !n.wildcard).length.toLocaleString()} answering names chosen`),
         h('span', { class: 'grow' }),
         h('label', { class: 'row checkrow', for: 'disc-scan' }, scanBox, h('span', null, 'Scan now')),
         go);
@@ -261,6 +273,7 @@ async function renderRun(root, id) {
           if (n.accepted) notes.push(badge('Added', 'good'));
           else if (n.tracked) notes.push(badge('Already an endpoint', 'neutral'));
           if (n.new) notes.push(badge('New', 'warn'));
+          if (n.wildcard) notes.push(h('span', { class: 'note muted' }, 'Same address as any name under the domain'));
           if (n.external) notes.push(h('span', { class: 'note' }, 'Hosted elsewhere: ', h('span', { class: 'mono' }, n.cname)));
           else if (n.cname) notes.push(h('span', { class: 'note muted' }, 'Alias for ', h('span', { class: 'mono' }, n.cname)));
           if (n.refused) notes.push(h('span', { class: 'note' }, `May not be reached: ${n.refused}`));
@@ -297,7 +310,7 @@ async function renderRun(root, id) {
     for (const s of rep.sources || []) if (s.status === 'failed') limits.push(`${sourceWord(s.id)} failed (${s.detail}), so names only it knows are missing. Search again later.`);
     if ((rep.sources || []).some((s) => s.id === 'ct' && s.status === 'off')) limits.push('Certificate logs were not searched. They usually know the most names.');
     if ((rep.wildcardCerts || []).length) limits.push(`Wildcard certificates (${rep.wildcardCerts.join(', ')}) cover names that no public source can list.`);
-    if (rep.wildcard) limits.push('The domain answers for any name, so guessed names that only matched that answer were dropped.');
+    if (rep.wildcard) limits.push(`Every name under ${d.domain} resolves (wildcard DNS), so whether a name with only that address is a real site cannot be told from DNS.${(rep.sources || []).some((s) => s.id === 'wordlist' && s.status === 'ran') ? ' Guessed names that only matched it were dropped.' : ''}`);
     if (rep.truncated) limits.push(`The search stopped at ${(rep.maxNames || 0).toLocaleString()} names; there are more.`);
     if (rep.outside) limits.push(`${plural(rep.outside, 'supplied name')} ${rep.outside === 1 ? 'is' : 'are'} not under ${d.domain} and ${rep.outside === 1 ? 'was' : 'were'} left out.`);
     limits.push('A name that appears in none of these places is not found. Your own DNS zone is the complete list: paste it under Add names you already know.');

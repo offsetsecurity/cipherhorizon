@@ -22,6 +22,9 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
   the Certificate Transparency logs through crt.sh, which sends the domain name to that service. A search
   obeys `--scan-allow`. On **TLS endpoints** and **SSH servers**; `cipherhorizon find DOMAIN` on the command
   line; `/api/v1/discoveries` in the API; `domain_find` for assistants. See [docs/domains.md](docs/domains.md).
+  Under wildcard DNS, where every name under the domain resolves, names that resolve only to that shared address
+  are marked, left out of *Answering*, not chosen for you, and left out of `find`'s output unless `--all`: a
+  certificate naming thousands of hosts no longer looks like thousands of live sites.
 
 ### Changed
 
@@ -31,8 +34,9 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Upgrade notes
 
-- Schema 17 → 18: adds the tables `discoveries` and `discovery_names`, and an index on `assets(host)`. Nothing
-  existing is changed; the upgrade takes under a second, a little longer with tens of thousands of endpoints.
+- Schema 17 → 19: adds the tables `discoveries` and `discovery_names` (step 19 adds its `wildcard` column),
+  and an index on `assets(host)`. Nothing existing is changed; the upgrade takes under a second, a little longer
+  with tens of thousands of endpoints.
 
 ### Security
 

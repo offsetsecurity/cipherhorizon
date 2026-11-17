@@ -53,13 +53,15 @@ type FoundName struct {
 type FindResult struct {
 	Domain string `json:"domain"`
 	// Total is how many names were found; Names holds those that resolve, at most 500.
-	Total     int                     `json:"total"`
-	Resolving int                     `json:"resolving"`
-	Answering int                     `json:"answering" jsonschema:"names on which at least one port answered"`
-	Names     []FoundName             `json:"names"`
-	Cut       int                     `json:"cut,omitempty" jsonschema:"resolving names left out of names because of the 500 limit"`
-	Sources   []namefind.SourceReport `json:"sources" jsonschema:"what each source did: ran, off or failed"`
-	Limits    []string                `json:"limits" jsonschema:"what this run could not see"`
+	Total     int `json:"total"`
+	Resolving int `json:"resolving"`
+	Answering int `json:"answering" jsonschema:"names with an address of their own on which at least one port answered"`
+	// WildcardOnly counts names left out of names because they resolve only to the zone's answer for any name.
+	WildcardOnly int                     `json:"wildcardOnly,omitempty" jsonschema:"names that resolve only to the address every name under the domain resolves to (wildcard DNS); left out of names, since they may be no site at all"`
+	Names        []FoundName             `json:"names"`
+	Cut          int                     `json:"cut,omitempty" jsonschema:"resolving names left out of names because of the 500 limit"`
+	Sources      []namefind.SourceReport `json:"sources" jsonschema:"what each source did: ran, off or failed"`
+	Limits       []string                `json:"limits" jsonschema:"what this run could not see"`
 }
 
 func (s *Server) addFindTool() {
@@ -134,6 +136,10 @@ func (s *Server) domainFind(ctx context.Context, _ *mcp.CallToolRequest, in Find
 			continue
 		}
 		out.Resolving++
+		if n.Wildcard {
+			out.WildcardOnly++
+			continue
+		}
 		if len(n.Ports) > 0 {
 			out.Answering++
 		}
@@ -159,7 +165,8 @@ func (s *Server) domainFind(ctx context.Context, _ *mcp.CallToolRequest, in Find
 		out.Limits = append(out.Limits, "Wildcard certificates ("+strings.Join(res.WildcardCerts, ", ")+") cover names no source can list.")
 	}
 	if res.Wildcard {
-		out.Limits = append(out.Limits, "The zone answers for any name, so guesses that only matched that answer were dropped.")
+		out.Limits = append(out.Limits, fmt.Sprintf("Every name under %s resolves to %s (wildcard DNS). %d names resolve only there and are left out: DNS cannot tell whether a site is behind them.",
+			res.Domain, strings.Join(res.WildcardAddresses, ", "), out.WildcardOnly))
 	}
 	if res.Truncated {
 		out.Limits = append(out.Limits, "Collecting stopped at the name limit; there are more.")

@@ -44,7 +44,7 @@ func findCmd(ctx context.Context, args []string, env Env) int {
 	listFile := fl.String("list", "", "also take names from this file, one per line (- for standard input)")
 	noPorts := fl.Bool("no-ports", false, "do not try any port; print every name that resolves")
 	targets := fl.Bool("targets", false, "print name:port for each port that answered instead of names, ready for tls scan and ssh scan")
-	all := fl.Bool("all", false, "also print names that do not resolve")
+	all := fl.Bool("all", false, "also print names that do not resolve, and names that resolve only to the address every name under a wildcard domain resolves to")
 	asJSON := fl.Bool("json", false, "print the whole result as JSON instead of names")
 	timeout := fl.Duration("timeout", 30*time.Minute, "stop the run after this long")
 	fl.Usage = func() {
@@ -99,10 +99,18 @@ func findCmd(ctx context.Context, args []string, env Env) int {
 		}
 		return ExitOK
 	}
-	resolved, answering := 0, 0
+	resolved, answering, wildcard := 0, 0, 0
 	for _, n := range res.Names {
 		if len(n.Addresses) > 0 {
 			resolved++
+		}
+		if n.Wildcard {
+			// Under wildcard DNS every name resolves; one that has only that address may be no site
+			// at all, so it is left out of what is printed for scanning unless --all asks for it.
+			wildcard++
+			if !*all {
+				continue
+			}
 		}
 		if len(n.Ports) > 0 {
 			answering++
@@ -116,7 +124,7 @@ func findCmd(ctx context.Context, args []string, env Env) int {
 			_, _ = fmt.Fprintln(env.Stdout, n.Name)
 		}
 	}
-	writeFindSummary(env.Stderr, res, resolved, answering, *noPorts)
+	writeFindSummary(env.Stderr, res, resolved, answering, wildcard, *all, *noPorts)
 	return ExitOK
 }
 
@@ -149,7 +157,7 @@ var findSourceNames = map[string]string{
 }
 
 // writeFindSummary says what each source did and what the run could not see.
-func writeFindSummary(w io.Writer, res *namefind.Result, resolved, answering int, noPorts bool) {
+func writeFindSummary(w io.Writer, res *namefind.Result, resolved, answering, wildcard int, all, noPorts bool) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n%s: %d names, %d resolve", res.Domain, len(res.Names), resolved)
 	if !noPorts {
@@ -173,6 +181,14 @@ func writeFindSummary(w io.Writer, res *namefind.Result, resolved, answering int
 			fmt.Fprintf(&b, "  %-26s not used", name)
 		}
 		b.WriteString("\n")
+	}
+	if wildcard > 0 {
+		fmt.Fprintf(&b, "  Every name under %s resolves to %s (wildcard DNS). %d names resolve only there", res.Domain, strings.Join(res.WildcardAddresses, ", "), wildcard)
+		if all {
+			b.WriteString(" and are printed (--all); they may be no site at all.\n")
+		} else {
+			b.WriteString(" and may be no site at all; they are not printed (--all prints them).\n")
+		}
 	}
 	if res.Outside > 0 {
 		fmt.Fprintf(&b, "  %d supplied names are not under %s and were left out\n", res.Outside, res.Domain)
