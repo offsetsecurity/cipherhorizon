@@ -10,7 +10,7 @@ import (
 // Certificate lifecycle (PRD-023 M2): what a person says about a certificate, and the notifications
 // the lifecycle monitor sends.
 
-// Renewal methods a person can record for a certificate.
+// RenewalMethods are the ways a person can record that a certificate is renewed.
 var RenewalMethods = []string{"acme", "ca-portal", "cert-manager", "cloud-managed", "internal-ca", "manual", "vendor"}
 
 // CertLifecycle is what a person recorded about one certificate.
@@ -268,8 +268,9 @@ func (s *Store) notifications(tail string, limit int) ([]Notification, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 200
 	}
+	//nolint:gosec // tail is one of two constant clauses written in this file, never input
 	rows, err := s.db.Query(`SELECT event_key, kind, severity, title, detail, link, first_seen, last_seen, status, attempts, sent_at, last_error
-		FROM notifications `+tail, limit) //nolint:gosec // tail is one of two constant clauses
+		FROM notifications `+tail, limit)
 	if err != nil {
 		return nil, err
 	}

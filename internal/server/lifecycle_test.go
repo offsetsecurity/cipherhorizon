@@ -377,7 +377,7 @@ func TestWorkExports(t *testing.T) {
 		CatalogVersion string
 		Definitions    map[string]string
 		Work           []struct {
-			History []struct{ Action string }
+			History         []struct{ Action string }
 			VerificationNow struct{ Status string } `json:"verificationNow"`
 		}
 	}
