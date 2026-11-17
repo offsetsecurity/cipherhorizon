@@ -9,6 +9,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
+	"os"
 	"strings"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
 	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
 	"github.com/offsetsecurity/cipherhorizon/internal/revocation"
+	"github.com/offsetsecurity/cipherhorizon/internal/server"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlscbom"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 	"github.com/offsetsecurity/cipherhorizon/internal/version"
@@ -27,13 +31,28 @@ const tlsNotice = `notice: "tls scan" connects to each target and makes a few hu
         This result is not saved anywhere: run "cipherhorizon serve" for history, scheduling and a fleet dashboard.
 `
 
-// tlsCmd implements "cipherhorizon tls scan [flags] TARGET...".
+// tlsUsage lists the tls commands. Callers that drive this program read it to learn what a
+// build can do, so each command keeps its own line.
+const tlsUsage = `usage: cipherhorizon tls scan [flags] HOST[:PORT]...
+       cipherhorizon tls cbom --from FILE|- [--spec 1.7|1.6]
+       cipherhorizon tls standards
+`
+
+// tlsCmd implements "cipherhorizon tls scan [flags] TARGET...", "tls cbom" and "tls standards".
 func tlsCmd(ctx context.Context, args []string, env Env) int {
-	if len(args) > 0 && args[0] == "standards" {
-		return standardsCmd(env, "tls")
+	if len(args) > 0 {
+		switch args[0] {
+		case "standards":
+			return standardsCmd(env, "tls")
+		case "cbom":
+			return tlsCBOMCmd(args[1:], env)
+		case "help", "-h", "-help", "--help":
+			_, _ = fmt.Fprint(env.Stdout, tlsUsage)
+			return ExitOK
+		}
 	}
 	if len(args) == 0 || args[0] != "scan" {
-		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...\n       cipherhorizon tls standards")
+		_, _ = fmt.Fprint(env.Stderr, tlsUsage)
 		return ExitFatal
 	}
 
@@ -62,6 +81,12 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		"Off by default: it contacts the CA's CRL server (plain HTTP), a host other than the target. Private and loopback addresses are refused "+
 		"unless --revocation-private is set")
 	crlPrivate := fl.Bool("revocation-private", false, "with --revocation, also fetch CRLs from private (RFC 1918, unique-local) and loopback addresses: an internal CA's CRL server")
+	public := fl.Bool("public", false, "connect only to addresses on the public internet. Every target's address is checked before the first connection, "+
+		"and again on each connection. A loopback, private, carrier-NAT, link-local, unique-local, documentation, reserved or cloud-metadata address "+
+		"ends the command: exit 1, nothing on stdout, and one line on stderr that starts \"cipherhorizon: target address is not allowed\"")
+	connectTo := fl.String("connect-to", "", "scan this `ADDRESS` instead of resolving the target's name: one IPv4 or IPv6 address, no port and no brackets. "+
+		"The target's host name is still the server name in every handshake and the name the certificate is judged against; no name lookup is made. "+
+		"Exactly one target, which must be a host name; its port is the port scanned")
 	fl.Usage = func() {
 		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls scan [flags] HOST[:PORT]...  (flags must come before targets)")
 		fl.PrintDefaults()
@@ -81,6 +106,9 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 	}
 	if *asCBOM && fl.NArg() > 1 {
 		return fatalf(env, "--cbom takes exactly one target; a CBOM has one subject. Run it once per endpoint")
+	}
+	if *public && *crlPrivate {
+		return fatalf(env, "--revocation-private fetches from private addresses and cannot be combined with --public")
 	}
 	policy, err := parsePolicy(failOn)
 	if err == nil {
@@ -109,6 +137,38 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		crlIssuers = refdata.RootCertificates()
 	}
 
+	dial, lookup := env.Dial, env.LookupIP
+	var pinned net.IP // the --connect-to address
+	connectToSet := false
+	fl.Visit(func(f *flag.Flag) { connectToSet = connectToSet || f.Name == "connect-to" })
+	if connectToSet { // also when it was given empty: that is an error, not "resolve the name"
+		pinned, err = connectToAddress(*connectTo, targets)
+		if err != nil {
+			return fatalf(env, "%v", err)
+		}
+		// The scan asks for the name's addresses once; this is the whole answer, so no DNS
+		// query is made.
+		lookup = func(context.Context, string) ([]net.IP, error) { return []net.IP{pinned}, nil }
+	}
+
+	// With --public no connection is made, and nothing is printed, until every target's address
+	// is known to be public. A refusal in the dial hook alone would not end the command: the
+	// scan would report the target as not reached.
+	if *public {
+		guard := server.Guard{Public: true}
+		if pinned != nil {
+			if err := guard.CheckIP(pinned); err != nil {
+				return fatalf(env, "%v", err)
+			}
+		} else {
+			lookup, err = publicTargets(ctx, guard, targets, lookup, *timeout)
+			if err != nil {
+				return fatalf(env, "%v", err)
+			}
+		}
+		dial = guardDial(guard, dial)
+	}
+
 	_, _ = fmt.Fprint(env.Stderr, tlsNotice)
 
 	code := ExitOK
@@ -128,7 +188,7 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		rep, err := tlsprobe.Scan(ctx, t, tlsprobe.Options{
 			Timeout: *timeout, Concurrency: *concurrency, MaxConnections: *maxConns,
 			MinInterval: *interval, SkipCertificates: *noCerts, HTTPChecks: *httpChecks, OSTrust: *osTrust,
-			CRL: crlFetcher, CRLIssuers: crlIssuers,
+			CRL: crlFetcher, CRLIssuers: crlIssuers, Dial: dial, LookupIP: lookup,
 			Progress: func(msg string) { _, _ = fmt.Fprintf(env.Stderr, "  %s\n", msg) },
 			Now:      env.Now,
 		})
@@ -210,6 +270,179 @@ func tlsCmd(ctx context.Context, args []string, env Env) int {
 		return ExitPolicy
 	}
 	return code
+}
+
+type (
+	dialFunc   = func(ctx context.Context, network, addr string) (net.Conn, error)
+	lookupFunc = func(ctx context.Context, host string) ([]net.IP, error)
+)
+
+// connectToAddress reads --connect-to: one IP literal, for exactly one target that is a host name.
+func connectToAddress(arg string, targets []tlsprobe.Target) (net.IP, error) {
+	addr, err := netip.ParseAddr(arg)
+	if err != nil || addr.Zone() != "" {
+		return nil, fmt.Errorf("--connect-to %q: not an IPv4 or IPv6 address (give the address alone: no port, no brackets, no zone)", arg)
+	}
+	if len(targets) != 1 {
+		return nil, errors.New("--connect-to takes exactly one target: the address is where that one name is scanned")
+	}
+	if net.ParseIP(targets[0].Host) != nil {
+		return nil, fmt.Errorf("--connect-to needs a host name as the target, and %s is an address; scan the address itself, without the flag", targets[0].Host)
+	}
+	return net.IP(addr.AsSlice()), nil
+}
+
+// publicTargets is the --public check made before any connection: every target's address, or
+// every address its name resolves to, must be allowed by the guard. The first refusal is
+// returned; it wraps server.ErrBlocked, whose text starts the stderr line callers match on.
+//
+// The lookup it returns answers from what was checked, so the scan connects to an address that
+// was judged and the name is resolved once. A name that does not resolve is not a refusal: the
+// scan reports it as it does without --public.
+func publicTargets(ctx context.Context, g server.Guard, targets []tlsprobe.Target, lookup lookupFunc, timeout time.Duration) (lookupFunc, error) {
+	if lookup == nil {
+		lookup = func(ctx context.Context, host string) ([]net.IP, error) {
+			return net.DefaultResolver.LookupIP(ctx, "ip", host)
+		}
+	}
+	type answer struct {
+		ips []net.IP
+		err error
+	}
+	checked := map[string]answer{}
+	for _, t := range targets {
+		if ip := net.ParseIP(t.Host); ip != nil {
+			if err := g.CheckIP(ip); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if _, done := checked[t.Host]; done {
+			continue
+		}
+		lctx, cancel := context.WithTimeout(ctx, timeout)
+		ips, err := lookup(lctx, t.Host)
+		cancel()
+		for _, ip := range ips {
+			if err := g.CheckIP(ip); err != nil {
+				return nil, fmt.Errorf("%w (%s resolves to it)", err, t.Host)
+			}
+		}
+		checked[t.Host] = answer{ips, err}
+	}
+	return func(_ context.Context, host string) ([]net.IP, error) {
+		a, ok := checked[host]
+		if !ok {
+			return nil, fmt.Errorf("%w: %s was not checked", server.ErrBlocked, host)
+		}
+		return a.ips, a.err
+	}, nil
+}
+
+// guardDial is the second line of --public: every connection of the scan is checked again.
+// The default dialer checks the real remote address as it connects; an injected one is checked
+// by the address it is asked for, which the scan always gives as an IP literal.
+func guardDial(g server.Guard, inner dialFunc) dialFunc {
+	if inner == nil {
+		return g.Dial
+	}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", server.ErrBlocked, err)
+		}
+		if err := g.CheckIP(net.ParseIP(host)); err != nil {
+			return nil, err
+		}
+		return inner(ctx, network, addr)
+	}
+}
+
+// maxSavedResult bounds what "tls cbom --from" reads. A result with every certificate chain is
+// well under a megabyte.
+const maxSavedResult = 64 << 20
+
+// tlsCBOMCmd implements "cipherhorizon tls cbom --from FILE [--spec 1.7|1.6]": the CBOM of a
+// saved "tls scan --json" result. It opens no connection and resolves no name.
+func tlsCBOMCmd(args []string, env Env) int {
+	fl := flag.NewFlagSet("tls cbom", flag.ContinueOnError)
+	fl.SetOutput(env.Stderr)
+	from := fl.String("from", "", "the `FILE` holding what \"tls scan --json\" printed for one target: the whole array, with its one result. - reads stdin")
+	spec := fl.String("spec", cbom.DefaultSpec, "CycloneDX version of the CBOM: 1.7 or 1.6")
+	fl.Usage = func() {
+		_, _ = fmt.Fprintln(env.Stderr, "usage: cipherhorizon tls cbom --from FILE|- [--spec 1.7|1.6]")
+		fl.PrintDefaults()
+	}
+	if err := fl.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return ExitOK
+		}
+		return ExitFatal
+	}
+	if *from == "" || fl.NArg() > 0 {
+		fl.Usage()
+		return ExitFatal
+	}
+
+	var raw []byte
+	var err error
+	if *from == "-" {
+		in := env.Stdin
+		if in == nil {
+			in = os.Stdin
+		}
+		raw, err = io.ReadAll(io.LimitReader(in, maxSavedResult+1))
+	} else {
+		raw, err = readFileLimit(*from, maxSavedResult+1)
+	}
+	if err != nil {
+		return fatalf(env, "reading the scan result: %v", err)
+	}
+	if len(raw) > maxSavedResult {
+		return fatalf(env, "the scan result is larger than %d MiB", maxSavedResult>>20)
+	}
+	rep, err := savedReport(raw)
+	if err != nil {
+		return fatalf(env, "%v", err)
+	}
+	if err := writeTLSCBOM(env, rep, rep.Target, *spec); err != nil {
+		return fatalf(env, "%v", err)
+	}
+	if rep.Incomplete {
+		return ExitIncomplete
+	}
+	return ExitOK
+}
+
+func readFileLimit(name string, limit int64) ([]byte, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close() //nolint:errcheck // read only
+	return io.ReadAll(io.LimitReader(f, limit))
+}
+
+// savedReport reads the report out of what "tls scan --json" printed: an array with exactly one
+// result, whose report is of the current schema.
+func savedReport(raw []byte) (*tlsprobe.Report, error) {
+	var results []struct {
+		Report *tlsprobe.Report `json:"report"`
+	}
+	if err := json.Unmarshal(raw, &results); err != nil {
+		return nil, fmt.Errorf("the scan result is not what \"tls scan --json\" prints (a JSON array of results): %w", err)
+	}
+	if len(results) != 1 {
+		return nil, fmt.Errorf("the scan result holds %d results; a CBOM has one subject, so it must hold exactly one", len(results))
+	}
+	rep := results[0].Report
+	if rep == nil {
+		return nil, errors.New("the scan result has no report")
+	}
+	if rep.SchemaVersion != tlsprobe.SchemaVersion {
+		return nil, fmt.Errorf("the report's schemaVersion is %q; this program reads %q", rep.SchemaVersion, tlsprobe.SchemaVersion)
+	}
+	return rep, nil
 }
 
 // writeTLSCBOM turns one scan's report into a CycloneDX CBOM (protocols, cipher

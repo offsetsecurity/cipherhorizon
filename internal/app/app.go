@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"runtime"
 	"time"
@@ -26,6 +27,7 @@ const (
 
 // Env carries everything Main needs from the outside world.
 type Env struct {
+	Stdin  io.Reader // "tls cbom --from -" reads it; nil means os.Stdin
 	Stdout io.Writer // the CBOM goes here unless an output file is configured
 	Stderr io.Writer // progress, warnings and the PQC summary
 
@@ -40,6 +42,11 @@ type Env struct {
 	// deterministic on any machine.
 	OS   string
 	Tier func() string
+
+	// Dial and LookupIP replace the network for "tls scan": how it connects and how it resolves
+	// a name. nil means the real network. They exist for tests.
+	Dial     func(ctx context.Context, network, addr string) (net.Conn, error)
+	LookupIP func(ctx context.Context, host string) ([]net.IP, error)
 }
 
 // Main runs the CLI and returns the process exit code.
@@ -120,6 +127,7 @@ func usage(w io.Writer) {
 Usage:
   cipherhorizon run [--config FILE] [-o FILE] [--root DIR] [--redact-host]
   cipherhorizon tls scan [flags] HOST[:PORT]...
+  cipherhorizon tls cbom --from FILE|- [--spec 1.7|1.6]   the CBOM of a saved "tls scan --json" result
   cipherhorizon ssh scan [flags] HOST[:PORT]...
   cipherhorizon ssh baselines
   cipherhorizon tls standards | ssh standards   the published standards every scan is judged against
@@ -163,8 +171,15 @@ worst first. Flags go before targets:
   --fail-on COND  exit 3 when a target meets COND (repeatable, or comma separated):
                   level<L3, score<70, severity>=high, finding=PROTO.TLS10; a target that
                   cannot be scanned also fails. For CI: see docs/CI.md
+  --connect-to ADDRESS  scan this address for the one target, a host name; the name is the
+                  server name and the name the certificate is judged against; no name lookup
+  --public        connect only to addresses on the public internet; any other address ends
+                  the command with exit 1 and nothing on stdout. For a scanner offered to others
   --timeout, --concurrency, --max-connections, --min-interval, --no-certs, --http-checks
 Scan only systems you are authorised to test.
+
+tls cbom --from FILE writes the same CBOM as tls scan --cbom from a result saved with
+tls scan --json (one target), without connecting anywhere. --from - reads stdin.
 
 find lists the host names under a domain, one per line: from the domain's own DNS records,
 and on request from Certificate Transparency logs (--ct, which sends the domain name to

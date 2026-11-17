@@ -12,6 +12,19 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
+- **`tls scan --public`: public addresses only.** For a scanner that runs targets other people name. Every
+  target's address, or every address its name resolves to, is checked before the first connection and again on
+  each connection. Loopback, private, carrier-NAT, link-local, unique-local, multicast, documentation, benchmark,
+  reserved and cloud-metadata addresses are refused, and an IPv6 address that carries an IPv4 one is judged by the
+  address inside it. A refusal exits 1 with nothing on stdout and one stderr line that starts
+  `cipherhorizon: target address is not allowed`. Without the flag nothing changes.
+- **`tls scan --connect-to ADDRESS`: scan a name at a chosen address.** The scan connects to that address, sends
+  the target's host name as the server name, judges the certificate against the name, and makes no name lookup.
+  One target, which must be a host name. With `--public` the address is checked first.
+- **`tls cbom --from FILE`: the CBOM of a saved scan.** Reads what `tls scan --json` printed for one target (a
+  file, or `-` for stdin) and writes the same CycloneDX CBOM as `tls scan --cbom`, without connecting anywhere.
+  `--spec 1.7|1.6` as on the scan. Exit 2 when the saved report is marked incomplete.
+- `cipherhorizon tls -h` prints the `tls` commands and exits 0.
 - **Find from a domain.** Give a domain and CipherHorizon lists the host names under it, resolves each, and
   tries ports 443, 8443 and 22 (and 25 on the domain's mail servers) with one connection. The result is a list
   to review: which place reported each name, what answers, what is hosted elsewhere, what no longer resolves,
