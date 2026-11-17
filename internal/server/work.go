@@ -702,6 +702,9 @@ func (s *Server) verifyWork(it store.WorkItem, now time.Time) workflow.Verificat
 		v.Status, v.Detail, v.Evidence = status, detail, evidence
 		return v
 	}
+	if it.SubjectKind == workflow.SubjectSystem || it.SubjectKind == workflow.SubjectEndpoint {
+		return result(workflow.NotVerifiable, "the product cannot observe a change to a "+it.SubjectKind+" as a whole; close this work without verification")
+	}
 	if it.ExecutedAt == nil {
 		return result(workflow.Waiting, "nothing to verify yet: the change has not been recorded as made")
 	}

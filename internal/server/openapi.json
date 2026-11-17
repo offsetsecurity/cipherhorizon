@@ -72,6 +72,10 @@
     {
       "name": "standards",
       "description": "Published standards, clause by clause, and the policy catalog."
+    },
+    {
+      "name": "lifecycle",
+      "description": "The lifecycle monitor, notifications and integrations (PRD-023)."
     }
   ],
   "paths": {
@@ -4564,6 +4568,421 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/work/summary": {
+      "get": {
+        "summary": "What the work adds up to: counts by marker, overdue, awaiting approval or verification, exceptions, projects, and post-quantum readiness of the endpoints, each with its definition and denominator.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_summary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/work/suggestions": {
+      "get": {
+        "summary": "Work the scans point at and nobody has opened: endpoints below hybrid key exchange, critical and high findings, certificates expiring or outliving the IR 8547 deprecation. Each says why and cites its source.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_suggestions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/work/export.csv": {
+      "get": {
+        "summary": "Every piece of work as CSV.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_export_csv",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/work/evidence.json": {
+      "get": {
+        "summary": "The audit evidence pack: every piece of work with its workflow, full history, prerequisites and a verification computed now, plus the definitions and rule versions.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_evidence_json",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/certificates/{fingerprint}/lifecycle": {
+      "get": {
+        "summary": "Who owns a certificate, how it is renewed, and the work that names it.",
+        "tags": [
+          "certificates"
+        ],
+        "operationId": "get_certificates_fingerprint_lifecycle",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "put": {
+        "summary": "Record a certificate's owner, renewal method and notes.",
+        "tags": [
+          "certificates"
+        ],
+        "operationId": "put_certificates_fingerprint_lifecycle",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Recorded in the audit log beside the change."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "owner, renewal (acme, ca-portal, cert-manager, cloud-managed, internal-ca, manual, vendor, or empty), notes",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/lifecycle/events": {
+      "get": {
+        "summary": "Everything that needs a person now: work overdue, due soon or waiting for approval, exceptions past their end, verified work that no longer holds, certificates expiring or expired, certificates changed with no planned work.",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "get_lifecycle_events",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/lifecycle/notifications": {
+      "get": {
+        "summary": "Events the monitor has recorded and whether each was sent.",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "get_lifecycle_notifications",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/lifecycle/check": {
+      "post": {
+        "summary": "Run the lifecycle monitor now: record new events and send what is pending (administrators).",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "post_lifecycle_check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          }
+        }
+      }
+    },
+    "/api/v1/lifecycle/test-webhook": {
+      "post": {
+        "summary": "Send one test message to the configured webhook (administrators).",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "post_lifecycle_test_webhook",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "502": {
+            "description": "The destination did not accept the message"
+          }
+        }
+      }
+    },
+    "/api/v1/settings/lifecycle": {
+      "get": {
+        "summary": "The lifecycle monitor's settings: expiry windows, due-soon window, webhook address, format, which events, and whether the signing secret is set (never its value).",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "get_settings_lifecycle",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          }
+        }
+      },
+      "put": {
+        "summary": "Change the lifecycle monitor's settings (administrators). The secret is named by an environment variable of the server.",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "put_settings_lifecycle",
+        "requestBody": {
+          "required": true,
+          "description": "expiryWarnDays, expiryCriticalDays, dueSoonDays, webhookUrl, webhookFormat (json or chat), webhookSecretEnv, events",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/integrations": {
+      "get": {
+        "summary": "The integration registry: each connector's purpose, capabilities, authentication, configuration and limits, whether it is available or only planned, and its health.",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "get_integrations",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
                 }
               }
             }

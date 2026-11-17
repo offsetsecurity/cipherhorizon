@@ -46,6 +46,14 @@ table auth_events
   column client TEXT 1 '' 0 0
   column detail TEXT 1 '' 0 0
   index auth_events_at 0 c 0 (at:0:BINARY)
+table certificate_lifecycle
+  column fingerprint TEXT 1 NULL 1 0
+  column owner TEXT 1 '' 0 0
+  column renewal TEXT 1 '' 0 0
+  column notes TEXT 1 '' 0 0
+  column updated_by TEXT 1 '' 0 0
+  column updated_at TEXT 1 NULL 0 0
+  index sqlite_autoindex_certificate_lifecycle_1 1 pk 0 (fingerprint:0:BINARY)
 table discoveries
   column id INTEGER 0 NULL 1 0
   column domain TEXT 1 NULL 0 0
@@ -123,6 +131,21 @@ table links
   foreign-key assets asset_id id NO ACTION CASCADE
   index links_state 0 c 0 (state:0:BINARY)
   index sqlite_autoindex_links_1 1 u 0 (asset_id:0:BINARY, system_id:0:BINARY)
+table notifications
+  column event_key TEXT 1 NULL 1 0
+  column kind TEXT 1 NULL 0 0
+  column severity TEXT 1 NULL 0 0
+  column title TEXT 1 NULL 0 0
+  column detail TEXT 1 '' 0 0
+  column link TEXT 1 '' 0 0
+  column first_seen TEXT 1 NULL 0 0
+  column last_seen TEXT 1 NULL 0 0
+  column status TEXT 1 NULL 0 0
+  column attempts INTEGER 1 0 0 0
+  column sent_at TEXT 0 NULL 0 0
+  column last_error TEXT 1 '' 0 0
+  index notifications_seen 0 c 0 (last_seen:0:BINARY)
+  index sqlite_autoindex_notifications_1 1 pk 0 (event_key:0:BINARY)
 table observations
   column id INTEGER 0 NULL 1 0
   column source_id INTEGER 1 NULL 0 0

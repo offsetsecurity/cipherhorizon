@@ -69,6 +69,10 @@ type Config struct {
 	// or a signed-in session; the local operator when sign-in is off). It is the Model Context
 	// Protocol handler serve --mcp builds (PRD-020); nil leaves the path unregistered.
 	MCP http.Handler
+
+	// PublicURL is the address people use to reach this server (https://cipherhorizon.example), put
+	// in front of the links in lifecycle notifications. Empty leaves the links relative.
+	PublicURL string
 }
 
 // Server is the HTTP handler and its dependencies.
@@ -394,6 +398,10 @@ func (s *Server) routes() {
 
 	// Tracked work and workflows (PRD-023, ADR-0021); the policy catalog (ADR-0022).
 	handle("GET /api/v1/work", s.listWork)
+	handle("GET /api/v1/work/summary", s.workSummary)
+	handle("GET /api/v1/work/suggestions", s.workSuggestions)
+	handle("GET /api/v1/work/export.csv", s.workCSV)
+	handle("GET /api/v1/work/evidence.json", s.workEvidence)
 	handle("POST /api/v1/work", s.createWork)
 	handle("GET /api/v1/work/{id}", s.getWork)
 	handle("PATCH /api/v1/work/{id}", s.patchWork)
@@ -405,6 +413,15 @@ func (s *Server) routes() {
 	handle("POST /api/v1/workflows", s.saveWorkflow)
 	handle("GET /api/v1/workflows/{workflow}", s.getWorkflow)
 	handle("GET /api/v1/policy/catalog", s.policyCatalog)
+	handle("GET /api/v1/certificates/{fingerprint}/lifecycle", s.getCertLifecycle)
+	handle("PUT /api/v1/certificates/{fingerprint}/lifecycle", s.putCertLifecycle)
+	handle("GET /api/v1/lifecycle/events", s.listLifecycleEvents)
+	handle("GET /api/v1/lifecycle/notifications", s.listNotifications)
+	handle("POST /api/v1/lifecycle/check", s.adminOnly(s.runMonitorNow))
+	handle("POST /api/v1/lifecycle/test-webhook", s.adminOnly(s.testWebhook))
+	handle("GET /api/v1/settings/lifecycle", s.getLifecycleSettings)
+	handle("PUT /api/v1/settings/lifecycle", s.putLifecycleSettings)
+	handle("GET /api/v1/integrations", s.listIntegrations)
 
 	handle("POST /api/v1/hosts/ingest", s.ingestHost)
 	handle("GET /api/v1/hosts", s.listHosts)

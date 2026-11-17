@@ -71,6 +71,10 @@ var selfAuditedRoutes = map[string]bool{
 	"PUT /api/v1/work/{id}/dependencies/{otherId}":            true,
 	"DELETE /api/v1/work/{id}/dependencies/{otherId}":         true,
 	"POST /api/v1/workflows":                                  true,
+	"PUT /api/v1/certificates/{fingerprint}/lifecycle":        true,
+	"PUT /api/v1/settings/lifecycle":                          true,
+	"POST /api/v1/lifecycle/test-webhook":                     true,
+	"POST /api/v1/lifecycle/check":                            true,
 	"POST /api/v1/links/{id}/reject":                          true,
 }
 

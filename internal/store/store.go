@@ -582,7 +582,34 @@ var migrations = []string{
 		depends_on INTEGER NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
 		PRIMARY KEY (item_id, depends_on),
 		CHECK (item_id <> depends_on)
-	) WITHOUT ROWID;`,
+	) WITHOUT ROWID;
+	-- What a person says about a certificate: who answers for it and how it is renewed. Keyed by
+	-- fingerprint, outside the rebuildable graph (REQ-MOD-1). Never key material.
+	CREATE TABLE certificate_lifecycle (
+		fingerprint TEXT PRIMARY KEY,
+		owner TEXT NOT NULL DEFAULT '',
+		renewal TEXT NOT NULL DEFAULT '',
+		notes TEXT NOT NULL DEFAULT '',
+		updated_by TEXT NOT NULL DEFAULT '',
+		updated_at TEXT NOT NULL
+	) WITHOUT ROWID;
+	-- Lifecycle events the monitor found and their delivery: one row per event key, so an event is
+	-- sent once however often it is seen again.
+	CREATE TABLE notifications (
+		event_key TEXT PRIMARY KEY,
+		kind TEXT NOT NULL,
+		severity TEXT NOT NULL,
+		title TEXT NOT NULL,
+		detail TEXT NOT NULL DEFAULT '',
+		link TEXT NOT NULL DEFAULT '',
+		first_seen TEXT NOT NULL,
+		last_seen TEXT NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('pending','sent','failed','not-sent')),
+		attempts INTEGER NOT NULL DEFAULT 0,
+		sent_at TEXT,
+		last_error TEXT NOT NULL DEFAULT ''
+	) WITHOUT ROWID;
+	CREATE INDEX notifications_seen ON notifications(last_seen);`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same
