@@ -127,9 +127,17 @@ export function openAddDialog(onDone, { protocol = 'tls', scan = true } = {}) {
             results.appendChild(h('div', { class: r.invalid ? 'callout' : 'callout info', role: 'status' },
               `${r.added} added, ${r.duplicate} already present, ${r.invalid} invalid.`));
             if (r.results.length) {
-              results.appendChild(h('ul', { class: 'results' }, r.results.map((x) => h('li', null,
+              // A long list would bury the lines that need attention: those come first, and
+              // the page draws no more than SHOWN rows.
+              const SHOWN = 200;
+              const order = { invalid: 0, duplicate: 1, added: 2 };
+              const rows = r.results.slice().sort((a, b) => order[a.status] - order[b.status] || a.line - b.line);
+              results.appendChild(h('ul', { class: 'results' }, rows.slice(0, SHOWN).map((x) => h('li', null,
                 badge(x.status, x.status === 'added' ? 'good' : x.status === 'duplicate' ? 'neutral' : 'bad'), ' ',
                 h('code', null, x.input), x.reason ? h('span', { class: 'muted' }, ` · ${x.reason}`) : null))));
+              if (rows.length > SHOWN) {
+                results.appendChild(h('p', { class: 'hint' }, `${(rows.length - SHOWN).toLocaleString()} more lines are not shown; the counts above cover every line.`));
+              }
             }
             if (r.added) {
               const ids = r.results.filter((x) => x.status === 'added' && x.asset).map((x) => x.asset.id);
@@ -142,8 +150,8 @@ export function openAddDialog(onDone, { protocol = 'tls', scan = true } = {}) {
           err,
           h('label', { for: 'add-list' }, protocol === 'ssh' ? 'One server per line' : 'One endpoint per line'), text,
           h('div', { class: 'hint' }, protocol === 'ssh'
-            ? 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Each line is an SSH server, on port 22 unless it gives one.'
-            : 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. STARTTLS is chosen by port, or by a scheme such as smtp:// or ldap://.'),
+            ? 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Up to 20,000 lines. Each line is an SSH server, on port 22 unless it gives one.'
+            : 'Blank lines and lines starting with # are ignored. One bad line never blocks the others. Up to 20,000 lines. STARTTLS is chosen by port, or by a scheme such as smtp:// or ldap://.'),
           h('label', { for: 'add-tags' }, 'Tags for all of them'), tags,
           scanBox(),
           h('p', { class: 'hint' }, NOTICE[protocol]),

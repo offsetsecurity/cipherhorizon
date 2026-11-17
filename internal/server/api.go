@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
@@ -198,6 +199,17 @@ type BulkResult struct {
 	Asset  *assetView `json:"asset,omitempty"`
 }
 
+// A pasted list may be as long as the output of a name-finding tool for a large domain.
+// The body limit allows every line to be about 200 bytes.
+const (
+	maxBulkLines = 20000
+	maxBulkBody  = 4 << 20
+)
+
+// bulkWriteTimeout replaces the server's WriteTimeout for a long list: each line is one write to
+// the store, and with a scan scope of networks each name is also resolved.
+const bulkWriteTimeout = 10 * time.Minute
+
 func (s *Server) bulkAssets(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Text string   `json:"text"`
@@ -205,17 +217,21 @@ func (s *Server) bulkAssets(w http.ResponseWriter, r *http.Request) {
 		// Protocol is what every line is added as: "auto" (the default), "tls" or "ssh".
 		Protocol string `json:"protocol"`
 	}
-	if !decode(w, r, &req) {
+	if !decodeMax(w, r, &req, maxBulkBody) {
 		return
 	}
+	extendWriteDeadline(w, s.log, bulkWriteTimeout)
 	results := []BulkResult{}
 	counts := map[string]int{}
 	lines := strings.Split(strings.ReplaceAll(req.Text, "\r\n", "\n"), "\n")
-	if len(lines) > 1000 {
-		writeErr(w, http.StatusBadRequest, "at most 1000 lines per request")
+	if len(lines) > maxBulkLines {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("at most %d lines per request", maxBulkLines))
 		return
 	}
 	for i, line := range lines {
+		if r.Context().Err() != nil {
+			return // the caller has gone; what was added stays, and the same list can be sent again
+		}
 		in := strings.TrimSpace(line)
 		if in == "" || strings.HasPrefix(in, "#") {
 			continue
@@ -394,6 +410,7 @@ func (s *Server) scanMany(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "no assets selected")
 		return
 	}
+	extendWriteDeadline(w, s.log, bulkWriteTimeout)
 	scans := []store.ScanSummary{}
 	queued, already, missing := 0, 0, 0
 	seen := map[int64]bool{}

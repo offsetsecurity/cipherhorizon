@@ -1,0 +1,27 @@
+# Common host labels, separated by spaces. Labels() adds numbered and environment variants.
+www www2 www3 web web1 web2 webmail mail mail1 mail2 mail3 email smtp smtp1 smtp2 smtps pop pop3 imap imap4 mx mx1 mx2 mx3 mta relay exchange owa outlook autodiscover autoconfig
+ns ns1 ns2 ns3 ns4 dns dns1 dns2 ntp time
+ftp sftp ftps ssh bastion jump jumphost gateway gw vpn vpn1 vpn2 sslvpn remote ra access citrix rdp rdweb vdi desktop workspace
+api api1 api2 api-gateway apigw rest graphql ws websocket rpc grpc services service svc soap esb mq broker kafka rabbitmq
+app app1 app2 apps application portal portal2 my myaccount account accounts customer customers client clients partner partners partnerportal vendor vendors supplier suppliers extranet intranet internal corp corporate
+login signin sso auth auth2 oauth oauth2 oidc idp identity id iam adfs sts saml cas ldap ldaps ad directory radius mfa otp 2fa keycloak okta
+secure security ssl tls cert certs pki ca ocsp crl acme vault kms hsm secrets
+admin administrator adm manage management manager console control cp cpanel whm plesk panel dashboard dash
+dev dev1 dev2 develop development test test1 test2 testing qa qa1 uat sit stage staging stg preprod pre-prod preproduction prod production live demo sandbox sbx lab labs beta alpha canary preview poc pilot training
+shop store ecommerce cart checkout pay payment payments billing invoice invoices order orders booking book reservations tickets
+blog news press media static assets cdn cdn1 cdn2 img images image photos video videos stream streaming files file download downloads upload uploads content edge origin cache
+docs doc documentation help helpdesk support servicedesk kb wiki confluence knowledge faq forum community status statuspage
+git gitlab github bitbucket svn repo code gerrit jenkins ci cd build builds artifactory nexus registry docker harbor sonar sonarqube jira redmine
+db db1 db2 database sql mysql postgres postgresql pg oracle mssql mongo mongodb redis elastic elasticsearch es kibana grafana prometheus influx cassandra
+monitor monitoring nagios zabbix splunk log logs logging syslog graylog sentry apm metrics alert alerts noc soc siem
+backup backups bkp archive storage nas san s3 minio object data datalake warehouse dwh etl bi analytics report reports reporting tableau powerbi
+cloud aws azure gcp k8s kube kubernetes cluster rancher openshift node node1 node2 worker master lb lb1 lb2 loadbalancer proxy proxy1 proxy2 reverse-proxy waf firewall fw fw1 router switch
+host host1 host2 server server1 server2 srv srv1 srv2 vm vm1 vps esx esxi vcenter vsphere hyperv ilo idrac ipmi oob mgmt
+crm erp sap hr hris payroll finance fin treasury legal procurement sales marketing mkt campaign campaigns newsletter survey surveys events careers jobs recruit recruitment learning lms elearning academy university edu
+mobile m wap ios android appstore push notify notification notifications sms voice voip sip pbx tel phone call callcenter contact chat im meet meeting conference webex zoom teams lync skype sfb dialin
+iot scada device devices sensor sensors telemetry ota firmware update updates patch wsus sccm mdm intune
+print printer scan scanner fax
+ib netbanking ebanking onlinebanking online banking bank cards card atm pos merchant merchants swift trade forex fx loan loans insurance claims policy invest investor investors ir wealth
+gov eservices e-services citizen tax licence license permit registry
+health patient patients ehr emr pacs lab laboratory pharmacy
+old new legacy v1 v2 v3 temp tmp bak archive2 mirror replica dr drsite failover standby secondary primary

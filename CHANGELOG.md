@@ -10,6 +10,38 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Find from a domain.** Give a domain and CipherHorizon lists the host names under it, resolves each, and
+  tries ports 443, 8443 and 22 (and 25 on the domain's mail servers) with one connection. The result is a list
+  to review: which place reported each name, what answers, what is hosted elsewhere, what no longer resolves,
+  and what the search could not see. Nothing is added or scanned until you choose names; each then becomes one
+  endpoint per port that answered, tagged with the domain. A second search of a domain marks what is new.
+  It looks in the certificates and endpoints already held, the domain's DNS records, about 1,600 common labels
+  (with wildcard zones detected), a list you paste, and, only after an administrator turns it on in Settings,
+  the Certificate Transparency logs through crt.sh, which sends the domain name to that service. A search
+  obeys `--scan-allow`. On **TLS endpoints** and **SSH servers**; `cipherhorizon find DOMAIN` on the command
+  line; `/api/v1/discoveries` in the API; `domain_find` for assistants. See [docs/domains.md](docs/domains.md).
+  Under wildcard DNS, where every name under the domain resolves, names that resolve only to that shared address
+  are marked, left out of *Answering*, not chosen for you, and left out of `find`'s output unless `--all`: a
+  certificate naming thousands of hosts no longer looks like thousands of live sites.
+
+### Changed
+
+- **Paste a list takes 20,000 lines.** The limit was 1,000, too few for the host names under a large
+  organisation's domain. The request may be up to 4 MiB, the result lists the lines that need attention first
+  and draws at most 200 rows, and adding and queueing a long list is no longer cut off after a minute.
+
+### Upgrade notes
+
+- Schema 17 → 19: adds the tables `discoveries` and `discovery_names` (step 19 adds its `wildcard` column),
+  and an index on `assets(host)`. Nothing existing is changed; the upgrade takes under a second, a little longer
+  with tens of thousands of endpoints.
+
+### Security
+
+- Built with Go 1.27.4 (GO-2026-6859, in the standard library's `net/http`; fixed in Go 1.27.4).
+
 ## [0.8.0] - 2026-11-10
 
 ### Added

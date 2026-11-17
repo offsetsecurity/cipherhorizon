@@ -29,7 +29,8 @@ export async function render(root, { query, protocol = 'tls' }) {
     { id: protocol === 'ssh' ? 'ssh-add' : 'endpoints-add' });
   root.appendChild(h('div', { class: 'page-head' },
     h('div', null, h('h1', null, place.many), h('div', { class: 'sub' }, copy.sub)),
-    h('div', { class: 'row' }, primary)));
+    // Finding names under a domain serves both protocols: what answers on 22 becomes an SSH server.
+    h('div', { class: 'row' }, h('a', { class: 'btn btn-secondary', href: '#/discover', id: 'endpoints-discover' }, 'Find from a domain'), primary)));
   root.appendChild(h('div', { class: 'tabs', role: 'tablist' }, [['list', copy.list], ['activity', 'Scan activity']].map(([k, label]) =>
     h('a', { class: 'tab', role: 'tab', href: k === 'list' ? place.list : `${place.list}?tab=${k}`, 'aria-selected': String(k === tab[0]) }, label))));
   const body = h('div', { class: 'tabbody' });

@@ -108,10 +108,10 @@ func TestToolInventory(t *testing.T) {
 		opts mcpserver.Options
 		want []string
 	}{
-		{"scan only", mcpserver.Options{}, []string{"tls_scan", "ssh_scan"}},
-		{"with fleet", mcpserver.Options{Fleet: fleet}, []string{"tls_scan", "ssh_scan", "fleet_summary", "endpoints_list", "endpoint_get",
+		{"scan only", mcpserver.Options{}, []string{"tls_scan", "ssh_scan", "domain_find"}},
+		{"with fleet", mcpserver.Options{Fleet: fleet}, []string{"tls_scan", "ssh_scan", "domain_find", "fleet_summary", "endpoints_list", "endpoint_get",
 			"endpoint_add", "scan_start", "scan_get", "findings_list", "standards_summary", "machines_list", "machine_get", "inventory_summary", "cbom_get"}},
-		{"read-only", mcpserver.Options{Fleet: fleet, ReadOnly: true}, []string{"tls_scan", "ssh_scan", "fleet_summary", "endpoints_list", "endpoint_get",
+		{"read-only", mcpserver.Options{Fleet: fleet, ReadOnly: true}, []string{"tls_scan", "ssh_scan", "domain_find", "fleet_summary", "endpoints_list", "endpoint_get",
 			"scan_get", "findings_list", "standards_summary", "machines_list", "machine_get", "inventory_summary", "cbom_get"}},
 		{"no scan, read-only", mcpserver.Options{Fleet: fleet, ReadOnly: true, NoScan: true}, []string{"fleet_summary", "endpoints_list", "endpoint_get",
 			"scan_get", "findings_list", "standards_summary", "machines_list", "machine_get", "inventory_summary", "cbom_get"}},
@@ -142,7 +142,7 @@ func TestToolInventory(t *testing.T) {
 				if a.DestructiveHint == nil || *a.DestructiveHint {
 					t.Errorf("%s: destructiveHint should be false", tool.Name)
 				}
-				network := strings.HasSuffix(tool.Name, "_scan")
+				network := strings.HasSuffix(tool.Name, "_scan") || tool.Name == "domain_find"
 				if a.OpenWorldHint == nil || *a.OpenWorldHint != network {
 					t.Errorf("%s: openWorldHint %v, want %v", tool.Name, a.OpenWorldHint, network)
 				}

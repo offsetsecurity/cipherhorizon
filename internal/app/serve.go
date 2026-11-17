@@ -19,6 +19,7 @@ import (
 	"github.com/offsetsecurity/cipherhorizon/internal/auth"
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
 	"github.com/offsetsecurity/cipherhorizon/internal/mcpserver"
+	"github.com/offsetsecurity/cipherhorizon/internal/namefind"
 	"github.com/offsetsecurity/cipherhorizon/internal/revocation"
 	"github.com/offsetsecurity/cipherhorizon/internal/server"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
@@ -316,6 +317,11 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	} else if n > 0 {
 		log.Warn("marked scans interrupted by the last shutdown as failed", "count", n)
 	}
+	if n, err := st.FailInterruptedDiscoveries(); err != nil {
+		return fatalf(env, "recovering interrupted discoveries: %v", err)
+	} else if n > 0 {
+		log.Warn("marked discoveries interrupted by the last shutdown as failed", "count", n)
+	}
 
 	// First run: until an administrator exists, a one-time code printed here (and only here)
 	// lets whoever can read the server's log create one. Someone who merely reaches the port cannot.
@@ -367,12 +373,14 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	if n := runner.ReevaluateOutdated(); n > 0 {
 		log.Info("re-evaluated the latest results with the current rules", "endpoints", n, "rules", eval.Version)
 	}
+	discoverer := server.NewDiscoverer(st, guard, server.DiscoveryOptions{Log: log})
 	var mcpHandler http.Handler
 	inproc := &inProcessTransport{}
 	if *mcpOn {
 		m := mcpserver.New(mcpserver.Options{
 			Version: version.Version, Log: log, NoScan: !*mcpScan,
 			Scan:    mcpserver.ScanOptions{Guard: guard, Timeout: *timeout, Concurrency: *concurrency, HTTPChecks: *httpChecks},
+			Find:    mcpserver.FindOptions{CT: namefind.CrtSh{}, CTAllowed: discoverer.CTAllowed},
 			Fleet:   &mcpserver.Fleet{Base: "http://127.0.0.1", Client: &http.Client{Transport: inproc}},
 			Verdict: writeVerdict, Details: writeDetails, Now: env.Now,
 		})
@@ -381,7 +389,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		warnf(env, "--mcp-scan does nothing without --mcp")
 	}
 	srv := server.New(server.Config{
-		Store: st, Runner: runner, Guard: guard, MCP: mcpHandler,
+		Store: st, Runner: runner, Guard: guard, MCP: mcpHandler, Discovery: discoverer,
 		Token: *token, AllowedHosts: allowedHosts, TrustedProxies: proxies,
 		RequireLogin: *signInMode == "on", ForbidLogin: *signInMode == "off", AllowOpen: loopback || *openNetwork, SetupCode: setupCode, SetupCodeExpires: setupExpires, SecureCookies: useTLS,
 		SessionIdle: *sessionIdle, SessionMax: *sessionMax,
@@ -414,6 +422,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	runCtx, stopRunner := context.WithCancel(ctx)
 	defer stopRunner()
 	runner.Start(runCtx)
+	discoverer.Start(runCtx)
 
 	_, _ = fmt.Fprint(env.Stderr, serveNotice)
 	if scope.Empty() {
@@ -464,6 +473,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	case err := <-errc:
 		stopRunner()
 		runner.Wait()
+		discoverer.Wait()
 		return fatalf(env, "server stopped: %v", err)
 	case <-ctx.Done():
 	}
@@ -473,6 +483,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	_ = httpSrv.Shutdown(shutCtx)
 	stopRunner()
 	runner.Wait()
+	discoverer.Wait()
 	return ExitOK
 }
 
