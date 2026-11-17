@@ -17,6 +17,7 @@ type zoneDNS struct {
 	a     map[string][]string
 	cname map[string]string
 	mx    []string
+	any   []string      // what the zone answers for any other name (wildcard DNS)
 	block chan struct{} // when set, address lookups wait for it or for the context
 }
 
@@ -31,6 +32,9 @@ func (z *zoneDNS) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, 
 	addrs := z.a[host]
 	if c, ok := z.cname[host]; ok && addrs == nil {
 		addrs = z.a[c]
+	}
+	if addrs == nil {
+		addrs = z.any
 	}
 	if addrs == nil {
 		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
@@ -114,7 +118,8 @@ type discoveryJSON struct {
 			ID, Status, Detail string
 			Found              int
 		} `json:"sources"`
-		WildcardCerts []string `json:"wildcardCerts"`
+		WildcardCerts     []string `json:"wildcardCerts"`
+		WildcardAddresses []string `json:"wildcardAddresses"`
 	} `json:"report"`
 }
 
@@ -129,6 +134,7 @@ type discoveryNameJSON struct {
 	Accepted  bool     `json:"accepted"`
 	New       bool     `json:"new"`
 	Tracked   bool     `json:"tracked"`
+	Wildcard  bool     `json:"wildcard"`
 }
 
 type discoveryResult struct {
@@ -419,5 +425,25 @@ func TestDiscoveryRunsOneAtATimeAndCancels(t *testing.T) {
 	}
 	if s := e.call("GET", "/api/v1/discoveries", nil, &list); s != 200 || len(list.Discoveries) < 2 || list.Discoveries[len(list.Discoveries)-1].Status != "canceled" {
 		t.Errorf("list: status %d %+v", s, list.Discoveries)
+	}
+}
+
+// Under wildcard DNS every name looks alive: names that resolve only to the zone's answer for any
+// name are kept, marked, and the report names that answer.
+func TestDiscoveryMarksWildcardOnlyNames(t *testing.T) {
+	z := exampleZone()
+	z.any = []string{"192.0.2.80"}
+	e := newEnv(t, withDiscovery(z, nil, append(exampleOpen, "192.0.2.80:443")...))
+	res := e.discover(map[string]any{"domain": "example.com", "list": "old-1.example.com\nold-2.example.com\nwww.example.com"})
+	if fmt.Sprint(res.Discovery.Report.WildcardAddresses) != "[192.0.2.80]" {
+		t.Errorf("wildcard addresses = %v", res.Discovery.Report.WildcardAddresses)
+	}
+	for name, want := range map[string]bool{"old-1.example.com": true, "old-2.example.com": true, "www.example.com": false, "example.com": false} {
+		if n := res.name(name); n.Wildcard != want {
+			t.Errorf("%s wildcard = %v, want %v (%+v)", name, n.Wildcard, want, n)
+		}
+	}
+	if n := res.name("old-1.example.com"); fmt.Sprint(n.Ports) != "[443]" {
+		t.Errorf("a wildcard-only name still shows what answers: %+v", n)
 	}
 }

@@ -205,6 +205,11 @@ func (r *run) resolveOne(ctx context.Context, c *collector, name string, wildAdd
 	if e == nil || (guessOnly && allIn(ips, wildAddrs)) {
 		return // a guess that only matched the wildcard is dropped later; no need to ask more
 	}
+	if name != r.domain && allIn(ips, wildAddrs) {
+		// Only the wildcard's answer: its alias, if any, is the wildcard's too, the same for every
+		// name. Not asking halves the queries on a domain where thousands of names match.
+		return
+	}
 	if !r.lim.wait(ctx) {
 		return
 	}

@@ -13,14 +13,20 @@ import (
 )
 
 type findZone struct {
-	a  map[string][]string
-	mx []string
+	a   map[string][]string
+	mx  []string
+	any []string // wildcard DNS: the answer for any other name
 }
 
 func (z findZone) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr, error) {
 	var out []net.IPAddr
 	for _, a := range z.a[host] {
 		out = append(out, net.IPAddr{IP: net.ParseIP(a)})
+	}
+	if out == nil {
+		for _, a := range z.any {
+			out = append(out, net.IPAddr{IP: net.ParseIP(a)})
+		}
 	}
 	if out == nil {
 		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
@@ -114,5 +120,24 @@ func TestDomainFind(t *testing.T) {
 	cs = connect(t, mcpserver.Options{Scan: mcpserver.ScanOptions{Guard: server.Guard{Scope: scope}}, Find: find})
 	if res := call(t, cs, "domain_find", map[string]any{"domain": "example.com"}); !res.IsError || !strings.Contains(text(res), "outside the scan scope") {
 		t.Errorf("scope: %s", text(res))
+	}
+}
+
+// Under wildcard DNS, names with only that address are counted, left out of names, and explained.
+func TestDomainFindWildcard(t *testing.T) {
+	asked := 0
+	find := mcpserver.FindOptions{
+		Resolver: findZone{a: map[string][]string{"example.com": {"192.0.2.1"}}, any: []string{"198.51.100.7"}},
+		CT:       findLogs{asked: &asked}, CTAllowed: func() bool { return true },
+		Dial: func(context.Context, string, int) (net.Conn, error) { return nil, errors.New("refused") },
+	}
+	cs := connect(t, mcpserver.Options{Scan: loopback(), Find: find})
+	res := call(t, cs, "domain_find", map[string]any{"domain": "example.com", "certificateLogs": true})
+	out := structured[mcpserver.FindResult](t, res)
+	if res.IsError || out.WildcardOnly != 2 || len(out.Names) != 1 || out.Names[0].Name != "example.com" {
+		t.Fatalf("result = %+v (%s)", out, text(res))
+	}
+	if !strings.Contains(text(res), "resolves to 198.51.100.7 (wildcard DNS). 2 names resolve only there") {
+		t.Errorf("text = %s", text(res))
 	}
 }

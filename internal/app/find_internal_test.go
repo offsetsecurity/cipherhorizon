@@ -13,14 +13,20 @@ import (
 )
 
 type findZone struct {
-	a  map[string][]string
-	mx []string
+	a   map[string][]string
+	mx  []string
+	any []string // wildcard DNS: the answer for any other name
 }
 
 func (z findZone) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr, error) {
 	var out []net.IPAddr
 	for _, a := range z.a[host] {
 		out = append(out, net.IPAddr{IP: net.ParseIP(a)})
+	}
+	if out == nil {
+		for _, a := range z.any {
+			out = append(out, net.IPAddr{IP: net.ParseIP(a)})
+		}
 	}
 	if out == nil {
 		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
@@ -111,5 +117,30 @@ func TestFindCommand(t *testing.T) {
 		if code, stdout, _ := runFind(t, args...); code != ExitFatal || stdout != "" {
 			t.Errorf("%s: exit %d, stdout %q; want a fatal error and nothing printed", name, code, stdout)
 		}
+	}
+}
+
+// Under wildcard DNS every name resolves: names with only that address are not printed for
+// scanning unless --all asks, and the summary says how many and why.
+func TestFindLeavesOutWildcardOnlyNames(t *testing.T) {
+	oldR, oldD, oldC := findResolver, findDial, findCT
+	defer func() { findResolver, findDial, findCT = oldR, oldD, oldC }()
+	asked := 0
+	findCT = findLogs{asked: &asked} // reports api.example.com and *.example.com
+	findResolver = findZone{a: map[string][]string{"example.com": {"192.0.2.1"}}, any: []string{"198.51.100.7"}}
+	findDial = func(context.Context, string, int) (net.Conn, error) {
+		a, b := net.Pipe()
+		_ = b.Close()
+		return a, nil
+	}
+	code, stdout, stderr := runFind(t, "--ct", "--targets", "example.com")
+	if code != ExitOK || strings.Contains(stdout, "api.example.com") || !strings.Contains(stdout, "example.com:443") {
+		t.Errorf("--targets printed a wildcard-only name, or not the domain: %q", stdout)
+	}
+	if !strings.Contains(stderr, "resolves to 198.51.100.7 (wildcard DNS). 1 names resolve only there") || !strings.Contains(stderr, "--all prints them") {
+		t.Errorf("summary:\n%s", stderr)
+	}
+	if _, stdout, _ = runFind(t, "--ct", "--all", "example.com"); !strings.Contains(stdout, "api.example.com\n") {
+		t.Errorf("--all prints wildcard-only names: %q", stdout)
 	}
 }

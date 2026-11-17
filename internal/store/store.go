@@ -530,6 +530,9 @@ var migrations = []string{
 		PRIMARY KEY (discovery_id, name)
 	) WITHOUT ROWID;
 	CREATE INDEX assets_host ON assets(host);`,
+	// 19: a found name that resolves only to what the zone answers for any name under the domain
+	// (wildcard DNS) is marked, so it is not mistaken for a host of its own (PRD-022).
+	`ALTER TABLE discovery_names ADD COLUMN wildcard INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same

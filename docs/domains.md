@@ -58,6 +58,10 @@ sources the same way.
 - **May not be reached:** the name points at an address the server refuses to connect to (the scan scope, or an
   address such as a cloud metadata service). It is listed with the reason and cannot be added.
 - **Do not resolve:** a source named it, and it has no address now. Often a certificate for a host long gone.
+- **Same address as any name under the domain:** the domain has wildcard DNS, so every name under it resolves,
+  even one that never existed. A name with only that address may be a real site on that server or nothing at
+  all, and DNS cannot tell which. Such names are listed with a note, are not counted as *Answering* and are not
+  chosen for you. A search tells the wildcard apart with three queries for names that cannot exist.
 - **Already an endpoint / Added:** the name is already in your lists.
 - **What this search could not see:** the wildcard certificates it met, sources that were off or failed, and the
   limit of 50,000 names if it was reached.
@@ -77,7 +81,9 @@ cipherhorizon find --list zone.txt --targets example.com | xargs cipherhorizon t
 ```
 
 `find` needs no server. `--targets` prints `name:port` for each port that answered; `--json` prints the whole
-result; `--ct` sends the domain name to crt.sh. What each source did is printed to standard error.
+result; `--ct` sends the domain name to crt.sh. What each source did is printed to standard error. Under
+wildcard DNS, names that resolve only to the shared address are left out; `--all` prints them too, with the
+names that do not resolve.
 
 ## From a script or an assistant
 

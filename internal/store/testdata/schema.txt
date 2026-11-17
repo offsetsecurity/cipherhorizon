@@ -68,6 +68,7 @@ table discovery_names
   column refused TEXT 1 '' 0 0
   column mail INTEGER 1 0 0 0
   column accepted_at TEXT 0 NULL 0 0
+  column wildcard INTEGER 1 0 0 0
   foreign-key discoveries discovery_id id NO ACTION CASCADE
   index sqlite_autoindex_discovery_names_1 1 pk 0 (discovery_id:0:BINARY, name:0:BINARY)
 table entities

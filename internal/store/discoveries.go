@@ -51,6 +51,8 @@ type DiscoveryName struct {
 	Ports     []int    `json:"ports"`
 	Refused   string   `json:"refused,omitempty"`
 	Mail      bool     `json:"mail,omitempty"`
+	// Wildcard says the name resolves only to the zone's answer for any name under the domain.
+	Wildcard bool `json:"wildcard"`
 	// Accepted says the name was added as endpoints from this run.
 	Accepted bool `json:"accepted"`
 	// New says the previous finished run of the same domain did not list the name.
@@ -155,8 +157,8 @@ func (s *Store) FinishDiscovery(id int64, status, errText string, report any, na
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil
 	}
-	stmt, err := tx.Prepare(`INSERT INTO discovery_names (discovery_id, name, sources, addresses, cname, external, ports, refused, mail)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := tx.Prepare(`INSERT INTO discovery_names (discovery_id, name, sources, addresses, cname, external, ports, refused, mail, wildcard)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -169,7 +171,7 @@ func (s *Store) FinishDiscovery(id int64, status, errText string, report any, na
 			ports = []int{}
 		}
 		pj, _ := json.Marshal(ports)
-		if _, err := stmt.Exec(id, n.Name, string(src), string(addrs), n.CNAME, n.External, string(pj), n.Refused, n.Mail); err != nil {
+		if _, err := stmt.Exec(id, n.Name, string(src), string(addrs), n.CNAME, n.External, string(pj), n.Refused, n.Mail, n.Wildcard); err != nil {
 			return err
 		}
 	}
@@ -225,7 +227,7 @@ func (s *Store) DiscoveryNames(id int64) ([]DiscoveryName, error) {
 		WHERE p.id < d.id AND p.status = ?`, id, DiscoveryDone).Scan(&prev); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(`SELECT n.name, n.sources, n.addresses, n.cname, n.external, n.ports, n.refused, n.mail, n.accepted_at IS NOT NULL,
+	rows, err := s.db.Query(`SELECT n.name, n.sources, n.addresses, n.cname, n.external, n.ports, n.refused, n.mail, n.wildcard, n.accepted_at IS NOT NULL,
 		? AND NOT EXISTS (SELECT 1 FROM discovery_names o WHERE o.discovery_id = ? AND o.name = n.name),
 		EXISTS (SELECT 1 FROM assets a WHERE a.host = n.name)
 		FROM discovery_names n WHERE n.discovery_id = ? ORDER BY n.name`, prev.Valid, prev.Int64, id)
@@ -237,7 +239,7 @@ func (s *Store) DiscoveryNames(id int64) ([]DiscoveryName, error) {
 	for rows.Next() {
 		var n DiscoveryName
 		var src, addrs, ports string
-		if err := rows.Scan(&n.Name, &src, &addrs, &n.CNAME, &n.External, &ports, &n.Refused, &n.Mail, &n.Accepted, &n.New, &n.Tracked); err != nil {
+		if err := rows.Scan(&n.Name, &src, &addrs, &n.CNAME, &n.External, &ports, &n.Refused, &n.Mail, &n.Wildcard, &n.Accepted, &n.New, &n.Tracked); err != nil {
 			return nil, err
 		}
 		n.Sources, n.Addresses, n.Ports = []string{}, []string{}, []int{}
