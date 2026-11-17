@@ -10,8 +10,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-11-17
-
 ### Added
 
 - **Tracked work, with closure the product verifies.** Open a piece of work on a finding, a certificate, an
@@ -26,6 +24,21 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - **Policy catalog.** The standards documents and dated milestones the product acts on (NIST IR 8547's 2030 and
   2035 dates, the federal dates it quotes, FIPS 203/204/205, the drafts that are not final yet) are now data with
   status, date, address and provenance, served at `/api/v1/policy/catalog` (ADR-0022).
+
+### Changed
+
+- **A certificate valid until a day in 2035 outlives the 2030 deprecation, not the 2035 disallowance.** NIST IR
+  8547 disallows quantum-vulnerable keys *after* 2035; the certificate check started that at 1 January 2035, so a
+  certificate ending during 2035 was reported high instead of medium. The dates now come from the policy catalog.
+
+### Upgrade notes
+
+- Schema 19 → 20: adds the tables `workflows`, `work_items` and `work_deps` for tracked work. Nothing existing is
+  changed; the upgrade takes under a second.
+
+## [0.9.0] - 2026-11-17
+
+### Added
 
 - **`tls scan --public`: public addresses only.** For a scanner that runs targets other people name. Every
   target's address, or every address its name resolves to, is checked before the first connection and again on
@@ -56,9 +69,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Changed
 
-- **A certificate valid until a day in 2035 outlives the 2030 deprecation, not the 2035 disallowance.** NIST IR
-  8547 disallows quantum-vulnerable keys *after* 2035; the certificate check started that at 1 January 2035, so a
-  certificate ending during 2035 was reported high instead of medium. The dates now come from the policy catalog.
 - **Paste a list takes 20,000 lines.** The limit was 1,000, too few for the host names under a large
   organisation's domain. The request may be up to 4 MiB, the result lists the lines that need attention first
   and draws at most 200 rows, and adding and queueing a long list is no longer cut off after a minute.
@@ -68,8 +78,6 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 - Schema 17 → 19: adds the tables `discoveries` and `discovery_names` (step 19 adds its `wildcard` column),
   and an index on `assets(host)`. Nothing existing is changed; the upgrade takes under a second, a little longer
   with tens of thousands of endpoints.
-- Schema 19 → 20: adds the tables `workflows`, `work_items` and `work_deps` for tracked work. Nothing existing is
-  changed; the upgrade takes under a second.
 
 ### Security
 
