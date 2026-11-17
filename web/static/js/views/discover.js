@@ -244,7 +244,7 @@ async function renderRun(root, id) {
         } catch (e) { toast(e.message, 'error'); go.disabled = false; }
       }, 'primary', { id: 'disc-accept', disabled: !picked.length });
       clear(selbar).append(
-        h('span', { class: 'selbar-count' }, h('strong', null, picked.length.toLocaleString()), ` of ${names.filter(addable).length.toLocaleString()} answering names chosen`),
+        h('span', { class: 'selbar-count' }, h('strong', null, picked.length.toLocaleString()), ` of ${names.filter((n) => addable(n) && !n.wildcard).length.toLocaleString()} answering names chosen`),
         h('span', { class: 'grow' }),
         h('label', { class: 'row checkrow', for: 'disc-scan' }, scanBox, h('span', null, 'Scan now')),
         go);
