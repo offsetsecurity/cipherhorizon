@@ -206,6 +206,7 @@ Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 | [docs/ssh-scanning.md](docs/ssh-scanning.md) | How the SSH auditor works, what it sends, and the SSH baseline |
 | [docs/standards.md](docs/standards.md), [docs/clients.md](docs/clients.md) | The published standards, clause by clause; the simulated clients and their sources |
 | [docs/estate-guide.md](docs/estate-guide.md) | Systems, machines, migration order |
+| [docs/work.md](docs/work.md) | Tracked work: workflows, approvals, prerequisites, and closure verified by the product's own scans (API; the policy catalog) |
 | [docs/importing.md](docs/importing.md), [docs/exporting.md](docs/exporting.md) | CBOM in and out, OMB M-23-02 |
 | [docs/cbom-model.md](docs/cbom-model.md) | What a CipherHorizon CBOM contains, and which parts are CycloneDX |
 | [docs/reference-data.md](docs/reference-data.md) | The root stores and other dated lists compiled into the binary |

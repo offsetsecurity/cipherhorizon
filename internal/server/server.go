@@ -392,6 +392,20 @@ func (s *Server) routes() {
 	handle("POST /api/v1/discoveries/{id}/cancel", s.cancelDiscovery)
 	handle("POST /api/v1/discoveries/{id}/accept", s.acceptDiscovery)
 
+	// Tracked work and workflows (PRD-023, ADR-0021); the policy catalog (ADR-0022).
+	handle("GET /api/v1/work", s.listWork)
+	handle("POST /api/v1/work", s.createWork)
+	handle("GET /api/v1/work/{id}", s.getWork)
+	handle("PATCH /api/v1/work/{id}", s.patchWork)
+	handle("POST /api/v1/work/{id}/transitions", s.transitionWork)
+	handle("GET /api/v1/work/{id}/verification", s.workVerification)
+	handle("PUT /api/v1/work/{id}/dependencies/{otherId}", s.addWorkDep)
+	handle("DELETE /api/v1/work/{id}/dependencies/{otherId}", s.removeWorkDep)
+	handle("GET /api/v1/workflows", s.listWorkflows)
+	handle("POST /api/v1/workflows", s.saveWorkflow)
+	handle("GET /api/v1/workflows/{workflow}", s.getWorkflow)
+	handle("GET /api/v1/policy/catalog", s.policyCatalog)
+
 	handle("POST /api/v1/hosts/ingest", s.ingestHost)
 	handle("GET /api/v1/hosts", s.listHosts)
 	handle("GET /api/v1/hosts/{id}", s.getHost)

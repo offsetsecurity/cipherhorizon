@@ -437,6 +437,27 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per STRAT
 | REQ-ACC-9 | P0 | — | owner review | — | script:testing/e2e/visual-phase.mjs#E2E-VIS-ALIGN | done | measured in the browser |
 | REQ-ACC-10 | P0 | — | owner review | — | report:CRYPTO-REVIEW-003-real-scans (internal), report:QA-REPORT-014 (internal) | done | eval/12 |
 
+## PRD-023 · Tracked work, workflows as data, verified closure, the policy catalog (PRD-023 (internal); ADR-0021, ADR-0022)
+
+| Requirement | Pri | WP | Source | SR | Evidence | Status | Notes |
+|---|---|---|---|---|---|---|---|
+| REQ-WF-1 | P0 | M1 | ARCH-001 §8 | — | TestTheBuiltInTemplatesAreValid | done | eight built-in templates, embedded JSON |
+| REQ-WF-2 | P0 | M1 | ARCH-001 §9 | — | TestTheBuiltInTemplatesAreValid, TestMarkerHelpers | done | fixed marker vocabulary |
+| REQ-WF-3 | P0 | M1 | ADR-0021 | — | TestValidateRefusesTemplatesThatBendTheRules, TestACustomTemplateCannotSkipVerification | done |  |
+| REQ-WF-4 | P0 | M1 | ADR-0021 | — | TestCustomWorkflowsAreVersioned, TestCustomWorkflowsAndAReadinessTarget | done | administrators only; built-in ids reserved; work keeps its version |
+| REQ-WF-5 | P0 | M1 | PRD-023 | — | TestWorkIsStoredAuditedAndMovedOnlyFromItsCurrentStage, TestAFindingIsVerifiedOnlyByAScanAfterTheChange, TestACertificateReplacementIsVerifiedOnEveryEndpoint | done | subject must exist; a finding must be current |
+| REQ-WF-6 | P0 | M1 | ADR-0021 | — | TestCheckEnforcesEveryGuard, TestDependenciesExceptionsAndDueDates | done |  |
+| REQ-WF-7 | P0 | M1 | ADR-0021 | — | TestCheckEnforcesEveryGuard, TestAFindingIsVerifiedOnlyByAScanAfterTheChange, TestACertificateReplacementIsVerifiedOnEveryEndpoint | done | refused with sign-in off and for the automation token |
+| REQ-WF-8 | P0 | M1 | ADR-0021 §5 | — | TestAFindingIsVerifiedOnlyByAScanAfterTheChange, TestACertificateReplacementIsVerifiedOnEveryEndpoint, TestCustomWorkflowsAndAReadinessTarget | done | real rescans of restarted test servers; host-upload path covered by code review only |
+| REQ-WF-9 | P1 | M1 | PRD-023 | — | TestWorkDependenciesRefuseCycles, TestDependenciesExceptionsAndDueDates | done |  |
+| REQ-WF-10 | P0 | M1 | PRD-023 | SR-11 | TestWorkIsStoredAuditedAndMovedOnlyFromItsCurrentStage, TestWorkDependenciesRefuseCycles, TestWorkEditsAreAuditedAndCleaned, TestAFindingIsVerifiedOnlyByAScanAfterTheChange | done | history in audit_log, object kind work |
+| REQ-WF-11 | P1 | M1 | PRD-023 | — | TestWorkIsStoredAuditedAndMovedOnlyFromItsCurrentStage | done | update guarded by the stage the engine checked |
+| REQ-WF-12 | P0 | M1 | PRD-023 | SR-12 | TestOpenAPIDescribesExactlyTheRegisteredRoutes, TestEveryChangeIsAudited, TestEveryMutatingRouteIsGuardedAgainstForgery | done | no web page yet (milestone M2) |
+| REQ-POL-1 | P0 | M1 | ADR-0022 | — | TestTheEmbeddedCatalogIsValid, TestTheIR8547MilestonesMatchTheDocument | done |  |
+| REQ-POL-2 | P0 | M1 | ADR-0022 | — | TestValidateRefusesEachBrokenRule | done | no deprecation, disallowance or requirement on a draft |
+| REQ-POL-3 | P0 | M1 | ADR-0022 | — | TestCutoffIsTheLastInstantOfTheDay, TestCertificateRules | done | fixes "disallowed after 2035" starting on 1 January 2035 |
+| REQ-POL-4 | P1 | M1 | PRD-023 | — | TestThePolicyCatalogIsServed | done |  |
+
 ## Security requirements (SECARCH-001) coverage
 
 Each SR must be exercised by at least one requirement above; `TestRequirementsTraceability` checks that every `SR-nn` in SECARCH-001 appears in the SR column at least once, except those listed here as cross-cutting.

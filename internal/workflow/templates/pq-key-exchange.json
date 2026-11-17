@@ -1,0 +1,28 @@
+{
+  "id": "pq-key-exchange",
+  "version": 1,
+  "title": "Post-quantum key exchange",
+  "purpose": "Bring an endpoint to hybrid post-quantum key exchange (readiness level 3): test client compatibility, enable it, and let a scan confirm that a current client negotiates it.",
+  "subjects": ["readiness"],
+  "stages": [
+    {"id": "requested", "label": "Requested", "marker": "requested"},
+    {"id": "tested", "label": "Client compatibility tested"},
+    {"id": "approved", "label": "Approved", "marker": "approved"},
+    {"id": "enabled", "label": "Hybrid groups enabled", "marker": "executed"},
+    {"id": "verified", "label": "Verified by scan", "marker": "verified"},
+    {"id": "deferred", "label": "Deferred", "marker": "exception"},
+    {"id": "closed", "label": "Closed", "marker": "complete", "terminal": true},
+    {"id": "cancelled", "label": "Cancelled", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "test", "label": "Record the compatibility test", "from": ["requested"], "to": "tested", "require": ["evidence"]},
+    {"id": "approve", "label": "Approve", "from": ["tested"], "to": "approved", "approval": true},
+    {"id": "enable", "label": "Record that it is enabled", "from": ["approved"], "to": "enabled", "require": ["note"]},
+    {"id": "roll-back", "label": "Rolled back", "from": ["enabled"], "to": "tested", "require": ["note"]},
+    {"id": "verify", "label": "Verify", "from": ["enabled"], "to": "verified", "verify": true},
+    {"id": "close", "label": "Close", "from": ["verified"], "to": "closed"},
+    {"id": "defer", "label": "Defer until a date", "from": ["requested", "tested"], "to": "deferred", "role": "admin", "require": ["note", "until"]},
+    {"id": "resume", "label": "Resume", "from": ["deferred"], "to": "requested", "require": ["note"]},
+    {"id": "cancel", "label": "Cancel", "from": ["requested", "tested", "approved"], "to": "cancelled", "require": ["note"]}
+  ]
+}

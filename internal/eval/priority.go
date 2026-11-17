@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/offsetsecurity/cipherhorizon/internal/policy"
 )
 
 // Prioritisation orders systems for migration work by an explicit, cited sequence of rules.
@@ -71,9 +73,9 @@ type Ranked struct {
 	Evidence string `json:"evidence"`
 }
 
-var (
-	hndlBeyond = 2030 // NIST IR 8547: quantum-vulnerable public-key algorithms deprecated by 2030
-)
+// hndlBeyond is the year after which NIST IR 8547 deprecates quantum-vulnerable key establishment,
+// read from the policy catalog (ADR-0022).
+var hndlBeyond = policy.Default().MustMilestone("ir8547.key-establishment-deprecated").Day().Year()
 
 type keyed struct {
 	in       PriorityInput

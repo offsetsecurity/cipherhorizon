@@ -64,6 +64,14 @@
     {
       "name": "discovery",
       "description": "Finding the host names under a domain, reviewing them and adding them as endpoints."
+    },
+    {
+      "name": "work",
+      "description": "Tracked work: workflows, transitions, approvals, prerequisites and verification by the product's own scans (PRD-023)."
+    },
+    {
+      "name": "standards",
+      "description": "Published standards, clause by clause, and the policy catalog."
     }
   ],
   "paths": {
@@ -4019,6 +4027,549 @@
           },
           "415": {
             "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/work": {
+      "get": {
+        "summary": "List tracked work, most recently changed first.",
+        "description": "Filters: marker (requested, approved, executed, reported, verified, complete, exception, cancelled, or open for anything not finished), owner, project, workflow, asset, system, certificate, limit (default 1000, at most 5000).",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work",
+        "parameters": [
+          {
+            "name": "marker",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "system",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "certificate",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a piece of work about a finding, certificate, readiness target, endpoint or system.",
+        "description": "Body: title, workflow (an id from GET /api/v1/workflows), subject {kind, assetId, systemId, certificate, findingKey, targetLevel}, owner, due (a date or RFC 3339 time), project, description. The subject must exist now; a finding must be among the endpoint's current findings.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "post_work",
+        "requestBody": {
+          "required": true,
+          "description": "The new work.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "413": {
+            "description": "Request body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/work/{id}": {
+      "get": {
+        "summary": "One piece of work, with its stages, the transitions open from its stage, its prerequisites and its history.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Change the title, owner, project, description or due date (\"\" clears the due date).",
+        "tags": [
+          "work"
+        ],
+        "operationId": "patch_work_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Recorded in the audit log beside the change."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The fields to change.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/work/{id}/transitions": {
+      "post": {
+        "summary": "Move the work along its workflow.",
+        "description": "Body: transition, note, evidence, until. Refused with a code and a reason: wrong-stage, role (403), approval (a different signed-in person must approve), missing-field, until, blocked (a prerequisite is unfinished), not-verified (the product's own verification did not say verified; its result is returned), moved (someone else moved it first).",
+        "tags": [
+          "work"
+        ],
+        "operationId": "post_work_id_transitions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The transition and its fields.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/work/{id}/verification": {
+      "get": {
+        "summary": "What the product's own scans and uploads since the change say: verified, not-verified, waiting or not-verifiable.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_id_verification",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/work/{id}/dependencies/{otherId}": {
+      "put": {
+        "summary": "Make the work wait for another piece of work.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "put_work_id_dependencies_otherid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "otherId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Added"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a prerequisite.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "delete_work_id_dependencies_otherid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "otherId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/workflows": {
+      "get": {
+        "summary": "Every workflow template: the built-in ones and the latest version of each custom one.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_workflows",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a custom workflow template, or a new version of one (administrators only).",
+        "description": "The body is a template (id, title, purpose, subjects, stages, transitions); its version is assigned. A built-in id cannot be used.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "post_workflows",
+        "requestBody": {
+          "required": true,
+          "description": "The template.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "413": {
+            "description": "Request body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/workflows/{workflow}": {
+      "get": {
+        "summary": "One workflow template.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_workflows_workflow",
+        "parameters": [
+          {
+            "name": "workflow",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,39}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/policy/catalog": {
+      "get": {
+        "summary": "The catalog of standards documents, their status and dated milestones, and the profiles that group them.",
+        "tags": [
+          "standards"
+        ],
+        "operationId": "get_policy_catalog",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
           }
         }
       }

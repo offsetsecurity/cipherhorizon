@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/pki"
+	"github.com/offsetsecurity/cipherhorizon/internal/policy"
 	"github.com/offsetsecurity/cipherhorizon/internal/refdata"
 )
 
@@ -34,11 +35,12 @@ var quantumVulnerableKeys = map[string]bool{
 	"RSA": true, "RSASSA-PSS": true, "ECDSA": true, "Ed25519": true, "Ed448": true, "DSA": true, "X25519": true, "X448": true,
 }
 
-// The dates NIST IR 8547 (October 2026) gives for the transition: quantum-vulnerable
-// public-key algorithms to be deprecated by 2030 and disallowed by 2035.
+// The dates NIST IR 8547 (October 2026) gives for the transition, read from the policy catalog
+// (ADR-0022): quantum-vulnerable signature algorithms deprecated after 2030 and disallowed after 2035,
+// each the last instant of that year.
 var (
-	pqcDeprecatedAfter = time.Date(2030, 12, 31, 23, 59, 59, 0, time.UTC)
-	pqcDisallowedAfter = time.Date(2035, 1, 1, 0, 0, 0, 0, time.UTC)
+	pqcDeprecatedAfter = policy.Default().MustMilestone("ir8547.signatures-deprecated").Cutoff()
+	pqcDisallowedAfter = policy.Default().MustMilestone("ir8547.signatures-disallowed").Cutoff()
 )
 
 // EvaluateCertificate judges one certificate. It applies the same certificate rules as the

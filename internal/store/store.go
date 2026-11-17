@@ -533,6 +533,56 @@ var migrations = []string{
 	// 19: a found name that resolves only to what the zone answers for any name under the domain
 	// (wildcard DNS) is marked, so it is not mistaken for a host of its own (PRD-022).
 	`ALTER TABLE discovery_names ADD COLUMN wildcard INTEGER NOT NULL DEFAULT 0;`,
+	// 20: tracked work (PRD-023, ADR-0021). A workflow is a template stored as JSON, versioned; the
+	// built-in ones live in the binary and are not stored. A piece of work keeps a copy of the template it
+	// was created with, so a new template version never changes work under way. Work is cancelled, never
+	// deleted; its history is in audit_log (object kind "work"). A subject that is deleted later leaves the
+	// work in place with its reference emptied.
+	`CREATE TABLE workflows (
+		id TEXT NOT NULL,
+		version INTEGER NOT NULL CHECK (version > 0),
+		definition TEXT NOT NULL,
+		created_by TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		PRIMARY KEY (id, version)
+	);
+	CREATE TABLE work_items (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		title TEXT NOT NULL,
+		workflow_id TEXT NOT NULL,
+		workflow_version INTEGER NOT NULL,
+		workflow_json TEXT NOT NULL,
+		stage TEXT NOT NULL,
+		marker TEXT NOT NULL DEFAULT '',
+		subject_kind TEXT NOT NULL CHECK (subject_kind IN ('finding','certificate','readiness','endpoint','system')),
+		asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+		system_id INTEGER REFERENCES systems(id) ON DELETE SET NULL,
+		certificate TEXT NOT NULL DEFAULT '',
+		finding_key TEXT NOT NULL DEFAULT '',
+		target_level INTEGER,
+		owner TEXT NOT NULL DEFAULT '',
+		due_at TEXT,
+		project TEXT NOT NULL DEFAULT '',
+		description TEXT NOT NULL DEFAULT '',
+		approvers TEXT NOT NULL DEFAULT '[]',
+		created_by TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		executed_at TEXT,
+		exception_until TEXT,
+		verification TEXT NOT NULL DEFAULT '',
+		closed_at TEXT
+	);
+	CREATE INDEX work_items_marker ON work_items(marker);
+	CREATE INDEX work_items_asset ON work_items(asset_id);
+	CREATE INDEX work_items_system ON work_items(system_id);
+	CREATE INDEX work_items_certificate ON work_items(certificate) WHERE certificate <> '';
+	CREATE TABLE work_deps (
+		item_id INTEGER NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+		depends_on INTEGER NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+		PRIMARY KEY (item_id, depends_on),
+		CHECK (item_id <> depends_on)
+	) WITHOUT ROWID;`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same

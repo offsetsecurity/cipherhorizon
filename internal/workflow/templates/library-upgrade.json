@@ -1,0 +1,25 @@
+{
+  "id": "library-upgrade",
+  "version": 1,
+  "title": "Cryptographic library upgrade",
+  "purpose": "Upgrade a cryptographic library or runtime and test the applications that use it. What a library can do is not observable from outside, so this work closes as complete, not verified.",
+  "subjects": ["system", "endpoint"],
+  "stages": [
+    {"id": "requested", "label": "Requested", "marker": "requested"},
+    {"id": "planned", "label": "Upgrade path chosen"},
+    {"id": "approved", "label": "Approved", "marker": "approved"},
+    {"id": "upgraded", "label": "Upgraded", "marker": "executed"},
+    {"id": "tested", "label": "Applications tested", "marker": "reported"},
+    {"id": "closed", "label": "Closed", "marker": "complete", "terminal": true},
+    {"id": "cancelled", "label": "Cancelled", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "plan", "label": "Record the upgrade path", "from": ["requested"], "to": "planned", "require": ["note"]},
+    {"id": "approve", "label": "Approve", "from": ["planned"], "to": "approved", "approval": true},
+    {"id": "upgrade", "label": "Record the upgrade", "from": ["approved"], "to": "upgraded", "require": ["evidence"]},
+    {"id": "test", "label": "Record application tests", "from": ["upgraded"], "to": "tested", "require": ["evidence"]},
+    {"id": "roll-back", "label": "Rolled back", "from": ["upgraded", "tested"], "to": "planned", "require": ["note"]},
+    {"id": "close", "label": "Close", "from": ["tested"], "to": "closed"},
+    {"id": "cancel", "label": "Cancel", "from": ["requested", "planned", "approved"], "to": "cancelled", "require": ["note"]}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "manual",
+  "version": 1,
+  "title": "Manual work",
+  "purpose": "Anything else: open, in progress, done. No approval and no verification; done means someone said so.",
+  "subjects": ["system", "endpoint", "finding", "certificate", "readiness"],
+  "stages": [
+    {"id": "open", "label": "Open", "marker": "requested"},
+    {"id": "in-progress", "label": "In progress"},
+    {"id": "done", "label": "Done", "marker": "complete", "terminal": true},
+    {"id": "cancelled", "label": "Cancelled", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "start", "label": "Start", "from": ["open"], "to": "in-progress"},
+    {"id": "finish", "label": "Mark done", "from": ["open", "in-progress"], "to": "done", "require": ["note"]},
+    {"id": "cancel", "label": "Cancel", "from": ["open", "in-progress"], "to": "cancelled", "require": ["note"]}
+  ]
+}

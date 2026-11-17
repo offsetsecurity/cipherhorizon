@@ -1,0 +1,30 @@
+{
+  "id": "pki-signature-migration",
+  "version": 1,
+  "title": "PKI and certificate signature migration",
+  "purpose": "Move an endpoint to a post-quantum certificate (readiness level 4) once the CA, the trust stores and the clients support it; a pilot comes first.",
+  "subjects": ["readiness"],
+  "stages": [
+    {"id": "requested", "label": "Requested", "marker": "requested"},
+    {"id": "assessed", "label": "Trust ecosystem assessed"},
+    {"id": "piloted", "label": "Pilot done"},
+    {"id": "approved", "label": "Approved", "marker": "approved"},
+    {"id": "rolled-out", "label": "Rolled out", "marker": "executed"},
+    {"id": "verified", "label": "Verified by scan", "marker": "verified"},
+    {"id": "waiting", "label": "Waiting for the ecosystem", "marker": "exception"},
+    {"id": "closed", "label": "Closed", "marker": "complete", "terminal": true},
+    {"id": "cancelled", "label": "Cancelled", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "assess", "label": "Record the assessment", "from": ["requested"], "to": "assessed", "require": ["evidence"]},
+    {"id": "pilot", "label": "Record the pilot", "from": ["assessed"], "to": "piloted", "require": ["evidence"]},
+    {"id": "approve", "label": "Approve", "from": ["piloted"], "to": "approved", "approval": true},
+    {"id": "roll-out", "label": "Record the roll-out", "from": ["approved"], "to": "rolled-out", "require": ["note"]},
+    {"id": "roll-back", "label": "Rolled back", "from": ["rolled-out"], "to": "piloted", "require": ["note"]},
+    {"id": "verify", "label": "Verify", "from": ["rolled-out"], "to": "verified", "verify": true},
+    {"id": "close", "label": "Close", "from": ["verified"], "to": "closed"},
+    {"id": "wait", "label": "Wait until a date", "from": ["requested", "assessed", "piloted"], "to": "waiting", "require": ["note", "until"]},
+    {"id": "resume", "label": "Resume", "from": ["waiting"], "to": "requested", "require": ["note"]},
+    {"id": "cancel", "label": "Cancel", "from": ["requested", "assessed", "piloted", "approved"], "to": "cancelled", "require": ["note"]}
+  ]
+}

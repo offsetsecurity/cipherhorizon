@@ -1,0 +1,28 @@
+{
+  "id": "tls-configuration-change",
+  "version": 1,
+  "title": "TLS or SSH configuration change",
+  "purpose": "Fix a finding on an endpoint or a host by changing its configuration; closed when a later scan no longer finds it, or accepted as a risk until a date.",
+  "subjects": ["finding"],
+  "stages": [
+    {"id": "requested", "label": "Requested", "marker": "requested"},
+    {"id": "planned", "label": "Change planned"},
+    {"id": "approved", "label": "Approved", "marker": "approved"},
+    {"id": "changed", "label": "Configuration changed", "marker": "executed"},
+    {"id": "verified", "label": "Verified by scan", "marker": "verified"},
+    {"id": "risk-accepted", "label": "Risk accepted", "marker": "exception"},
+    {"id": "closed", "label": "Closed", "marker": "complete", "terminal": true},
+    {"id": "cancelled", "label": "Cancelled", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "plan", "label": "Plan the change", "from": ["requested"], "to": "planned"},
+    {"id": "approve", "label": "Approve", "from": ["planned"], "to": "approved", "approval": true},
+    {"id": "change", "label": "Record the change", "from": ["approved"], "to": "changed", "require": ["note"]},
+    {"id": "rework", "label": "Change did not hold", "from": ["changed"], "to": "planned", "require": ["note"]},
+    {"id": "verify", "label": "Verify", "from": ["changed"], "to": "verified", "verify": true},
+    {"id": "close", "label": "Close", "from": ["verified"], "to": "closed"},
+    {"id": "accept-risk", "label": "Accept the risk until a date", "from": ["requested", "planned"], "to": "risk-accepted", "role": "admin", "require": ["note", "until"]},
+    {"id": "reopen", "label": "Reopen", "from": ["risk-accepted"], "to": "requested", "require": ["note"]},
+    {"id": "cancel", "label": "Cancel", "from": ["requested", "planned", "approved"], "to": "cancelled", "require": ["note"]}
+  ]
+}
