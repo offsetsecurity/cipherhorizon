@@ -6,7 +6,8 @@
 
 export async function fixesPhase({ check, js, go, sleep, shot, api, viewport, CONTROL }) {
   await viewport(1440, 900, false);
-  const post = (path, body) => js(`return (async () => { const r = await fetch(${JSON.stringify(path)}, { method: 'POST', headers: { 'X-Requested-With': 'cipherhorizon', 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body || {}))} }); return { status: r.status, body: await r.text() }; })()`);
+  // Started from here with the automation token: no value is built into code run in the page.
+  const startScan = (assetId) => api(`/api/v1/assets/${assetId}/scan`, { method: 'POST', headers: { 'X-Requested-With': 'cipherhorizon' } });
   const waitScan = async (assetId, notId) => {
     for (let i = 0; i < 120; i++) {
       const a = await api(`/api/v1/assets/${assetId}`);
@@ -22,7 +23,7 @@ export async function fixesPhase({ check, js, go, sleep, shot, api, viewport, CO
   const off = await fetch(`${CONTROL}/pq/off`, { method: 'POST' });
   const assets = await api('/api/v1/assets?kind=endpoint');
   const target = assets.find((a) => a.port === 9445);
-  await post(`/api/v1/assets/${target.id}/scan`);
+  await startScan(target.id);
   const classical = await waitScan(target.id, target.lastDone?.id);
   check('E2E-FX.pre', 'the toggle endpoint is classical again (L1) before the story starts', off.ok && classical?.lastDone?.readinessLevel === 1, classical?.lastDone?.readinessLevel);
 
@@ -87,7 +88,7 @@ export async function fixesPhase({ check, js, go, sleep, shot, api, viewport, CO
   // E2E-FX.6: the change is undone; the next scan brings the fix back to the top.
   await fetch(`${CONTROL}/pq/off`, { method: 'POST' });
   const last = await api(`/api/v1/assets/${target.id}`);
-  await post(`/api/v1/assets/${target.id}/scan`);
+  await startScan(target.id);
   await waitScan(target.id, last.lastDone.id);
   await go('#/');
   await sleep(400);
