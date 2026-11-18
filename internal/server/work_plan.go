@@ -326,8 +326,7 @@ func (s *Server) suggestions(now time.Time) ([]Suggestion, error) {
 		}
 		days := int(na.Sub(now).Hours() / 24)
 		link := "#/certificates/" + c.Fingerprint
-		switch {
-		case days <= ls.ExpiryWarnDays:
+		if days <= ls.ExpiryWarnDays {
 			sev := "medium"
 			if days <= ls.ExpiryCriticalDays {
 				sev = "high"
