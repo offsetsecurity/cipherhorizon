@@ -271,7 +271,7 @@ function nextSteps(w, finished, repaint) {
   const forward = w.transitions.find((t) => t.verify) || w.transitions.find((t) => !/cancel|fail|back|rework|retry|reopen|resume|redeploy/.test(t.id)) || w.transitions[0];
   box.appendChild(h('div', { class: 'row' }, w.transitions.map((t) => transitionButton(w, t, repaint, t === forward ? 'primary' : (t.id === 'cancel' ? 'ghost' : 'secondary')))));
   const notes = [];
-  const signedIn = !!(session.user && session.user.username);
+  const signedIn = !!(session.user && session.user.kind === 'session');
   if (w.transitions.some((t) => t.approval)) {
     notes.push(signedIn ? `An approval must come from a signed-in person other than ${w.createdBy}.`
       : 'Sign-in is off, so nobody can approve: two people cannot be told apart. Turn sign-in on in Settings, or use a workflow without approvals.');

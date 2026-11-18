@@ -189,15 +189,22 @@ func (s *Server) lifecycleEvents(now time.Time) ([]LifecycleEvent, error) {
 	for _, it := range items {
 		link := fmt.Sprintf("#/work/%d", it.ID)
 		finished := workflow.Finished(it.Marker)
+		tmpl, _ := workflow.Parse(it.WorkflowJSON)
+		stage := it.Stage
+		if tmpl != nil {
+			if st, ok := tmpl.Stage(it.Stage); ok {
+				stage = st.Label
+			}
+		}
 		if !finished && it.Marker != workflow.MarkException && it.DueAt != nil {
 			switch {
 			case now.After(*it.DueAt):
 				add(LifecycleEvent{Key: fmt.Sprintf("%s:%d:%s", EvWorkOverdue, it.ID, it.DueAt.Format(time.DateOnly)), Kind: EvWorkOverdue, Severity: "high",
-					Title: fmt.Sprintf("Overdue: %s", it.Title), Detail: fmt.Sprintf("Due %s; owner %s; stage %s.", it.DueAt.Format(time.DateOnly), orNobody(it.Owner), it.Stage),
+					Title: fmt.Sprintf("Overdue: %s", it.Title), Detail: fmt.Sprintf("Due %s; owner %s; stage: %s.", it.DueAt.Format(time.DateOnly), orNobody(it.Owner), stage),
 					Link: link, WorkID: it.ID})
 			case it.DueAt.Sub(now) <= time.Duration(ls.DueSoonDays)*24*time.Hour:
 				add(LifecycleEvent{Key: fmt.Sprintf("%s:%d:%s", EvWorkDueSoon, it.ID, it.DueAt.Format(time.DateOnly)), Kind: EvWorkDueSoon, Severity: "medium",
-					Title: fmt.Sprintf("Due %s: %s", it.DueAt.Format(time.DateOnly), it.Title), Detail: fmt.Sprintf("Owner %s; stage %s.", orNobody(it.Owner), it.Stage),
+					Title: fmt.Sprintf("Due %s: %s", it.DueAt.Format(time.DateOnly), it.Title), Detail: fmt.Sprintf("Owner %s; stage: %s.", orNobody(it.Owner), stage),
 					Link: link, WorkID: it.ID})
 			}
 		}
@@ -207,7 +214,7 @@ func (s *Server) lifecycleEvents(now time.Time) ([]LifecycleEvent, error) {
 				Link: link, WorkID: it.ID})
 		}
 		if !finished {
-			if t, err := workflow.Parse(it.WorkflowJSON); err == nil && slices.ContainsFunc(t.From(it.Stage), func(tr workflow.Transition) bool { return tr.Approval }) {
+			if tmpl != nil && slices.ContainsFunc(tmpl.From(it.Stage), func(tr workflow.Transition) bool { return tr.Approval }) {
 				add(LifecycleEvent{Key: fmt.Sprintf("%s:%d:%s", EvWorkApproval, it.ID, it.Stage), Kind: EvWorkApproval, Severity: "info",
 					Title: fmt.Sprintf("Approval needed: %s", it.Title), Detail: fmt.Sprintf("Requested by %s; someone else must approve.", it.CreatedBy),
 					Link: link, WorkID: it.ID})

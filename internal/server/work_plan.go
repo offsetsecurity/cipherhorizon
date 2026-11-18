@@ -270,17 +270,34 @@ func (s *Server) suggestions(now time.Time) ([]Suggestion, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, f := range findings {
-			if (f.Severity != "critical" && f.Severity != "high") || f.Category == "certificate" || f.Status != nil {
+		// One suggestion per endpoint: its worst untracked finding, and how many more wait behind it
+		// Seven rows for one server would bury the other endpoints.
+		var worst *FlatFinding
+		more := 0
+		for i := range findings {
+			f := findings[i]
+			if (f.Severity != "critical" && f.Severity != "high") || f.Category == "certificate" || f.Status != nil ||
+				hasWork[fmt.Sprintf("finding:%d:%s", a.ID, f.Key)] {
 				continue
 			}
-			key := fmt.Sprintf("finding:%d:%s", a.ID, f.Key)
-			if hasWork[key] {
-				continue
+			switch {
+			case worst == nil:
+				worst = &findings[i]
+			case f.Severity == "critical" && worst.Severity != "critical":
+				worst = &findings[i]
+				more++
+			default:
+				more++
 			}
-			out = append(out, Suggestion{Key: key, Severity: f.Severity, Title: f.Title + " on " + a.Name, Reason: firstSentence(f.Remediation, f.Detail),
-				Workflow: "tls-configuration-change", Link: link,
-				Subject: workSubjectReq{Kind: workflow.SubjectFinding, AssetID: a.ID, FindingKey: f.Key}})
+		}
+		if worst != nil {
+			reason := firstSentence(worst.Remediation, worst.Detail)
+			if more > 0 {
+				reason += fmt.Sprintf(" %d more critical or high finding(s) on this endpoint follow once this is tracked.", more)
+			}
+			out = append(out, Suggestion{Key: fmt.Sprintf("finding:%d:%s", a.ID, worst.Key), Severity: worst.Severity, Title: worst.Title + " on " + a.Name,
+				Reason: reason, Workflow: "tls-configuration-change", Link: link,
+				Subject: workSubjectReq{Kind: workflow.SubjectFinding, AssetID: a.ID, FindingKey: worst.Key}})
 		}
 	}
 
