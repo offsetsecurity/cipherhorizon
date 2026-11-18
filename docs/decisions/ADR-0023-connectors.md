@@ -33,6 +33,9 @@ success as fact.
 
 ## Consequences
 
+- The webhook's address is stored in the database (it is configuration an administrator typed), although for
+  chat webhooks it is itself a credential: delivery errors record the host only, and the address is shown to
+  administrators only. Moving it to a reference is a follow-up.
 - In this version two connectors are available: the scanner and collectors (verification, discovery) and the
   webhook (notification, and the simplest workflow integration: a ticketing system can open a change from an
   event). The webhook follows rules 4 and 5: the HMAC secret is an environment variable's name.

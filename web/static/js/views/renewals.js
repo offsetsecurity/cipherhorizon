@@ -34,7 +34,7 @@ function row(c, warn, repaint) {
   }
   return h('li', { class: 'fxrow', 'data-cert': c.fingerprint },
     h('div', { class: 'fxrow-main' }, h('a', { href: `#/certificates/${c.fingerprint}`, class: 'fxrow-title' }, c.name), state),
-    h('div', { class: 'fxrow-owner' }, `${fmtDay(c.notAfter)}`, h('div', { class: 'small muted' }, `on ${plural(c.endpoints, 'endpoint')}${c.renewal ? ` · ${METHOD[c.renewal] || c.renewal}` : ''}`)),
+    h('div', { class: 'fxrow-owner' }, `${fmtDay(c.notAfter)}`, h('div', { class: 'small muted' }, `on ${plural(c.endpoints, 'endpoint')}${c.renewal ? ` · ${METHOD[c.renewal] || c.renewal}` : c.issuer ? ` · from ${c.issuer}` : ''}`)),
     action);
 }
 

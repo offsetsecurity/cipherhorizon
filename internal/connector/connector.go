@@ -48,21 +48,21 @@ func Registry() []Descriptor {
 	return []Descriptor{
 		{
 			ID: "scanner", Name: "CipherHorizon scanner and collectors", Categories: []string{Verification, Discovery}, Status: Available,
-			Summary:      "The product's own TLS and SSH scans and host inventories. The only source that can mark work verified.",
+			Summary:      "The product's own TLS and SSH scans and host inventories. The only thing that decides a fix is fixed.",
 			Capabilities: []string{"verify a finding is gone", "verify a certificate was replaced on every endpoint that served it", "verify a readiness level is reached", "discover endpoints from a domain"},
 			Auth:         []string{"none: it connects to the endpoints you add, within --scan-allow"},
 			Config:       []string{"endpoints and machines", "--scan-allow"},
 			Limits:       []string{"sees what a client sees: a library's capabilities inside an application are not observable from the network"},
-			Docs:         "docs/work.md",
+			Docs:         "docs/fixes.md",
 		},
 		{
 			ID: "webhook", Name: "Webhook", Categories: []string{Notification, Workflow}, Status: Available,
-			Summary:      "Sends each lifecycle event once, as JSON (signed with HMAC-SHA256 when a secret is set) or as a chat message Slack and Microsoft Teams incoming webhooks accept.",
+			Summary:      "Sends each lifecycle event once, as JSON (signed with HMAC-SHA256 when a secret is set) or as a chat message in the shape Slack and Microsoft Teams incoming webhooks document (not tested against either service).",
 			Capabilities: []string{"work overdue or due soon", "approval needed", "exception ended", "verified change no longer holds", "certificate expiring or expired", "certificate changed without planned work"},
 			Auth:         []string{"HMAC-SHA256 signature over the body, secret read from an environment variable named in Settings"},
 			Config:       []string{"webhook address (http or https)", "format: json or chat", "secret environment variable (optional)", "which events"},
 			Limits:       []string{"one destination", "Teams Workflows webhooks that need an Adaptive Card are not supported", "five delivery attempts per event, then it is marked failed"},
-			Docs:         "docs/work.md#the-lifecycle-monitor-and-notifications",
+			Docs:         "docs/fixes.md#being-told",
 		},
 		{
 			ID: "acme", Name: "ACME (RFC 8555)", Categories: []string{Issuer}, Status: Planned, Licence: "BSD-3-Clause (golang.org/x/crypto/acme, already a dependency)",

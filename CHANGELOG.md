@@ -12,37 +12,33 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ### Added
 
-- **Work: tracked changes the product verifies.** A new place in the menu follows a fix from the finding to the
-  end: an owner, a due date, a project, the steps of a workflow, an approval, and the moment the change was made.
-  Open it where the problem is: *Plan hybrid key exchange* on an endpoint below L3, *Track* beside a finding,
-  *Plan renewal* on a certificate. Work reaches *Verified by scan* only when a scan or upload made after the change
-  shows it: the finding gone, the old certificate no longer served anywhere it was and its replacement valid for
-  longer, or the readiness level reached. Work the product cannot observe closes as *complete* and is counted
-  apart. Eight workflows are built in (certificate renewal, emergency replacement, TLS or SSH configuration change,
-  post-quantum key exchange, PKI signature migration, library upgrade, vendor-dependent, manual), and an
-  administrator can add their own as JSON; no workflow can mark work verified without the scan, let the requester
-  approve, or accept a risk without an end date. Every step is in the audit log. The Work page shows where all
-  work stands, post-quantum key exchange across the endpoints out of those scanned (the unscanned counted as
-  unknown), and each figure with what it is out of. See [docs/work.md](docs/work.md) and the walkthrough
-  [docs/lifecycle-walkthrough.md](docs/lifecycle-walkthrough.md); ADR-0021.
-- **Suggested work.** *Work, Suggested* lists what the scans point at and nobody has opened: endpoints below
-  hybrid key exchange, untracked critical and high findings, certificates expiring or valid past 2030. Each says why
-  and, where a standard sets a date, which one.
-- **The lifecycle monitor and notifications.** *Work, Needs attention* lists work overdue, due soon or waiting
-  for an approval, accepted risks past their end, **verified work that a later scan contradicts**, certificates
-  expired or expiring (30 and 7 days by default), and **a certificate that changed with no work naming the old
-  one**. An administrator can send each event once to a webhook (*Settings, Notifications*): JSON signed with
-  HMAC-SHA256, or a chat message for Slack and Teams incoming webhooks. The secret is the name of an environment
-  variable, never stored; the webhook obeys the scan guard's address rules. `serve --monitor-every` (default 15
-  minutes) and `--public-url` for absolute links.
-- **Certificate ownership.** A certificate's page records who owns it and how it is renewed, lists the work that
-  names it, and offers *Plan renewal*.
-- **Integrations.** *Settings, Integrations* lists what this server can talk to, what each connector can do, how it
-  authenticates and its limits: the scanner and the webhook are available; issuing and deploying connectors
-  (ACME and step-ca, cert-manager, Ansible, OpenBao, cloud certificate services, e-mail) are listed as planned.
-  ADR-0023 sets the rules they will follow.
-- **Evidence for auditors.** *Work* downloads a CSV and an evidence pack: every piece of work with its workflow, its
-  full history from the audit log, and a verification computed again at export.
+- **Fixes: assign once, the scans do the rest.** A new page lists what your scans found, most serious first, one
+  line per endpoint. Press *Assign*, say who will fix it and by when, optionally paste a link to your own ticket,
+  and that is all: every scan after that checks it. The fix reads *Not fixed yet* until a scan shows the problem
+  gone, then *Fixed* with the date, and it moves to *Came back* at the top of the page if a later scan finds the
+  problem again. Nobody can mark a fix as done by hand. A progress line counts the endpoints that keep today's
+  traffic safe from later decryption, out of those scanned. *Put on hold* takes a reason and a date within a year.
+  *Assign* is also on an endpoint's page, beside a finding and on a certificate. An endpoint with a fix assigned is
+  scanned every day. See [docs/fixes.md](docs/fixes.md) and the walkthrough
+  [docs/lifecycle-walkthrough.md](docs/lifecycle-walkthrough.md).
+- **Renewals.** Every certificate your scanned endpoints serve, by the date it runs out, with who has each
+  renewal. A renewal is done when a scan sees a certificate issued after the old one on every endpoint that served
+  it. A certificate that changed with nobody assigned is listed until someone says it was expected. A certificate's
+  page records its owner and how it is renewed.
+- **Being told.** An administrator can set a webhook (*Settings, Notifications*) and the server sends each event
+  once: a fix came back, a fix is overdue, a certificate runs out within 30 days (high within 7), a certificate
+  changed with nobody assigned. JSON signed with HMAC-SHA256, or a chat message in the shape Slack and Teams
+  incoming webhooks document (not tested against either service). The secret is the name of an environment
+  variable, never stored; the webhook address is stored and obeys the scanner's address rules. This is the first
+  time the server makes an outbound connection that is not a scan or a lookup you turned on, and only after an
+  administrator sets the address. `serve --monitor-every` (default 15 minutes) and `--public-url`.
+- **A record for auditors.** *Fixes* downloads every fix with its history from the audit log and a check computed
+  again at export.
+- **Integrations.** *Settings, Integrations* lists what this server can talk to: the scanner and the webhook are
+  available; connectors that issue or deploy certificates or open tickets are listed as planned (ADR-0023).
+- **Workflows in the API.** Underneath, a fix is a piece of work on a workflow. The API also offers workflows of
+  your own with stages, approvals by a second signed-in person and prerequisites (`/api/v1/work`,
+  `/api/v1/workflows`; ADR-0021). They are not in the web interface.
 - **Policy catalog.** The standards documents and dated milestones the product acts on (NIST IR 8547's 2030 and
   2035 dates, the federal dates it quotes, FIPS 203/204/205, the drafts that are not final yet) are now data with
   status, date, address and provenance, served at `/api/v1/policy/catalog` (ADR-0022).

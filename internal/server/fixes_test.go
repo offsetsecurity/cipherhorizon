@@ -113,7 +113,7 @@ func TestAFixIsDecidedByScansAlone(t *testing.T) {
 	restartWith(t, srv, testserver.Config{MinVersion: tls.VersionTLS12, MaxVersion: tls.VersionTLS12})
 	e.scanAndWait(a.ID)
 	f = fixes(t, e)
-	if len(f.CameBack) != 1 || f.CameBack[0].CameBackAt == nil || !strings.Contains(f.CameBack[0].Detail, "PROTO.NO-TLS13") || len(f.Fixed) != 0 {
+	if len(f.CameBack) != 1 || f.CameBack[0].CameBackAt == nil || !strings.Contains(f.CameBack[0].Detail, "still finds it") || len(f.Fixed) != 0 {
 		t.Fatalf("after the change was undone: %+v", f)
 	}
 	if ev := hasKind(events(t, e), "work.regressed"); ev == nil || ev.Severity != "critical" || ev.Link != "#/fixes/"+itoa(id) {

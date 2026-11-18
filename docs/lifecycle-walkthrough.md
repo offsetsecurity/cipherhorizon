@@ -1,22 +1,18 @@
-# Walkthrough: from a finding to a change the product has verified
+# Walkthrough: from a problem to a fix the scans confirmed
 
-This is the story CipherHorizon's lifecycle features are built for, played on the demo targets so you can run it
-in fifteen minutes on one machine, followed by how each claim it makes was tested and how to test it yourself.
-The reference for every screen and setting is [work.md](work.md).
+The job CipherHorizon's Fixes and Renewals pages are for, played on the demo targets in about fifteen minutes on
+one machine, followed by how each claim it makes is tested. The reference is [fixes.md](fixes.md).
 
-## The story in one paragraph
+## The story
 
-A platform team scans its endpoints. One negotiates classical key exchange: traffic recorded today could be
-decrypted once a quantum computer exists. The team lead opens work on it from the endpoint's page, *Bring it to
-hybrid key exchange*, with an owner, a due date and a project. An engineer records the client compatibility test.
-A second person approves; the lead could not have. The change is recorded as made, and the product **refuses to
-call it verified**: no scan has run since. A scan runs and still finds classical key exchange: someone changed the
-wrong server. The engineer fixes it for real; the next scan shows hybrid key exchange negotiated, and only now
-does the work move to *Verified by scan* and close. Weeks later someone reverts the configuration; the next
-scheduled scan sees it and the monitor reports, as critical, that verified work no longer holds. The auditor gets
-the evidence pack: every step, who took it, and a verification computed again at export.
+A platform team scans its endpoints. One negotiates a classical key exchange: traffic recorded today could be
+decrypted once a quantum computer exists. The team lead presses **Assign**, names the platform team and a date,
+pastes the link to the change ticket, and does nothing else. That night's scan says *Not fixed yet*. The engineer
+makes the change; the next scan says *Fixed*, with the date, and nobody pressed anything. Weeks later someone
+reverts the configuration; the next scan moves the fix to *Came back* at the top of the page and the team is told.
+The auditor downloads the record: who was assigned, which scan confirmed the fix, when it came back.
 
-## Set up (five minutes)
+## Set up
 
 ```bash
 go build -o dist/cipherhorizon ./cmd/cipherhorizon && go build -o dist/demo-targets ./cmd/demo-targets
@@ -27,91 +23,70 @@ go build -o dist/cipherhorizon ./cmd/cipherhorizon && go build -o dist/demo-targ
 ```
 
 ```bash
-./dist/cipherhorizon serve --allow-loopback --sign-in on --db walkthrough.db
+./dist/cipherhorizon serve --allow-loopback --db walkthrough.db
 ```
 
-The server prints a one-time setup code. Open `http://127.0.0.1:8080`, enter the code, and create the
-administrator (the *team lead* below). In **Users**, add a second account with the role *analyst* (the
-*approver*). Approvals need two people who can be told apart, which is why sign-in is on.
+Open `http://127.0.0.1:8080`. No sign-in is needed for this tour.
 
-## 1. Discover and assess
+## 1. See what needs fixing
 
-**TLS endpoints → Add TLS endpoints**, paste:
+**TLS endpoints → Add TLS endpoints**, paste these and let them scan:
 
 ```
 127.0.0.1:9440
 127.0.0.1:9441
-127.0.0.1:9442
+127.0.0.1:9443
 127.0.0.1:9445
 ```
 
-and let them scan. `9440` negotiates hybrid key exchange (L3); `9441` and `9445` only classical (L1); `9442`
-offers no TLS 1.3 (L0). `9445` is the one you will change: the demo targets let you switch its post-quantum key
-exchange on and off.
+Open **Fixes**. The progress line says how many of the four scanned endpoints keep today's traffic safe from
+later decryption (one: `9440`). **To fix next** lists the rest, most serious first, one line per endpoint: `9443`
+accepts connections with no authentication (critical, with "6 more serious problems on this server"); `9441` and
+`9445` need post-quantum key exchange, with a link to the NIST date behind it.
 
-Open **Work → Suggested**. The scans already point at work nobody has opened: hybrid key exchange for the L1
-endpoints (citing NIST IR 8547's deprecation of quantum-vulnerable key establishment after 2030), the high
-findings, certificates near their end. The **Post-quantum key exchange** bar above the tabs counts the endpoints
-at L3 out of those **scanned**, and keeps the never-scanned apart as unknown.
+## 2. Assign
 
-## 2. Plan
+Press **Assign** on the `127.0.0.1:9445` line. Fill in who and by when; paste any link as the ticket. Press
+**Assign**. The fix opens: *Not checked yet*, how to fix it, and one line of history. The endpoint is now scanned
+every day.
 
-Open `127.0.0.1:9445` and press **Plan hybrid key exchange**. The dialog proposes the *Post-quantum key exchange*
-workflow and says how the work will close: *verified only when a later scan shows a current client negotiating a
-hybrid group*. Set an owner, a due date and the project `PQC wave 1`, and create it.
+There is nothing else to do on this page, and no button that says the problem is fixed.
 
-The work's page shows its stages as a track: *Requested → Client compatibility tested → Approved → Hybrid groups
-enabled → Verified by scan → Closed*. **Record the compatibility test** needs evidence: a change ticket, a log
-line, a link. Without it the step is refused, in words.
+## 3. The scans decide
 
-## 3. Approve
+Press **Scan now**. The endpoint has not changed, so the page turns to *Not fixed yet. Checked just now.*
 
-Press **Approve** as the team lead: refused, *the person who requested this work cannot approve it*. Sign out,
-sign in as the approver, open the work and approve. The details now say who approved it. (With sign-in off, or
-with the automation token, approvals are refused: nobody can be told apart.)
-
-## 4. Execute
-
-Your own tools make the change; CipherHorizon records it. Press **Record that it is enabled** and say what was
-changed. The stage is now *Changed, not verified*, and the change's time is the baseline every verification
-looks after.
-
-(Connectors that make the change themselves, such as ACME issuance or an Ansible playbook, are planned and listed
-in **Settings → Integrations**. They will act only on approved work and will never mark their own change
-verified.)
-
-## 5. Verify
-
-Press **Verify**: refused, *no scan of 127.0.0.1:9445 has finished since the change was recorded*. The product
-does not take anyone's word for it.
-
-Press **Scan the endpoint now**, wait for the scan, press **Check now**: *Not verified, scan N is at L1
-(Exposed); the target is L3*. The change was never applied to this server.
-
-Now apply it for real:
+Make the change for real (the demo target has a switch for it):
 
 ```bash
 curl -X POST http://127.0.0.1:9447/pq/on
 ```
 
-Scan again, **Check now**: *Verified, scan N reached L3 (Hybrid negotiated)*. Press **Verify**, then **Close**.
-The history reads as the story: created, tested (with the evidence), approved by the approver, enabled (with the
-note), verified (with the scan it rests on), closed.
+Press **Scan now** again. The page turns to *Fixed. Confirmed by the scan of* today, and the history gains
+*A scan confirmed it is fixed.* On **Fixes** it has moved under *Fixed and still holding*, and the progress line
+counts one more endpoint.
 
-## 6. Monitor
+## 4. It comes back
 
-Revert the change, as someone eventually will:
+Undo the change, as someone eventually will:
 
 ```bash
 curl -X POST http://127.0.0.1:9447/pq/off
 ```
 
-Scan `9445` again (or let `Rescan automatically` do it) and open **Work → Needs attention**: *No longer holds:
-Bring 127.0.0.1:9445 to hybrid key exchange*, critical, with the scan that shows it.
+Scan `127.0.0.1:9445` again (or wait for its daily scan). **Fixes** now opens with *Came back*: *Was fixed. The
+scan of* today *found it again.*
 
-To have such events pushed, go to **Settings → Notifications** as the administrator, set a webhook address, and
-optionally the name of an environment variable holding a signing secret. A minimal receiver to watch them
-locally:
+## 5. Renewals
+
+Open **Renewals**: the certificates those endpoints serve, by the date they run out. Press **Assign** on one, name
+the PKI team. When a scan later sees a newer certificate on every endpoint that served it, the renewal is done; if
+a certificate changes with nobody assigned, it appears under *Changed without anyone assigned*.
+
+## 6. Being told
+
+In **Settings → Notifications**, set a webhook address and press **Save**, then **Send a test message**. A
+receiver to watch them locally:
 
 ```bash
 python3 -c "import http.server as s
@@ -121,53 +96,41 @@ class H(s.BaseHTTPRequestHandler):
 s.HTTPServer(('127.0.0.1', 9099), H).serve_forever()"
 ```
 
-Set the webhook to `http://127.0.0.1:9099/`, press **Send a test message**, then **Check now**: each event
-arrives once, and is not sent again on the next pass.
+With the webhook `http://127.0.0.1:9099/` saved, repeat step 4 and press **Run the monitor now**: the *came back*
+event arrives once, and is not sent again on the next pass. (An event the server first saw before a webhook was
+set is listed but not sent.)
 
-The same monitor reports certificates expiring within the warning window, and a certificate that **changed with
-no work naming the old one**: a change nobody planned, or one nobody recorded.
+## 7. The record
 
-## 7. Report
+**Fixes → Download the record for an auditor**: every fix with who assigned it, which scan confirmed it, when it
+came back, and a check computed again at export.
 
-**Work → Download CSV** gives one row per piece of work. **Evidence pack (JSON)** gives each piece of work with
-its workflow as it was when the work started, its full history from the append-only audit log, and a verification
-computed again at export time, with the definitions of every figure and the versions of the rules applied. An
-auditor can check, from that file alone, that every *verified* rests on a scan made after the change.
+## How this is tested
 
-## How this was validated
+Each claim above has a test in the repository's CI. Results of a given run are in that run, not on this page.
 
-Every claim above is a test that runs in CI. The table names them; run them yourself with the commands below.
-
-| Claim | Evidence |
+| Claim | Test |
 |---|---|
-| A stage marked verified cannot be entered without the product's verification, whatever the workflow says | `TestValidateRefusesTemplatesThatBendTheRules`, `TestACustomTemplateCannotSkipVerification`, `TestCustomWorkflowsAndAReadinessTarget` (a custom template with a shortcut is refused with 400) |
-| A finding is verified only by a complete scan after the change; a rescan that still finds it says so | `TestAFindingIsVerifiedOnlyByAScanAfterTheChange` (real scans of a test server restarted with TLS 1.3) |
-| A certificate replacement is verified only when every endpoint that served it serves a different one valid for longer | `TestACertificateReplacementIsVerifiedOnEveryEndpoint` (two endpoints, a shorter replacement refused) |
-| A readiness target is verified by the level a later scan reaches | `TestCustomWorkflowsAndAReadinessTarget`; browser: E2E-WK.6 to E2E-WK.8 |
-| The requester cannot approve; nor can the automation token or anyone with sign-in off | `TestCheckEnforcesEveryGuard`, `TestAFindingIsVerifiedOnlyByAScanAfterTheChange`, `TestACertificateReplacementIsVerifiedOnEveryEndpoint`; browser: E2E-WK.4, E2E-WK.5 |
-| Prerequisites block, cycles are refused, exceptions need an end date in the future | `TestWorkDependenciesRefuseCycles`, `TestDependenciesExceptionsAndDueDates` |
-| Every step is in the append-only audit log with who and why | `TestWorkIsStoredAuditedAndMovedOnlyFromItsCurrentStage`, `TestWorkEditsAreAuditedAndCleaned`, `TestEveryChangeIsAudited`; browser: E2E-WK.9 |
-| Verified work that a later scan contradicts is reported; so is a certificate changed without planned work | `TestRegressionsAndUnplannedCertificateChanges`; browser: E2E-WK.13 |
-| Each event is sent once, signed, retried five times then marked failed; the secret never appears in the API | `TestTheMonitorSendsEachEventOnceSigned` |
-| A webhook cannot be pointed at a cloud-metadata address | `TestTheWebhookObeysTheAddressGuard` |
-| Suggestions come from the scans, cite their basis and disappear once work is opened; readiness counts the unscanned as unknown | `TestSuggestionsAndTheSummaryAreHonest`; browser: E2E-WK.10, E2E-WK.11 |
-| The IR 8547 dates come from a catalog that refuses a deadline resting on a draft | `TestValidateRefusesEachBrokenRule`, `TestTheIR8547MilestonesMatchTheDocument`, `TestCertificateRules` |
-| The screens work end to end, in a real browser, at 1440 px and at 390 px | `testing/e2e/work-phase.mjs`, E2E-WK.1 to E2E-WK.16 |
+| Assigning is one form; a second assignment of the same problem is refused; the endpoint gets a daily scan | `TestAFixIsDecidedByScansAlone`; browser E2E-FX.1, E2E-FX.2 |
+| Only scans change a fix: unchanged reads not fixed, changed reads fixed, undone comes back | `TestAFixIsDecidedByScansAlone` (real scans of a test server restarted with and without TLS 1.3); browser E2E-FX.3, E2E-FX.4, E2E-FX.6 on the demo toggle |
+| No page offers a way to mark a fix fixed, and none uses process vocabulary | browser E2E-FX.2, E2E-FX.2b, E2E-FX.5 |
+| A finding missing from an incomplete scan is not a fix; an uploaded machine inventory never confirms one | `internal/server/work.go` rules, exercised by `TestAFindingIsVerifiedOnlyByAScanAfterTheChange` (incomplete-scan and upload branches have no dedicated test yet) |
+| A renewal is done when every endpoint serves a certificate issued after the old one; an older certificate put back is not a renewal | `TestACertificateReplacementIsVerifiedOnEveryEndpoint`, `TestRenewals` |
+| A certificate changed with nobody assigned is listed until someone says it was expected | `TestRenewals` |
+| On hold needs a reason and a date within a year, and resumes by itself | `TestAFixIsDecidedByScansAlone`, `TestDependenciesExceptionsAndDueDates`; browser E2E-FX.7 |
+| Progress counts out of scanned endpoints | `TestFixesProgressCountsOutOfScannedEndpoints`; browser E2E-FX.5 |
+| Each event is sent once, signed; the secret never appears; a metadata address is refused | `TestTheMonitorSendsEachEventOnceSigned`, `TestTheWebhookObeysTheAddressGuard` |
+| The pages fit a phone | browser E2E-FX.11 |
 
 ```bash
 go test ./internal/workflow ./internal/policy ./internal/store ./internal/server
 ```
 
-```bash
-E2E_TOKEN=e2e-automation-token-0123456789 E2E_SERVER_LOG=serve.log node testing/e2e/journey.mjs --base http://127.0.0.1:8090
-```
-
-(the second needs the demo targets and a server started as in `.github/workflows/ci.yml`, job `e2e`).
+The browser journey (`testing/e2e/journey.mjs`) needs the demo targets and a server started as the `e2e` job in
+`.github/workflows/ci.yml` does.
 
 ## What it does not do
 
-- It does not issue, deploy or revoke certificates, and it never holds a private key. It verifies what your tools
-  did.
-- It cannot see inside an application: a library upgrade closes as *complete*, never *verified*.
-- One webhook destination; no e-mail yet.
-- Roles apply to the whole server; there are no per-team scopes.
+- It does not make the change, issue or deploy a certificate, or hold a private key.
+- It does not create the ticket in your tracker yet; you paste the link.
+- It cannot see inside an application: a library upgrade is not something a scan confirms.

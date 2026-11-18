@@ -111,6 +111,24 @@ func (s *Server) syncFixes(now time.Time) (map[int64]workflow.Verification, []st
 	return checks, items, nil
 }
 
+// plainDetail says what a scan saw in words a reader needs no glossary for. The scan's own wording
+// (levels, rule ids) stays in the audit record.
+func plainDetail(it store.WorkItem, v *workflow.Verification) string {
+	if v == nil || v.Status != workflow.NotVerified {
+		return ""
+	}
+	switch it.SubjectKind {
+	case workflow.SubjectReadiness:
+		if it.TargetLevel != nil && *it.TargetLevel >= eval.LevelPQAuth {
+			return "The endpoint still presents a certificate that is not post-quantum."
+		}
+		return "A current client still gets a classical key exchange."
+	case workflow.SubjectFinding:
+		return "The scan still finds it."
+	}
+	return v.Detail
+}
+
 func (s *Server) fixRow(it store.WorkItem, check *workflow.Verification, assets map[int64]store.Asset, now time.Time) FixRow {
 	r := FixRow{ID: it.ID, Title: it.Title, Owner: it.Owner, DueAt: it.DueAt, Ticket: it.Ticket, Kind: it.SubjectKind, AssetID: it.AssetID,
 		Certificate: it.Certificate, CreatedBy: it.CreatedBy, CreatedAt: it.CreatedAt, Result: "not-checked"}
@@ -128,7 +146,7 @@ func (s *Server) fixRow(it store.WorkItem, check *workflow.Verification, assets 
 		r.Group, r.Result = "came-back", "not-fixed"
 		r.CameBackAt = it.ExecutedAt
 		if stored != nil {
-			r.Detail, r.CheckedAt = stored.Detail, stored.CheckedAt
+			r.Detail, r.CheckedAt = plainDetail(it, stored), stored.CheckedAt
 		}
 	case stageOnHold:
 		r.Group, r.HoldUntil = "on-hold", it.ExceptionUntil
@@ -140,7 +158,7 @@ func (s *Server) fixRow(it store.WorkItem, check *workflow.Verification, assets 
 	if check != nil && (it.Stage == stageFixing || it.Stage == stageBack) {
 		switch check.Status {
 		case workflow.NotVerified:
-			r.Result, r.Detail, r.CheckedAt = "not-fixed", check.Detail, check.CheckedAt
+			r.Result, r.Detail, r.CheckedAt = "not-fixed", plainDetail(it, check), check.CheckedAt
 		case workflow.NotVerifiable:
 			r.Result, r.Detail = "cannot-check", check.Detail
 		case workflow.Waiting:

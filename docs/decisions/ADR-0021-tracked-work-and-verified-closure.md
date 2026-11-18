@@ -64,3 +64,16 @@ workflows written as code), `cschleiden/go-workflows` (MIT; durable execution, w
   exception is a workflow's `exception` stage.
 - Connectors that execute changes (a later milestone) will only be called from a transition a person made on
   approved work; they will not be able to enter a `verified` stage on their own report.
+
+## Amendments (2026-11-18, after review and the owner's rejection of the first interface)
+
+- **The web interface does not show workflows.** People assign a fix (who, by when, a ticket link) and scans move
+  it: fixed when the check passes, back when it fails again. That is one more built-in template, `fix`, driven by
+  the scanner; stages, approvals and custom templates stay in the API for teams that want a process here.
+- **An uploaded machine inventory verifies nothing.** It is a document whoever recorded the change could have
+  edited. §5's "or host upload" no longer applies until uploads are authenticated as a collector's.
+- **A certificate replacement is one issued after the old certificate and valid now, whatever its lifetime**,
+  served by every endpoint that served the old one; "valid for longer" was wrong for a move to short-lived
+  certificates. An incomplete scan waits; a deleted endpoint makes the result not verifiable.
+- **A workflow carries its readiness target**; work cannot aim lower, or at a level already reached.
+- **A rollback clears earlier approvals; an exception ends within a year.**
