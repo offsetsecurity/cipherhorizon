@@ -175,6 +175,8 @@ export async function workPhase({ check, js, go, sleep, shot, api, viewport, CON
   const last = await api(`/api/v1/assets/${target.id}`);
   await post(`/api/v1/assets/${target.id}/scan`);
   await waitScan(target.id, last.lastDone.id);
+  await go('#/work'); // the page is already on the attention tab: leave it so that it is drawn again
+  await sleep(600);
   await go('#/work?tab=attention');
   await sleep(1200);
   const reg = await js(`return document.querySelector('#attention-table tr[data-kind="work.regressed"]')?.innerText || ''`);

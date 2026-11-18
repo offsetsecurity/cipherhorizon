@@ -184,7 +184,6 @@ export async function render(root, { args, query }) {
     x ? h('div', { class: 'row' },
       button('Copy PEM', async (e) => { try { await navigator.clipboard.writeText(x.pem); e.currentTarget.textContent = 'Copied'; } catch { /* refused */ } }, 'secondary'),
       button('Download .pem', () => api.downloadBlob(`${built.stem}.pem`, x.pem, 'application/x-pem-file'), 'secondary')) : null));
-  if (d) root.appendChild(lifecyclePanel(fp, title));
   if (!ribbon && xr && xr.source && validId(xr.source.assetId)) {
     root.appendChild(h('p', { class: 'served-by' }, 'Served by ', h('a', { href: `#/endpoints/${xr.source.assetId}?tab=configuration` }, xr.source.assetName || 'the endpoint'),
       `, certificate ${xr.source.position + 1} of ${xr.source.chainLength}. `, h('a', { href: `#/endpoints/${xr.source.assetId}?tab=configuration` }, 'Back to the chain')));
@@ -196,6 +195,7 @@ export async function render(root, { args, query }) {
   }
   if (!d) return null;
 
+  root.appendChild(lifecyclePanel(fp, title));
   root.appendChild(h('section', { class: 'card xcard', 'aria-labelledby': 'x-seen' }, h('div', { class: 'cfg-head' }, h('h2', { id: 'x-seen' }, 'Seen on'),
     h('span', { class: 'cfg-aside' }, '“Key” says only what the sensor checked: it reads a property and never opens a key.')),
     h('div', { class: 'seenwrap' }, (d.places || []).map((p) => h(validId(p.systemId) ? 'a' : 'div', { class: 'seencard', href: validId(p.systemId) ? systemHref(p.systemId) : null },
