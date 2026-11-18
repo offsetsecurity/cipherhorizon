@@ -53,7 +53,7 @@ export async function fixesPhase({ check, js, go, sleep, shot, api, viewport, CO
     /Not checked yet/.test(st.big) && !st.buttons.some((b) => /verif|mark.*(fixed|done)|approve/i.test(b)) && /Nobody can mark it fixed by hand/.test(head.text),
     JSON.stringify({ fixId, st, h1: head.h1, sub: head.sub }));
   check('E2E-FX.2b', 'the page speaks the customer’s language: no workflow, stage, transition, marker or verification anywhere on it',
-    !/workflow|\\bstage\\b|transition|marker|verif|baseline/i.test(head.text), head.text.match(/workflow|\\bstage\\b|transition|marker|verif\\w*|baseline/i)?.[0] || '');
+    !/workflow|\bstage\b|transition|marker|verif|baseline/i.test(head.text), head.text.match(/workflow|\bstage\b|transition|marker|verif\w*|baseline/i)?.[0] || '');
 
   // E2E-FX.3: a scan of the unchanged endpoint: not fixed yet.
   await js(`document.getElementById('fix-scan').click()`);
@@ -80,8 +80,8 @@ export async function fixesPhase({ check, js, go, sleep, shot, api, viewport, CO
     text: document.querySelector('main').innerText }`);
   await shot('fixes-list');
   check('E2E-FX.5', 'Fixes shows progress out of scanned endpoints, To fix next with an Assign button per line, and the fix under Fixed and still holding',
-    /of \\d+ scanned endpoints? keeps? today’s traffic safe/.test(list.progress) && list.heads.some((x) => /^To fix next/.test(x)) && list.next > 0 &&
-    list.fixed.some((t) => /Post-quantum key exchange on/.test(t) && /Fixed\\. Confirmed by the scan/.test(t)) && !/workflow|\\bstage\\b|transition|verif/i.test(list.text),
+    /of \d+ scanned endpoints? keeps? today’s traffic safe/.test(list.progress) && list.heads.some((x) => /^To fix next/.test(x)) && list.next > 0 &&
+    list.fixed.some((t) => /Post-quantum key exchange on/.test(t) && /Fixed\. Confirmed by the scan/.test(t)) && !/workflow|\bstage\b|transition|verif/i.test(list.text),
     JSON.stringify({ progress: list.progress, heads: list.heads, next: list.next, fixed: list.fixed }));
 
   // E2E-FX.6: the change is undone; the next scan brings the fix back to the top.
@@ -96,7 +96,7 @@ export async function fixesPhase({ check, js, go, sleep, shot, api, viewport, CO
   const back = await js(`return { first: document.querySelector('main h2')?.textContent.trim() || '', row: document.querySelector('#fixes-back [data-fix]')?.innerText || '' }`);
   await shot('fixes-came-back');
   check('E2E-FX.6', 'undoing the change is caught by the next scan: Came back is the first section, and says a scan found it again',
-    /^Came back/.test(back.first) && /Post-quantum key exchange on/.test(back.row) && /Was fixed\\. The scan of .* found it again/.test(back.row), JSON.stringify(back));
+    /^Came back/.test(back.first) && /Post-quantum key exchange on/.test(back.row) && /Was fixed\. The scan of .* found it again/.test(back.row), JSON.stringify(back));
 
   // E2E-FX.7: not now: on hold with a reason and a date.
   await go(`#/fixes/${fixId}`);
@@ -121,7 +121,7 @@ export async function fixesPhase({ check, js, go, sleep, shot, api, viewport, CO
   const assigned = await js(`return [...document.querySelectorAll('[data-cert]')].map((li) => li.innerText).find((t) => /PKI team/.test(t)) || ''`);
   await shot('renewals');
   check('E2E-FX.8', 'Renewals lists every served certificate by date with four months of bars; assigning a renewal uses the same form and the row then names who has it',
-    ren.h1 === 'Renewals' && ren.rows > 0 && ren.bars === 4 && ren.assign > 0 && ren.nav === 'Renewals' && /out in the next \\d+ days/.test(ren.line) && /PKI team/.test(assigned),
+    ren.h1 === 'Renewals' && ren.rows > 0 && ren.bars === 4 && ren.assign > 0 && ren.nav === 'Renewals' && /out in the next \d+ days/.test(ren.line) && /PKI team/.test(assigned),
     JSON.stringify({ ...ren, assigned }));
 
   // E2E-FX.9: a certificate's page says who owns it and how it is renewed.
