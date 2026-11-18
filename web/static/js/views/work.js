@@ -264,7 +264,7 @@ const FIELD_WORDS = { note: 'Note', evidence: 'Evidence (a change ticket, a log 
 function nextSteps(w, finished, repaint) {
   const box = h('section', { class: 'card', id: 'work-next' }, h('h2', null, finished ? 'Done' : 'Next step'));
   if (finished || !w.transitions.length) {
-    box.appendChild(h('p', { class: 'text-2' }, w.marker === 'cancelled' ? 'This work was cancelled.' : w.marker === 'verified' ? 'Verified by scan. Close it when you are ready.' : 'Nothing more to do.'));
+    box.appendChild(h('p', { class: 'text-2' }, w.marker === 'cancelled' ? 'This work was cancelled.' : w.marker === 'verified' ? 'Verified by scan. Close it when you are ready.' : verificationOf(w)?.status === 'verified' ? 'Verified by scan, and closed.' : 'Closed as complete. The product could not verify this change by scanning.'));
     if (w.transitions.length) box.appendChild(h('div', { class: 'row' }, w.transitions.map((t) => transitionButton(w, t, repaint, 'secondary'))));
     return box;
   }

@@ -2173,6 +2173,12 @@ tr.rowlink { cursor: pointer; } tr.rowlink:hover td { background: var(--surface-
 .timeline-row:first-child { border-top: 0; }
 .timeline-when { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .timeline-what .small { margin-top: .15rem; }
+@media (max-width: 700px) {
+  /* A phone shows the stages as a list, top to bottom: a sideways track would hide where the work is. */
+  .wstages { flex-direction: column; gap: .7rem; overflow: visible; }
+  .wstage { flex-direction: row; align-items: center; gap: .6rem; min-width: 0; padding-right: 0; }
+  .wstage::before { top: 24px; bottom: -.7rem; left: 11px; right: auto; width: 2px; height: auto; }
+}
 @media (max-width: 900px) {
   .work-grid { grid-template-columns: 1fr; }
   .form-2col { grid-template-columns: 1fr; }
