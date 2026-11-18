@@ -191,6 +191,16 @@ type WorkFilter struct {
 	Limit       int // at most 5000; default 1000
 }
 
+// MaxWorkListed is the most work one listing returns; figures and exports say so when there is more.
+const MaxWorkListed = 5000
+
+// CountWork is how many pieces of work exist.
+func (s *Store) CountWork() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM work_items`).Scan(&n)
+	return n, err
+}
+
 // ListWork lists work, most recently changed first.
 func (s *Store) ListWork(f WorkFilter) ([]WorkItem, error) {
 	q := `SELECT ` + workCols + ` FROM work_items WHERE 1=1`
@@ -220,8 +230,11 @@ func (s *Store) ListWork(f WorkFilter) ([]WorkItem, error) {
 			args = append(args, c.v)
 		}
 	}
-	if f.Limit <= 0 || f.Limit > 5000 {
+	switch {
+	case f.Limit <= 0:
 		f.Limit = 1000
+	case f.Limit > MaxWorkListed:
+		f.Limit = MaxWorkListed
 	}
 	q += ` ORDER BY updated_at DESC, id DESC LIMIT ?`
 	args = append(args, f.Limit)
@@ -328,9 +341,11 @@ type WorkMove struct {
 	Baseline   bool // the new stage says the change was made: executed_at becomes now
 	Closed     bool // the new stage is terminal
 	Approver   string
-	Until      *time.Time
-	Note       string
-	Evidence   string
+	// ResetApprovers forgets earlier approvals: the change they approved was rolled back.
+	ResetApprovers bool
+	Until          *time.Time
+	Note           string
+	Evidence       string
 	// Verification is the product's verification result, recorded when the transition needed one.
 	Verification json.RawMessage
 }
@@ -352,6 +367,9 @@ func (s *Store) MoveWork(id int64, m WorkMove, actor string) (WorkItem, error) {
 		return WorkItem{}, err
 	}
 	approvers := old.Approvers
+	if m.ResetApprovers {
+		approvers = []string{}
+	}
 	if m.Approver != "" {
 		approvers = append(approvers, m.Approver)
 	}
@@ -621,6 +639,7 @@ func (s *Store) LatestHostSnapshotAfter(assetID int64, t time.Time) (HostSnapsho
 // LeafCertificate is a certificate a scan saw as an endpoint's leaf.
 type LeafCertificate struct {
 	Fingerprint string
+	NotBefore   *time.Time
 	NotAfter    *time.Time
 	Subject     string
 }
@@ -653,6 +672,9 @@ func leafOf(key, attrs string) LeafCertificate {
 	l := LeafCertificate{Fingerprint: strings.TrimPrefix(key, "cert:"), Subject: a["subject"]}
 	if t, err := time.Parse(time.RFC3339, a["notAfter"]); err == nil {
 		l.NotAfter = &t
+	}
+	if t, err := time.Parse(time.RFC3339, a["notBefore"]); err == nil {
+		l.NotBefore = &t
 	}
 	return l
 }

@@ -223,12 +223,18 @@ func TestAFindingIsVerifiedOnlyByAScanAfterTheChange(t *testing.T) {
 // selfSigned makes a certificate for 127.0.0.1 valid until notAfter.
 func selfSigned(t *testing.T, notAfter time.Time) (tls.Certificate, string) {
 	t.Helper()
+	return selfSignedFrom(t, time.Now().Add(-time.Hour), notAfter)
+}
+
+// selfSignedFrom makes a certificate for 127.0.0.1 valid from notBefore until notAfter.
+func selfSignedFrom(t *testing.T, notBefore, notAfter time.Time) (tls.Certificate, string) {
+	t.Helper()
 	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tmpl := &x509.Certificate{SerialNumber: big.NewInt(time.Now().UnixNano()), Subject: pkix.Name{CommonName: "pay.test"},
-		NotBefore: time.Now().Add(-time.Hour), NotAfter: notAfter, DNSNames: []string{"pay.test"},
+		NotBefore: notBefore, NotAfter: notAfter, DNSNames: []string{"pay.test"},
 		IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &k.PublicKey, k)
 	if err != nil {
@@ -253,8 +259,10 @@ func TestACertificateReplacementIsVerifiedOnEveryEndpoint(t *testing.T) {
 	e := newEnv(t)
 	now := time.Now()
 	oldCert, oldFP := selfSigned(t, now.Add(10*24*time.Hour))
-	newCert, _ := selfSigned(t, now.Add(200*24*time.Hour))
-	shorter, _ := selfSigned(t, now.Add(5*24*time.Hour))
+	// The replacement lives for less time than the old one (a move to short-lived certificates): still a
+	// replacement, because it was issued later. An older certificate put back is not.
+	newCert, _ := selfSignedFrom(t, now.Add(-10*time.Minute), now.Add(5*24*time.Hour))
+	older, _ := selfSignedFrom(t, now.Add(-48*time.Hour), now.Add(300*24*time.Hour))
 	srvA := testserver.Start(t, testserver.Config{MinVersion: tls.VersionTLS12, Chain: []tls.Certificate{oldCert}})
 	srvB := testserver.Start(t, testserver.Config{MinVersion: tls.VersionTLS12, Chain: []tls.Certificate{oldCert}})
 	a, b := e.addAsset(srvA.Addr), e.addAsset(srvB.Addr)
@@ -286,10 +294,10 @@ func TestACertificateReplacementIsVerifiedOnEveryEndpoint(t *testing.T) {
 	if v := verificationOf(t, e, w.ID); v.Status != "not-verified" || !strings.Contains(v.Detail, "still presents it") {
 		t.Fatalf("the second endpoint still serves the old certificate: %+v", v)
 	}
-	srvB = restart(t, srvB, shorter)
+	srvB = restart(t, srvB, older)
 	e.scanAndWait(b.ID)
-	if v := verificationOf(t, e, w.ID); v.Status != "not-verified" || !strings.Contains(v.Detail, "does not expire later") {
-		t.Fatalf("a replacement that expires sooner: %+v", v)
+	if v := verificationOf(t, e, w.ID); v.Status != "not-verified" || !strings.Contains(v.Detail, "not a replacement") {
+		t.Fatalf("an older certificate put back: %+v", v)
 	}
 	restart(t, srvB, newCert)
 	e.scanAndWait(b.ID)
@@ -402,7 +410,7 @@ func TestCustomWorkflowsAndAReadinessTarget(t *testing.T) {
 			found = x["version"] == float64(2) && x["builtIn"] == false && x["verifies"] == true
 		}
 	}
-	if s != 200 || len(list) != 9 || !found {
+	if s != 200 || len(list) != 10 || !found {
 		t.Fatalf("workflows: %d, %d entries, custom latest found=%v", s, len(list), found)
 	}
 }
@@ -459,14 +467,17 @@ func TestDependenciesExceptionsAndDueDates(t *testing.T) {
 		"subject": map[string]any{"kind": "finding", "assetId": assets[0].ID, "findingKey": "PROTO.NO-TLS13"}}, &w); s != 201 {
 		t.Fatalf("create: %d", s)
 	}
+	inSixMonths := time.Now().AddDate(0, 6, 0).UTC().Format(time.DateOnly)
+	s, b = move(t, e, "", w.ID, map[string]any{"transition": "accept-risk", "note": "legacy scanner", "until": "2099-06-30"})
+	wantRefusal(t, s, b, 400, "until") // longer than a year
 	s, b = move(t, e, "", w.ID, map[string]any{"transition": "accept-risk", "note": "legacy scanner", "until": "2001-01-01"})
 	wantRefusal(t, s, b, 400, "until")
-	s, b = move(t, e, "", w.ID, map[string]any{"transition": "accept-risk", "note": "legacy scanner", "until": "2099-06-30"})
+	s, b = move(t, e, "", w.ID, map[string]any{"transition": "accept-risk", "note": "legacy scanner", "until": inSixMonths})
 	if s != 200 {
 		t.Fatalf("accept the risk: %d %s", s, b)
 	}
 	mustJSON(t, b, &w)
-	if w.Marker != "exception" || w.ExceptionUntil == nil || !strings.HasPrefix(*w.ExceptionUntil, "2099-06-30") || w.ExceptionExpired {
+	if w.Marker != "exception" || w.ExceptionUntil == nil || !strings.HasPrefix(*w.ExceptionUntil, inSixMonths) || w.ExceptionExpired {
 		t.Fatalf("exception: %+v", w)
 	}
 	if s, _ := e.do("POST", "/api/v1/work/"+itoa(w.ID)+"/transitions", "not json"); s != 400 {

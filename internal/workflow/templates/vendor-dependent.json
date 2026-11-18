@@ -15,7 +15,7 @@
   ],
   "transitions": [
     {"id": "ask", "label": "Record the request to the vendor", "from": ["requested"], "to": "asked", "require": ["evidence"]},
-    {"id": "wait", "label": "Wait until a date", "from": ["asked"], "to": "waiting", "require": ["note", "until"]},
+    {"id": "wait", "label": "Wait until a date", "from": ["asked"], "to": "waiting", "role": "admin", "require": ["note", "until"]},
     {"id": "deliver", "label": "Vendor delivered", "from": ["asked", "waiting"], "to": "delivered", "require": ["evidence"]},
     {"id": "apply", "label": "Record that it is applied", "from": ["delivered"], "to": "applied", "require": ["note"]},
     {"id": "close", "label": "Close", "from": ["applied"], "to": "closed"},

@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// REQ-WF-1: the eight built-in templates exist and pass validation.
+// REQ-WF-1: the nine built-in templates exist and pass validation.
 func TestTheBuiltInTemplatesAreValid(t *testing.T) {
-	want := []string{"certificate-renewal", "emergency-certificate-replacement", "library-upgrade", "manual",
+	want := []string{"certificate-renewal", "direct-change", "emergency-certificate-replacement", "library-upgrade", "manual",
 		"pki-signature-migration", "pq-key-exchange", "tls-configuration-change", "vendor-dependent"}
 	got := BuiltIn()
 	if len(got) != len(want) {
@@ -26,7 +26,7 @@ func TestTheBuiltInTemplatesAreValid(t *testing.T) {
 	}
 	// A template that verifies names only subjects the product can verify; one that cannot verify
 	// anything says so in its purpose rather than pretending.
-	for _, id := range []string{"certificate-renewal", "emergency-certificate-replacement", "tls-configuration-change", "pq-key-exchange", "pki-signature-migration"} {
+	for _, id := range []string{"certificate-renewal", "direct-change", "emergency-certificate-replacement", "tls-configuration-change", "pq-key-exchange", "pki-signature-migration"} {
 		if tmpl, _ := BuiltInByID(id); !tmpl.Verifies() {
 			t.Errorf("%s should require verification before it is marked verified", id)
 		}

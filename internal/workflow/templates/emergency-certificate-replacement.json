@@ -18,6 +18,6 @@
     {"id": "verify", "label": "Verify", "from": ["replaced"], "to": "verified", "verify": true},
     {"id": "review", "label": "Approve after the fact", "from": ["verified"], "to": "reviewed", "approval": true},
     {"id": "close", "label": "Close", "from": ["reviewed"], "to": "closed"},
-    {"id": "cancel", "label": "Cancel", "from": ["requested"], "to": "cancelled", "require": ["note"]}
+    {"id": "cancel", "label": "Cancel", "from": ["requested", "replaced"], "to": "cancelled", "require": ["note"]}
   ]
 }

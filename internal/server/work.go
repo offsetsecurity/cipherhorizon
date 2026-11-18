@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
-	"github.com/offsetsecurity/cipherhorizon/internal/pqc"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
 	"github.com/offsetsecurity/cipherhorizon/internal/workflow"
 )
@@ -288,8 +287,18 @@ func (s *Server) workFromRequest(req createWorkReq) (store.WorkItem, int, error)
 		if err != nil {
 			return store.WorkItem{}, status, err
 		}
+		if sub.TargetLevel == nil && tmpl.Target > 0 {
+			t := tmpl.Target
+			sub.TargetLevel = &t
+		}
 		if sub.TargetLevel == nil || *sub.TargetLevel < eval.LevelExposed || *sub.TargetLevel > eval.LevelPQAuth {
 			return bad("subject.targetLevel must be a readiness level from %d to %d", eval.LevelExposed, eval.LevelPQAuth)
+		}
+		if *sub.TargetLevel < tmpl.Target {
+			return bad("the %s workflow is for reaching L%d; a target of L%d would call it done too early", tmpl.Title, tmpl.Target, *sub.TargetLevel)
+		}
+		if a.LastDone != nil && a.LastDone.ReadinessLevel != nil && *a.LastDone.ReadinessLevel >= *sub.TargetLevel {
+			return bad("%s is already at L%d; there is nothing to reach at L%d", a.Name, *a.LastDone.ReadinessLevel, *sub.TargetLevel)
 		}
 		it.AssetID, it.SystemID, it.TargetLevel = a.ID, a.SystemID, sub.TargetLevel
 	case workflow.SubjectEndpoint:
@@ -531,6 +540,10 @@ func (s *Server) transitionWork(w http.ResponseWriter, r *http.Request) {
 	if tr.Approval {
 		move.Approver = act.Name
 	}
+	if from, ok := tmpl.Stage(it.Stage); ok && workflow.Baseline(from.Marker) && !tr.Verify {
+		// The change was rolled back or redone: what was approved is not what will be made next.
+		move.ResetApprovers = true
+	}
 	if to.Marker == workflow.MarkException {
 		move.Until = until
 	}
@@ -730,24 +743,9 @@ func (s *Server) verifyWork(it store.WorkItem, now time.Time) workflow.Verificat
 			return result(workflow.NotVerifiable, "the endpoint or host this work is about has been deleted")
 		}
 		if it.SubjectKind == workflow.SubjectFinding && a.Kind == store.KindHost {
-			snap, err := s.cfg.Store.LatestHostSnapshotAfter(a.ID, since)
-			if errors.Is(err, store.ErrNotFound) {
-				return result(workflow.Waiting, fmt.Sprintf("no inventory of %s has been uploaded since the change was recorded (%s); upload one to verify", a.Name, when))
-			}
-			if err != nil {
-				return failed()
-			}
-			ev := fmt.Sprintf("host upload %d", snap.ID)
-			var sum HostSummary
-			if err := json.Unmarshal(snap.Summary, &sum); err != nil {
-				return failed()
-			}
-			for _, alg := range sum.Algorithms {
-				if alg.Class == string(pqc.Vulnerable) && "pqc:"+alg.Name == it.FindingKey {
-					return result(workflow.NotVerified, fmt.Sprintf("the inventory of %s uploaded %s still lists %s", a.Name, snap.At.Format(time.DateOnly), alg.Name), ev)
-				}
-			}
-			return result(workflow.Verified, fmt.Sprintf("the inventory of %s uploaded %s no longer lists it", a.Name, snap.At.Format(time.DateOnly)), ev)
+			// A machine's inventory is a document someone uploads; whoever recorded the change could
+			// upload an edited one. Until uploads are authenticated as a collector's, it verifies nothing.
+			return result(workflow.NotVerifiable, "a machine's inventory is an uploaded document, not this product's own observation, so it cannot verify a change; close this work without verification")
 		}
 		scan, err := s.cfg.Store.LatestDoneScanAfter(a.ID, since)
 		if errors.Is(err, store.ErrNotFound) {
@@ -798,12 +796,16 @@ func (s *Server) verifyWork(it store.WorkItem, now time.Time) workflow.Verificat
 		if !found {
 			return result(workflow.NotVerifiable, "the certificate is no longer in the inventory")
 		}
+		if old.NotBefore == nil {
+			return result(workflow.NotVerifiable, "the old certificate's dates are not known, so a replacement cannot be told from it")
+		}
 		var waiting, failedOn, ok, evidence []string
-		counted := 0
+		counted, deleted := 0, 0
 		for _, id := range endpoints {
 			a, err := s.cfg.Store.GetAsset(id)
 			if err != nil {
-				continue // deleted since: not counted either way
+				deleted++ // an endpoint that served it is gone: its replacement can no longer be shown
+				continue
 			}
 			counted++
 			scan, err := s.cfg.Store.LatestDoneScanAfter(a.ID, since)
@@ -820,34 +822,37 @@ func (s *Server) verifyWork(it store.WorkItem, now time.Time) workflow.Verificat
 				return failed()
 			}
 			switch {
-			case len(leaves) == 0:
-				waiting = append(waiting, fmt.Sprintf("%s (scan %d saw no certificate)", a.Name, scan.ID))
 			case slices.ContainsFunc(leaves, func(l store.LeafCertificate) bool { return l.Fingerprint == it.Certificate }):
 				failedOn = append(failedOn, fmt.Sprintf("%s still presents it (scan %d)", a.Name, scan.ID))
+			case scan.Incomplete:
+				waiting = append(waiting, fmt.Sprintf("%s (scan %d was incomplete)", a.Name, scan.ID))
+			case len(leaves) == 0:
+				waiting = append(waiting, fmt.Sprintf("%s (scan %d saw no certificate)", a.Name, scan.ID))
 			default:
-				longer := true
-				for _, l := range leaves {
-					if old.NotAfter != nil && (l.NotAfter == nil || !l.NotAfter.After(*old.NotAfter)) {
-						longer = false
-						failedOn = append(failedOn, fmt.Sprintf("%s presents a different certificate (%s…) that does not expire later than the old one (scan %d)",
-							a.Name, l.Fingerprint[:12], scan.ID))
-						break
-					}
-				}
-				if longer {
+				// A replacement is a certificate issued after the old one and valid now. How long it
+				// lives does not matter: a 90-day certificate replacing a one-year one is a replacement.
+				replaced := slices.ContainsFunc(leaves, func(l store.LeafCertificate) bool {
+					return l.NotBefore != nil && l.NotAfter != nil && l.NotBefore.After(*old.NotBefore) && !l.NotBefore.After(now) && l.NotAfter.After(now)
+				})
+				if replaced {
 					ok = append(ok, a.Name)
+				} else {
+					failedOn = append(failedOn, fmt.Sprintf("%s presents a different certificate (%s…) that is not a replacement: it was not issued after the old one, or it is not valid now (scan %d)",
+						a.Name, leaves[0].Fingerprint[:12], scan.ID))
 				}
 			}
 		}
 		switch {
-		case counted == 0:
-			return result(workflow.NotVerifiable, "no scanned endpoint presented this certificate before the change was recorded, so a scan cannot show its replacement; scan the endpoints that use it, or close this work without verification")
 		case len(failedOn) > 0:
 			return result(workflow.NotVerified, strings.Join(failedOn, "; "), evidence...)
+		case deleted > 0:
+			return result(workflow.NotVerifiable, fmt.Sprintf("%d endpoint(s) that served this certificate have been deleted since, so the product cannot show it was replaced everywhere; close this work without verification", deleted), evidence...)
+		case counted == 0:
+			return result(workflow.NotVerifiable, "no scanned endpoint presented this certificate before the change was recorded, so a scan cannot show its replacement; scan the endpoints that use it, or close this work without verification")
 		case len(waiting) > 0:
 			return result(workflow.Waiting, "waiting for "+strings.Join(waiting, ", ")+"; scan them to verify", evidence...)
 		}
-		return result(workflow.Verified, fmt.Sprintf("%s now present%s a different certificate that is valid for longer", listWords(ok), plural(len(ok))), evidence...)
+		return result(workflow.Verified, fmt.Sprintf("%s now present%s a certificate issued after the old one and valid now; the old one is no longer served", listWords(ok), plural(len(ok))), evidence...)
 	}
 	return result(workflow.NotVerifiable, "the product cannot observe a change to a "+it.SubjectKind+"; close this work without verification")
 }

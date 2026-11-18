@@ -4,6 +4,7 @@
   "title": "Post-quantum key exchange",
   "purpose": "Bring an endpoint to hybrid post-quantum key exchange (readiness level 3): test client compatibility, enable it, and let a scan confirm that a current client negotiates it.",
   "subjects": ["readiness"],
+  "target": 3,
   "stages": [
     {"id": "requested", "label": "Requested", "marker": "requested"},
     {"id": "tested", "label": "Client compatibility tested"},

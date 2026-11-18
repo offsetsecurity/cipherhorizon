@@ -71,11 +71,14 @@ const (
 
 // Template is a workflow: its stages (the first is where work starts) and its transitions.
 type Template struct {
-	ID          string       `json:"id"`
-	Version     int          `json:"version"`
-	Title       string       `json:"title"`
-	Purpose     string       `json:"purpose"`
-	Subjects    []string     `json:"subjects"`
+	ID       string   `json:"id"`
+	Version  int      `json:"version"`
+	Title    string   `json:"title"`
+	Purpose  string   `json:"purpose"`
+	Subjects []string `json:"subjects"`
+	// Target is the readiness level the workflow is for (3: hybrid key exchange, 4: a post-quantum
+	// certificate); work under it cannot aim lower. 0 for workflows with no level.
+	Target      int          `json:"target,omitempty"`
 	Stages      []Stage      `json:"stages"`
 	Transitions []Transition `json:"transitions"`
 }
@@ -203,6 +206,9 @@ func (t *Template) Validate() error {
 		if !subjects[s] {
 			bad("subject %q is not one of finding, certificate, readiness, endpoint, system", s)
 		}
+	}
+	if t.Target != 0 && (t.Target < 1 || t.Target > 4 || !slices.Contains(t.Subjects, SubjectReadiness)) {
+		bad("target is a readiness level from 1 to 4, for a workflow whose subjects include readiness")
 	}
 	if len(t.Stages) == 0 || len(t.Stages) > MaxStages {
 		bad("a template has 1 to %d stages", MaxStages)

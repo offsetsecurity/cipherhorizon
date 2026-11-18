@@ -76,6 +76,9 @@ func refuse(code, format string, a ...any) *Refusal {
 	return &Refusal{Code: code, Message: fmt.Sprintf(format, a...)}
 }
 
+// MaxException is the longest an accepted risk or a wait may run before someone looks at it again.
+const MaxException = 366 * 24 * time.Hour
+
 // doneMarkers are the markers that say the change was made or the work is done: work cannot enter them
 // while a prerequisite is unfinished.
 var doneMarkers = map[string]bool{MarkExecuted: true, MarkReported: true, MarkVerified: true, MarkComplete: true}
@@ -123,6 +126,9 @@ func (t *Template) Check(st State, req Request, act Actor, now time.Time, verify
 	}
 	if req.Until != nil && !req.Until.After(now) {
 		return tr, to, nil, refuse(RefuseUntil, "the end date must be in the future")
+	}
+	if req.Until != nil && req.Until.After(now.Add(MaxException)) {
+		return tr, to, nil, refuse(RefuseUntil, "an exception ends within a year; it can be renewed when it does")
 	}
 	if tr.Approval {
 		switch {
