@@ -397,6 +397,12 @@ func (s *Server) routes() {
 	handle("POST /api/v1/discoveries/{id}/accept", s.acceptDiscovery)
 
 	// Tracked work and workflows (PRD-023, ADR-0021); the policy catalog (ADR-0022).
+	// Fixes and renewals (UX-DESIGN-024): what people use. Work and workflows below are the machinery.
+	handle("GET /api/v1/fixes", s.listFixes)
+	handle("POST /api/v1/fixes", s.assignFix)
+	handle("GET /api/v1/fixes/{id}", s.getFix)
+	handle("GET /api/v1/renewals", s.listRenewals)
+	handle("POST /api/v1/renewals/expected", s.expectChange)
 	handle("GET /api/v1/work", s.listWork)
 	handle("GET /api/v1/work/summary", s.workSummary)
 	handle("GET /api/v1/work/suggestions", s.workSuggestions)

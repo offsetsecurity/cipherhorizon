@@ -755,6 +755,7 @@ func (s *Server) verifyWork(it store.WorkItem, now time.Time) workflow.Verificat
 			return failed()
 		}
 		ev := fmt.Sprintf("scan %d", scan.ID)
+		v.CheckedAt = scan.FinishedAt
 		if it.SubjectKind == workflow.SubjectReadiness {
 			target := 0
 			if it.TargetLevel != nil {
@@ -817,6 +818,9 @@ func (s *Server) verifyWork(it store.WorkItem, now time.Time) workflow.Verificat
 				return failed()
 			}
 			evidence = append(evidence, fmt.Sprintf("scan %d", scan.ID))
+			if scan.FinishedAt != nil && (v.CheckedAt == nil || scan.FinishedAt.After(*v.CheckedAt)) {
+				v.CheckedAt = scan.FinishedAt
+			}
 			leaves, err := s.cfg.Store.ScanLeafCertificates(scan.ID)
 			if err != nil {
 				return failed()

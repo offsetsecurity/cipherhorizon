@@ -410,7 +410,7 @@ func TestCustomWorkflowsAndAReadinessTarget(t *testing.T) {
 			found = x["version"] == float64(2) && x["builtIn"] == false && x["verifies"] == true
 		}
 	}
-	if s != 200 || len(list) != 10 || !found {
+	if s != 200 || len(list) != 11 || !found {
 		t.Fatalf("workflows: %d, %d entries, custom latest found=%v", s, len(list), found)
 	}
 }

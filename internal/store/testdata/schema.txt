@@ -325,6 +325,7 @@ table work_items
   column due_at TEXT 0 NULL 0 0
   column project TEXT 1 '' 0 0
   column description TEXT 1 '' 0 0
+  column ticket TEXT 1 '' 0 0
   column approvers TEXT 1 '[]' 0 0
   column created_by TEXT 1 NULL 0 0
   column created_at TEXT 1 NULL 0 0

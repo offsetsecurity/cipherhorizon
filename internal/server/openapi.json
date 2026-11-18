@@ -76,6 +76,10 @@
     {
       "name": "lifecycle",
       "description": "The lifecycle monitor, notifications and integrations (PRD-023)."
+    },
+    {
+      "name": "fixes",
+      "description": "Fixes and renewals: assign once, the scans decide (UX-DESIGN-024)."
     }
   ],
   "paths": {
@@ -4989,6 +4993,178 @@
           },
           "401": {
             "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/fixes": {
+      "get": {
+        "summary": "The Fixes page: what came back, what is being fixed, what is on hold, what is fixed, what to fix next, and progress out of scanned endpoints. Reading it lets the latest scans update each fix.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "get_fixes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Assign a fix: who, by when, an optional link to your own ticket. From then on only scans change its state.",
+        "description": "Body: subject {kind: finding | certificate | readiness, assetId, findingKey, certificate}, owner, due, ticket. An endpoint with no schedule is scanned daily from now on.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "post_fixes",
+        "requestBody": {
+          "required": true,
+          "description": "The assignment.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "413": {
+            "description": "Request body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/fixes/{id}": {
+      "get": {
+        "summary": "One fix: where it stands, what the last scan saw, how to fix it, and what has happened.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "get_fixes_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/renewals": {
+      "get": {
+        "summary": "Certificates served by scanned endpoints, by the date they run out, with who has each renewal; and certificates that changed with nobody assigned.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "get_renewals",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/renewals/expected": {
+      "post": {
+        "summary": "Say that a certificate change nobody was assigned was expected, so it is no longer listed.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "post_renewals_expected",
+        "requestBody": {
+          "required": true,
+          "description": "assetId and toScan (the scan that found the change).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "413": {
+            "description": "Request body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
           }
         }
       }

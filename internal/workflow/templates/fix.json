@@ -1,0 +1,25 @@
+{
+  "id": "fix",
+  "version": 1,
+  "title": "Fix",
+  "purpose": "The Fixes page: a problem is assigned to someone, and every scan after that decides whether it is fixed. People only assign, put on hold and resume; the scanner moves it to fixed and back.",
+  "subjects": ["finding", "certificate", "readiness"],
+  "stages": [
+    {"id": "new", "label": "New", "marker": "requested"},
+    {"id": "being-fixed", "label": "Being fixed", "marker": "executed"},
+    {"id": "fixed", "label": "Fixed", "marker": "verified"},
+    {"id": "came-back", "label": "Came back", "marker": "executed"},
+    {"id": "on-hold", "label": "On hold", "marker": "exception"},
+    {"id": "closed", "label": "Closed without a check", "marker": "complete", "terminal": true},
+    {"id": "dropped", "label": "Dropped", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "assign", "label": "Assign", "from": ["new"], "to": "being-fixed"},
+    {"id": "confirm", "label": "Confirmed by scan", "from": ["being-fixed", "came-back"], "to": "fixed", "verify": true},
+    {"id": "return", "label": "Came back", "from": ["fixed"], "to": "came-back"},
+    {"id": "hold", "label": "Put on hold", "from": ["being-fixed", "came-back"], "to": "on-hold", "require": ["note", "until"]},
+    {"id": "resume", "label": "Resume", "from": ["on-hold"], "to": "being-fixed"},
+    {"id": "close", "label": "Close without a check", "from": ["being-fixed", "came-back"], "to": "closed", "require": ["note"]},
+    {"id": "drop", "label": "Drop", "from": ["new", "being-fixed", "came-back", "on-hold"], "to": "dropped", "require": ["note"]}
+  ]
+}

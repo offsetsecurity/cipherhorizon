@@ -38,10 +38,12 @@ type WorkItem struct {
 	DueAt           *time.Time      `json:"dueAt"`
 	Project         string          `json:"project"`
 	Description     string          `json:"description"`
-	Approvers       []string        `json:"approvers"`
-	CreatedBy       string          `json:"createdBy"`
-	CreatedAt       time.Time       `json:"createdAt"`
-	UpdatedAt       time.Time       `json:"updatedAt"`
+	// Ticket is a link to the change in the organisation's own tracker (optional).
+	Ticket    string    `json:"ticket"`
+	Approvers []string  `json:"approvers"`
+	CreatedBy string    `json:"createdBy"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 	// ExecutedAt is when the work last entered a stage that says the change was made: the baseline
 	// verification reads evidence after.
 	ExecutedAt     *time.Time      `json:"executedAt"`
@@ -51,7 +53,7 @@ type WorkItem struct {
 }
 
 const workCols = `id, title, workflow_id, workflow_version, workflow_json, stage, marker, subject_kind, asset_id, system_id,
-	certificate, finding_key, target_level, owner, due_at, project, description, approvers, created_by, created_at, updated_at,
+	certificate, finding_key, target_level, owner, due_at, project, description, ticket, approvers, created_by, created_at, updated_at,
 	executed_at, exception_until, verification, closed_at`
 
 func scanWork(r scanner) (WorkItem, error) {
@@ -60,7 +62,7 @@ func scanWork(r scanner) (WorkItem, error) {
 	var asset, system, target sql.NullInt64
 	var due, executed, until, closed sql.NullString
 	err := r.Scan(&w.ID, &w.Title, &w.WorkflowID, &w.WorkflowVersion, &wf, &w.Stage, &w.Marker, &w.SubjectKind, &asset, &system,
-		&w.Certificate, &w.FindingKey, &target, &w.Owner, &due, &w.Project, &w.Description, &approvers, &w.CreatedBy, &created, &updated,
+		&w.Certificate, &w.FindingKey, &target, &w.Owner, &due, &w.Project, &w.Description, &w.Ticket, &approvers, &w.CreatedBy, &created, &updated,
 		&executed, &until, &verification, &closed)
 	if err != nil {
 		return w, err
@@ -148,10 +150,10 @@ func (s *Store) CreateWork(w WorkItem) (WorkItem, error) {
 	}
 	defer tx.Rollback() //nolint:errcheck // a no-op after Commit
 	res, err := tx.Exec(`INSERT INTO work_items (title, workflow_id, workflow_version, workflow_json, stage, marker, subject_kind, asset_id,
-		system_id, certificate, finding_key, target_level, owner, due_at, project, description, approvers, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		system_id, certificate, finding_key, target_level, owner, due_at, project, description, ticket, approvers, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		w.Title, w.WorkflowID, w.WorkflowVersion, string(w.WorkflowJSON), w.Stage, w.Marker, w.SubjectKind, nullID(w.AssetID),
-		nullID(w.SystemID), w.Certificate, w.FindingKey, nullInt(w.TargetLevel), w.Owner, nullTS(w.DueAt), w.Project, w.Description,
+		nullID(w.SystemID), w.Certificate, w.FindingKey, nullInt(w.TargetLevel), w.Owner, nullTS(w.DueAt), w.Project, w.Description, w.Ticket,
 		string(approvers), w.CreatedBy, ts(now), ts(now))
 	if err != nil {
 		return WorkItem{}, err
@@ -261,6 +263,7 @@ type WorkPatch struct {
 	Owner       *string
 	Project     *string
 	Description *string
+	Ticket      *string
 	DueAt       *time.Time
 	ClearDue    bool
 }
@@ -297,6 +300,10 @@ func (s *Store) UpdateWork(id int64, p WorkPatch, actor, reason string) (WorkIte
 		set("project", old.Project, *p.Project)
 		n.Project = *p.Project
 	}
+	if p.Ticket != nil && *p.Ticket != old.Ticket {
+		set("ticket", old.Ticket, *p.Ticket)
+		n.Ticket = *p.Ticket
+	}
 	if p.Description != nil && *p.Description != old.Description {
 		set("description", old.Description, *p.Description)
 		n.Description = *p.Description
@@ -319,8 +326,8 @@ func (s *Store) UpdateWork(id int64, p WorkPatch, actor, reason string) (WorkIte
 	if len(after) == 0 {
 		return old, nil
 	}
-	if _, err := tx.Exec(`UPDATE work_items SET title = ?, owner = ?, project = ?, description = ?, due_at = ?, updated_at = ? WHERE id = ?`,
-		n.Title, n.Owner, n.Project, n.Description, nullTS(n.DueAt), ts(now), id); err != nil {
+	if _, err := tx.Exec(`UPDATE work_items SET title = ?, owner = ?, project = ?, description = ?, ticket = ?, due_at = ?, updated_at = ? WHERE id = ?`,
+		n.Title, n.Owner, n.Project, n.Description, n.Ticket, nullTS(n.DueAt), ts(now), id); err != nil {
 		return WorkItem{}, err
 	}
 	if err := auditWorkTx(tx, now, actor, WorkObject, id, "edited", before, after, reason); err != nil {

@@ -69,7 +69,9 @@ type readinessTally struct {
 	Scanned   int `json:"scanned"`
 	AtL3      int `json:"atL3"`
 	BelowL3   int `json:"belowL3"`
-	WithWork  int `json:"withWork"`
+	// Undetermined: scanned, but the scan could not tell the level. Not counted as below L3.
+	Undetermined int `json:"undetermined"`
+	WithWork     int `json:"withWork"`
 }
 
 func (s *Server) workSummary(w http.ResponseWriter, _ *http.Request) {
@@ -164,7 +166,12 @@ func (s *Server) workSummary(w http.ResponseWriter, _ *http.Request) {
 			continue
 		}
 		sum.Readiness.Scanned++
-		if l := a.LastDone.ReadinessLevel; l != nil && *l >= eval.LevelHybridNeg {
+		l := a.LastDone.ReadinessLevel
+		if l == nil || *l < 0 {
+			sum.Readiness.Undetermined++
+			continue
+		}
+		if *l >= eval.LevelHybridNeg {
 			sum.Readiness.AtL3++
 			continue
 		}
@@ -226,7 +233,7 @@ func (s *Server) suggestions(now time.Time) ([]Suggestion, error) {
 	// What already has work (any stage but cancelled): no suggestion for it.
 	hasWork := map[string]bool{}
 	for _, it := range items {
-		if it.Marker == workflow.MarkCancelled {
+		if workflow.Finished(it.Marker) {
 			continue
 		}
 		switch it.SubjectKind {
@@ -254,15 +261,15 @@ func (s *Server) suggestions(now time.Time) ([]Suggestion, error) {
 		}
 		if l := a.LastDone.ReadinessLevel; l != nil && (*l == eval.LevelExposed || *l == eval.LevelHybridAvail) && !hasWork[fmt.Sprintf("readiness:%d", a.ID)] {
 			target := eval.LevelHybridNeg
-			reason := "A current client negotiates a classical key exchange: traffic recorded today can be decrypted once a quantum computer exists."
+			reason := "Needs post-quantum key exchange."
 			if *l == eval.LevelHybridAvail {
-				reason = "The server accepts a hybrid post-quantum group, but a current client does not get it: the preference order needs changing."
+				reason = "It accepts post-quantum key exchange but does not prefer it: the order needs changing."
 			}
 			sev := "medium"
 			if a.LastDone.HNDLExposed {
 				sev = "high"
 			}
-			out = append(out, Suggestion{Key: fmt.Sprintf("readiness:%d", a.ID), Severity: sev, Title: "Bring " + a.Name + " to hybrid key exchange",
+			out = append(out, Suggestion{Key: fmt.Sprintf("readiness:%d", a.ID), Severity: sev, Title: a.Name + ": traffic recorded today could be decrypted later",
 				Reason: reason, Workflow: "pq-key-exchange", Link: link, Basis: basisOf("ir8547.key-establishment-deprecated"),
 				Subject: workSubjectReq{Kind: workflow.SubjectReadiness, AssetID: a.ID, TargetLevel: &target}})
 		}
@@ -293,7 +300,7 @@ func (s *Server) suggestions(now time.Time) ([]Suggestion, error) {
 		if worst != nil {
 			reason := firstSentence(worst.Remediation, worst.Detail)
 			if more > 0 {
-				reason += fmt.Sprintf(" %d more critical or high finding(s) on this endpoint follow once this is tracked.", more)
+				reason += fmt.Sprintf(" %d more serious problem(s) on this server.", more)
 			}
 			out = append(out, Suggestion{Key: fmt.Sprintf("finding:%d:%s", a.ID, worst.Key), Severity: worst.Severity, Title: worst.Title + " on " + a.Name,
 				Reason: reason, Workflow: "tls-configuration-change", Link: link,
@@ -305,7 +312,6 @@ func (s *Server) suggestions(now time.Time) ([]Suggestion, error) {
 	if err != nil {
 		return nil, err
 	}
-	deprecated := policy.Default().MustMilestone("ir8547.signatures-deprecated").Cutoff()
 	for _, c := range certs {
 		if !c.Current || c.Role() != "end-entity" || hasWork["certificate:"+c.Fingerprint] || !slices.Contains(c.Origins, "scanner") {
 			continue
@@ -329,14 +335,13 @@ func (s *Server) suggestions(now time.Time) ([]Suggestion, error) {
 			if days < 0 {
 				sev = "critical"
 			}
-			out = append(out, Suggestion{Key: "certificate:" + c.Fingerprint, Severity: sev, Title: "Renew " + name,
-				Reason:   fmt.Sprintf("Valid until %s (%d days). Served by a scanned endpoint, so a scan can confirm the replacement.", na.Format(time.DateOnly), days),
+			title := fmt.Sprintf("%s: certificate expires in %d days", commonName(name), days)
+			if days < 0 {
+				title = fmt.Sprintf("%s: certificate expired %d days ago", commonName(name), -days)
+			}
+			out = append(out, Suggestion{Key: "certificate:" + c.Fingerprint, Severity: sev, Title: title,
+				Reason:   fmt.Sprintf("Served by %d endpoint(s).", c.Places),
 				Workflow: "certificate-renewal", Link: link, Subject: workSubjectReq{Kind: workflow.SubjectCertificate, Certificate: c.Fingerprint}})
-		case na.After(deprecated) && quantumVulnerable(c.Attrs["keyAlg"]):
-			out = append(out, Suggestion{Key: "certificate:" + c.Fingerprint, Severity: "medium", Title: "Shorten or replace " + name,
-				Reason:   fmt.Sprintf("A %s certificate valid until %s, past the date NIST deprecates such signatures. Reissue with a shorter life now; plan a post-quantum certificate when your CA and clients support one.", c.Attrs["keyAlg"], na.Format(time.DateOnly)),
-				Workflow: "certificate-renewal", Link: link, Basis: basisOf("ir8547.signatures-deprecated"),
-				Subject: workSubjectReq{Kind: workflow.SubjectCertificate, Certificate: c.Fingerprint}})
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -352,14 +357,6 @@ func (s *Server) suggestions(now time.Time) ([]Suggestion, error) {
 		out = []Suggestion{}
 	}
 	return out, nil
-}
-
-func quantumVulnerable(alg string) bool {
-	switch strings.ToUpper(alg) {
-	case "RSA", "RSASSA-PSS", "ECDSA", "ED25519", "ED448", "DSA":
-		return true
-	}
-	return false
 }
 
 func firstSentence(texts ...string) string {

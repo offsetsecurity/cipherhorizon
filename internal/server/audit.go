@@ -66,6 +66,8 @@ var selfAuditedRoutes = map[string]bool{
 	"POST /api/v1/imports/{id}/withdraw":                      true,
 	"POST /api/v1/links/{id}/confirm":                         true,
 	"POST /api/v1/work":                                       true,
+	"POST /api/v1/fixes":                                      true,
+	"POST /api/v1/renewals/expected":                          true,
 	"PATCH /api/v1/work/{id}":                                 true,
 	"POST /api/v1/work/{id}/transitions":                      true,
 	"PUT /api/v1/work/{id}/dependencies/{otherId}":            true,

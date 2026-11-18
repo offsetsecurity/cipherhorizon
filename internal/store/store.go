@@ -564,6 +564,7 @@ var migrations = []string{
 		due_at TEXT,
 		project TEXT NOT NULL DEFAULT '',
 		description TEXT NOT NULL DEFAULT '',
+		ticket TEXT NOT NULL DEFAULT '',
 		approvers TEXT NOT NULL DEFAULT '[]',
 		created_by TEXT NOT NULL,
 		created_at TEXT NOT NULL,

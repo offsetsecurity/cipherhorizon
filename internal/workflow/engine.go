@@ -20,6 +20,8 @@ type Verification struct {
 	Status string    `json:"status"`
 	Detail string    `json:"detail"`
 	At     time.Time `json:"at"`
+	// CheckedAt is when the scan it rests on finished (the latest one, when there are several).
+	CheckedAt *time.Time `json:"checkedAt,omitempty"`
 	// Since is the baseline: the moment the change was recorded as made.
 	Since *time.Time `json:"since,omitempty"`
 	// Evidence names the scans or uploads it read, e.g. "scan 42".

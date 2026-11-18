@@ -187,7 +187,7 @@ func (s *Server) lifecycleEvents(now time.Time) ([]LifecycleEvent, error) {
 		return nil, err
 	}
 	for _, it := range items {
-		link := fmt.Sprintf("#/work/%d", it.ID)
+		link := fmt.Sprintf("#/fixes/%d", it.ID)
 		finished := workflow.Finished(it.Marker)
 		tmpl, _ := workflow.Parse(it.WorkflowJSON)
 		stage := it.Stage
@@ -220,7 +220,15 @@ func (s *Server) lifecycleEvents(now time.Time) ([]LifecycleEvent, error) {
 					Link: link, WorkID: it.ID})
 			}
 		}
-		if (it.Marker == workflow.MarkVerified || it.Marker == workflow.MarkComplete) && wasVerified(it) {
+		if it.WorkflowID == fixWorkflow && it.Stage == stageBack {
+			detail := "A scan found the problem again after it had been fixed."
+			if v := storedVerification(it); v != nil && v.Detail != "" {
+				detail = v.Detail
+			}
+			add(LifecycleEvent{Key: fmt.Sprintf("%s:%d:%s", EvWorkRegressed, it.ID, tsOrEmpty(it.ExecutedAt)), Kind: EvWorkRegressed, Severity: "critical",
+				Title: "Came back: " + it.Title, Detail: detail, Link: fmt.Sprintf("#/fixes/%d", it.ID), WorkID: it.ID, AssetID: it.AssetID, Certificate: it.Certificate})
+		}
+		if it.WorkflowID != fixWorkflow && (it.Marker == workflow.MarkVerified || it.Marker == workflow.MarkComplete) && wasVerified(it) {
 			if v := s.verifyWork(it, now); v.Status == workflow.NotVerified {
 				ev := strings.Join(v.Evidence, ",")
 				add(LifecycleEvent{Key: fmt.Sprintf("%s:%d:%s", EvWorkRegressed, it.ID, ev), Kind: EvWorkRegressed, Severity: "critical",
@@ -348,6 +356,10 @@ const maxDeliveryAttempts = 5
 // RunMonitor finds the events, records the new ones and delivers what is pending.
 func (s *Server) RunMonitor(ctx context.Context) (MonitorResult, error) {
 	now := s.cfg.Now()
+	// The scans decide first: a fix that now passes becomes fixed, one that fails again comes back.
+	if _, _, err := s.syncFixes(now); err != nil {
+		return MonitorResult{}, err
+	}
 	evs, err := s.lifecycleEvents(now)
 	if err != nil {
 		return MonitorResult{}, err
@@ -449,16 +461,18 @@ func (s *Server) deliver(ctx context.Context, ls LifecycleSettings, n store.Noti
 	req.Header.Set("User-Agent", "CipherHorizon/"+s.cfg.Version)
 	req.Header.Set("X-CipherHorizon-Event", n.Kind)
 	if ls.WebhookSecretEnv != "" {
-		if secret := os.Getenv(ls.WebhookSecretEnv); secret != "" {
-			mac := hmac.New(sha256.New, []byte(secret))
-			mac.Write(body)
-			req.Header.Set("X-CipherHorizon-Signature", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+		secret := os.Getenv(ls.WebhookSecretEnv)
+		if secret == "" {
+			return fmt.Errorf("the signing secret variable %s is not set on the server, so nothing was sent", ls.WebhookSecretEnv)
 		}
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(body)
+		req.Header.Set("X-CipherHorizon-Signature", "sha256="+hex.EncodeToString(mac.Sum(nil)))
 	}
 	resp, err := s.webhookClient().Do(req)
 	if err != nil {
-		// The error names the address, never the body or the secret.
-		return fmt.Errorf("the webhook could not be reached: %s", cleanDialError(err))
+		// The error names the host only: the full address is a credential for chat webhooks.
+		return fmt.Errorf("the webhook at %s could not be reached: %s", req.URL.Host, cleanDialError(err))
 	}
 	defer resp.Body.Close() //nolint:errcheck // response drained below
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
@@ -469,6 +483,10 @@ func (s *Server) deliver(ctx context.Context, ls LifecycleSettings, n store.Noti
 }
 
 func cleanDialError(err error) string {
+	var uerr *url.Error
+	if errors.As(err, &uerr) {
+		err = uerr.Err // without the address url.Error puts in front
+	}
 	msg := err.Error()
 	if errors.Is(err, ErrBlocked) {
 		return "the address is not allowed (" + msg[strings.LastIndex(msg, ":")+1:] + ")"
