@@ -57,6 +57,13 @@ func TestCertificateRules(t *testing.T) {
 		{"valid past 2035", mut(func(c *CertificateFacts) { c.NotAfter = time.Date(2040, 1, 1, 0, 0, 0, 0, time.UTC) }),
 			[]string{"CERT.PQ-OUTLIVES-DEPRECATION"}, map[string]Severity{"CERT.PQ-OUTLIVES-DEPRECATION": High}},
 		{"valid until the very end of 2030", mut(func(c *CertificateFacts) { c.NotAfter = time.Date(2030, 12, 31, 23, 59, 59, 0, time.UTC) }), nil, nil},
+		// ADR-0022: "disallowed after 2035" starts in 2036, so a certificate ending during 2035 outlives only the deprecation.
+		{"valid until mid-2035", mut(func(c *CertificateFacts) { c.NotAfter = time.Date(2035, 6, 1, 0, 0, 0, 0, time.UTC) }),
+			[]string{"CERT.PQ-OUTLIVES-DEPRECATION"}, map[string]Severity{"CERT.PQ-OUTLIVES-DEPRECATION": Medium}},
+		{"valid until the very end of 2035", mut(func(c *CertificateFacts) { c.NotAfter = time.Date(2035, 12, 31, 23, 59, 59, 0, time.UTC) }),
+			[]string{"CERT.PQ-OUTLIVES-DEPRECATION"}, map[string]Severity{"CERT.PQ-OUTLIVES-DEPRECATION": Medium}},
+		{"valid into 2036", mut(func(c *CertificateFacts) { c.NotAfter = time.Date(2036, 1, 1, 0, 0, 0, 0, time.UTC) }),
+			[]string{"CERT.PQ-OUTLIVES-DEPRECATION"}, map[string]Severity{"CERT.PQ-OUTLIVES-DEPRECATION": High}},
 		{"a post-quantum key valid past 2035 is not flagged", mut(func(c *CertificateFacts) {
 			c.KeyAlgorithm, c.NotAfter = "ML-DSA-65", time.Date(2040, 1, 1, 0, 0, 0, 0, time.UTC)
 		}), nil, nil},

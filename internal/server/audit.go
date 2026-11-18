@@ -65,6 +65,18 @@ var selfAuditedRoutes = map[string]bool{
 	"POST /api/v1/imports":                                    true,
 	"POST /api/v1/imports/{id}/withdraw":                      true,
 	"POST /api/v1/links/{id}/confirm":                         true,
+	"POST /api/v1/work":                                       true,
+	"POST /api/v1/fixes":                                      true,
+	"POST /api/v1/renewals/expected":                          true,
+	"PATCH /api/v1/work/{id}":                                 true,
+	"POST /api/v1/work/{id}/transitions":                      true,
+	"PUT /api/v1/work/{id}/dependencies/{otherId}":            true,
+	"DELETE /api/v1/work/{id}/dependencies/{otherId}":         true,
+	"POST /api/v1/workflows":                                  true,
+	"PUT /api/v1/certificates/{fingerprint}/lifecycle":        true,
+	"PUT /api/v1/settings/lifecycle":                          true,
+	"POST /api/v1/lifecycle/test-webhook":                     true,
+	"POST /api/v1/lifecycle/check":                            true,
 	"POST /api/v1/links/{id}/reject":                          true,
 }
 

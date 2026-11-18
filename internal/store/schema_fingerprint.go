@@ -4,4 +4,4 @@ package store
 
 // schemaFingerprintWant is the fingerprint of the schema this program's migrations build (see
 // schemaFingerprint). testdata/schema.txt is the same schema, readable.
-const schemaFingerprintWant = "20b9afbad33573e33384021fb57265b11b76b0cc1140953499d6c9dc4d9ba8ff"
+const schemaFingerprintWant = "2369fc351b591e69577d762782bc77e681c5658ebe8f006e4f46336e9bb5d4a4"

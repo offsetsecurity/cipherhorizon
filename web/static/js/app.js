@@ -29,6 +29,9 @@ const routes = [
   [/^#\/certificates\/([0-9a-fA-F]{64})\/?$/, 'inventory', () => import('./views/certificate.js')],
   [/^#\/systems\/?$/, 'systems', () => import('./views/systems.js')],
   [/^#\/systems\/(\d+)\/?$/, 'systems', () => import('./views/system.js')],
+  [/^#\/fixes\/?$/, 'fixes', () => import('./views/fixes.js')],
+  [/^#\/fixes\/(\d+)\/?$/, 'fixes', () => import('./views/fixes.js')],
+  [/^#\/renewals\/?$/, 'renewals', () => import('./views/renewals.js')],
   [/^#\/reports\/?$/, 'reports', () => import('./views/reports.js')],
   [/^#\/about\/?$/, 'about', () => import('./views/about.js')],
   [/^#\/help\/?$/, 'help', () => import('./views/help.js')],
@@ -51,6 +54,8 @@ const redirects = [
   [/^#\/certificates\/?$/, () => '#/inventory/certificates'],
   [/^#\/review\/?$/, () => '#/systems?tab=decisions'],
   [/^#\/estate\/?$/, () => '#/systems'],
+  [/^#\/work\/(\d+)\/?$/, (m) => `#/fixes/${m[1]}`],
+  [/^#\/work\/?$/, () => '#/fixes'],
 ];
 
 let cleanup = null;

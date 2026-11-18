@@ -6,9 +6,10 @@
 // attacker may have chosen: it reaches the page as text only.
 import { h, clear, fmtDate, fmtDay, daysUntil } from '../dom.js';
 import { api } from '../api.js';
-import { badge, skeleton, citations, crumbs, copyButton, button } from '../ui.js';
+import { badge, skeleton, citations, crumbs, copyButton, button, modal, toast } from '../ui.js';
 import { validFingerprint, systemHref, keyText, expiryBadge, classLabel, keyAssociation, validId } from '../estate-ui.js';
 import { bitsBar, pqGlyph, lifetimeBar } from '../viz.js';
+import { assignDialog, standing, fixHref } from '../fix-ui.js';
 
 const cnOf = (dn) => { const m = /CN=([^,]+)/.exec(dn || ''); return m ? m[1] : (dn || ''); };
 const orgOf = (parts) => ((parts || []).find((p) => p.type === 'O') || {}).value || '';
@@ -194,6 +195,7 @@ export async function render(root, { args, query }) {
   }
   if (!d) return null;
 
+  root.appendChild(lifecyclePanel(fp, title));
   root.appendChild(h('section', { class: 'card xcard', 'aria-labelledby': 'x-seen' }, h('div', { class: 'cfg-head' }, h('h2', { id: 'x-seen' }, 'Seen on'),
     h('span', { class: 'cfg-aside' }, '“Key” says only what the sensor checked: it reads a property and never opens a key.')),
     h('div', { class: 'seenwrap' }, (d.places || []).map((p) => h(validId(p.systemId) ? 'a' : 'div', { class: 'seencard', href: validId(p.systemId) ? systemHref(p.systemId) : null },
@@ -208,4 +210,57 @@ export async function render(root, { args, query }) {
         h('p', null, f.detail || ''), f.remediation ? h('p', { class: 'hint' }, f.remediation) : null, citations(f.citations)))
       : h('p', { class: 'hint' }, 'No finding applies to this certificate on the current evidence.')));
   return null;
+}
+
+// ---- lifecycle (PRD-023): who answers for this certificate, how it is renewed, and its work -------
+
+const RENEWAL_WORDS = { acme: 'ACME (automatic)', 'ca-portal': 'CA portal (by hand)', 'cert-manager': 'cert-manager', 'cloud-managed': 'Managed by the cloud provider',
+  'internal-ca': 'Internal CA', manual: 'By hand', vendor: 'By the vendor' };
+
+function lifecyclePanel(fp, title) {
+  const box = h('section', { class: 'card xcard', id: 'cert-lifecycle', 'aria-labelledby': 'x-life' });
+  const paint = async () => {
+    let r;
+    let ren = null;
+    try { [r, ren] = await Promise.all([api.certLifecycle(fp), api.renewals().catch(() => null)]); } catch { box.hidden = true; return; }
+    const l = r.lifecycle || {};
+    const mine = ren ? (ren.certificates || []).find((c) => c.fingerprint === fp) : null;
+    const fix = mine ? mine.fix : null;
+    clear(box).append(
+      h('div', { class: 'cfg-head' }, h('h2', { id: 'x-life' }, 'Owner and renewal'),
+        h('div', { class: 'row' },
+          button('Edit', () => editLifecycle(fp, l, r.renewalMethods || [], paint), 'secondary', { class: 'btn btn-secondary btn-sm', id: 'cert-life-edit' }),
+          mine && !fix ? button('Assign the renewal', () => assignDialog({ kind: 'certificate', certificate: fp }, { what: `${title}: certificate`, owner: l.owner || '', onDone: paint }), 'primary', { class: 'btn btn-primary btn-sm', id: 'cert-plan' }) : null)),
+      h('dl', { class: 'kv' },
+        h('dt', null, 'Owner'), h('dd', null, l.owner || h('span', { class: 'muted' }, 'not set')),
+        h('dt', null, 'Renewed'), h('dd', null, l.renewal ? RENEWAL_WORDS[l.renewal] || l.renewal : h('span', { class: 'muted' }, 'not recorded')),
+        l.notes ? [h('dt', null, 'Notes'), h('dd', null, l.notes)] : null),
+      fix ? h('p', { class: 'mt-sm' }, h('a', { href: fixHref(fix.id) }, fix.title), ' · ', standing(fix).text)
+        : h('p', { class: 'hint' }, mine ? 'Nobody is assigned to renew it.' : 'Not served by a scanned endpoint, so a scan cannot follow its renewal.'));
+  };
+  paint();
+  return box;
+}
+
+function editLifecycle(fp, l, methods, repaint) {
+  modal('Ownership and renewal', (close) => {
+    const err = h('div', { class: 'callout bad', role: 'alert', hidden: true });
+    const owner = h('input', { type: 'text', id: 'life-owner', value: l.owner || '', maxlength: '100', autocomplete: 'off' });
+    const renewal = h('select', { id: 'life-renewal' }, h('option', { value: '' }, 'Not recorded'),
+      methods.map((m) => h('option', { value: m, selected: m === l.renewal }, RENEWAL_WORDS[m] || m)));
+    const notes = h('textarea', { class: 'prose', id: 'life-notes', rows: 3, maxlength: '4000' }, l.notes || '');
+    return h('form', { class: 'modal-body', onsubmit: async (e) => {
+      e.preventDefault();
+      try {
+        await api.setCertLifecycle(fp, { owner: owner.value.trim(), renewal: renewal.value, notes: notes.value.trim() });
+        close();
+        toast('Saved', 'success');
+        await repaint();
+      } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+    } }, err,
+    h('label', { for: 'life-owner' }, 'Owner'), owner,
+    h('label', { for: 'life-renewal' }, 'How it is renewed'), renewal,
+    h('label', { for: 'life-notes' }, 'Notes'), notes,
+    h('div', { class: 'row end' }, button('Cancel', close), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Save')));
+  });
 }

@@ -189,6 +189,8 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		"(the session cookie is marked Secure when the proxy sends X-Forwarded-Proto: https), or because the port is published only on this host")
 	sessionIdle := fl.Duration("session-idle", 30*time.Minute, "sign a browser out after this long without activity")
 	sessionMax := fl.Duration("session-max", 12*time.Hour, "sign a browser out after this long in any case")
+	publicURL := fl.String("public-url", "", "the address people use to reach this server, put in front of the links in lifecycle notifications (https://cipherhorizon.example)")
+	monitorEvery := fl.Duration("monitor-every", 15*time.Minute, "how often the lifecycle monitor looks for work and certificates that need a person and sends notifications (0 turns it off)")
 	allowLoopback := fl.Bool("allow-loopback", false, "let scans target loopback addresses (for testing)")
 	workers := fl.Int("max-concurrent-scans", 2, "scans that may run at once")
 	timeout := fl.Duration("timeout", 8*time.Second, "per-connection timeout during a scan")
@@ -397,6 +399,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 		RegistryRetrieved:  registry.GroupsRetrieved,
 		MaxConcurrentScans: *workers,
 		Log:                log,
+		PublicURL:          strings.TrimRight(*publicURL, "/"),
 	})
 
 	inproc.set(srv.Handler())
@@ -423,6 +426,7 @@ func serveCmd(ctx context.Context, args []string, env Env) int {
 	defer stopRunner()
 	runner.Start(runCtx)
 	discoverer.Start(runCtx)
+	srv.StartMonitor(runCtx, *monitorEvery)
 
 	_, _ = fmt.Fprint(env.Stderr, serveNotice)
 	if scope.Empty() {

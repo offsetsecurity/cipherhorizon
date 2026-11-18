@@ -1,0 +1,27 @@
+{
+  "id": "certificate-renewal",
+  "version": 1,
+  "title": "Certificate renewal",
+  "purpose": "Renew a certificate before it expires or is retired, deploy the new one, and let a scan confirm it is served.",
+  "subjects": ["certificate"],
+  "stages": [
+    {"id": "requested", "label": "Requested", "marker": "requested"},
+    {"id": "planned", "label": "Renewal planned"},
+    {"id": "approved", "label": "Approved", "marker": "approved"},
+    {"id": "issued", "label": "New certificate issued"},
+    {"id": "deployed", "label": "Deployed", "marker": "executed"},
+    {"id": "verified", "label": "Verified by scan", "marker": "verified"},
+    {"id": "closed", "label": "Closed", "marker": "complete", "terminal": true},
+    {"id": "cancelled", "label": "Cancelled", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "plan", "label": "Plan the renewal", "from": ["requested"], "to": "planned"},
+    {"id": "approve", "label": "Approve", "from": ["planned"], "to": "approved", "approval": true},
+    {"id": "issue", "label": "Record the issued certificate", "from": ["approved"], "to": "issued", "require": ["evidence"]},
+    {"id": "deploy", "label": "Record deployment", "from": ["issued"], "to": "deployed", "require": ["note"]},
+    {"id": "redeploy", "label": "Deployment failed", "from": ["deployed"], "to": "issued", "require": ["note"]},
+    {"id": "verify", "label": "Verify", "from": ["deployed"], "to": "verified", "verify": true},
+    {"id": "close", "label": "Close", "from": ["verified"], "to": "closed"},
+    {"id": "cancel", "label": "Cancel", "from": ["requested", "planned", "approved", "issued", "deployed"], "to": "cancelled", "require": ["note"]}
+  ]
+}

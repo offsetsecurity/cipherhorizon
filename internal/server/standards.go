@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/eval"
+	"github.com/offsetsecurity/cipherhorizon/internal/policy"
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
 )
 
@@ -88,4 +89,9 @@ func (s *Server) standardsSummary(w http.ResponseWriter, _ *http.Request) {
 		out = append(out, t)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"standards": out})
+}
+
+// policyCatalog serves the catalog of standards documents and dated milestones (ADR-0022).
+func (s *Server) policyCatalog(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, policy.Default())
 }

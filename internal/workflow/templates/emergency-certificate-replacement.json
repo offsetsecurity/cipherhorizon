@@ -1,0 +1,23 @@
+{
+  "id": "emergency-certificate-replacement",
+  "version": 1,
+  "title": "Emergency certificate replacement",
+  "purpose": "Replace a compromised, distrusted or expired certificate at once; approval is given afterwards, once a scan shows the replacement served.",
+  "subjects": ["certificate"],
+  "stages": [
+    {"id": "requested", "label": "Requested", "marker": "requested"},
+    {"id": "replaced", "label": "Replaced", "marker": "executed"},
+    {"id": "verified", "label": "Verified by scan", "marker": "verified"},
+    {"id": "reviewed", "label": "Approved after the fact", "marker": "approved"},
+    {"id": "closed", "label": "Closed", "marker": "complete", "terminal": true},
+    {"id": "cancelled", "label": "Cancelled", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "replace", "label": "Record the replacement", "from": ["requested"], "to": "replaced", "require": ["note"]},
+    {"id": "retry", "label": "Replacement failed", "from": ["replaced"], "to": "requested", "require": ["note"]},
+    {"id": "verify", "label": "Verify", "from": ["replaced"], "to": "verified", "verify": true},
+    {"id": "review", "label": "Approve after the fact", "from": ["verified"], "to": "reviewed", "approval": true},
+    {"id": "close", "label": "Close", "from": ["reviewed"], "to": "closed"},
+    {"id": "cancel", "label": "Cancel", "from": ["requested", "replaced"], "to": "cancelled", "require": ["note"]}
+  ]
+}

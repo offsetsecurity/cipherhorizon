@@ -10,6 +10,50 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Added
+
+- **Fixes: assign once, the scans do the rest.** A new page lists what your scans found, most serious first, one
+  line per endpoint. Press *Assign*, say who will fix it and by when, optionally paste a link to your own ticket,
+  and that is all: every scan after that checks it. The fix reads *Not fixed yet* until a scan shows the problem
+  gone, then *Fixed* with the date, and it moves to *Came back* at the top of the page if a later scan finds the
+  problem again. Nobody can mark a fix as done by hand. A progress line counts the endpoints that keep today's
+  traffic safe from later decryption, out of those scanned. *Put on hold* takes a reason and a date within a year.
+  *Assign* is also on an endpoint's page, beside a finding and on a certificate. An endpoint with a fix assigned is
+  scanned every day. See [docs/fixes.md](docs/fixes.md) and the walkthrough
+  [docs/lifecycle-walkthrough.md](docs/lifecycle-walkthrough.md).
+- **Renewals.** Every certificate your scanned endpoints serve, by the date it runs out, with who has each
+  renewal. A renewal is done when a scan sees a certificate issued after the old one on every endpoint that served
+  it. A certificate that changed with nobody assigned is listed until someone says it was expected. A certificate's
+  page records its owner and how it is renewed.
+- **Being told.** An administrator can set a webhook (*Settings, Notifications*) and the server sends each event
+  once: a fix came back, a fix is overdue, a certificate runs out within 30 days (high within 7), a certificate
+  changed with nobody assigned. JSON signed with HMAC-SHA256, or a chat message in the shape Slack and Teams
+  incoming webhooks document (not tested against either service). The secret is the name of an environment
+  variable, never stored; the webhook address is stored and obeys the scanner's address rules. This is the first
+  time the server makes an outbound connection that is not a scan or a lookup you turned on, and only after an
+  administrator sets the address. `serve --monitor-every` (default 15 minutes) and `--public-url`.
+- **A record for auditors.** *Fixes* downloads every fix with its history from the audit log and a check computed
+  again at export.
+- **Integrations.** *Settings, Integrations* lists what this server can talk to: the scanner and the webhook are
+  available; connectors that issue or deploy certificates or open tickets are listed as planned (ADR-0023).
+- **Workflows in the API.** Underneath, a fix is a piece of work on a workflow. The API also offers workflows of
+  your own with stages, approvals by a second signed-in person and prerequisites (`/api/v1/work`,
+  `/api/v1/workflows`; ADR-0021). They are not in the web interface.
+- **Policy catalog.** The standards documents and dated milestones the product acts on (NIST IR 8547's 2030 and
+  2035 dates, the federal dates it quotes, FIPS 203/204/205, the drafts that are not final yet) are now data with
+  status, date, address and provenance, served at `/api/v1/policy/catalog` (ADR-0022).
+
+### Changed
+
+- **A certificate valid until a day in 2035 outlives the 2030 deprecation, not the 2035 disallowance.** NIST IR
+  8547 disallows quantum-vulnerable keys *after* 2035; the certificate check started that at 1 January 2035, so a
+  certificate ending during 2035 was reported high instead of medium. The dates now come from the policy catalog.
+
+### Upgrade notes
+
+- Schema 19 → 20: adds the tables `workflows`, `work_items`, `work_deps`, `certificate_lifecycle` and
+  `notifications`. Nothing existing is changed; the upgrade takes under a second.
+
 ## [0.9.0] - 2026-11-17
 
 ### Added

@@ -64,6 +64,22 @@
     {
       "name": "discovery",
       "description": "Finding the host names under a domain, reviewing them and adding them as endpoints."
+    },
+    {
+      "name": "work",
+      "description": "Tracked work: workflows, transitions, approvals, prerequisites and verification by the product's own scans (PRD-023)."
+    },
+    {
+      "name": "standards",
+      "description": "Published standards, clause by clause, and the policy catalog."
+    },
+    {
+      "name": "lifecycle",
+      "description": "The lifecycle monitor, notifications and integrations (PRD-023)."
+    },
+    {
+      "name": "fixes",
+      "description": "Fixes and renewals: assign once, the scans decide (UX-DESIGN-024)."
     }
   ],
   "paths": {
@@ -4016,6 +4032,1136 @@
           },
           "413": {
             "description": "Body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/work": {
+      "get": {
+        "summary": "List tracked work, most recently changed first.",
+        "description": "Filters: marker (requested, approved, executed, reported, verified, complete, exception, cancelled, or open for anything not finished), owner, project, workflow, asset, system, certificate, limit (default 1000, at most 5000).",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work",
+        "parameters": [
+          {
+            "name": "marker",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "system",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "certificate",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a piece of work about a finding, certificate, readiness target, endpoint or system.",
+        "description": "Body: title, workflow (an id from GET /api/v1/workflows), subject {kind, assetId, systemId, certificate, findingKey, targetLevel}, owner, due (a date or RFC 3339 time), project, description. The subject must exist now; a finding must be among the endpoint's current findings.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "post_work",
+        "requestBody": {
+          "required": true,
+          "description": "The new work.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "413": {
+            "description": "Request body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/work/{id}": {
+      "get": {
+        "summary": "One piece of work, with its stages, the transitions open from its stage, its prerequisites and its history.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Change the title, owner, project, description or due date (\"\" clears the due date).",
+        "tags": [
+          "work"
+        ],
+        "operationId": "patch_work_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Recorded in the audit log beside the change."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The fields to change.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/work/{id}/transitions": {
+      "post": {
+        "summary": "Move the work along its workflow.",
+        "description": "Body: transition, note, evidence, until. Refused with a code and a reason: wrong-stage, role (403), approval (a different signed-in person must approve), missing-field, until, blocked (a prerequisite is unfinished), not-verified (the product's own verification did not say verified; its result is returned), moved (someone else moved it first).",
+        "tags": [
+          "work"
+        ],
+        "operationId": "post_work_id_transitions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The transition and its fields.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/work/{id}/verification": {
+      "get": {
+        "summary": "What the product's own scans and uploads since the change say: verified, not-verified, waiting or not-verifiable.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_id_verification",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/work/{id}/dependencies/{otherId}": {
+      "put": {
+        "summary": "Make the work wait for another piece of work.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "put_work_id_dependencies_otherid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "otherId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Added"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a prerequisite.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "delete_work_id_dependencies_otherid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "otherId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/workflows": {
+      "get": {
+        "summary": "Every workflow template: the built-in ones and the latest version of each custom one.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_workflows",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a custom workflow template, or a new version of one (administrators only).",
+        "description": "The body is a template (id, title, purpose, subjects, stages, transitions); its version is assigned. A built-in id cannot be used.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "post_workflows",
+        "requestBody": {
+          "required": true,
+          "description": "The template.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "413": {
+            "description": "Request body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/workflows/{workflow}": {
+      "get": {
+        "summary": "One workflow template.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_workflows_workflow",
+        "parameters": [
+          {
+            "name": "workflow",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,39}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/policy/catalog": {
+      "get": {
+        "summary": "The catalog of standards documents, their status and dated milestones, and the profiles that group them.",
+        "tags": [
+          "standards"
+        ],
+        "operationId": "get_policy_catalog",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/work/summary": {
+      "get": {
+        "summary": "What the work adds up to: counts by marker, overdue, awaiting approval or verification, exceptions, projects, and post-quantum readiness of the endpoints, each with its definition and denominator.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_summary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/work/suggestions": {
+      "get": {
+        "summary": "Work the scans point at and nobody has opened: endpoints below hybrid key exchange, critical and high findings, certificates expiring or outliving the IR 8547 deprecation. Each says why and cites its source.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_suggestions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/work/export.csv": {
+      "get": {
+        "summary": "Every piece of work as CSV.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_export_csv",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/work/evidence.json": {
+      "get": {
+        "summary": "The audit evidence pack: every piece of work with its workflow, full history, prerequisites and a verification computed now, plus the definitions and rule versions.",
+        "tags": [
+          "work"
+        ],
+        "operationId": "get_work_evidence_json",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/certificates/{fingerprint}/lifecycle": {
+      "get": {
+        "summary": "Who owns a certificate, how it is renewed, and the work that names it.",
+        "tags": [
+          "certificates"
+        ],
+        "operationId": "get_certificates_fingerprint_lifecycle",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      },
+      "put": {
+        "summary": "Record a certificate's owner, renewal method and notes.",
+        "tags": [
+          "certificates"
+        ],
+        "operationId": "put_certificates_fingerprint_lifecycle",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Recorded in the audit log beside the change."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "owner, renewal (acme, ca-portal, cert-manager, cloud-managed, internal-ca, manual, vendor, or empty), notes",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "404": {
+            "description": "No such object"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/lifecycle/events": {
+      "get": {
+        "summary": "Everything that needs a person now: work overdue, due soon or waiting for approval, exceptions past their end, verified work that no longer holds, certificates expiring or expired, certificates changed with no planned work.",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "get_lifecycle_events",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/lifecycle/notifications": {
+      "get": {
+        "summary": "Events the monitor has recorded and whether each was sent.",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "get_lifecycle_notifications",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/lifecycle/check": {
+      "post": {
+        "summary": "Run the lifecycle monitor now: record new events and send what is pending (administrators).",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "post_lifecycle_check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          }
+        }
+      }
+    },
+    "/api/v1/lifecycle/test-webhook": {
+      "post": {
+        "summary": "Send one test message to the configured webhook (administrators).",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "post_lifecycle_test_webhook",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "502": {
+            "description": "The destination did not accept the message"
+          }
+        }
+      }
+    },
+    "/api/v1/settings/lifecycle": {
+      "get": {
+        "summary": "The lifecycle monitor's settings: expiry windows, due-soon window, webhook address, format, which events, and whether the signing secret is set (never its value).",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "get_settings_lifecycle",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          }
+        }
+      },
+      "put": {
+        "summary": "Change the lifecycle monitor's settings (administrators). The secret is named by an environment variable of the server.",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "put_settings_lifecycle",
+        "requestBody": {
+          "required": true,
+          "description": "expiryWarnDays, expiryCriticalDays, dueSoonDays, webhookUrl, webhookFormat (json or chat), webhookSecretEnv, events",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/integrations": {
+      "get": {
+        "summary": "The integration registry: each connector's purpose, capabilities, authentication, configuration and limits, whether it is available or only planned, and its health.",
+        "tags": [
+          "lifecycle"
+        ],
+        "operationId": "get_integrations",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/fixes": {
+      "get": {
+        "summary": "The Fixes page: what came back, what is being fixed, what is on hold, what is fixed, what to fix next, and progress out of scanned endpoints. Reading it lets the latest scans update each fix.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "get_fixes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      },
+      "post": {
+        "summary": "Assign a fix: who, by when, an optional link to your own ticket. From then on only scans change its state.",
+        "description": "Body: subject {kind: finding | certificate | readiness, assetId, findingKey, certificate}, owner, due, ticket. An endpoint with no schedule is scanned daily from now on.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "post_fixes",
+        "requestBody": {
+          "required": true,
+          "description": "The assignment.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "409": {
+            "description": "Conflicts with existing data"
+          },
+          "413": {
+            "description": "Request body too large"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          }
+        }
+      }
+    },
+    "/api/v1/fixes/{id}": {
+      "get": {
+        "summary": "One fix: where it stands, what the last scan saw, how to fix it, and what has happened.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "get_fixes_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "404": {
+            "description": "No such object"
+          }
+        }
+      }
+    },
+    "/api/v1/renewals": {
+      "get": {
+        "summary": "Certificates served by scanned endpoints, by the date they run out, with who has each renewal; and certificates that changed with nobody assigned.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "get_renewals",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          }
+        }
+      }
+    },
+    "/api/v1/renewals/expected": {
+      "post": {
+        "summary": "Say that a certificate change nobody was assigned was expected, so it is no longer listed.",
+        "tags": [
+          "fixes"
+        ],
+        "operationId": "post_renewals_expected",
+        "requestBody": {
+          "required": true,
+          "description": "assetId and toScan (the scan that found the change).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or wrong token"
+          },
+          "403": {
+            "description": "Refused by the anti-forgery guard, or the caller's role does not allow it"
+          },
+          "413": {
+            "description": "Request body too large"
           },
           "415": {
             "description": "Content-Type must be application/json"

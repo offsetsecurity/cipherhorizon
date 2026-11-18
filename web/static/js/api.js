@@ -3,9 +3,12 @@
 // (HttpOnly: no script, including this one, can read it), so no credential is kept here.
 
 export class ApiError extends Error {
-  constructor(status, message) {
+  constructor(status, message, data = null) {
     super(message);
     this.status = status;
+    // The whole answer, when the server sent more than a message (a refused transition's code and
+    // the verification it rests on, for example).
+    this.data = data;
   }
 }
 
@@ -41,7 +44,7 @@ async function request(method, path, body, raw, contentType) {
   }
   if (res.status === 204) return null;
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, (data && data.error) || `Request failed (${res.status})`);
+  if (!res.ok) throw new ApiError(res.status, (data && data.error) || `Request failed (${res.status})`, data);
   return data;
 }
 
@@ -169,6 +172,35 @@ export const api = {
   downloadBlob(filename, content, mime) {
     saveBlob(new Blob([content], { type: mime }), filename);
   },
+
+  // Fixes and renewals (UX-DESIGN-024).
+  fixes: () => request('GET', '/api/v1/fixes'),
+  fix: (id) => request('GET', `/api/v1/fixes/${id}`),
+  assignFix: (body) => request('POST', '/api/v1/fixes', body),
+  renewals: () => request('GET', '/api/v1/renewals'),
+  expectChange: (body) => request('POST', '/api/v1/renewals/expected', body),
+  // The machinery under them: work, workflows, the lifecycle monitor and integrations (PRD-023).
+  work: (query = '') => request('GET', `/api/v1/work${query}`),
+  workItem: (id) => request('GET', `/api/v1/work/${id}`),
+  createWork: (body) => request('POST', '/api/v1/work', body),
+  patchWork: (id, body, reason) => request('PATCH', `/api/v1/work/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`, body),
+  moveWork: (id, body) => request('POST', `/api/v1/work/${id}/transitions`, body),
+  workVerification: (id) => request('GET', `/api/v1/work/${id}/verification`),
+  addWorkDep: (id, other) => request('PUT', `/api/v1/work/${id}/dependencies/${other}`),
+  removeWorkDep: (id, other) => request('DELETE', `/api/v1/work/${id}/dependencies/${other}`),
+  workSummary: () => request('GET', '/api/v1/work/summary'),
+  workSuggestions: () => request('GET', '/api/v1/work/suggestions'),
+  workflows: () => request('GET', '/api/v1/workflows'),
+  policyCatalog: () => request('GET', '/api/v1/policy/catalog'),
+  certLifecycle: (fp) => request('GET', `/api/v1/certificates/${fp}/lifecycle`),
+  setCertLifecycle: (fp, body, reason) => request('PUT', `/api/v1/certificates/${fp}/lifecycle${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`, body),
+  lifecycleEvents: () => request('GET', '/api/v1/lifecycle/events'),
+  notifications: () => request('GET', '/api/v1/lifecycle/notifications'),
+  lifecycleCheck: () => request('POST', '/api/v1/lifecycle/check'),
+  testWebhook: () => request('POST', '/api/v1/lifecycle/test-webhook'),
+  lifecycleSettings: () => request('GET', '/api/v1/settings/lifecycle'),
+  putLifecycleSettings: (body) => request('PUT', '/api/v1/settings/lifecycle', body),
+  integrations: () => request('GET', '/api/v1/integrations'),
 };
 
 function saveBlob(blob, filename) {

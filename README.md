@@ -137,6 +137,7 @@ with PDF reports and the OMB M-23-02 items per system.
 | **Machines** | Platform state (FIPS, TPM, disk encryption, Secure Boot), what OpenSSL and OpenSSH can do, TLS, SSH, VPN and authentication settings, certificates and which provider holds each key, and every listening service with the libraries it loaded. |
 | **Inventory** | Everything merged into one CycloneDX 1.7 (or 1.6) CBOM: algorithms with their OIDs, certificates with serial and fingerprint. Every chart opens what it counts. |
 | **Findings and systems** | Findings grouped by problem, with triage; systems ranked for migration; OMB M-23-02 export per system. |
+| **Fixes and renewals** | Give a problem an owner and a date; every scan after that checks it. A fix is marked fixed only when a scan shows the problem gone, and comes back if a later scan finds it again. Certificates by the date they run out, webhook notifications, a record for auditors ([docs/fixes.md](docs/fixes.md)). |
 | **Reports** | PDF per TLS endpoint, per SSH server and for the whole inventory; CycloneDX, CSV and JSON downloads. |
 | **Over time** | Schedules, history, and what changed between two scans. |
 | **For teams** | Sign-in when you want it: administrator, analyst and viewer roles, an exportable activity log. |
@@ -206,6 +207,7 @@ Report vulnerabilities privately: [SECURITY.md](SECURITY.md).
 | [docs/ssh-scanning.md](docs/ssh-scanning.md) | How the SSH auditor works, what it sends, and the SSH baseline |
 | [docs/standards.md](docs/standards.md), [docs/clients.md](docs/clients.md) | The published standards, clause by clause; the simulated clients and their sources |
 | [docs/estate-guide.md](docs/estate-guide.md) | Systems, machines, migration order |
+| [docs/fixes.md](docs/fixes.md), [docs/lifecycle-walkthrough.md](docs/lifecycle-walkthrough.md) | Fixes and Renewals: assigning, what the scans decide, notifications, the record for auditors; a walkthrough on the demo targets and how each claim is tested |
 | [docs/importing.md](docs/importing.md), [docs/exporting.md](docs/exporting.md) | CBOM in and out, OMB M-23-02 |
 | [docs/cbom-model.md](docs/cbom-model.md) | What a CipherHorizon CBOM contains, and which parts are CycloneDX |
 | [docs/reference-data.md](docs/reference-data.md) | The root stores and other dated lists compiled into the binary |

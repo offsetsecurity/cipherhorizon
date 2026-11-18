@@ -1,0 +1,21 @@
+{
+  "id": "direct-change",
+  "version": 1,
+  "title": "Direct change (no approval)",
+  "purpose": "For one person or a small team: record the change and let a scan confirm it. No approval step, so it works with sign-in off.",
+  "subjects": ["finding", "certificate", "readiness"],
+  "stages": [
+    {"id": "requested", "label": "Requested", "marker": "requested"},
+    {"id": "changed", "label": "Changed", "marker": "executed"},
+    {"id": "verified", "label": "Verified by scan", "marker": "verified"},
+    {"id": "closed", "label": "Closed", "marker": "complete", "terminal": true},
+    {"id": "cancelled", "label": "Cancelled", "marker": "cancelled", "terminal": true}
+  ],
+  "transitions": [
+    {"id": "change", "label": "Record the change", "from": ["requested"], "to": "changed", "require": ["note"]},
+    {"id": "redo", "label": "Change did not hold", "from": ["changed"], "to": "requested", "require": ["note"]},
+    {"id": "verify", "label": "Verify", "from": ["changed"], "to": "verified", "verify": true},
+    {"id": "close", "label": "Close", "from": ["verified"], "to": "closed"},
+    {"id": "cancel", "label": "Cancel", "from": ["requested", "changed"], "to": "cancelled", "require": ["note"]}
+  ]
+}

@@ -136,10 +136,37 @@ assistant as they do to the web interface. `cipherhorizon mcp` runs it over stdi
 credentials. The verdict writers are injected from the CLI package to keep the dependency one-way. Usage and
 safety controls: [mcp.md](mcp.md).
 
+## Fixes, renewals and the lifecycle monitor (`internal/server/fixes.go`, `internal/workflow`, `internal/policy`)
+
+```
+ scans ──► to fix next (ranked, cited) ──► assign (who, by when, ticket link)
+                                               │
+              your tools make the change       ▼
+ every later scan ──► not fixed yet │ fixed (with the date) │ came back
+                                               │
+                 lifecycle monitor ──► webhook (each event once)
+```
+
+- **A fix is assigned once and decided by scans.** `syncFixes` runs whenever the pages or the monitor read the
+  fixes: a fix whose check now passes becomes fixed, a fixed one whose check now fails comes back, a hold past its
+  date resumes. People cannot move a fix to fixed. The check (`verifyWork`) reads only the product's own scans made
+  after the assignment: a finding absent from a complete scan, every endpoint serving a certificate issued after
+  the old one, a hybrid key exchange negotiated. An uploaded machine inventory confirms nothing.
+- **Underneath it is a workflow** (ADR-0021): a fix is a piece of work on the built-in `fix` template, so its
+  history is the append-only `audit_log`. The engine (`internal/workflow`, pure, no store) also runs workflows
+  defined as data with stages, approvals and prerequisites, offered in the API only.
+- **The monitor** (`internal/server/lifecycle.go`) derives events (came back, overdue, certificates running
+  out, a certificate changed with nobody assigned), records them in `notifications` and sends each once to a
+  webhook through the scan guard, signed with a secret named by an environment variable.
+- **The policy catalog** (ADR-0022) is the embedded, validated source of the dated milestones (NIST IR 8547) the
+  evaluation and the suggestions cite.
+- **Connectors** (ADR-0023) are described in a registry; only the scanner and the webhook are available.
+
 ## Roadmap
 
-Done: host inventory (apt), CBOM 1.6 builder, cited PQC algorithm verdicts, TLS probe engine (M1).
+Built: host inventory and collectors, the TLS and SSH scanners, evaluation (readiness, hygiene, standards,
+client simulation), the estate model and correlation, CBOM 1.6/1.7 in and out, the web server and UI, domain
+discovery, the MCP server, fixes and renewals decided by scans, and the lifecycle monitor.
 
-Next: cited evaluation rules, PQC-readiness and grading, CBOM `protocol`/`certificate` assets and an HTML
-report (M2); listener discovery and the agent daemon (M3); the ingest server and store (M4); the web UI (M5).
-Later: STARTTLS and SSH probing, drift/alerts, CycloneDX 1.7, more collectors.
+Next: issuing and deploying connectors (ACME first, ADR-0023), notifications by e-mail, migration projects and
+waves as their own objects, per-team scoping.

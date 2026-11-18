@@ -41,9 +41,92 @@ export async function render(root) {
   root.appendChild(body);
 
   async function draw() {
-    const [st, auth] = await Promise.all([api.settings(), api.authState()]);
+    const [st, auth, life, integ, sent] = await Promise.all([api.settings(), api.authState(), api.lifecycleSettings().catch(() => null),
+      api.integrations().catch(() => []), api.notifications().catch(() => [])]);
     const s = st.signIn;
-    clear(body).append(...[signInCard(s, auth), scanningCard(st.scanning, auth), discoveryCard(st.discovery, auth), serverCard(st.server)].filter(Boolean));
+    clear(body).append(...[signInCard(s, auth), scanningCard(st.scanning, auth), discoveryCard(st.discovery, auth),
+      life ? notificationsCard(life, sent) : null, integrationsCard(integ), serverCard(st.server)].filter(Boolean));
+  }
+
+  // Notifications (PRD-023): the lifecycle monitor's windows and where it sends each event, once.
+  function notificationsCard(life, sent) {
+    const ls = { ...life.settings };
+    const num = (id, val, min, max) => h('input', { type: 'number', id, value: String(val), min: String(min), max: String(max), class: 'num-input' });
+    const warn = num('life-warn', ls.expiryWarnDays, 1, 365);
+    const crit = num('life-crit', ls.expiryCriticalDays, 0, 365);
+    const soon = num('life-soon', ls.dueSoonDays, 0, 60);
+    const url = h('input', { type: 'url', id: 'life-url', value: ls.webhookUrl || '', placeholder: 'https://hooks.example.com/cipherhorizon', autocomplete: 'off', spellcheck: 'false' });
+    const fmt = h('select', { id: 'life-format' }, h('option', { value: 'json', selected: ls.webhookFormat !== 'chat' }, 'JSON (for scripts and ticketing)'),
+      h('option', { value: 'chat', selected: ls.webhookFormat === 'chat' }, 'Chat message (Slack, Microsoft Teams incoming webhook)'));
+    const env = h('input', { type: 'text', id: 'life-env', value: ls.webhookSecretEnv || '', placeholder: 'CH_WEBHOOK_SECRET', autocomplete: 'off', spellcheck: 'false' });
+    const chosen = new Set(ls.events && ls.events.length ? ls.events : life.kinds.map((k) => k.kind));
+    const kinds = life.kinds.map((k) => {
+      const box = h('input', { type: 'checkbox', id: `life-ev-${k.kind}`, checked: chosen.has(k.kind), onchange: (e) => { if (e.target.checked) chosen.add(k.kind); else chosen.delete(k.kind); } });
+      return h('div', { class: 'setrow' }, h('div', { class: 'setrow-switch' }, box),
+        h('div', { class: 'setrow-text' }, h('label', { for: `life-ev-${k.kind}`, class: 'setrow-label' }, k.title), h('p', { class: 'setrow-help' }, k.about)));
+    });
+    const recent = (sent || []).slice(0, 8);
+    const STATUS = { sent: ['sent', 'good'], pending: ['pending', 'warn'], failed: ['failed', 'bad'], 'not-sent': ['not sent', 'neutral'] };
+    return h('section', { class: 'card settings-card', id: 'set-notify', 'aria-labelledby': 'set-notify-h' },
+      h('div', { class: 'settings-head' }, h('h2', { id: 'set-notify-h' }, 'Notifications'),
+        badge(ls.webhookUrl ? 'webhook set' : 'not sending', ls.webhookUrl ? 'good' : 'neutral')),
+      h('p', null, 'The lifecycle monitor looks at the work and the certificates every few minutes (', h('code', null, '--monitor-every'), ') for fixes that came back or are overdue, and certificates about to run out. ',
+        h('a', { href: '#/fixes' }, 'Fixes'), ' and ', h('a', { href: '#/renewals' }, 'Renewals'), ' show what it finds. With a webhook it also tells you: each event is sent once.'),
+      h('div', { class: 'form-3col' },
+        h('div', null, h('label', { for: 'life-warn' }, 'Certificate expiry warning (days)'), warn),
+        h('div', null, h('label', { for: 'life-crit' }, 'Critical when within (days)'), crit),
+        h('div', null, h('label', { for: 'life-soon' }, 'Work due soon (days)'), soon)),
+      h('label', { for: 'life-url' }, 'Webhook address'), url,
+      h('div', { class: 'form-2col' },
+        h('div', null, h('label', { for: 'life-format' }, 'Format'), fmt),
+        h('div', null, h('label', { for: 'life-env' }, 'Signing secret: environment variable'), env)),
+      h('p', { class: 'hint' }, 'The secret is never stored here: name the server’s environment variable that holds it, and each message carries ',
+        h('code', null, 'X-CipherHorizon-Signature: sha256=…'), ' over its body. ', life.secretSet ? h('b', null, 'That variable is set.') : ls.webhookSecretEnv ? h('b', { class: 'text-bad' }, 'That variable is not set on the server, so nothing is sent until it is.') : 'No secret is in use.',
+        ' Webhooks obey the same address rules as scans: no cloud-metadata or link-local address.'),
+      h('h3', { class: 'discover-h3' }, 'Send'), h('div', { class: 'setrows' }, kinds),
+      h('div', { class: 'row' },
+        button('Save', async () => {
+          try {
+            await api.putLifecycleSettings({ expiryWarnDays: Number(warn.value), expiryCriticalDays: Number(crit.value), dueSoonDays: Number(soon.value),
+              webhookUrl: url.value.trim(), webhookFormat: fmt.value, webhookSecretEnv: env.value.trim(),
+              events: chosen.size === life.kinds.length ? [] : [...chosen] });
+            toast('Notification settings saved.', 'success');
+            draw();
+          } catch (e) { toast(e.message, 'error'); }
+        }, 'primary', { id: 'life-save' }),
+        button('Send a test message', async () => {
+          try { await api.testWebhook(); toast('Test message sent.', 'success'); } catch (e) { toast(e.message, 'error'); }
+        }, 'secondary', { disabled: !ls.webhookUrl }),
+        button('Run the monitor now', async () => {
+          try { const r = await api.lifecycleCheck(); toast(`${r.events} events, ${r.new} new, ${r.delivered} sent${r.failed ? `, ${r.failed} failed` : ''}.`, r.failed ? 'error' : 'success'); draw(); } catch (e) { toast(e.message, 'error'); }
+        }, 'secondary', { id: 'life-check' })),
+      recent.length ? h('div', { class: 'tablewrap mt' }, h('table', { class: 'compact' },
+        h('thead', null, h('tr', null, ['Event', 'Status', 'Seen'].map((c) => h('th', { scope: 'col' }, c)))),
+        h('tbody', null, recent.map((n) => h('tr', null,
+          h('td', null, n.title, n.lastError ? h('div', { class: 'small text-bad' }, n.lastError) : null),
+          h('td', null, badge(...(STATUS[n.status] || [n.status, 'neutral']))),
+          h('td', { class: 'nowrap small' }, new Date(n.lastSeen).toLocaleString())))))) : null);
+  }
+
+  // Integrations (PRD-023 M3): what this build can talk to, and what is only planned.
+  function integrationsCard(list) {
+    if (!list || !list.length) return null;
+    const avail = list.filter((c) => c.status === 'available');
+    const planned = list.filter((c) => c.status !== 'available');
+    const row = (c) => h('tr', { 'data-integration': c.id },
+      h('td', null, h('b', null, c.name), h('div', { class: 'small muted' }, c.summary)),
+      h('td', { class: 'small' }, (c.categories || []).join(', ')),
+      h('td', { class: 'small' }, (c.capabilities || []).join('; ')),
+      h('td', null, c.status === 'available' ? badge(c.configured ? 'in use' : 'available', c.configured ? 'good' : 'neutral') : badge('planned', 'none'),
+        c.health ? h('div', { class: 'small muted' }, c.health) : null));
+    const table = (rows) => h('div', { class: 'tablewrap' }, h('table', { class: 'compact' },
+      h('thead', null, h('tr', null, ['Integration', 'Kind', 'Can', 'State'].map((c) => h('th', { scope: 'col' }, c)))), h('tbody', null, rows.map(row))));
+    return h('section', { class: 'card settings-card', id: 'set-integrations', 'aria-labelledby': 'set-int-h' },
+      h('div', { class: 'settings-head' }, h('h2', { id: 'set-int-h' }, 'Integrations')),
+      h('p', null, 'What this server can talk to. A connector acts only on a fix a person assigned, never decides that its own change worked, and holds credentials only as references to the server’s environment.'),
+      table(avail),
+      h('details', { class: 'mt' }, h('summary', null, `Planned (${planned.length}): evaluated, not built`),
+        h('p', { class: 'hint' }, 'Listed so the roadmap is visible. None of these is available in this version.'), table(planned)));
   }
 
   // Scanning (0.5.1): the options every scan runs with, changed here and applied to the next scan.

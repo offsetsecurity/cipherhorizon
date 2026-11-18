@@ -1,4 +1,5 @@
 index-sql one_active_scan on scans: CREATE UNIQUE INDEX one_active_scan ON scans(asset_id) WHERE status IN ('queued','running')
+index-sql work_items_certificate on work_items: CREATE INDEX work_items_certificate ON work_items(certificate) WHERE certificate <> ''
 table asset_links
   column asset_id INTEGER 1 NULL 1 0
   column linked_asset_id INTEGER 1 NULL 2 0
@@ -45,6 +46,14 @@ table auth_events
   column client TEXT 1 '' 0 0
   column detail TEXT 1 '' 0 0
   index auth_events_at 0 c 0 (at:0:BINARY)
+table certificate_lifecycle
+  column fingerprint TEXT 1 NULL 1 0
+  column owner TEXT 1 '' 0 0
+  column renewal TEXT 1 '' 0 0
+  column notes TEXT 1 '' 0 0
+  column updated_by TEXT 1 '' 0 0
+  column updated_at TEXT 1 NULL 0 0
+  index sqlite_autoindex_certificate_lifecycle_1 1 pk 0 (fingerprint:0:BINARY)
 table discoveries
   column id INTEGER 0 NULL 1 0
   column domain TEXT 1 NULL 0 0
@@ -122,6 +131,21 @@ table links
   foreign-key assets asset_id id NO ACTION CASCADE
   index links_state 0 c 0 (state:0:BINARY)
   index sqlite_autoindex_links_1 1 u 0 (asset_id:0:BINARY, system_id:0:BINARY)
+table notifications
+  column event_key TEXT 1 NULL 1 0
+  column kind TEXT 1 NULL 0 0
+  column severity TEXT 1 NULL 0 0
+  column title TEXT 1 NULL 0 0
+  column detail TEXT 1 '' 0 0
+  column link TEXT 1 '' 0 0
+  column first_seen TEXT 1 NULL 0 0
+  column last_seen TEXT 1 NULL 0 0
+  column status TEXT 1 NULL 0 0
+  column attempts INTEGER 1 0 0 0
+  column sent_at TEXT 0 NULL 0 0
+  column last_error TEXT 1 '' 0 0
+  index notifications_seen 0 c 0 (last_seen:0:BINARY)
+  index sqlite_autoindex_notifications_1 1 pk 0 (event_key:0:BINARY)
 table observations
   column id INTEGER 0 NULL 1 0
   column source_id INTEGER 1 NULL 0 0
@@ -277,5 +301,51 @@ table users
   column password_changed_at TEXT 1 NULL 0 0
   column last_login_at TEXT 0 NULL 0 0
   index sqlite_autoindex_users_1 1 u 0 (username:0:NOCASE)
+table work_deps
+  column item_id INTEGER 1 NULL 1 0
+  column depends_on INTEGER 1 NULL 2 0
+  foreign-key work_items depends_on id NO ACTION CASCADE
+  foreign-key work_items item_id id NO ACTION CASCADE
+  index sqlite_autoindex_work_deps_1 1 pk 0 (item_id:0:BINARY, depends_on:0:BINARY)
+table work_items
+  column id INTEGER 0 NULL 1 0
+  column title TEXT 1 NULL 0 0
+  column workflow_id TEXT 1 NULL 0 0
+  column workflow_version INTEGER 1 NULL 0 0
+  column workflow_json TEXT 1 NULL 0 0
+  column stage TEXT 1 NULL 0 0
+  column marker TEXT 1 '' 0 0
+  column subject_kind TEXT 1 NULL 0 0
+  column asset_id INTEGER 0 NULL 0 0
+  column system_id INTEGER 0 NULL 0 0
+  column certificate TEXT 1 '' 0 0
+  column finding_key TEXT 1 '' 0 0
+  column target_level INTEGER 0 NULL 0 0
+  column owner TEXT 1 '' 0 0
+  column due_at TEXT 0 NULL 0 0
+  column project TEXT 1 '' 0 0
+  column description TEXT 1 '' 0 0
+  column ticket TEXT 1 '' 0 0
+  column approvers TEXT 1 '[]' 0 0
+  column created_by TEXT 1 NULL 0 0
+  column created_at TEXT 1 NULL 0 0
+  column updated_at TEXT 1 NULL 0 0
+  column executed_at TEXT 0 NULL 0 0
+  column exception_until TEXT 0 NULL 0 0
+  column verification TEXT 1 '' 0 0
+  column closed_at TEXT 0 NULL 0 0
+  foreign-key systems system_id id NO ACTION SET NULL
+  foreign-key assets asset_id id NO ACTION SET NULL
+  index work_items_asset 0 c 0 (asset_id:0:BINARY)
+  index work_items_certificate 0 c 1 (certificate:0:BINARY)
+  index work_items_marker 0 c 0 (marker:0:BINARY)
+  index work_items_system 0 c 0 (system_id:0:BINARY)
+table workflows
+  column id TEXT 1 NULL 1 0
+  column version INTEGER 1 NULL 2 0
+  column definition TEXT 1 NULL 0 0
+  column created_by TEXT 1 NULL 0 0
+  column created_at TEXT 1 NULL 0 0
+  index sqlite_autoindex_workflows_1 1 pk 0 (id:0:BINARY, version:0:BINARY)
 trigger audit_log_no_delete on audit_log: CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END
 trigger audit_log_no_update on audit_log: CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END

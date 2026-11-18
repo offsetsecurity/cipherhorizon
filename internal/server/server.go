@@ -69,6 +69,10 @@ type Config struct {
 	// or a signed-in session; the local operator when sign-in is off). It is the Model Context
 	// Protocol handler serve --mcp builds (PRD-020); nil leaves the path unregistered.
 	MCP http.Handler
+
+	// PublicURL is the address people use to reach this server (https://cipherhorizon.example), put
+	// in front of the links in lifecycle notifications. Empty leaves the links relative.
+	PublicURL string
 }
 
 // Server is the HTTP handler and its dependencies.
@@ -391,6 +395,39 @@ func (s *Server) routes() {
 	handle("DELETE /api/v1/discoveries/{id}", s.deleteDiscovery)
 	handle("POST /api/v1/discoveries/{id}/cancel", s.cancelDiscovery)
 	handle("POST /api/v1/discoveries/{id}/accept", s.acceptDiscovery)
+
+	// Tracked work and workflows (PRD-023, ADR-0021); the policy catalog (ADR-0022).
+	// Fixes and renewals (UX-DESIGN-024): what people use. Work and workflows below are the machinery.
+	handle("GET /api/v1/fixes", s.listFixes)
+	handle("POST /api/v1/fixes", s.assignFix)
+	handle("GET /api/v1/fixes/{id}", s.getFix)
+	handle("GET /api/v1/renewals", s.listRenewals)
+	handle("POST /api/v1/renewals/expected", s.expectChange)
+	handle("GET /api/v1/work", s.listWork)
+	handle("GET /api/v1/work/summary", s.workSummary)
+	handle("GET /api/v1/work/suggestions", s.workSuggestions)
+	handle("GET /api/v1/work/export.csv", s.workCSV)
+	handle("GET /api/v1/work/evidence.json", s.workEvidence)
+	handle("POST /api/v1/work", s.createWork)
+	handle("GET /api/v1/work/{id}", s.getWork)
+	handle("PATCH /api/v1/work/{id}", s.patchWork)
+	handle("POST /api/v1/work/{id}/transitions", s.transitionWork)
+	handle("GET /api/v1/work/{id}/verification", s.workVerification)
+	handle("PUT /api/v1/work/{id}/dependencies/{otherId}", s.addWorkDep)
+	handle("DELETE /api/v1/work/{id}/dependencies/{otherId}", s.removeWorkDep)
+	handle("GET /api/v1/workflows", s.listWorkflows)
+	handle("POST /api/v1/workflows", s.saveWorkflow)
+	handle("GET /api/v1/workflows/{workflow}", s.getWorkflow)
+	handle("GET /api/v1/policy/catalog", s.policyCatalog)
+	handle("GET /api/v1/certificates/{fingerprint}/lifecycle", s.getCertLifecycle)
+	handle("PUT /api/v1/certificates/{fingerprint}/lifecycle", s.putCertLifecycle)
+	handle("GET /api/v1/lifecycle/events", s.listLifecycleEvents)
+	handle("GET /api/v1/lifecycle/notifications", s.listNotifications)
+	handle("POST /api/v1/lifecycle/check", s.adminOnly(s.runMonitorNow))
+	handle("POST /api/v1/lifecycle/test-webhook", s.adminOnly(s.testWebhook))
+	handle("GET /api/v1/settings/lifecycle", s.getLifecycleSettings)
+	handle("PUT /api/v1/settings/lifecycle", s.putLifecycleSettings)
+	handle("GET /api/v1/integrations", s.listIntegrations)
 
 	handle("POST /api/v1/hosts/ingest", s.ingestHost)
 	handle("GET /api/v1/hosts", s.listHosts)
