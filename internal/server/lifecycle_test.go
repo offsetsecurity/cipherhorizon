@@ -407,4 +407,8 @@ func TestLifecycleAdministrationNeedsAnAdministrator(t *testing.T) {
 	if s, _, _ := e.as(ana, "POST", "/api/v1/lifecycle/check", nil); s != 200 {
 		t.Errorf("an administrator ran the check: %d", s)
 	}
+	// The settings page reads each event kind by its lower-case field names.
+	if s, b, _ := e.as(ana, "GET", "/api/v1/settings/lifecycle", nil); s != 200 || !strings.Contains(string(b), `"kind":"work.overdue","title":"Work overdue","about":`) {
+		t.Errorf("event kinds as the page reads them: %d %s", s, b)
+	}
 }

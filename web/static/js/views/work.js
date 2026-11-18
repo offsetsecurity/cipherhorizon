@@ -302,7 +302,7 @@ function transitionDialog(w, t, repaint) {
   if (!needs.length && !t.approval && !t.verify) {
     return modal(t.label, (close) => {
       const err = h('div', { class: 'callout bad', role: 'alert', hidden: true });
-      const note = h('textarea', { id: 'move-note', rows: 2, maxlength: '1000' });
+      const note = h('textarea', { class: 'prose', id: 'move-note', rows: 2, maxlength: '1000' });
       const submit = h('button', { type: 'submit', class: 'btn btn-primary', id: 'move-submit' }, t.label);
       return h('form', { class: 'modal-body', onsubmit: (e) => { e.preventDefault(); submit.disabled = true; run({ note: note.value.trim() }, close, err, submit); } },
         err, h('label', { for: 'move-note' }, 'Note (optional, kept in the history)'), note, h('div', { class: 'row end' }, button('Cancel', close), submit));
@@ -317,7 +317,7 @@ function transitionDialog(w, t, repaint) {
       if (!required && f === 'evidence') return null;
       inputs[f] = f === 'until' ? h('input', { type: 'date', id: `move-${f}`, required })
         : f === 'evidence' ? h('input', { type: 'text', id: `move-${f}`, maxlength: '500', required, autocomplete: 'off', placeholder: 'CHG-1042, a log line or a link' })
-          : h('textarea', { id: `move-${f}`, rows: 3, maxlength: '1000', required });
+          : h('textarea', { class: 'prose', id: `move-${f}`, rows: 3, maxlength: '1000', required });
       return [h('label', { for: `move-${f}` }, `${FIELD_WORDS[f]}${required ? '' : ' (optional)'}`), inputs[f]];
     });
     const lead = t.verify ? 'The product checks its own scans made after the change was recorded. If a scan has not run since, scan the endpoint first.'
@@ -422,7 +422,7 @@ function editDialog(w, repaint) {
     const o = h('input', { type: 'text', id: 'edit-owner', value: w.owner, maxlength: '100' });
     const d = h('input', { type: 'date', id: 'edit-due', value: w.dueAt ? w.dueAt.slice(0, 10) : '' });
     const p = h('input', { type: 'text', id: 'edit-project', value: w.project, maxlength: '100' });
-    const desc = h('textarea', { id: 'edit-desc', rows: 4, maxlength: '4000' }, w.description);
+    const desc = h('textarea', { class: 'prose', id: 'edit-desc', rows: 4, maxlength: '4000' }, w.description);
     const r = h('input', { type: 'text', id: 'edit-reason', maxlength: '200' });
     return h('form', { class: 'modal-body', onsubmit: async (e) => {
       e.preventDefault();

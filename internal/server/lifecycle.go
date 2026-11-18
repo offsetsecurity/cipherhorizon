@@ -42,9 +42,7 @@ const (
 )
 
 // EventKinds lists every kind with what it means, for the settings page and the documentation.
-var EventKinds = []struct {
-	Kind, Title, About string
-}{
+var EventKinds = []EventKind{
 	{EvWorkOverdue, "Work overdue", "A piece of work is past its due date and not finished."},
 	{EvWorkDueSoon, "Work due soon", "A piece of work is due within the warning window."},
 	{EvWorkApproval, "Approval needed", "A piece of work waits in a stage whose next step is an approval."},
@@ -53,6 +51,13 @@ var EventKinds = []struct {
 	{EvCertExpired, "Certificate expired", "A certificate still served or held has expired."},
 	{EvCertExpiring, "Certificate expiring", "A certificate expires within the warning window."},
 	{EvCertUnplanned, "Certificate changed without planned work", "An endpoint now serves a different certificate and no work names the old one."},
+}
+
+// EventKind is one kind of lifecycle event and what it means.
+type EventKind struct {
+	Kind  string `json:"kind"`
+	Title string `json:"title"`
+	About string `json:"about"`
 }
 
 // LifecycleSettings are the monitor's settings. The webhook's signing secret is never stored: the
@@ -104,7 +109,7 @@ func (ls LifecycleSettings) validate() error {
 		}
 	}
 	for _, e := range ls.Events {
-		if !slices.ContainsFunc(EventKinds, func(k struct{ Kind, Title, About string }) bool { return k.Kind == e }) {
+		if !slices.ContainsFunc(EventKinds, func(k EventKind) bool { return k.Kind == e }) {
 			return fmt.Errorf("%q is not an event kind", e)
 		}
 	}

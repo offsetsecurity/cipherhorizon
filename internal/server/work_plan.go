@@ -585,7 +585,7 @@ func (s *Server) listIntegrations(w http.ResponseWriter, _ *http.Request) {
 			switch {
 			case !v.Configured:
 				v.Health = "not configured"
-			case lastFailed != nil && (lastSent == nil || lastSent.SentAt == nil || lastFailed.FirstSeen.After(*lastSent.SentAt)):
+			case lastFailed != nil && (lastSent == nil || lastSent.SentAt == nil || !lastFailed.FirstSeen.Before(*lastSent.SentAt)):
 				v.Health = "last delivery failed: " + lastFailed.LastError
 			case lastSent != nil:
 				v.Health = "last delivery " + lastSent.SentAt.UTC().Format(time.RFC3339)

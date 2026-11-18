@@ -303,7 +303,7 @@ a.btn { text-decoration: none; }
 .icon-btn { background: none; border: 0; font-size: 1.35rem; line-height: 1; cursor: pointer; color: var(--muted); padding: .2rem .5rem; border-radius: var(--radius-sm); }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 
-input[type="text"], input[type="search"], input[type="password"], input[type="number"], input[type="email"], textarea, select {
+input[type="text"], input[type="search"], input[type="password"], input[type="number"], input[type="email"], input[type="url"], input[type="date"], textarea, select {
   font: inherit; font-size: var(--fs-ui); color: var(--text); background: var(--surface); border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm); min-height: 38px; padding: .45rem .7rem; width: 100%; transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
@@ -2182,3 +2182,4 @@ tr.rowlink { cursor: pointer; } tr.rowlink:hover td { background: var(--surface-
 .num-input { max-width: 8rem; }
 @media (max-width: 900px) { .form-3col { grid-template-columns: 1fr; } }
 .work-owner { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
+textarea.prose { font-family: inherit; font-size: var(--fs-ui); min-height: 4.5rem; }

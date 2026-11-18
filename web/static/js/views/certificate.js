@@ -248,7 +248,7 @@ function editLifecycle(fp, l, methods, repaint) {
     const owner = h('input', { type: 'text', id: 'life-owner', value: l.owner || '', maxlength: '100', autocomplete: 'off' });
     const renewal = h('select', { id: 'life-renewal' }, h('option', { value: '' }, 'Not recorded'),
       methods.map((m) => h('option', { value: m, selected: m === l.renewal }, RENEWAL_WORDS[m] || m)));
-    const notes = h('textarea', { id: 'life-notes', rows: 3, maxlength: '4000' }, l.notes || '');
+    const notes = h('textarea', { class: 'prose', id: 'life-notes', rows: 3, maxlength: '4000' }, l.notes || '');
     return h('form', { class: 'modal-body', onsubmit: async (e) => {
       e.preventDefault();
       try {
