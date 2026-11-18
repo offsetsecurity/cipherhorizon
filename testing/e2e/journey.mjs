@@ -26,7 +26,7 @@ import { x509Phase } from './x509-phase.mjs';
 import { visualPhase } from './visual-phase.mjs';
 import { inventoryPhase } from './inventory-phase.mjs';
 import { discoverPhase } from './discover-phase.mjs';
-import { workPhase } from './work-phase.mjs';
+import { fixesPhase } from './fixes-phase.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const BASE = arg('base', 'http://127.0.0.1:8090');
@@ -146,8 +146,8 @@ async function main() {
   await go('#/');
   const menu = await js(`return [...document.querySelectorAll('#nav a')].map((a) => a.innerText.trim().replace(/\\s+\\d+$/, ''))`);
   const navMeta = await js(`return { groups: [...document.querySelectorAll('#nav .navgroup')].map((g) => g.textContent.trim()), scanInRail: [...document.querySelectorAll('.sidebar button, .sidebar a')].some((e) => /^\\s*scan/i.test(e.textContent)), railScrolls: (() => { const n = document.getElementById('nav'); return getComputedStyle(n).overflowY === 'auto' || n.scrollHeight > n.clientHeight + 1; })() }`);
-  check('F-M2', 'the menu is Overview, then Results (TLS endpoints, SSH servers, Machines, Findings, Inventory) and Plan & share (Systems, Work, Reports); the rail holds places only and has no scroll pane of its own (UX-REVIEW-008 N1, UX-DESIGN-007 §2)',
-    menu.join() === 'Overview,TLS endpoints,SSH servers,Machines,Findings,Inventory,Systems,Work,Reports' && navMeta.groups.join('|') === 'Results|Plan & share' && !navMeta.scanInRail && !navMeta.railScrolls,
+  check('F-M2', 'the menu is Overview, then Results (TLS endpoints, SSH servers, Machines, Findings, Inventory) and Plan & share (Systems, Fixes, Renewals, Reports); the rail holds places only and has no scroll pane of its own (UX-REVIEW-008 N1, UX-DESIGN-007 §2)',
+    menu.join() === 'Overview,TLS endpoints,SSH servers,Machines,Findings,Inventory,Systems,Fixes,Renewals,Reports' && navMeta.groups.join('|') === 'Results|Plan & share' && !navMeta.scanInRail && !navMeta.railScrolls,
     JSON.stringify({ menu, navMeta }));
   const hero = await js(`return { h1: document.querySelector('main h1')?.innerText || '', input: !!document.getElementById('scan-target'), focused: document.activeElement?.id || '' }`);
   check('E2E-F.0', 'the first screen is a scan box, focused', /Scan an endpoint for post.quantum readiness/.test(hero.h1) && hero.input && hero.focused === 'scan-target', JSON.stringify(hero));
@@ -793,7 +793,7 @@ async function main() {
   await visualPhase({ check, js, go, sleep, shot, viewport });
   await inventoryPhase({ check, js, go, sleep, shot, api, BASE });
   await discoverPhase({ check, js, go, sleep, shot, viewport });
-  await workPhase({ check, js, go, sleep, shot, api, viewport, CONTROL });
+  await fixesPhase({ check, js, go, sleep, shot, api, viewport, CONTROL });
 
   // Keyboard: Tab reaches the nav, Escape closes dialogs (NFR-a11y).
   await go('#/assets');

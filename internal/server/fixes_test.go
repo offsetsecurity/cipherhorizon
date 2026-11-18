@@ -27,7 +27,7 @@ type fixJSON struct {
 }
 
 type fixesJSON struct {
-	Progress struct{ Endpoints, Scanned, AtL3, BelowL3, WithWork, Undetermined int }
+	Progress                            struct{ Endpoints, Scanned, AtL3, BelowL3, WithWork, Undetermined int }
 	CameBack, BeingFixed, OnHold, Fixed []fixJSON
 	ToFix                               []struct {
 		Key, Title string

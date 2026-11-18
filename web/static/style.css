@@ -2189,3 +2189,47 @@ tr.rowlink { cursor: pointer; } tr.rowlink:hover td { background: var(--surface-
 @media (max-width: 900px) { .form-3col { grid-template-columns: 1fr; } }
 .work-owner { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
 textarea.prose { font-family: inherit; font-size: var(--fs-ui); min-height: 4.5rem; }
+
+/* ---- Fixes and renewals (UX-DESIGN-024): plain lists, one sentence per row ---------------------- */
+.fixpage { display: flex; flex-direction: column; gap: 28px; max-width: 1040px; }
+.fixpage > section, .fixpage .card { margin: 0; }
+.fix-h { font-size: var(--fs-h2, 17px); font-weight: 600; margin: 0 0 10px; }
+.fix-h-sm { font-size: var(--fs-ui); margin: 0; }
+.fx-count { color: var(--text-2); font-weight: 400; }
+.fix-headrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.fxrows { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.fxrows-bad { border-color: var(--bad-border, var(--border-strong)); }
+.fxrow { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--border); }
+.fxrow:first-child { border-top: 0; }
+.fxrow-main { flex: 1 1 380px; min-width: 0; }
+.fxrow-title { font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.fxrow-title:hover { text-decoration: underline; }
+.fxrow-state { color: var(--text-2); font-size: var(--fs-sm); line-height: 1.45; }
+.fxrow-owner { flex: 0 0 170px; color: var(--text-2); font-size: var(--fs-sm); }
+.fxrow-due { flex: 0 0 120px; color: var(--text-2); font-size: var(--fs-sm); }
+.fix-good { color: var(--good); } .fix-bad { color: var(--bad); } .fix-warn { color: var(--warn); font-weight: 550; }
+.fixprogress { display: flex; flex-direction: column; gap: 12px; }
+.fixprogress-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.fixprogress-line { font-size: var(--fs-h2, 17px); font-weight: 600; }
+.fixbar { display: flex; gap: 2px; height: 12px; border-radius: 2px; overflow: hidden; }
+.fixbar-seg { min-width: 4px; }
+.fixbar-good { background: var(--good); } .fixbar-doing { background: var(--primary); } .fixbar-todo { background: var(--warn); } .fixbar-unknown { background: var(--border-strong); }
+.fix-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem; border-top: 1px solid var(--border); padding-top: 16px; }
+.fixstate { display: flex; flex-direction: column; gap: 4px; }
+.fixstate-big { font-size: 1.25rem; font-weight: 600; }
+.fixstate-good .fixstate-big { color: var(--good); } .fixstate-bad .fixstate-big { color: var(--bad); } .fixstate-warn .fixstate-big { color: var(--warn); }
+.fixstate-line { color: var(--text-2); }
+.fixgrid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-4); align-items: start; }
+.fixhist { list-style: none; margin: 0 0 .6rem; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
+.fixhist li { display: flex; gap: .8rem; font-size: var(--fs-ui); }
+.fixhist-when { flex: 0 0 5.2rem; color: var(--muted); font-size: var(--fs-sm); }
+.fix-more { border-top: 1px solid var(--border); padding-top: 12px; }
+.assign-note { margin: .2rem 0 0; }
+.renewbars { display: flex; gap: 12px; align-items: flex-end; height: 72px; }
+.renewbar-col { flex: 1; display: flex; flex-direction: column; gap: 6px; justify-content: flex-end; height: 100%; }
+.renewbar { background: var(--border-strong); border-radius: 2px; }
+.renewbar-now { background: var(--bad); }
+@media (max-width: 900px) {
+  .fixgrid { grid-template-columns: 1fr; }
+  .fxrow-owner, .fxrow-due { flex: 1 1 auto; }
+}

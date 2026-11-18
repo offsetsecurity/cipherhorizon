@@ -70,8 +70,8 @@ export async function render(root) {
     return h('section', { class: 'card settings-card', id: 'set-notify', 'aria-labelledby': 'set-notify-h' },
       h('div', { class: 'settings-head' }, h('h2', { id: 'set-notify-h' }, 'Notifications'),
         badge(ls.webhookUrl ? 'webhook set' : 'not sending', ls.webhookUrl ? 'good' : 'neutral')),
-      h('p', null, 'The lifecycle monitor looks at the work and the certificates every few minutes (', h('code', null, '--monitor-every'), ') and lists what needs a person on ',
-        h('a', { href: '#/work?tab=attention' }, 'Work, Needs attention'), '. With a webhook it also sends each event once.'),
+      h('p', null, 'The lifecycle monitor looks at the work and the certificates every few minutes (', h('code', null, '--monitor-every'), ') for fixes that came back or are overdue, and certificates about to run out. ',
+        h('a', { href: '#/fixes' }, 'Fixes'), ' and ', h('a', { href: '#/renewals' }, 'Renewals'), ' show what it finds. With a webhook it also tells you: each event is sent once.'),
       h('div', { class: 'form-3col' },
         h('div', null, h('label', { for: 'life-warn' }, 'Certificate expiry warning (days)'), warn),
         h('div', null, h('label', { for: 'life-crit' }, 'Critical when within (days)'), crit),
@@ -81,7 +81,7 @@ export async function render(root) {
         h('div', null, h('label', { for: 'life-format' }, 'Format'), fmt),
         h('div', null, h('label', { for: 'life-env' }, 'Signing secret: environment variable'), env)),
       h('p', { class: 'hint' }, 'The secret is never stored here: name the server’s environment variable that holds it, and each message carries ',
-        h('code', null, 'X-CipherHorizon-Signature: sha256=…'), ' over its body. ', life.secretSet ? h('b', null, 'That variable is set.') : 'No secret is in use.',
+        h('code', null, 'X-CipherHorizon-Signature: sha256=…'), ' over its body. ', life.secretSet ? h('b', null, 'That variable is set.') : ls.webhookSecretEnv ? h('b', { class: 'text-bad' }, 'That variable is not set on the server, so nothing is sent until it is.') : 'No secret is in use.',
         ' Webhooks obey the same address rules as scans: no cloud-metadata or link-local address.'),
       h('h3', { class: 'discover-h3' }, 'Send'), h('div', { class: 'setrows' }, kinds),
       h('div', { class: 'row' },
@@ -97,7 +97,7 @@ export async function render(root) {
         button('Send a test message', async () => {
           try { await api.testWebhook(); toast('Test message sent.', 'success'); } catch (e) { toast(e.message, 'error'); }
         }, 'secondary', { disabled: !ls.webhookUrl }),
-        button('Check now', async () => {
+        button('Run the monitor now', async () => {
           try { const r = await api.lifecycleCheck(); toast(`${r.events} events, ${r.new} new, ${r.delivered} sent${r.failed ? `, ${r.failed} failed` : ''}.`, r.failed ? 'error' : 'success'); draw(); } catch (e) { toast(e.message, 'error'); }
         }, 'secondary', { id: 'life-check' })),
       recent.length ? h('div', { class: 'tablewrap mt' }, h('table', { class: 'compact' },
@@ -123,7 +123,7 @@ export async function render(root) {
       h('thead', null, h('tr', null, ['Integration', 'Kind', 'Can', 'State'].map((c) => h('th', { scope: 'col' }, c)))), h('tbody', null, rows.map(row))));
     return h('section', { class: 'card settings-card', id: 'set-integrations', 'aria-labelledby': 'set-int-h' },
       h('div', { class: 'settings-head' }, h('h2', { id: 'set-int-h' }, 'Integrations')),
-      h('p', null, 'What this server can talk to. A connector acts only on work a person moved forward, never verifies its own change, and holds credentials only as references to the server’s environment.'),
+      h('p', null, 'What this server can talk to. A connector acts only on a fix a person assigned, never decides that its own change worked, and holds credentials only as references to the server’s environment.'),
       table(avail),
       h('details', { class: 'mt' }, h('summary', null, `Planned (${planned.length}): evaluated, not built`),
         h('p', { class: 'hint' }, 'Listed so the roadmap is visible. None of these is available in this version.'), table(planned)));

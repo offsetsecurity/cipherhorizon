@@ -452,23 +452,31 @@ WP-B to WP-G (SSH) ship in the second pull request, amended 2026-10-13 per STRAT
 | REQ-WF-9 | P1 | M1 | PRD-023 | — | TestWorkDependenciesRefuseCycles, TestDependenciesExceptionsAndDueDates | done |  |
 | REQ-WF-10 | P0 | M1 | PRD-023 | SR-11 | TestWorkIsStoredAuditedAndMovedOnlyFromItsCurrentStage, TestWorkDependenciesRefuseCycles, TestWorkEditsAreAuditedAndCleaned, TestAFindingIsVerifiedOnlyByAScanAfterTheChange | done | history in audit_log, object kind work |
 | REQ-WF-11 | P1 | M1 | PRD-023 | — | TestWorkIsStoredAuditedAndMovedOnlyFromItsCurrentStage | done | update guarded by the stage the engine checked |
-| REQ-WF-12 | P0 | M1 | PRD-023 | SR-12 | TestOpenAPIDescribesExactlyTheRegisteredRoutes, TestEveryChangeIsAudited, TestEveryMutatingRouteIsGuardedAgainstForgery | done | no web page yet (milestone M2) |
+| REQ-WF-12 | P0 | M1 | PRD-023 | SR-12 | TestOpenAPIDescribesExactlyTheRegisteredRoutes, TestEveryChangeIsAudited, TestEveryMutatingRouteIsGuardedAgainstForgery | done | the Fixes and Renewals pages use these routes; workflows themselves are API only |
 | REQ-POL-1 | P0 | M1 | ADR-0022 | — | TestTheEmbeddedCatalogIsValid, TestTheIR8547MilestonesMatchTheDocument | done |  |
 | REQ-POL-2 | P0 | M1 | ADR-0022 | — | TestValidateRefusesEachBrokenRule | done | no deprecation, disallowance or requirement on a draft |
 | REQ-POL-3 | P0 | M1 | ADR-0022 | — | TestCutoffIsTheLastInstantOfTheDay, TestCertificateRules | done | fixes "disallowed after 2035" starting on 1 January 2035 |
 | REQ-POL-4 | P1 | M1 | PRD-023 | — | TestThePolicyCatalogIsServed | done |  |
-| REQ-LC-1 | P0 | M2 | PRD-023 | — | TestTheMonitorSendsEachEventOnceSigned, script:testing/e2e/work-phase.mjs#E2E-WK.12 | done | work overdue, due soon, awaiting approval, exception ended |
+| REQ-LC-1 | P0 | M2 | PRD-023 | — | TestTheMonitorSendsEachEventOnceSigned | done | work overdue, due soon, awaiting approval, exception ended |
 | REQ-LC-2 | P0 | M2 | PRD-023 | — | TestTheMonitorSendsEachEventOnceSigned | done | certificates expired and expiring; warning and critical windows are settings |
 | REQ-LC-3 | P0 | M2 | ADR-0023 | SR-11 | TestTheMonitorSendsEachEventOnceSigned, TestLifecycleAdministrationNeedsAnAdministrator | done | each event once; HMAC-SHA256; secret by environment variable, never returned; five attempts then failed |
 | REQ-LC-4 | P0 | M2 | ADR-0023 | — | TestTheWebhookObeysTheAddressGuard | done | webhook dials through the scan guard (no metadata or link-local), no redirects |
-| REQ-LC-5 | P0 | M5 | PRD-023 | — | TestRegressionsAndUnplannedCertificateChanges, script:testing/e2e/work-phase.mjs#E2E-WK.13 | done | verified work contradicted by a later scan; certificate changed with no work naming the old one |
-| REQ-LC-6 | P1 | M2 | PRD-023 | SR-11 | TestCertificateOwnershipIsRecorded, script:testing/e2e/work-phase.mjs#E2E-WK.15 | done | owner, renewal method, notes per fingerprint; audited |
-| REQ-PLAN-1 | P0 | M4 | PRD-023 | — | TestSuggestionsAndTheSummaryAreHonest, script:testing/e2e/work-phase.mjs#E2E-WK.11 | done | suggestions cite a catalog milestone where a standard sets a date |
-| REQ-PLAN-2 | P0 | M5 | PRD-023 | — | TestSuggestionsAndTheSummaryAreHonest, script:testing/e2e/work-phase.mjs#E2E-WK.10 | done | every figure has a definition and a denominator; unscanned endpoints are unknown |
-| REQ-WEX-1 | P1 | M5 | PRD-023 | — | TestWorkExports, script:testing/e2e/work-phase.mjs#E2E-WK.10 | done | CSV (formula-safe) and an evidence pack with history and a verification at export |
-| REQ-INT-1 | P1 | M3 | ADR-0023 | — | TestTheMonitorSendsEachEventOnceSigned, script:testing/e2e/work-phase.mjs#E2E-WK.14 | done | registry: available vs planned, capabilities, auth, limits, health |
+| REQ-LC-5 | P0 | M5 | PRD-023 | — | TestRegressionsAndUnplannedCertificateChanges, script:testing/e2e/fixes-phase.mjs#E2E-FX.6 | done | verified work contradicted by a later scan; certificate changed with no work naming the old one |
+| REQ-LC-6 | P1 | M2 | PRD-023 | SR-11 | TestCertificateOwnershipIsRecorded, script:testing/e2e/fixes-phase.mjs#E2E-FX.9 | done | owner, renewal method, notes per fingerprint; audited |
+| REQ-PLAN-1 | P0 | M4 | PRD-023 | — | TestSuggestionsAndTheSummaryAreHonest, script:testing/e2e/fixes-phase.mjs#E2E-FX.5 | done | suggestions cite a catalog milestone where a standard sets a date |
+| REQ-PLAN-2 | P0 | M5 | PRD-023 | — | TestSuggestionsAndTheSummaryAreHonest, TestFixesProgressCountsOutOfScannedEndpoints, script:testing/e2e/fixes-phase.mjs#E2E-FX.5 | done | every figure has a definition and a denominator; unscanned endpoints are unknown |
+| REQ-WEX-1 | P1 | M5 | PRD-023 | — | TestWorkExports | done | CSV (formula-safe) and an evidence pack with history and a verification at export |
+| REQ-INT-1 | P1 | M3 | ADR-0023 | — | TestTheMonitorSendsEachEventOnceSigned, script:testing/e2e/fixes-phase.mjs#E2E-FX.10 | done | registry: available vs planned, capabilities, auth, limits, health |
 | REQ-INT-2 | P2 | M3 | ADR-0023 | — |  | todo | issuer and deployment connectors (ACME via x/crypto/acme, step-ca, cert-manager, Ansible after an ADR-0004 amendment) |
-| REQ-UI-WK-1 | P0 | M1 | PRD-023 | SR-02 | script:testing/e2e/work-phase.mjs#E2E-WK.1, script:testing/e2e/work-phase.mjs#E2E-WK.2, script:testing/e2e/work-phase.mjs#E2E-WK.3, script:testing/e2e/work-phase.mjs#E2E-WK.8, script:testing/e2e/work-phase.mjs#E2E-WK.9, script:testing/e2e/work-phase.mjs#E2E-WK.16 | done | the Work list and page, Track entry points, 390 px; no innerHTML (TestNoInnerHTMLOrEval) |
+| REQ-FIX-1 | P0 | UX-024 | UX-DESIGN-024 | — | TestAFixIsDecidedByScansAlone, script:testing/e2e/fixes-phase.mjs#E2E-FX.1, script:testing/e2e/fixes-phase.mjs#E2E-FX.2 | done | one form: who, by when, optional ticket link; one fix per problem; assigned endpoints are scanned daily |
+| REQ-FIX-2 | P0 | UX-024 | UX-DESIGN-024 | — | TestAFixIsDecidedByScansAlone, script:testing/e2e/fixes-phase.mjs#E2E-FX.3, script:testing/e2e/fixes-phase.mjs#E2E-FX.4 | done | only scans change the state: not fixed yet, then fixed with the date; no person can mark it fixed |
+| REQ-FIX-3 | P0 | UX-024 | UX-DESIGN-024 | — | TestAFixIsDecidedByScansAlone, script:testing/e2e/fixes-phase.mjs#E2E-FX.6 | done | a fix undone comes back at the next scan and is reported by the monitor |
+| REQ-FIX-4 | P1 | UX-024 | UX-DESIGN-024 | — | TestAFixIsDecidedByScansAlone, script:testing/e2e/fixes-phase.mjs#E2E-FX.7 | done | on hold with a reason and a date within a year; resumes by itself |
+| REQ-FIX-5 | P0 | UX-024 | UX-DESIGN-024 | SR-02 | script:testing/e2e/fixes-phase.mjs#E2E-FX.2b, script:testing/e2e/fixes-phase.mjs#E2E-FX.5, script:testing/e2e/fixes-phase.mjs#E2E-FX.11 | done | plain words only (no workflow, stage, transition, verification on the pages); 390 px |
+| REQ-FIX-6 | P0 | UX-024 | UX-DESIGN-024 | — | TestFixesProgressCountsOutOfScannedEndpoints, script:testing/e2e/fixes-phase.mjs#E2E-FX.5 | done | progress out of scanned endpoints; unscanned and undetermined kept apart |
+| REQ-REN-1 | P0 | UX-024 | UX-DESIGN-024 | — | TestRenewals, script:testing/e2e/fixes-phase.mjs#E2E-FX.8 | done | served certificates by the date they run out; assign the renewal with the same form |
+| REQ-REN-2 | P0 | UX-024 | UX-DESIGN-024 | — | TestRenewals, TestACertificateReplacementIsVerifiedOnEveryEndpoint | done | done when every endpoint serves a certificate issued after the old one and valid now |
+| REQ-REN-3 | P1 | UX-024 | UX-DESIGN-024 | SR-11 | TestRenewals | done | a change with nobody assigned is listed until a person says it was expected (audited) |
 
 ## Security requirements (SECARCH-001) coverage
 

@@ -9,7 +9,7 @@ import { api } from '../api.js';
 import { badge, skeleton, citations, crumbs, copyButton, button, modal, toast } from '../ui.js';
 import { validFingerprint, systemHref, keyText, expiryBadge, classLabel, keyAssociation, validId } from '../estate-ui.js';
 import { bitsBar, pqGlyph, lifetimeBar } from '../viz.js';
-import { trackDialog, markerBadge, verifyBadge, verificationOf } from '../work-ui.js';
+import { assignDialog, standing, fixHref } from '../fix-ui.js';
 
 const cnOf = (dn) => { const m = /CN=([^,]+)/.exec(dn || ''); return m ? m[1] : (dn || ''); };
 const orgOf = (parts) => ((parts || []).find((p) => p.type === 'O') || {}).value || '';
@@ -221,22 +221,22 @@ function lifecyclePanel(fp, title) {
   const box = h('section', { class: 'card xcard', id: 'cert-lifecycle', 'aria-labelledby': 'x-life' });
   const paint = async () => {
     let r;
-    try { r = await api.certLifecycle(fp); } catch { box.hidden = true; return; }
+    let ren = null;
+    try { [r, ren] = await Promise.all([api.certLifecycle(fp), api.renewals().catch(() => null)]); } catch { box.hidden = true; return; }
     const l = r.lifecycle || {};
-    const open = (r.work || []).filter((w) => !['verified', 'complete', 'cancelled'].includes(w.marker));
+    const mine = ren ? (ren.certificates || []).find((c) => c.fingerprint === fp) : null;
+    const fix = mine ? mine.fix : null;
     clear(box).append(
-      h('div', { class: 'cfg-head' }, h('h2', { id: 'x-life' }, 'Ownership and renewal'),
+      h('div', { class: 'cfg-head' }, h('h2', { id: 'x-life' }, 'Owner and renewal'),
         h('div', { class: 'row' },
           button('Edit', () => editLifecycle(fp, l, r.renewalMethods || [], paint), 'secondary', { class: 'btn btn-secondary btn-sm', id: 'cert-life-edit' }),
-          open.length ? null : button('Plan renewal', () => trackDialog({ kind: 'certificate', certificate: fp }, { title: `Renew ${title}`, workflow: 'certificate-renewal', owner: l.owner || '',
-            what: 'Closed as verified only when every scanned endpoint that served this certificate serves a different one that is valid for longer.' }), 'primary', { class: 'btn btn-primary btn-sm', id: 'cert-plan' }))),
+          mine && !fix ? button('Assign the renewal', () => assignDialog({ kind: 'certificate', certificate: fp }, { what: `${title}: certificate`, owner: l.owner || '', onDone: paint }), 'primary', { class: 'btn btn-primary btn-sm', id: 'cert-plan' }) : null)),
       h('dl', { class: 'kv' },
         h('dt', null, 'Owner'), h('dd', null, l.owner || h('span', { class: 'muted' }, 'not set')),
         h('dt', null, 'Renewed'), h('dd', null, l.renewal ? RENEWAL_WORDS[l.renewal] || l.renewal : h('span', { class: 'muted' }, 'not recorded')),
         l.notes ? [h('dt', null, 'Notes'), h('dd', null, l.notes)] : null),
-      (r.work || []).length ? h('ul', { class: 'mini-list mt-sm' }, r.work.map((w) => h('li', null,
-        h('a', { href: `#/work/${w.id}` }, `#${w.id} ${w.title}`), markerBadge(w.marker, w.stageLabel), verifyBadge(verificationOf(w)?.status))))
-        : h('p', { class: 'hint' }, 'No work names this certificate.'));
+      fix ? h('p', { class: 'mt-sm' }, h('a', { href: fixHref(fix.id) }, fix.title), ' · ', standing(fix).text)
+        : h('p', { class: 'hint' }, mine ? 'Nobody is assigned to renew it.' : 'Not served by a scanned endpoint, so a scan cannot follow its renewal.'));
   };
   paint();
   return box;

@@ -173,7 +173,13 @@ export const api = {
     saveBlob(new Blob([content], { type: mime }), filename);
   },
 
-  // Tracked work, workflows, the lifecycle monitor and integrations (PRD-023).
+  // Fixes and renewals (UX-DESIGN-024).
+  fixes: () => request('GET', '/api/v1/fixes'),
+  fix: (id) => request('GET', `/api/v1/fixes/${id}`),
+  assignFix: (body) => request('POST', '/api/v1/fixes', body),
+  renewals: () => request('GET', '/api/v1/renewals'),
+  expectChange: (body) => request('POST', '/api/v1/renewals/expected', body),
+  // The machinery under them: work, workflows, the lifecycle monitor and integrations (PRD-023).
   work: (query = '') => request('GET', `/api/v1/work${query}`),
   workItem: (id) => request('GET', `/api/v1/work/${id}`),
   createWork: (body) => request('POST', '/api/v1/work', body),

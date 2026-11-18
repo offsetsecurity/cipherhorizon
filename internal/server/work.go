@@ -392,6 +392,8 @@ type patchWorkReq struct {
 	Owner       *string `json:"owner"`
 	Project     *string `json:"project"`
 	Description *string `json:"description"`
+	// Ticket is a link to the organisation's own ticket; "" clears it.
+	Ticket *string `json:"ticket"`
 	// Due is a date or RFC 3339 time; "" clears it.
 	Due *string `json:"due"`
 }
@@ -440,6 +442,14 @@ func (s *Server) patchWork(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		*f.out = &v
+	}
+	if req.Ticket != nil {
+		t, err := cleanTicket(*req.Ticket)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		p.Ticket = &t
 	}
 	if req.Due != nil {
 		due, err := parseDay("due", *req.Due)
