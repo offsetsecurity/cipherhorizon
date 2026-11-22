@@ -118,3 +118,16 @@ func TestSSHBaselinesCommand(t *testing.T) {
 		}
 	}
 }
+
+// --fail-on baseline passes only a server seen to meet the baseline. A server whose RSA host key is
+// offered but cannot be read (here: only a key exchange this scanner does not carry out) is not judged,
+// and that fails the condition rather than passing it.
+func TestSSHFailOnBaselineFailsWhenTheRSAKeyWasNotRead(t *testing.T) {
+	srv := sshtest.StartScript(t, sshtest.Script{Kex: []string{"sntrup761x25519-sha512", "kex-strict-s-v00@openssh.com"},
+		HostKey: []string{"rsa-sha2-512", "rsa-sha2-256"}, Ciphers: []string{"aes256-gcm@openssh.com"}, MACs: []string{"hmac-sha2-256-etm@openssh.com"}})
+	code, stdout, stderr := run(t, "ssh", "scan", "--fail-on", "baseline", srv.Addr)
+	if code != app.ExitPolicy || !strings.Contains(stderr, "could not be judged against CipherHorizon SSH baseline 2026") ||
+		strings.Contains(stdout, "meets CipherHorizon") {
+		t.Errorf("exit %d\n%s\n%s", code, stdout, stderr)
+	}
+}

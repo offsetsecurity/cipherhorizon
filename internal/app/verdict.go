@@ -136,8 +136,13 @@ func breaches(conds []policyCond, ev eval.Evaluation) []string {
 				out = append(out, fmt.Sprintf("%s (%s)", c.label, strings.Join(ids, ", ")))
 			}
 		case "baseline":
-			if b := ev.Baseline; b != nil && b.Judged && !b.Meets {
+			// Only a server seen to meet the baseline passes: one that could not be judged does not.
+			switch b := ev.Baseline; {
+			case b == nil || b.Meets:
+			case b.Judged:
 				out = append(out, fmt.Sprintf("does not meet %s (%s)", b.Title, changesText(len(b.Changes))))
+			default:
+				out = append(out, fmt.Sprintf("could not be judged against %s (%s)", b.Title, strings.TrimSuffix(b.Reason, ".")))
 			}
 		case "finding":
 			for _, f := range ev.Findings {

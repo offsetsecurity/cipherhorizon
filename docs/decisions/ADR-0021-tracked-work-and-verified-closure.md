@@ -75,5 +75,11 @@ workflows written as code), `cschleiden/go-workflows` (MIT; durable execution, w
 - **A certificate replacement is one issued after the old certificate and valid now, whatever its lifetime**,
   served by every endpoint that served the old one; "valid for longer" was wrong for a move to short-lived
   certificates. An incomplete scan waits; a deleted endpoint makes the result not verifiable.
+- **Verification needs a positive observation (2026-11-22).** A finding counts as gone only when the later
+  scan ran its check and found nothing; a check whose stage did not run or proved nothing (no certificate seen, a
+  host key advertised but not read) leaves the work waiting. A certificate's replacement is required on every
+  endpoint any scan saw presenting it, whenever that scan was made, not only before the change; the set is kept
+  on the work (`work_endpoints`), so deleting an endpoint or pruning its scans cannot shrink it, and a deleted
+  endpoint makes the result not verifiable.
 - **A workflow carries its readiness target**; work cannot aim lower, or at a level already reached.
 - **A rollback clears earlier approvals; an exception ends within a year.**

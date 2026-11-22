@@ -611,6 +611,21 @@ var migrations = []string{
 		last_error TEXT NOT NULL DEFAULT ''
 	) WITHOUT ROWID;
 	CREATE INDEX notifications_seen ON notifications(last_seen);`,
+	// 21: the endpoints on which work about a certificate must show its replacement: every endpoint a scan
+	// has seen presenting the certificate as its leaf, remembered on the work when the work is created and
+	// whenever a later scan sees it. The asset id has no foreign key on purpose: deleting the endpoint or
+	// pruning its old scans must not shrink the set, so a deleted endpoint stays and reads as deleted.
+	`CREATE TABLE work_endpoints (
+		item_id INTEGER NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+		asset_id INTEGER NOT NULL,
+		PRIMARY KEY (item_id, asset_id)
+	) WITHOUT ROWID;
+	INSERT OR IGNORE INTO work_endpoints (item_id, asset_id)
+		SELECT DISTINCT w.id, src.asset_id FROM work_items w
+		JOIN entities e ON e.kind = 'certificate' AND e.key = 'cert:' || w.certificate
+		JOIN observations o ON o.entity_id = e.id JOIN sources src ON src.id = o.source_id
+		WHERE w.subject_kind = 'certificate' AND w.certificate <> '' AND src.ref_kind = 'scan' AND src.asset_id IS NOT NULL
+		AND o.relation = 'presents' AND json_extract(o.attrs_json, '$.position') = 'leaf';`,
 }
 
 // postMigrations are steps that need Go rather than SQL. They run inside the same

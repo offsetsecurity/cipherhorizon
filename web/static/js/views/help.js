@@ -159,7 +159,7 @@ export async function render(root) {
       h('p', { class: 'text-2' }, 'An RSA-2048 certificate is 112 bits, so the suites it authenticates read Acceptable. Each suite names its weakest part. The words are this product’s own; the numbers and their sources are in the methodology. Post-quantum readiness is separate: a 128-bit classical algorithm can still be broken by a quantum computer.')),
     sec('baseline', 'The SSH baseline',
       h('p', null, 'An SSH server is judged against a baseline: a named, versioned list of what an SSH server may offer and must offer, every entry cited. It ', h('b', null, 'meets'),
-        ' the baseline when nothing it offers should be off and every requirement holds; otherwise the report lists the changes and the ', code('sshd_config'), ' lines that make them. A server whose lists could not be read is not judged.'),
+        ' the baseline when nothing it offers should be off and every requirement holds; otherwise the report lists the changes and the ', code('sshd_config'), ' lines that make them. A server whose lists could not be read is not judged; so is one with nothing to change whose RSA host key is offered but could not be read.'),
       ...(bl && bl.baselines ? bl.baselines.map((b) => h('div', { class: 'help-baseline' },
         h('h3', null, b.title, b.id === bl.default ? ' (default)' : '', h('span', { class: 'muted small' }, ` · ${b.id}, version ${b.version}`)),
         h('p', null, h('b', null, 'Requires: '), b.requires.map((r) => r.text).join('; '), '.'),

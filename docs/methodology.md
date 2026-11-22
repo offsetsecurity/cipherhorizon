@@ -240,7 +240,8 @@ names the threshold: a 47-day certificate with 20 days left raises nothing.
 ### Sections and *Fix first*
 
 Each finding belongs to one section of the endpoint page. A section's status is, first, its scan stage (skipped →
-*Not checked*, inconclusive → *Inconclusive*, a report from before `tls-report/2` → *Not collected*), and otherwise
+*Not checked*, inconclusive → *Inconclusive*, a report from before `tls-report/2` → *Not collected*; from `eval/18` the
+checks of a skipped or inconclusive section read *not checked*), and otherwise
 its worst finding: critical or high → *Problem*, medium or low → *Needs attention*, none or info → *Good*. *Fix first*
 takes every finding except info, orders it by severity, then by whether it stops clients connecting (expired,
 untrusted, name mismatch, missing intermediate, no serverAuth, Must-Staple missing, revoked), then by section order,

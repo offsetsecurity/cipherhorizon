@@ -797,13 +797,28 @@ func (s *Server) verifyWork(it store.WorkItem, now time.Time) workflow.Verificat
 		if scan.Incomplete {
 			return result(workflow.Waiting, fmt.Sprintf("scan %d of %s was incomplete, and a finding missing from an incomplete scan proves nothing; scan it again", scan.ID, a.Name), ev)
 		}
+		// A finding is gone only when its check ran and found nothing: a check whose stage did not run or
+		// proved nothing (no certificate seen, a host key not read) says nothing about it.
+		if !eval.CheckedAbsent(e, it.FindingKey) {
+			return result(workflow.Waiting, fmt.Sprintf("scan %d of %s could not check for %s (that part of the scan did not run or proved nothing); scan it again", scan.ID, a.Name, it.FindingKey), ev)
+		}
 		return result(workflow.Verified, fmt.Sprintf("scan %d of %s no longer finds %s", scan.ID, a.Name, it.FindingKey), ev)
 
 	case workflow.SubjectCertificate:
-		endpoints, old, found, err := s.cfg.Store.CertificateLeafEndpoints(it.Certificate, since)
+		// Every endpoint a scan has seen presenting the old certificate must show its replacement: those
+		// remembered on the work (which keeps endpoints deleted or pruned since) and any other endpoint a
+		// kept scan saw presenting it, whenever that scan was made.
+		live, old, found, err := s.cfg.Store.CertificateLeafEndpoints(it.Certificate)
 		if err != nil {
 			return failed()
 		}
+		kept, err := s.cfg.Store.WorkEndpoints(it.ID)
+		if err != nil {
+			return failed()
+		}
+		endpoints := slices.Concat(kept, live)
+		slices.Sort(endpoints)
+		endpoints = slices.Compact(endpoints)
 		if !found {
 			return result(workflow.NotVerifiable, "the certificate is no longer in the inventory")
 		}
@@ -862,7 +877,7 @@ func (s *Server) verifyWork(it store.WorkItem, now time.Time) workflow.Verificat
 		case deleted > 0:
 			return result(workflow.NotVerifiable, fmt.Sprintf("%d endpoint(s) that served this certificate have been deleted since, so the product cannot show it was replaced everywhere; close this work without verification", deleted), evidence...)
 		case counted == 0:
-			return result(workflow.NotVerifiable, "no scanned endpoint presented this certificate before the change was recorded, so a scan cannot show its replacement; scan the endpoints that use it, or close this work without verification")
+			return result(workflow.NotVerifiable, "no scan has seen an endpoint presenting this certificate, so a scan cannot show its replacement; scan the endpoints that use it, or close this work without verification")
 		case len(waiting) > 0:
 			return result(workflow.Waiting, "waiting for "+strings.Join(waiting, ", ")+"; scan them to verify", evidence...)
 		}

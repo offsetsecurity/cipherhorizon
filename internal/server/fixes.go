@@ -403,7 +403,7 @@ func (s *Server) ensureDailyScans(it store.WorkItem) []string {
 		ids = append(ids, it.AssetID)
 	}
 	if it.Certificate != "" {
-		if eps, _, _, err := s.cfg.Store.CertificateLeafEndpoints(it.Certificate, s.cfg.Now()); err == nil {
+		if eps, _, _, err := s.cfg.Store.CertificateLeafEndpoints(it.Certificate); err == nil {
 			ids = append(ids, eps...)
 		}
 	}

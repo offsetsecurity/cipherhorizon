@@ -310,3 +310,16 @@ func TestParseTarget(t *testing.T) {
 		t.Error("port 99999 accepted")
 	}
 }
+
+// A host key that is advertised but not read leaves the scan incomplete, whatever the reason: here no
+// key exchange the scanner carries out is offered, so no key could be asked for.
+func TestAnUnreadHostKeyMakesTheScanIncomplete(t *testing.T) {
+	rep := scan(t, testserver.StartScript(t, testserver.Script{Kex: []string{"sntrup761x25519-sha512"}, HostKey: []string{"ssh-ed25519", "rsa-sha2-512"}}), opts())
+	if !rep.Incomplete {
+		t.Errorf("attempts %+v: the scan must be incomplete", rep.HostKeyAttempts)
+	}
+	full := scan(t, testserver.Start(t, testserver.Config{Keys: []string{testserver.KeyEd25519}}), opts())
+	if full.Incomplete {
+		t.Errorf("every key read, yet incomplete: %+v", full.HostKeyAttempts)
+	}
+}

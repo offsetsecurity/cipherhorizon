@@ -500,6 +500,11 @@ func (p *prober) hostKeys(ctx context.Context, rep *Report) {
 			addKey(rep, r.key, alg, r.v)
 		}
 		rep.HostKeyAttempts = append(rep.HostKeyAttempts, at)
+		// A host key the server advertises but did not give is not known, never absent: whatever the
+		// reason (refused, dropped, no key exchange in common), the scan did not see everything.
+		if at.Outcome != AttemptKey {
+			rep.Incomplete = true
+		}
 	}
 }
 
@@ -548,7 +553,7 @@ func hostKeyStage(clock *stageClock, rep *Report) Stage {
 		switch a.Outcome {
 		case AttemptKey:
 			got++
-		case AttemptNoCommonKex, AttemptInconclusive:
+		case AttemptNoCommonKex, AttemptInconclusive, AttemptRefused:
 			bad = append(bad, a.Algorithm+": "+a.Detail)
 		}
 	}

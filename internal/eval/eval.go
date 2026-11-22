@@ -19,7 +19,11 @@ import (
 
 // Version identifies the rule set that produced an Evaluation. Stored evaluations
 // keep the version they were made with, so history shows what was concluded then.
-const Version = "eval/17"
+const Version = "eval/18"
+
+// eval/18: a check under a stage that ran but proved nothing (no certificate seen, no host key read) reads
+// not-checked, as do the SSH checks made on fetched host keys when an advertised host key was not read;
+// the SSH baseline is not judged met while an advertised RSA host key was not read.
 
 // eval/17: weak-key rules (KEY.*, SSH.HOSTKEY-*) from the scan's key tests; session resumption and
 // early data (FEAT.EARLY-DATA, FEAT.TICKET-LIFETIME) and three RFC 9325 clauses judged from them.
@@ -157,8 +161,8 @@ type Evaluation struct {
 }
 
 // Check is one check the evaluation ran. Title names what was looked for (a problem, as a
-// finding would be titled); Result is found, not-found, not-checked (its stage did not run) or
-// not-applicable (the area does not exist for this service).
+// finding would be titled); Result is found, not-found, not-checked (its stage did not run, or
+// ran and proved nothing) or not-applicable (the area does not exist for this service).
 type Check struct {
 	ID       string   `json:"id"`
 	Title    string   `json:"title"`
@@ -167,6 +171,29 @@ type Check struct {
 	Result   string   `json:"result"`
 	// Pass says what was confirmed when the check found nothing.
 	Pass string `json:"pass,omitempty"`
+}
+
+// CheckedAbsent says whether ev shows the finding id to be absent because something looked: its check
+// ran and found nothing, or the area it is about does not exist on the service. A check that was not
+// run, or ran and proved nothing, is not absence. The findings that have a check only when found (the
+// readiness ones) count as absent only when no part of the scan proved nothing.
+func CheckedAbsent(ev Evaluation, id string) bool {
+	for _, f := range ev.Findings {
+		if f.ID == id {
+			return false
+		}
+	}
+	for _, c := range ev.Checks {
+		if c.ID == id {
+			return c.Result == "not-found" || c.Result == "not-applicable"
+		}
+	}
+	for _, s := range ev.Sections {
+		if s.Status == StatusInconclusive || (s.Status == StatusNotChecked && s.ReasonCode == tlsprobe.ReasonNotReached) {
+			return false
+		}
+	}
+	return true
 }
 
 // DHGroupView is a published Diffie-Hellman group the server's prime matched.
@@ -270,11 +297,12 @@ func EvaluateWith(rep *tlsprobe.Report, in Input) Evaluation {
 	ev.Sections = sections(c, findings)
 	ev.Standards = evaluateTLSStandards(c)
 	ev.Clients = simulateClients(c)
-	// A check whose stage did not run was not checked, whatever its rule returned.
+	// A check whose stage did not run, or ran and proved nothing, was not checked, whatever its rule
+	// returned: with no certificate seen, "no expired certificate" is not something the scan found.
 	skipped := map[string]string{}
 	for _, s := range ev.Sections {
 		switch s.Status {
-		case StatusNotChecked, StatusNotCollected:
+		case StatusNotChecked, StatusNotCollected, StatusInconclusive:
 			skipped[s.ID] = "not-checked"
 		case StatusNotApplicable:
 			skipped[s.ID] = "not-applicable"
