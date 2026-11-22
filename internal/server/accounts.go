@@ -114,22 +114,48 @@ type limiter struct {
 	hits map[string][]time.Time
 }
 
-func (l *limiter) count(key string, now time.Time) int {
+// take counts one attempt against each key, but only if none of them has reached its limit, and
+// reports whether it did. The check and the count happen under one lock, so attempts that arrive
+// together cannot all see the same count and all pass: an attempt holds its place in the count
+// while it is checked, and giveBack returns the place if the attempt did not fail.
+func (l *limiter) take(now time.Time, keys []string, limits []int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return len(l.recent(key, now))
-}
-
-func (l *limiter) fail(key string, now time.Time) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	for i, k := range keys {
+		if len(l.recent(k, now)) >= limits[i] {
+			return false
+		}
+	}
 	if l.hits == nil {
 		l.hits = map[string][]time.Time{}
 	}
-	if _, ok := l.hits[key]; !ok && len(l.hits) >= maxTrackedKeys {
-		l.evict(now)
+	for _, k := range keys {
+		if _, ok := l.hits[k]; !ok && len(l.hits) >= maxTrackedKeys {
+			l.evict(now)
+		}
+		l.hits[k] = append(l.recent(k, now), now)
 	}
-	l.hits[key] = append(l.recent(key, now), now)
+	return true
+}
+
+// giveBack removes one attempt counted at "at" from each key.
+func (l *limiter) giveBack(at time.Time, keys []string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, k := range keys {
+		v := l.hits[k]
+		for i := len(v) - 1; i >= 0; i-- {
+			if v[i].Equal(at) {
+				v = append(v[:i], v[i+1:]...)
+				break
+			}
+		}
+		if len(v) == 0 {
+			delete(l.hits, k)
+		} else {
+			l.hits[k] = v
+		}
+	}
 }
 
 // evict makes room: first every key whose failures have all expired, then, if a flood of
@@ -171,18 +197,99 @@ func (l *limiter) recent(key string, now time.Time) []time.Time {
 	return keep
 }
 
+// accountKey is the form of an account name that the store matches (trimmed, any case).
+func accountKey(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
+}
+
 func pairKey(client, username string) string {
-	return "pair|" + client + "|" + strings.ToLower(strings.TrimSpace(username))
+	return "pair|" + client + "|" + accountKey(username)
 }
 
 // setupKey stands in for the account name when first-run setup codes are guessed.
 const setupKey = "|setup"
 
-// failedSignIn counts a failed attempt against the client and against the client and account.
-func (s *Server) failedSignIn(r *http.Request, username string) {
+// attempt is one password or setup-code check, counted against the client and against the client
+// and account from the moment it starts. It stays counted only if fail is called; end gives the
+// place back otherwise.
+type attempt struct {
+	s      *Server
+	at     time.Time
+	keys   []string
+	failed bool
+}
+
+// beginAttempt counts an attempt, or answers 429 and returns nil when the client has failed too
+// often, against any account or against this one. Keyed on the account too, so one person's
+// mistakes behind a shared address (a proxy, a container's port mapping) do not lock everyone else
+// out as quickly. The caller defers end.
+func (s *Server) beginAttempt(w http.ResponseWriter, r *http.Request, username string) *attempt {
 	c, now := s.clientOf(r), s.cfg.Now()
-	s.failures.fail("client|"+c, now)
-	s.failures.fail(pairKey(c, username), now)
+	a := &attempt{s: s, at: now, keys: []string{"client|" + c, pairKey(c, username)}}
+	if !s.failures.take(now, a.keys, []int{clientFailLimit, pairFailLimit}) {
+		w.Header().Set("Retry-After", strconv.Itoa(int(clientFailSpan/time.Second)))
+		writeErr(w, http.StatusTooManyRequests, "too many failed attempts from this address; try again in 15 minutes")
+		return nil
+	}
+	return a
+}
+
+// fail keeps the attempt counted as a failure.
+func (a *attempt) fail() { a.failed = true }
+
+// end gives the attempt's place back unless it failed.
+func (a *attempt) end() {
+	if !a.failed {
+		a.s.failures.giveBack(a.at, a.keys)
+	}
+}
+
+// accountLocks serialises sign-in decisions per account name, so the account is read, its lock
+// checked, the password verified and a failure recorded before the next attempt on the same
+// account starts. Different accounts never wait on each other. An entry lives only while some
+// request holds or waits for it.
+type accountLocks struct {
+	mu sync.Mutex
+	m  map[string]*accountLock
+}
+
+type accountLock struct {
+	ch   chan struct{}
+	refs int
+}
+
+// lock waits for the account's turn, or for ctx to end, and returns the function that ends it.
+func (k *accountLocks) lock(ctx context.Context, name string) (unlock func(), err error) {
+	key := accountKey(name)
+	k.mu.Lock()
+	if k.m == nil {
+		k.m = map[string]*accountLock{}
+	}
+	l := k.m[key]
+	if l == nil {
+		l = &accountLock{ch: make(chan struct{}, 1)}
+		k.m[key] = l
+	}
+	l.refs++
+	k.mu.Unlock()
+	select {
+	case l.ch <- struct{}{}:
+	case <-ctx.Done():
+		k.drop(key, l)
+		return nil, ctx.Err()
+	}
+	return func() {
+		<-l.ch
+		k.drop(key, l)
+	}, nil
+}
+
+func (k *accountLocks) drop(key string, l *accountLock) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if l.refs--; l.refs == 0 {
+		delete(k.m, key)
+	}
 }
 
 // hashSlots bounds concurrent password hashing (each takes a few hundred milliseconds of CPU),
@@ -489,26 +596,18 @@ func (s *Server) authState(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// tooManyAttempts answers 429 when the client has failed too often, against any account or
-// against this one. Keyed on the account too, so one person's mistakes behind a shared address
-// (a proxy, a container's port mapping) do not lock everyone else out as quickly.
-func (s *Server) tooManyAttempts(w http.ResponseWriter, r *http.Request, username string) bool {
-	c, now := s.clientOf(r), s.cfg.Now()
-	if s.failures.count("client|"+c, now) >= clientFailLimit || s.failures.count(pairKey(c, username), now) >= pairFailLimit {
-		w.Header().Set("Retry-After", strconv.Itoa(int(clientFailSpan/time.Second)))
-		writeErr(w, http.StatusTooManyRequests, "too many failed attempts from this address; try again in 15 minutes")
-		return true
-	}
-	return false
-}
-
 func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Code, Username, DisplayName, Password string
 	}
-	if !decode(w, r, &in) || s.tooManyAttempts(w, r, setupKey) {
+	if !decode(w, r, &in) {
 		return
 	}
+	a := s.beginAttempt(w, r, setupKey)
+	if a == nil {
+		return
+	}
+	defer a.end()
 	if !s.signInOn() {
 		writeErr(w, http.StatusConflict, "this server runs without sign-in")
 		return
@@ -523,7 +622,7 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.cfg.SetupCode == "" || !auth.SameCode(in.Code, s.cfg.SetupCode) {
-		s.failedSignIn(r, setupKey)
+		a.fail()
 		s.audit(r, "setup-failed", in.Username, "wrong setup code")
 		writeErr(w, http.StatusForbidden, "the setup code is wrong; it is printed in the server's log when it starts")
 		return
@@ -569,9 +668,14 @@ const loginRefused = "the username or password is wrong, or the account is locke
 
 func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	var in struct{ Username, Password string }
-	if !decode(w, r, &in) || s.tooManyAttempts(w, r, in.Username) {
+	if !decode(w, r, &in) {
 		return
 	}
+	a := s.beginAttempt(w, r, in.Username)
+	if a == nil {
+		return
+	}
+	defer a.end()
 	if !s.signInOn() {
 		writeErr(w, http.StatusConflict, "this server runs without sign-in")
 		return
@@ -579,37 +683,74 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	if err := s.cfg.Store.PruneSessions(s.sessionIdle()); err != nil {
 		s.log.Warn("pruning expired sessions failed", "err", err)
 	}
-	now := s.cfg.Now()
-	u, err := s.cfg.Store.UserByName(in.Username)
-	if err != nil && !errors.Is(err, store.ErrNotFound) {
+	u, ok, err := s.decideLogin(r, a, in.Username, in.Password)
+	switch {
+	case errors.Is(err, errTryAgain):
+		writeErr(w, http.StatusServiceUnavailable, "try again")
+		return
+	case err != nil:
+		storeErr(w, err)
+		return
+	case !ok:
+		s.refuseLogin(w, r)
+		return
+	case u.Disabled:
+		s.audit(r, "login-failed", u.Username, "account disabled")
+		writeErr(w, http.StatusUnauthorized, "this account is disabled; ask an administrator")
+		return
+	}
+	if err := s.startSession(w, r, u); err != nil {
 		storeErr(w, err)
 		return
 	}
+	s.audit(r, "login", u.Username, "")
+	writeJSON(w, 200, map[string]any{"user": meView{ID: u.ID, Username: u.Username, DisplayName: u.DisplayName, Role: u.Role, Kind: "session", MustChange: u.MustChange}})
+}
+
+// errTryAgain is a sign-in that stopped waiting because its request ended.
+var errTryAgain = errors.New("try again")
+
+// decideLogin checks a username and password and records the outcome. It runs in the account's
+// sign-in turn from reading the account to recording the result, so each attempt sees every
+// failure before it: once an account is locked no later attempt has its password checked, however
+// many arrive at once. ok is true when the password is right; a disabled account is the caller's
+// to refuse.
+func (s *Server) decideLogin(r *http.Request, a *attempt, username, password string) (u store.User, ok bool, err error) {
+	unlock, err := s.signInTurn.lock(r.Context(), username)
+	if err != nil {
+		return store.User{}, false, errTryAgain
+	}
+	defer unlock()
+	now := s.cfg.Now()
+	u, err = s.cfg.Store.UserByName(username)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return store.User{}, false, err
+	}
+	known := err == nil
 	// A locked account is refused before its password is looked at, exactly like a wrong
 	// password: checking the password first would tell a guesser when a guess was right, and
-	// counting the guesses would let anyone keep the account locked for ever.
-	locked := err == nil && u.LockedUntil != nil && now.Before(*u.LockedUntil)
-	var ok, rehash bool
+	// counting the guesses would let anyone keep the account locked for ever. An unknown account
+	// and a locked one still spend the time of one password check.
+	locked := known && u.LockedUntil != nil && now.Before(*u.LockedUntil)
+	var rehash bool
 	if herr := withHashSlot(r.Context(), func() {
-		if err != nil || locked || len(in.Password) > auth.MaxPasswordLen*4 {
-			auth.VerifyNothing(in.Password)
+		if !known || locked || len(password) > auth.MaxPasswordLen*4 {
+			auth.VerifyNothing(password)
 			return
 		}
-		ok, rehash = auth.Verify(in.Password, u.PasswordHash)
+		ok, rehash = auth.Verify(password, u.PasswordHash)
 	}); herr != nil {
-		writeErr(w, http.StatusServiceUnavailable, "try again")
-		return
+		return store.User{}, false, errTryAgain
 	}
 	switch {
 	case locked:
-		s.failedSignIn(r, in.Username)
+		a.fail()
 		s.audit(r, "login-failed", u.Username, "account locked; password not checked")
-		s.refuseLogin(w, r)
-		return
-	case err != nil || !ok:
-		s.failedSignIn(r, in.Username)
+		return u, false, nil
+	case !known || !ok:
+		a.fail()
 		detail := "wrong password"
-		if err != nil {
+		if !known {
 			detail = "no such account"
 		} else if n, until, lerr := s.cfg.Store.RecordLoginFailure(u.ID, lockAfter, lockFor); lerr != nil {
 			s.log.Error("recording a failed sign-in failed", "user", u.Username, "err", lerr)
@@ -619,18 +760,15 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		} else {
 			detail = fmt.Sprintf("wrong password (%d of %d)", n, lockAfter)
 		}
-		s.audit(r, "login-failed", in.Username, detail)
-		s.refuseLogin(w, r)
-		return
+		s.audit(r, "login-failed", username, detail)
+		return u, false, nil
 	case u.Disabled:
-		s.audit(r, "login-failed", u.Username, "account disabled")
-		writeErr(w, http.StatusUnauthorized, "this account is disabled; ask an administrator")
-		return
+		return u, true, nil
 	}
 	if rehash {
 		var h string
 		var herr error
-		if err := withHashSlot(r.Context(), func() { h, herr = auth.Hash(in.Password) }); err == nil && herr == nil {
+		if err := withHashSlot(r.Context(), func() { h, herr = auth.Hash(password) }); err == nil && herr == nil {
 			if err := s.cfg.Store.SetPassword(u.ID, h, u.MustChange, -1); err != nil {
 				s.log.Warn("upgrading a password hash failed", "user", u.Username, "err", err)
 			}
@@ -639,12 +777,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	if err := s.cfg.Store.RecordLoginSuccess(u.ID); err != nil {
 		s.log.Warn("recording a sign-in failed", "user", u.Username, "err", err)
 	}
-	if err := s.startSession(w, r, u); err != nil {
-		storeErr(w, err)
-		return
-	}
-	s.audit(r, "login", u.Username, "")
-	writeJSON(w, 200, map[string]any{"user": meView{ID: u.ID, Username: u.Username, DisplayName: u.DisplayName, Role: u.Role, Kind: "session", MustChange: u.MustChange}})
+	return u, true, nil
 }
 
 // refuseLogin answers a refused sign-in after the failure delay, with the one generic message.
@@ -677,9 +810,14 @@ func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 func (s *Server) authPassword(w http.ResponseWriter, r *http.Request) {
 	var in struct{ Current, New string }
 	p, _ := principalOf(r)
-	if !decode(w, r, &in) || s.tooManyAttempts(w, r, p.Username) {
+	if !decode(w, r, &in) {
 		return
 	}
+	a := s.beginAttempt(w, r, p.Username)
+	if a == nil {
+		return
+	}
+	defer a.end()
 	if p.UserID == 0 {
 		writeErr(w, http.StatusConflict, "only a signed-in account has a password")
 		return
@@ -695,7 +833,7 @@ func (s *Server) authPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		s.failedSignIn(r, u.Username)
+		a.fail()
 		s.audit(r, "password-change-failed", u.Username, "wrong current password")
 		writeErr(w, http.StatusForbidden, "the current password is wrong")
 		return

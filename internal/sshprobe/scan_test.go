@@ -310,3 +310,42 @@ func TestParseTarget(t *testing.T) {
 		t.Error("port 99999 accepted")
 	}
 }
+
+// A host key that is advertised but not read leaves the scan incomplete, whatever the reason: here no
+// key exchange the scanner carries out is offered, so no key could be asked for.
+func TestAnUnreadHostKeyMakesTheScanIncomplete(t *testing.T) {
+	rep := scan(t, testserver.StartScript(t, testserver.Script{Kex: []string{"sntrup761x25519-sha512"}, HostKey: []string{"ssh-ed25519", "rsa-sha2-512"}}), opts())
+	if !rep.Incomplete {
+		t.Errorf("attempts %+v: the scan must be incomplete", rep.HostKeyAttempts)
+	}
+	full := scan(t, testserver.Start(t, testserver.Config{Keys: []string{testserver.KeyEd25519}}), opts())
+	if full.Incomplete {
+		t.Errorf("every key read, yet incomplete: %+v", full.HostKeyAttempts)
+	}
+}
+
+// A target's host is an IP address or a host name and nothing else.
+func TestParseTargetRefusesHostsThatAreNotNames(t *testing.T) {
+	for _, bad := range []string{
+		"[::ffff:127.0.0.1%x.example.com]:22",
+		"ssh://[fe80::1%eth0]:22",
+		"fe80::1%eth0",
+		"exa\r\nmple.com:22",
+		"exa mple.com",
+		"a:b:c",
+		"-host",
+	} {
+		if got, err := sshprobe.ParseTarget(bad); err == nil {
+			t.Errorf("ParseTarget(%q) accepted: %+v", bad, got)
+		}
+	}
+	for in, want := range map[string]sshprobe.Target{
+		"Host.Example:2222": {Host: "Host.Example", Port: 2222},
+		"::1":               {Host: "::1", Port: 22},
+		"2001:db8::1":       {Host: "2001:db8::1", Port: 22},
+	} {
+		if got, err := sshprobe.ParseTarget(in); err != nil || got != want {
+			t.Errorf("ParseTarget(%q) = %+v, %v; want %+v", in, got, err, want)
+		}
+	}
+}

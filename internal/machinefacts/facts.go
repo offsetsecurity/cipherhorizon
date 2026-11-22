@@ -27,7 +27,9 @@
 // process and the cryptographic libraries it loaded).
 //
 // Everything in the file came from the machine and is treated as untrusted:
-// sizes are bounded, and nothing that looks like private key material is kept.
+// sizes are bounded, nothing that looks like private key material is kept, and a
+// setting that holds a secret (a password, a passphrase, a shared secret) is kept by
+// name with its value withheld.
 package machinefacts
 
 import (
@@ -169,6 +171,7 @@ func Parse(b []byte) (*Facts, error) {
 				for _, x := range rest {
 					it.Fields = append(it.Fields, clean(x))
 				}
+				withholdItem(&it)
 				f.Items = append(f.Items, it)
 				continue
 			default:

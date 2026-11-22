@@ -315,7 +315,8 @@ function baselinePart(ctx, tone) {
   const verdict = statusTile(b.title, b.meets ? 'Meets the baseline' : `Does not meet it · ${plural(b.changes.length, 'change')} to make`, b.meets ? 'good' : 'problem');
   verdict.classList.add('stile-verdict');
   const reqs = (b.requires || []).map((r) => {
-    const t = r.notApplicable ? statusTile(r.text, `Does not apply${r.detail ? `: ${r.detail.replace(/\.$/, '').replace(/^The server has/, 'the server has')}` : ''}`, 'na', r.cite && r.cite.url ? r.cite.url : null)
+    const t = r.notAssessed ? statusTile(r.text, `Not known${r.detail ? `: ${r.detail.replace(/\.$/, '')}` : ''}`, 'na', r.cite && r.cite.url ? r.cite.url : null)
+      : r.notApplicable ? statusTile(r.text, `Does not apply${r.detail ? `: ${r.detail.replace(/\.$/, '').replace(/^The server has/, 'the server has')}` : ''}`, 'na', r.cite && r.cite.url ? r.cite.url : null)
       : statusTile(r.text, r.met ? 'Met' : `Not met${r.detail ? `: ${r.detail.replace(/\.$/, '')}` : ''}`, r.met ? 'good' : 'problem', r.cite && r.cite.url ? r.cite.url : null);
     t.classList.add('reqtile');
     if (r.cite) {

@@ -218,13 +218,17 @@ type SSLv2Key struct {
 	AssetID int64
 	Address string
 	SPKI    string // SHA-256 of the SubjectPublicKeyInfo, lower-case hex
+	// Proven is set when a completed handshake showed the certificate, so the endpoint proved
+	// it holds the key; a certificate seen only in a raw flight proves nothing.
+	Proven bool
 }
 
 // SSLv2LeafKeys lists the leaf keys of every endpoint whose latest completed scan accepted SSLv2
 // (the inputs of the DROWN shared-key check). It reads the graph, where those facts are already
 // indexed, instead of decoding every stored report on every evaluation.
 func (s *Store) SSLv2LeafKeys() ([]SSLv2Key, error) {
-	rows, err := s.db.Query(`SELECT DISTINCT a.id, a.host, a.port, json_extract(e.attrs_json, '$.spkiSha256')
+	rows, err := s.db.Query(`SELECT DISTINCT a.id, a.host, a.port, json_extract(e.attrs_json, '$.spkiSha256'),
+		COALESCE(json_extract(o.attrs_json, '$.keyProven'), '') != 'false'
 		FROM sources src
 		JOIN assets a ON a.id = src.asset_id
 		JOIN observations o ON o.source_id = src.id AND json_extract(o.attrs_json, '$.position') = 'leaf'
@@ -243,7 +247,7 @@ func (s *Store) SSLv2LeafKeys() ([]SSLv2Key, error) {
 		var host string
 		var port int
 		var spki sql.NullString
-		if err := rows.Scan(&k.AssetID, &host, &port, &spki); err != nil {
+		if err := rows.Scan(&k.AssetID, &host, &port, &spki, &k.Proven); err != nil {
 			return nil, err
 		}
 		if !spki.Valid || spki.String == "" {

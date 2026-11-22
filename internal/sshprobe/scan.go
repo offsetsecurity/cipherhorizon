@@ -75,6 +75,7 @@ func ClientIdentification() string {
 }
 
 // ParseTarget reads host, host:port, [v6]:port or ssh://host[:port]; the default port is 22.
+// The host must be an IP address or a host name (tlsprobe.CheckHost).
 func ParseTarget(s string) (Target, error) {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "ssh://")
@@ -94,6 +95,9 @@ func ParseTarget(s string) (Target, error) {
 	}
 	if host == "" {
 		return Target{}, errors.New("empty host")
+	}
+	if err := tlsprobe.CheckHost(host); err != nil {
+		return Target{}, err
 	}
 	return Target{Host: host, Port: port}, nil
 }
@@ -500,6 +504,11 @@ func (p *prober) hostKeys(ctx context.Context, rep *Report) {
 			addKey(rep, r.key, alg, r.v)
 		}
 		rep.HostKeyAttempts = append(rep.HostKeyAttempts, at)
+		// A host key the server advertises but did not give is not known, never absent: whatever the
+		// reason (refused, dropped, no key exchange in common), the scan did not see everything.
+		if at.Outcome != AttemptKey {
+			rep.Incomplete = true
+		}
 	}
 }
 
@@ -548,7 +557,7 @@ func hostKeyStage(clock *stageClock, rep *Report) Stage {
 		switch a.Outcome {
 		case AttemptKey:
 			got++
-		case AttemptNoCommonKex, AttemptInconclusive:
+		case AttemptNoCommonKex, AttemptInconclusive, AttemptRefused:
 			bad = append(bad, a.Algorithm+": "+a.Detail)
 		}
 	}

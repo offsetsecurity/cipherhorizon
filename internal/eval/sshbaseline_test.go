@@ -379,3 +379,39 @@ func TestTruncatedMACIsBoundedByItsTag(t *testing.T) {
 		t.Errorf("not listed: %v", want)
 	}
 }
+
+// An RSA host key that is offered but was not read is not "no RSA key": the size rule is not
+// assessed, the baseline is not judged met, and the checks made on the fetched keys were not made.
+func TestAnUnreadRSAHostKeyIsNotJudgedMet(t *testing.T) {
+	if c := eval.EvaluateSSH(modernSSH(), eval.Input{Now: now}).Baseline; !c.Judged || !c.Meets {
+		t.Fatalf("the control meets the baseline: %+v", c)
+	}
+	rep := modernSSH()
+	rep.Algorithms.HostKey = append(rep.Algorithms.HostKey, "rsa-sha2-512", "rsa-sha2-256")
+	rep.HostKeyAttempts = []sshprobe.HostKeyAttempt{{Algorithm: "ssh-ed25519", Outcome: sshprobe.AttemptKey}, {Algorithm: "ecdsa-sha2-nistp256", Outcome: sshprobe.AttemptKey},
+		{Algorithm: "rsa-sha2-512", Outcome: sshprobe.AttemptInconclusive, Detail: "connection closed"}, {Algorithm: "rsa-sha2-256", Outcome: sshprobe.AttemptRefused, Detail: "the server refused"}}
+	ev := eval.EvaluateSSH(rep, eval.Input{Now: now})
+	c := ev.Baseline
+	if c.Meets || c.Judged || !strings.Contains(c.Reason, "RSA host key could not be read") {
+		t.Errorf("RSA offered, its key not read: meets %v judged %v (%s)", c.Meets, c.Judged, c.Reason)
+	}
+	for _, r := range c.Requires {
+		if r.ID == eval.ReqRSASize && (r.Met || r.NotApplicable || !r.NotAssessed) {
+			t.Errorf("the RSA size rule: %+v", r)
+		}
+	}
+	for _, ch := range ev.Checks {
+		if ch.ID == "SSH.HOSTKEY-RSA-SMALL" && ch.Result != "not-checked" {
+			t.Errorf("%s reads %s with the RSA key unread", ch.ID, ch.Result)
+		}
+	}
+	if eval.CheckedAbsent(ev, "SSH.HOSTKEY-RSA-SMALL") {
+		t.Error("a host-key finding reads as absent with the key unread")
+	}
+
+	// With another change to make, the verdict stays "does not meet" and the rule says it is not known.
+	rep.Algorithms.MACC2S = append(rep.Algorithms.MACC2S, "hmac-sha2-256")
+	if c := eval.EvaluateSSH(rep, eval.Input{Now: now}).Baseline; c.Meets || !c.Judged || len(c.Changes) != 1 {
+		t.Errorf("with a change to make too: %+v", c)
+	}
+}

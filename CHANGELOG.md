@@ -10,6 +10,46 @@ the CBOM/report/eval schema versions, the database) can change in a minor releas
 
 ## [Unreleased]
 
+### Security
+
+- **Sign-in under concurrent requests.** Sign-in attempts for one account are now decided one at a time, and the
+  per-address limits check and count an attempt in one step, so a burst of requests sent at once can no longer get
+  past the five-failure account lock or the per-address limits. The same counting covers the setup code, password
+  changes and the password confirmation for turning sign-in off. `SECURITY.md` now states the real limits.
+- **Inventory script.** The Linux script runs every query from `/`, runs Python isolated (`-I`) and runs `go version`
+  with `GOTOOLCHAIN=local`, so nothing in the folder it is started from can change what runs. Engine 3.0.1.
+- **Secrets in host inventory.** Signatures no longer collect password, passphrase and similar settings (Dovecot,
+  PostgreSQL, Postfix, MySQL, BIND), and the server withholds the value of any such setting in an uploaded facts
+  file, so a file from an older script cannot store one either. Signature database 2026.11.22.
+- **Verified means a check saw it.** A fix, renewal or SSH baseline is recorded as met only when a scan's check
+  actually ran: a scan that saw no certificate, could not read an advertised host key or could not read the RSA host
+  key no longer verifies anything. A renewal must be shown on every endpoint that ever served the old certificate,
+  including ones added later; one deleted since reads *not verifiable*.
+- **Scan targets.** A scan target must be an IP address without a zone or a valid host name everywhere (CLI, MCP tools
+  and server), as the web API already required, and a scope domain matches only host names. The HSTS request refuses
+  a host with control characters.
+- **Hostile scanned servers.** Certificate chains are cut to 16 certificates before analysis, weak-key tests stop when
+  a scan is cancelled or times out, and RSA keys over 8192 bits are neither tested nor used to check signatures. The
+  CRL cache has a 128 MiB budget by retained size. A certificate seen only without a completed handshake
+  (`keyUnproven` in the report) never joins a system on its own and raises the shared-key DROWN finding at Low.
+
+### Changed
+
+- An SSH scan that could not read an advertised host key now ends incomplete (exit 2), including servers that offer
+  only key exchanges the scanner does not carry out. `--fail-on baseline` also fails a server that could not be
+  judged.
+- Checks under an inconclusive report section read *not checked* instead of *not found*. Evaluation version
+  `eval/18`: the latest stored scans are evaluated again on upgrade.
+- `tls scan`, `ssh scan` and the MCP scan tools refuse zoned IPv6 addresses and non-ASCII host names (use the
+  `xn--` form), which the web API already refused.
+
+### Upgrade notes
+
+- Migration 21 adds the table `work_endpoints`, the endpoints each certificate renewal must be shown on, filled once
+  from existing scan observations: one query, quick.
+- The graph projection version changes, so the first start rebuilds the derived graph from stored reports and runs
+  correlation again; on a large database this takes as long as a rebuild.
+
 ## [0.10.0] - 2026-11-18
 
 ### Added

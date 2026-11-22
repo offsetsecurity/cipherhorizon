@@ -11,7 +11,10 @@
 //   - Bodies are capped (MaxBytes), requests are timed out, no proxy from the
 //     environment is used, and nothing from the response is shown verbatim.
 //   - Results are cached by URL until the CRL's nextUpdate (at most a day), and
-//     failures for a few minutes, so repeated scans do not hammer a CA.
+//     failures for a few minutes, so repeated scans do not hammer a CA. The
+//     cache holds at most CacheBytes of parsed CRLs in total, whatever the
+//     scanned servers name: a parsed CRL weighs several times its size on the
+//     wire, so each entry is weighed by what it keeps in memory.
 //
 // It only fetches and parses; pki.JudgeCRL decides what a CRL says.
 package revocation
@@ -20,6 +23,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -38,12 +42,16 @@ import (
 const (
 	DefaultMaxBytes = 16 << 20
 	DefaultTimeout  = 10 * time.Second
-	maxURLLen       = 2048
-	maxRedirects    = 3
-	maxCache        = 512
-	errorTTL        = 5 * time.Minute
-	maxTTL          = 24 * time.Hour
-	minTTL          = 5 * time.Minute
+	// DefaultCacheBytes bounds the memory the cache keeps, by the estimated
+	// in-memory weight of each parsed CRL (entryWeight). It leaves most of a 1 GiB
+	// container for scans, while holding a few of the largest public CRLs.
+	DefaultCacheBytes = 128 << 20
+	maxURLLen         = 2048
+	maxRedirects      = 3
+	maxCache          = 512
+	errorTTL          = 5 * time.Minute
+	maxTTL            = 24 * time.Hour
+	minTTL            = 5 * time.Minute
 )
 
 // ErrBlocked is wrapped by every refusal of an address or URL.
@@ -148,20 +156,62 @@ type Fetcher struct {
 	Policy   Policy
 	MaxBytes int64
 	Timeout  time.Duration
-	Now      func() time.Time
+	// CacheBytes is the most the cache holds, by entryWeight; 0 means
+	// DefaultCacheBytes. A CRL heavier than this is used but not kept.
+	CacheBytes int64
+	Now        func() time.Time
 
 	once   sync.Once
 	client *http.Client
 
-	mu       sync.Mutex
-	cache    map[string]cacheEntry
-	inflight map[string]chan struct{}
+	mu         sync.Mutex
+	cache      map[string]cacheEntry
+	cacheBytes int64 // the sum of the cached entries' weights
+	inflight   map[string]chan struct{}
 }
 
 type cacheEntry struct {
 	f       *Fetched
 	err     error
 	expires time.Time
+	stored  time.Time
+	weight  int64
+}
+
+// Estimated heap cost of the parts of a parsed CRL that are not its DER bytes
+// (which the parsed list keeps a reference to): each revoked entry is a struct
+// with a big.Int serial, and each extension a struct with its OID as a slice
+// of ints. Measured costs are about 155 bytes per entry and 80 per four-arc
+// extension; the allowances are rounded up.
+const (
+	entryOverhead = 192
+	extOverhead   = 64
+	arcOverhead   = 8
+	cacheOverhead = 512 // the map entry, the key and the Fetched record
+)
+
+// entryWeight estimates what a cache entry keeps in memory.
+func entryWeight(raw string, got *Fetched, err error) int64 {
+	w := int64(cacheOverhead + len(raw))
+	if err != nil {
+		w += int64(len(err.Error()))
+	}
+	if got == nil || got.List == nil {
+		return w
+	}
+	rl := got.List
+	w += int64(len(rl.Raw))
+	exts := func(es []pkix.Extension) {
+		for _, e := range es {
+			w += int64(extOverhead + arcOverhead*len(e.Id))
+		}
+	}
+	exts(rl.Extensions)
+	for _, e := range rl.RevokedCertificateEntries {
+		w += entryOverhead
+		exts(e.Extensions)
+	}
+	return w
 }
 
 // New returns a Fetcher with the default limits.
@@ -196,6 +246,9 @@ func (f *Fetcher) init() {
 				_, err := CheckURL(req.URL.String())
 				return err
 			}}
+		if f.CacheBytes <= 0 {
+			f.CacheBytes = DefaultCacheBytes
+		}
 		f.cache = map[string]cacheEntry{}
 		f.inflight = map[string]chan struct{}{}
 	})
@@ -207,9 +260,12 @@ func (f *Fetcher) Get(ctx context.Context, raw string) (*Fetched, error) {
 	f.init()
 	for {
 		f.mu.Lock()
-		if e, ok := f.cache[raw]; ok && f.Now().Before(e.expires) {
-			f.mu.Unlock()
-			return e.f, e.err
+		if e, ok := f.cache[raw]; ok {
+			if f.Now().Before(e.expires) {
+				f.mu.Unlock()
+				return e.f, e.err
+			}
+			f.drop(raw)
 		}
 		if ch, busy := f.inflight[raw]; busy {
 			f.mu.Unlock()
@@ -236,7 +292,9 @@ func (f *Fetcher) Get(ctx context.Context, raw string) (*Fetched, error) {
 	}
 }
 
-// store caches a result; f.mu is held.
+// store caches a result; f.mu is held. Expired entries are released first,
+// then the oldest, until the new entry fits the byte budget and the entry
+// count; an entry heavier than the whole budget is not cached.
 func (f *Fetcher) store(raw string, got *Fetched, err error) {
 	now := f.Now()
 	exp := now.Add(errorTTL)
@@ -249,17 +307,41 @@ func (f *Fetcher) store(raw string, got *Fetched, err error) {
 			exp = now.Add(minTTL)
 		}
 	}
-	if len(f.cache) >= maxCache {
+	f.drop(raw)
+	w := entryWeight(raw, got, err)
+	if w > f.CacheBytes {
+		return
+	}
+	if f.cacheBytes+w > f.CacheBytes || len(f.cache) >= maxCache {
+		for k, e := range f.cache {
+			if !now.Before(e.expires) {
+				f.drop(k)
+			}
+		}
+	}
+	for f.cacheBytes+w > f.CacheBytes || len(f.cache) >= maxCache {
 		var oldest string
 		var at time.Time
 		for k, e := range f.cache {
-			if oldest == "" || e.expires.Before(at) {
-				oldest, at = k, e.expires
+			if oldest == "" || e.stored.Before(at) {
+				oldest, at = k, e.stored
 			}
 		}
-		delete(f.cache, oldest)
+		if oldest == "" {
+			break
+		}
+		f.drop(oldest)
 	}
-	f.cache[raw] = cacheEntry{f: got, err: err, expires: exp}
+	f.cache[raw] = cacheEntry{f: got, err: err, expires: exp, stored: now, weight: w}
+	f.cacheBytes += w
+}
+
+// drop removes one cache entry, if present; f.mu is held.
+func (f *Fetcher) drop(raw string) {
+	if e, ok := f.cache[raw]; ok {
+		f.cacheBytes -= e.weight
+		delete(f.cache, raw)
+	}
 }
 
 func (f *Fetcher) fetch(ctx context.Context, raw string) (*Fetched, error) {
@@ -309,6 +391,9 @@ func (f *Fetcher) fetch(ctx context.Context, raw string) (*Fetched, error) {
 	if err != nil {
 		return nil, fmt.Errorf("the response is not a CRL (%d bytes)", len(body))
 	}
+	// The deprecated copy of the entries is not used and would double what the
+	// cache keeps; RevokedCertificateEntries has the same facts.
+	rl.RevokedCertificates = nil //nolint:staticcheck // clearing the deprecated field
 	sum := sha256.Sum256(der)
 	return &Fetched{List: rl, SHA256: hex.EncodeToString(sum[:]), Size: len(der), FetchedAt: f.Now().UTC()}, nil
 }

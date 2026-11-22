@@ -148,7 +148,7 @@ var entityAttrs = map[string]map[string]bool{
 	KindGroup:     set("version", "pq", "hybrid", "obsolete", "ianaRecommended"),
 }
 
-var observationAttrs = set("rank", "position", "location", "version", "origin", "privateKey")
+var observationAttrs = set("rank", "position", "location", "version", "origin", "privateKey", "keyProven")
 
 func set(ss ...string) map[string]bool {
 	m := make(map[string]bool, len(ss))

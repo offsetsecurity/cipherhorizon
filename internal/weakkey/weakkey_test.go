@@ -1,12 +1,14 @@
 package weakkey
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"math/big"
 	"testing"
+	"time"
 )
 
 func kinds(ws []Weakness) map[Kind]bool {
@@ -171,6 +173,51 @@ func BenchmarkECSearchP256(b *testing.B) {
 	x, y := k.X, k.Y
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		s.find(x, y)
+		_, _ = s.find(context.Background(), x, y)
+	}
+}
+
+// A search that the context ends returns at once, claims nothing, and is not cached as a pass.
+func TestECSearchStopsWhenContextEnds(t *testing.T) {
+	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	searchFor(elliptic.P256()).once.Do(searchFor(elliptic.P256()).init)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	ws, err := CheckContext(ctx, &k.PublicKey)
+	if took := time.Since(start); err == nil || ws != nil || took > 200*time.Millisecond {
+		t.Fatalf("the search ran on past its context: %v %v after %v", ws, err, took)
+	}
+	cacheMu.Lock()
+	n := len(cache)
+	cacheMu.Unlock()
+	if _, err := CheckContext(context.Background(), &k.PublicKey); err != nil {
+		t.Fatal(err)
+	}
+	cacheMu.Lock()
+	m := len(cache)
+	cacheMu.Unlock()
+	if m != n+1 {
+		t.Errorf("the interrupted search was cached: %d entries before the full search, %d after", n, m)
+	}
+}
+
+// An RSA modulus larger than crypto/tls accepts is not tested, so it cannot make evaluation slow.
+func TestOversizedRSAKeyIsNotTested(t *testing.T) {
+	n := new(big.Int).Lsh(big.NewInt(1), 64<<10) // 65537 bits
+	n.Add(n, big.NewInt(1))
+	pub := &rsa.PublicKey{N: n, E: 65537}
+	start := time.Now()
+	if ran, ws := Tests(pub), Check(pub); len(ran) != 0 || len(ws) != 0 {
+		t.Errorf("an oversized modulus was tested: ran %v, weak %v", ran, ws)
+	}
+	if took := time.Since(start); took > time.Second {
+		t.Errorf("an oversized modulus took %v", took)
+	}
+	if !RSATooLarge(pub) || RSATooLarge(&rsa.PublicKey{N: new(big.Int).Lsh(big.NewInt(1), MaxRSABits-1), E: 3}) {
+		t.Error("RSATooLarge draws the line in the wrong place")
 	}
 }

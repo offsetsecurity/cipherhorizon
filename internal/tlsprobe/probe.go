@@ -101,7 +101,7 @@ func (o *Options) defaults() {
 }
 
 // ParseTarget parses "host", "host:port", "[v6]:port" or a bare IPv6 literal.
-// The default port is 443.
+// The default port is 443. The host must pass CheckHost.
 func ParseTarget(s string) (Target, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -120,6 +120,9 @@ func ParseTarget(s string) (Target, error) {
 	host = strings.Trim(host, "[]")
 	if host == "" {
 		return Target{}, errors.New("empty host")
+	}
+	if err := CheckHost(host); err != nil {
+		return Target{}, err
 	}
 	t := Target{Host: host, Port: port}
 	if net.ParseIP(host) == nil {

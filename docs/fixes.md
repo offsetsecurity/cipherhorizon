@@ -46,8 +46,8 @@ What counts as gone:
 | The fix is about | Fixed when |
 |---|---|
 | post-quantum key exchange on an endpoint | a current client negotiates a hybrid post-quantum group with it |
-| a finding on an endpoint | a complete scan no longer has the finding. A finding missing from an incomplete scan proves nothing |
-| a certificate | every scanned endpoint that served it now serves a certificate issued after it and valid now, whatever its lifetime |
+| a finding on an endpoint | a complete scan ran the check and no longer has the finding. A finding missing from an incomplete scan, or from a scan that could not make the check (no certificate seen, a host key not read), proves nothing |
+| a certificate | every endpoint a scan has seen serving it, before or after the fix was assigned, now serves a certificate issued after it and valid now, whatever its lifetime. An endpoint deleted before it showed the new certificate makes it *A scan cannot check this one* |
 
 A scan cannot check everything. A finding on a machine comes from an uploaded inventory file, which is a document
 someone sends, not something this product observed; such a fix reads *A scan cannot check this one* and you close
@@ -67,7 +67,7 @@ the date. **Drop it** closes a fix that is not needed, with the reason.
 **Renewals** lists every certificate a scanned endpoint serves, by the date it runs out, with four months of bars
 above. Each line says how long is left, how many endpoints serve it, who issued it or how it is renewed, and who
 has the renewal. **Assign** works as on Fixes; the renewal is done when a scan sees a newer certificate on every
-endpoint that served the old one.
+endpoint a scan has seen serving the old one, including endpoints first scanned after the renewal was assigned.
 
 **Changed without anyone assigned** lists endpoints whose latest scan found a different certificate while nobody
 had a renewal assigned: a change nobody planned, or one nobody recorded. **It was expected** removes it from the

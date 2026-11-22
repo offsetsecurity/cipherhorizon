@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -204,4 +205,82 @@ func aclOf(t *testing.T, ps, file string) []byte {
 		t.Fatalf("reading the ACL: %v\n%s", err, b)
 	}
 	return b
+}
+
+// A query runs the installed tool only: a Python module or a go.mod left in the folder the
+// script is started from must not change what runs or what the facts say. The queries run from
+// /, Python runs isolated (-I) and Go keeps its own toolchain (GOTOOLCHAIN=local, so it never
+// fetches one).
+func TestShellEngineQueriesIgnoreTheWorkingDirectory(t *testing.T) {
+	sh, err := Engine("cipherhorizon-inventory.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(sh)
+	for _, want := range []string{`cmd="python3 -I -c '`, `cmd='GOTOOLCHAIN=local go version'`, `sh -c "cd / || exit; $cmd"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("sh: the query table or cap_query is missing %q", want)
+		}
+	}
+	if strings.Contains(body, `sh -c "$cmd"`) {
+		t.Error("sh: a query still runs in the folder the script was started from")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("the shell engine is for Linux; its text is checked above")
+	}
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("no sh")
+	}
+
+	cwd := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "planted-module-ran")
+	planted := "open(" + strconv.Quote(filepath.ToSlash(marker)) + ", 'w').write('ran')\nOPENSSL_VERSION = 'PLANTED-SSL'\n"
+	if err := os.WriteFile(filepath.Join(cwd, "ssl.py"), []byte(planted), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A go.mod asking for a Go release that does not exist: a go command that read it would try
+	// to switch toolchains, fail (the module proxy is off for this test) and print no version.
+	if err := os.WriteFile(filepath.Join(cwd, "go.mod"), []byte("module planted\n\ngo 1.999\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	probe := func(name string, args ...string) bool {
+		c := exec.Command(name, args...)
+		c.Dir = t.TempDir()
+		return c.Run() == nil
+	}
+	haveGo, havePython := probe("go", "version"), probe("python3", "-I", "-c", "pass")
+	if !haveGo && !havePython {
+		t.Skip("neither python3 nor go is installed")
+	}
+	sigs := filepath.Join(t.TempDir(), "sigs.txt")
+	sigText := "signatures\ttest\nsig\tTEST.PYTHON\tquery\tquery=python.ssl\nsig\tTEST.GO\tquery\tquery=go.version\n"
+	if err := os.WriteFile(sigs, []byte(sigText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(t.TempDir(), "s.sh")
+	if err := os.WriteFile(script, Scripts()[1].Body(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "facts.txt")
+	cmd := exec.Command("sh", script, out, sigs)
+	cmd.Dir = cwd
+	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=auto", "GOPROXY=off", "GOFLAGS=")
+	if b, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("script failed: %v\n%s", err, b)
+	}
+	raw, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if havePython {
+		if _, err := os.Stat(marker); err == nil {
+			t.Error("python3 imported ssl.py from the working directory")
+		}
+		if strings.Contains(string(raw), "PLANTED-SSL") || !strings.Contains(string(raw), "fact\tTEST.PYTHON\tquery\tpython.ssl\tpython ") {
+			t.Errorf("the python.ssl fact is not the installed Python's:\n%s", raw)
+		}
+	}
+	if haveGo && !strings.Contains(string(raw), "fact\tTEST.GO\tquery\tgo.version\tgo version go") {
+		t.Errorf("go version read the working directory's go.mod:\n%s", raw)
+	}
 }

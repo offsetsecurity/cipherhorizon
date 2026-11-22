@@ -64,8 +64,9 @@ These are deliberate for a self-hosted, single-team tool, and are stated so nobo
   their SHA-256, in an HttpOnly, SameSite=Strict cookie, ending after 30 minutes idle or 12 hours. Over HTTPS
   the cookie is `__Host-ch_session` (Secure, bound to this exact host, so a sibling subdomain cannot plant or
   overwrite it). Changing a password ends every session of that account, including the one that changed it,
-  which is then signed in again with a new token. Five wrong passwords lock an account for 15 minutes; twenty
-  failures from one address within 15 minutes get 429. There is no single sign-on and no second factor yet; use
+  which is then signed in again with a new token. Five wrong passwords lock an account for 15 minutes, also when
+  they arrive at once; fifty failures from one address within 15 minutes, or ten from one address against one
+  account, get 429. There is no single sign-on and no second factor yet; use
   a reverse proxy that adds them if you need them now. Whoever can read the server's log during first run can
   claim the administrator account with the setup code it prints; the code stops working once used, or after
   24 hours (restart the server for a new one). Whoever can run `cipherhorizon user` on the server can reset any

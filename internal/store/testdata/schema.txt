@@ -307,6 +307,11 @@ table work_deps
   foreign-key work_items depends_on id NO ACTION CASCADE
   foreign-key work_items item_id id NO ACTION CASCADE
   index sqlite_autoindex_work_deps_1 1 pk 0 (item_id:0:BINARY, depends_on:0:BINARY)
+table work_endpoints
+  column item_id INTEGER 1 NULL 1 0
+  column asset_id INTEGER 1 NULL 2 0
+  foreign-key work_items item_id id NO ACTION CASCADE
+  index sqlite_autoindex_work_endpoints_1 1 pk 0 (item_id:0:BINARY, asset_id:0:BINARY)
 table work_items
   column id INTEGER 0 NULL 1 0
   column title TEXT 1 NULL 0 0

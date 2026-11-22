@@ -10,6 +10,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // Guard decides which addresses a scan may connect to. A scanner that dials
@@ -168,7 +170,7 @@ func (g Guard) CheckIP(ip net.IP) error {
 // CheckLiteral checks a host that is an IP literal; names are checked when
 // they are resolved and again when connected to.
 func (g Guard) CheckLiteral(host string) error {
-	if ip := net.ParseIP(host); ip != nil {
+	if ip := ipLiteral(host); ip != nil {
 		return g.CheckIP(ip)
 	}
 	return nil
@@ -246,7 +248,7 @@ func ParseScope(entries []string) (*Scope, error) {
 			sc.nets = append(sc.nets, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
 		default:
 			d := strings.ToLower(strings.Trim(e, "."))
-			if !validDomain(d) {
+			if !tlsprobe.IsHostName(d) {
 				return nil, fmt.Errorf("scan scope %q: not a network, an address or a domain", raw)
 			}
 			sc.domains = append(sc.domains, d)
@@ -256,21 +258,15 @@ func ParseScope(entries []string) (*Scope, error) {
 	return sc, nil
 }
 
-func validDomain(d string) bool {
-	if d == "" || len(d) > 253 {
-		return false
+// ipLiteral is the address of a host written as an IP literal, with or without brackets and
+// with or without an IPv6 zone, and nil for anything else. A zone never makes an address a name:
+// the resolver reads such a string as the address, so the address is what is judged.
+func ipLiteral(host string) net.IP {
+	h := strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	if i := strings.IndexByte(h, '%'); i >= 0 {
+		h = h[:i]
 	}
-	for _, label := range strings.Split(d, ".") {
-		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
-			return false
-		}
-		for _, c := range label {
-			if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' && c != '_' {
-				return false
-			}
-		}
-	}
-	return true
+	return net.ParseIP(h)
 }
 
 // Empty reports whether the scope allows everything the Guard allows.
@@ -284,9 +280,13 @@ func (sc *Scope) Entries() []string {
 	return append([]string(nil), sc.entries...)
 }
 
-// nameIn reports whether host is one of the domains or under one.
+// nameIn reports whether host is one of the domains or under one. Only a valid host name can
+// be: a string that merely ends in a domain, such as an address with a zone, is not.
 func (sc *Scope) nameIn(host string) bool {
 	h := strings.ToLower(strings.TrimSuffix(host, "."))
+	if !tlsprobe.IsHostName(h) {
+		return false
+	}
 	for _, d := range sc.domains {
 		if h == d || strings.HasSuffix(h, "."+d) {
 			return true
@@ -309,9 +309,10 @@ func (sc *Scope) outside(ip net.IP) error {
 }
 
 // ForTarget is the Guard for one scan of host: when a scope is set and host is not under one of
-// its domains, every address the scan connects to must also be inside one of its networks.
+// its domains, every address the scan connects to must also be inside one of its networks. An IP
+// literal, with or without a zone, is never under a domain.
 func (g Guard) ForTarget(host string) Guard {
-	if g.Scope.Empty() || (net.ParseIP(host) == nil && g.Scope.nameIn(host)) {
+	if g.Scope.Empty() || (ipLiteral(host) == nil && g.Scope.nameIn(host)) {
 		g.pinNets = false
 		return g
 	}
@@ -330,7 +331,7 @@ func (g Guard) CheckTarget(ctx context.Context, host string) error {
 	if g.Scope.Empty() {
 		return nil
 	}
-	if ip := net.ParseIP(host); ip != nil {
+	if ip := ipLiteral(host); ip != nil {
 		if !g.Scope.ipIn(ip) {
 			return g.Scope.outside(ip)
 		}

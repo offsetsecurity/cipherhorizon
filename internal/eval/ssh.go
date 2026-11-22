@@ -395,10 +395,11 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 	ev.Baseline = sshConformance(c, b)
 	ev.Standards = evaluateSSHStandards(c)
 	ev.Sections = sshSections(c, findings, ev.Baseline)
+	// As for TLS: a check under a stage that did not run or proved nothing (no host key read) was not checked.
 	skipped := map[string]string{}
 	for _, s := range ev.Sections {
 		switch s.Status {
-		case StatusNotChecked, StatusNotCollected:
+		case StatusNotChecked, StatusNotCollected, StatusInconclusive:
 			skipped[s.ID] = "not-checked"
 		case StatusNotApplicable:
 			skipped[s.ID] = "not-applicable"
@@ -411,12 +412,32 @@ func EvaluateSSH(rep *sshprobe.Report, in Input) Evaluation {
 		if weakKeyCheck(checks[i].ID) && checks[i].Result == "not-found" && !sshKeyTestsRan(rep.HostKeys) {
 			checks[i].Result = "not-checked"
 		}
+		// A check made on the fetched host keys says nothing about a key that was advertised but not read.
+		if fromFetchedKeys(checks[i].ID) && checks[i].Result == "not-found" && hostKeyUnread(rep) {
+			checks[i].Result = "not-checked"
+		}
 	}
 	ev.Checks = checks
 	ev.FixFirst = fixFirst(findings)
 	ev.Vulnerabilities = sshAttacks(findings)
 	ev.SSHAlgorithms = sshAlgorithmViews(c, b)
 	return ev
+}
+
+// fromFetchedKeys says whether an SSH check is judged on the host keys fetched rather than on the
+// advertised lists.
+func fromFetchedKeys(id string) bool {
+	return id == "SSH.HOSTKEY-RSA-SMALL" || id == "SSH.HOSTKEY-BAD-SIGNATURE" || weakKeyCheck(id)
+}
+
+// hostKeyUnread says whether an advertised host key algorithm was asked for and its key not read.
+func hostKeyUnread(rep *sshprobe.Report) bool {
+	for _, a := range rep.HostKeyAttempts {
+		if a.Outcome != sshprobe.AttemptKey {
+			return true
+		}
+	}
+	return false
 }
 
 // sshNoScore is the Hygiene.Methodology of an SSH evaluation: SSH servers get no 0 to 100 score

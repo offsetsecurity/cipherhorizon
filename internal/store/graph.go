@@ -21,7 +21,8 @@ import (
 // ProjectionVersion identifies the projection code. When it changes the graph is
 // rebuilt from the stored documents on the next start (ENG-HANDOFF-002 D1), so a fix
 // to a projection reaches old data without a data migration.
-const ProjectionVersion = 1
+// Version 2 records whether a presented certificate was backed by a completed handshake.
+const ProjectionVersion = 2
 
 // ObservationCap is the most observations one document contributes to the graph. It is a
 // variable so tests can lower it.
@@ -303,6 +304,16 @@ func (s *Store) projectScanTx(tx *sql.Tx, scanID int64) error {
 		Class: estate.ClassScanner, Stream: estate.StreamNetwork, RefKind: "scan", RefID: scanID, AssetID: assetID,
 		ToolName: tool, ToolVersion: toolVer, SHA256: hex.EncodeToString(sum[:]), Size: len(report), ObservedAt: at,
 	}, obs)
+	if err != nil {
+		return err
+	}
+	// Work about a certificate this scan saw as the leaf must show its replacement here too. The endpoint
+	// is remembered on the work, so deleting it or pruning this scan later cannot drop it from the work.
+	_, err = tx.Exec(`INSERT OR IGNORE INTO work_endpoints (item_id, asset_id)
+		SELECT DISTINCT w.id, src.asset_id FROM sources src JOIN observations o ON o.source_id = src.id
+		JOIN entities e ON e.id = o.entity_id JOIN work_items w ON w.certificate <> '' AND w.certificate = substr(e.key, 6)
+		WHERE src.ref_kind = 'scan' AND src.ref_id = ? AND src.asset_id IS NOT NULL AND e.kind = 'certificate'
+		AND o.relation = 'presents' AND json_extract(o.attrs_json, '$.position') = 'leaf' AND w.subject_kind = 'certificate'`, scanID)
 	return err
 }
 

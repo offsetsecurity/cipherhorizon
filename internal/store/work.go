@@ -163,6 +163,12 @@ func (s *Store) CreateWork(w WorkItem) (WorkItem, error) {
 		return WorkItem{}, err
 	}
 	w.ID = id
+	if w.SubjectKind == "certificate" {
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO work_endpoints (item_id, asset_id) SELECT DISTINCT ?, src.asset_id `+leafSourcesSQL,
+			id, "cert:"+strings.ToLower(w.Certificate)); err != nil {
+			return WorkItem{}, err
+		}
+	}
 	if err := auditWorkTx(tx, now, w.CreatedBy, WorkObject, id, "created", map[string]any{}, workSnapshot(w), ""); err != nil {
 		return WorkItem{}, err
 	}
@@ -686,10 +692,17 @@ func leafOf(key, attrs string) LeafCertificate {
 	return l
 }
 
-// CertificateLeafEndpoints lists the scanned endpoints that presented a certificate as their leaf in a
-// scan made at or before t, with the certificate's own expiry. found is false when the certificate is
-// not in the graph at all.
-func (s *Store) CertificateLeafEndpoints(fingerprint string, t time.Time) (endpoints []int64, cert LeafCertificate, found bool, err error) {
+// leafSourcesSQL is the FROM and WHERE of a query over the scans of live endpoints that saw the
+// certificate with entity key ? presenting as their leaf; src is the scan's source.
+const leafSourcesSQL = `FROM entities e JOIN observations o ON o.entity_id = e.id
+		JOIN sources src ON src.id = o.source_id JOIN assets a ON a.id = src.asset_id
+		WHERE e.kind = 'certificate' AND e.key = ? AND src.ref_kind = 'scan' AND o.relation = 'presents'
+		AND json_extract(o.attrs_json, '$.position') = 'leaf'`
+
+// CertificateLeafEndpoints lists the endpoints whose kept scans saw a certificate as their leaf, at any
+// time, with the certificate's own dates. found is false when the certificate is not in the graph at
+// all. Deleted endpoints and pruned scans are not in it: verification adds WorkEndpoints, which keeps them.
+func (s *Store) CertificateLeafEndpoints(fingerprint string) (endpoints []int64, cert LeafCertificate, found bool, err error) {
 	key := "cert:" + strings.ToLower(fingerprint)
 	var attrs string
 	err = s.db.QueryRow(`SELECT attrs_json FROM entities WHERE kind = 'certificate' AND key = ?`, key).Scan(&attrs)
@@ -700,22 +713,31 @@ func (s *Store) CertificateLeafEndpoints(fingerprint string, t time.Time) (endpo
 		return nil, LeafCertificate{}, false, err
 	}
 	cert = leafOf(key, attrs)
-	rows, err := s.db.Query(`SELECT DISTINCT src.asset_id FROM entities e JOIN observations o ON o.entity_id = e.id
-		JOIN sources src ON src.id = o.source_id JOIN assets a ON a.id = src.asset_id
-		WHERE e.kind = 'certificate' AND e.key = ? AND src.ref_kind = 'scan' AND o.relation = 'presents'
-		AND json_extract(o.attrs_json, '$.position') = 'leaf' AND o.observed_at <= ? ORDER BY src.asset_id`, key, ts(t))
+	endpoints, err = s.ids(`SELECT DISTINCT src.asset_id `+leafSourcesSQL+` ORDER BY src.asset_id`, key)
+	return endpoints, cert, true, err
+}
+
+// WorkEndpoints lists the endpoints remembered on a piece of certificate work: every endpoint a scan saw
+// presenting the certificate since the work was created, or before it, including endpoints deleted since.
+func (s *Store) WorkEndpoints(id int64) ([]int64, error) {
+	return s.ids(`SELECT asset_id FROM work_endpoints WHERE item_id = ? ORDER BY asset_id`, id)
+}
+
+func (s *Store) ids(query string, args ...any) ([]int64, error) {
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
-		return nil, cert, true, err
+		return nil, err
 	}
 	defer rows.Close() //nolint:errcheck // read-only
+	var out []int64
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
-			return nil, cert, true, err
+			return nil, err
 		}
-		endpoints = append(endpoints, id)
+		out = append(out, id)
 	}
-	return endpoints, cert, true, rows.Err()
+	return out, rows.Err()
 }
 
 // CertificateKnown says whether a certificate with this fingerprint is in the graph.

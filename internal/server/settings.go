@@ -107,9 +107,11 @@ func (s *Server) putSignIn(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusForbidden, "turning sign-in off needs an administrator signed in with their own account")
 			return
 		}
-		if s.tooManyAttempts(w, r, p.Username) {
+		a := s.beginAttempt(w, r, p.Username)
+		if a == nil {
 			return
 		}
+		defer a.end()
 		u, err := s.cfg.Store.GetUser(p.UserID)
 		if err != nil {
 			storeErr(w, err)
@@ -121,7 +123,7 @@ func (s *Server) putSignIn(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !ok {
-			s.failedSignIn(r, p.Username)
+			a.fail()
 			writeErr(w, http.StatusForbidden, "that is not your password")
 			return
 		}

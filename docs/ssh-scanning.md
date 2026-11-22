@@ -11,7 +11,7 @@ actually use, and every host key. It judges two things:
 ```sh
 cipherhorizon ssh scan bastion.example.com                    # port 22 unless given
 cipherhorizon ssh scan --details git.example.com:2222         # also the algorithm lists and host keys
-cipherhorizon ssh scan --fail-on baseline bastion.example.com # exit 3 when it does not meet the baseline
+cipherhorizon ssh scan --fail-on baseline bastion.example.com # exit 3 unless it is seen to meet the baseline
 cipherhorizon ssh baselines                                   # the baselines, entry by entry, with sources
 ```
 
@@ -43,7 +43,9 @@ Scan only systems you own or are authorised to test.
 - `diffie-hellman-group14-sha256`, `group16-sha512`, `group14-sha1` and `group1-sha1`.
 
 A server that offers none of these, for example only `sntrup761x25519-sha512` or group exchange, still has its lists
-read and judged. Its host keys are then reported as *not fetched*, with the reason, never as absent.
+read and judged. Its host keys are then reported as *not fetched*, with the reason, never as absent. Any advertised
+host key that was not read (refused, dropped or not reachable by a key exchange) marks the scan incomplete, and the
+checks made on the fetched keys then read *not checked*.
 
 The prober is checked against real OpenSSH 9.2 (Debian 12) and 10.0 (Debian 13): `testing/ssh/oracle.sh` compares
 every list, negotiated choice and host key fingerprint with what `ssh -vv` reports.
@@ -70,7 +72,9 @@ Every entry cites its source and names the OpenSSH version that first offers it.
 prints them all; `GET /api/v1/ssh/baselines` returns them as JSON.
 
 A server **meets** the baseline when nothing it offers should be off and every requirement holds. Unknown names are
-not on the list, so they should be off. A server whose lists couldn't be read is **not judged**, never "meets".
+not on the list, so they should be off. A server whose lists couldn't be read is **not judged**, never "meets"; so is
+one with nothing to change whose RSA host key is offered but could not be read. `--fail-on baseline` fails a server
+that is not judged.
 
 ### CipherHorizon SSH baseline 2026 (`cipherhorizon-ssh-2026`, the default)
 
@@ -87,7 +91,8 @@ not on the list, so they should be off. A server whose lists couldn't be read is
 2. **Strict key exchange is offered.** This is OpenSSH's countermeasure to Terrapin (CVE-2023-48795), in OpenSSH 9.6
    and later.
 3. **RSA host keys are at least 3072 bits** (NIST SP 800-57 Part 1: 128-bit security). On a server with no RSA host
-   key this rule *does not apply*, rather than reading as met.
+   key this rule *does not apply*, rather than reading as met. When an RSA host key algorithm is offered but its key
+   could not be read, the rule is *not known*, and the server never reads as meeting the baseline.
 
 A truncated MAC is rated by its tag: `hmac-sha1-96` is 96 bits, not HMAC-SHA-1's 128 (NIST SP 800-107 Rev. 1). The
 next steps and the changes name OpenSSH releases only to a server that identifies as OpenSSH; any other server is told

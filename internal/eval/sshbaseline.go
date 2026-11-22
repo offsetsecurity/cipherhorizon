@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/sshprobe/registry"
@@ -165,7 +166,8 @@ func SSHBaselineByID(id string) (*SSHBaseline, bool) {
 type Conformance struct {
 	Baseline string `json:"baseline"`
 	Title    string `json:"title"`
-	// Judged is false when the server's lists were not read; Meets then means nothing.
+	// Judged is false when the server's lists were not read, or when nothing needs changing but a
+	// requirement could not be checked (Reason says which); Meets is then false and means nothing.
 	Judged     bool             `json:"judged"`
 	Reason     string           `json:"reason,omitempty"`
 	Meets      bool             `json:"meets"`
@@ -204,9 +206,12 @@ type RequireView struct {
 	Met  bool   `json:"met"`
 	// NotApplicable: there was nothing to judge (no RSA host key for an RSA size rule). Met stays
 	// true, so the verdict is unchanged; the page says "does not apply" instead of "met".
-	NotApplicable bool     `json:"notApplicable,omitempty"`
-	Detail        string   `json:"detail,omitempty"`
-	Cite          Citation `json:"cite"`
+	NotApplicable bool `json:"notApplicable,omitempty"`
+	// NotAssessed: the facts the requirement needs were not read (an RSA host key offered but not
+	// fetched). Met is false, and the conformance is never "meets".
+	NotAssessed bool     `json:"notAssessed,omitempty"`
+	Detail      string   `json:"detail,omitempty"`
+	Cite        Citation `json:"cite"`
 }
 
 // baselineKinds are the kinds a baseline judges, in sshd_config order.
@@ -337,7 +342,12 @@ func sshConformance(c *sshCtx, b *SSHBaseline) *Conformance {
 					rsa++
 				}
 			}
-			if rsa == 0 {
+			switch {
+			case rsa == 0 && rsaHostKeyOffered(c.alg.HostKey):
+				// Offered but not read: the size is unknown, which is neither met nor "no RSA key".
+				v.Met, v.NotAssessed = false, true
+				v.Detail = "An RSA host key algorithm is offered, but its key could not be read, so its size is not known."
+			case rsa == 0:
 				v.NotApplicable, v.Detail = true, "The server has no RSA host key."
 			}
 			for _, hk := range rep.HostKeys {
@@ -365,11 +375,22 @@ func sshConformance(c *sshCtx, b *SSHBaseline) *Conformance {
 		}
 		out.Requires = append(out.Requires, v)
 	}
-	out.Meets = len(out.Changes) == 0
-	if !out.Meets {
+	unassessed := slices.ContainsFunc(out.Requires, func(r RequireView) bool { return r.NotAssessed })
+	out.Meets = len(out.Changes) == 0 && !unassessed
+	if len(out.Changes) == 0 && unassessed {
+		// Nothing to change was seen, but a requirement could not be checked: that is not "meets".
+		out.Judged = false
+		out.Reason = "Everything offered is allowed, but the RSA host key could not be read, so whether it is long enough is not known."
+	}
+	if len(out.Changes) > 0 {
 		out.SSHDConfig = sshdConfigBlock(c, b, out)
 	}
 	return out
+}
+
+// rsaHostKeyOffered says whether a host key algorithm list offers an RSA key.
+func rsaHostKeyOffered(algs []string) bool {
+	return slices.ContainsFunc(algs, func(n string) bool { return strings.HasPrefix(n, "rsa-sha2") || strings.HasPrefix(n, "ssh-rsa") })
 }
 
 // sshdConfigBlock writes the sshd_config lines that would make the server meet b (REQ-SHB-4).
