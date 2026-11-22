@@ -1,5 +1,5 @@
 #!/bin/sh
-# CipherHorizon machine inventory engine for Linux, version 3.0.0
+# CipherHorizon machine inventory engine for Linux, version 3.0.1
 #
 # What it does: runs each signature listed below with one of a few read-only capabilities,
 # and writes what it finds to a plain-text facts file you can read before you upload it.
@@ -17,7 +17,8 @@
 #
 # What it never does: change anything, install anything, make a network connection, enter
 # a directory meant for keys, open a file named like a key, read /etc/wireguard, or send any
-# block but a certificate out of a certificate file. Every query runs with a timeout.
+# block but a certificate out of a certificate file. Every query runs with a timeout, from /,
+# so nothing in the folder you start the script from can change what a tool loads.
 #
 # The signatures (what to collect) come from the CipherHorizon server's signature database
 # and are listed just below; the server shows the same list on its Inventory page. To
@@ -30,7 +31,7 @@
 set -u
 # Everything this script writes (the facts file, its temporary files) is readable by its owner only.
 umask 077
-ENGINE_VERSION=3.0.0
+ENGINE_VERSION=3.0.1
 OUT=${1:-cipherhorizon-facts-$(hostname 2>/dev/null || echo host).txt}
 
 # ---- signatures: what to collect, from the CipherHorizon signature database --------------
@@ -55,8 +56,10 @@ sha() { if have sha256sum; then sha256sum "$1" 2>/dev/null | cut -d' ' -f1; fi; 
 
 # ---- the query table ---------------------------------------------------------------------
 # Each query is a fixed, read-only command line written here, never in a signature. A signature
-# names the id; the engine checks the tool is installed, runs the line under `timeout`, and keeps
-# the lines the signature's `match` selects. QUERIES lists the ids (the server checks this list).
+# names the id; the engine checks the tool is installed, runs the line under `timeout` from /, and
+# keeps the lines the signature's `match` selects. Python runs isolated (-I: no working-directory
+# or user modules, no PYTHON* variables) and Go never switches or downloads a toolchain.
+# QUERIES lists the ids (the server checks this list).
 # QUERIES: os.kernel cpu.crypto-flags openssl.version openssl.providers openssl.ciphers
 #   openssl.kem-algorithms openssl.signature-algorithms gnutls.version gpg.version curl.version
 #   wget.version ssh.version ssh.algorithms sshd.effective ssh.host-keys crypto-policies
@@ -83,9 +86,9 @@ query_def() { # sets tool (what must be installed) and cmd (the fixed command li
     ssh.host-keys) tool=ssh-keygen; cmd='for f in /etc/ssh/ssh_host_*_key.pub; do [ -f "$f" ] && ssh-keygen -lf "$f" 2>/dev/null; done' ;;
     crypto-policies) tool=update-crypto-policies; cmd='update-crypto-policies --show 2>/dev/null; fips-mode-setup --check 2>/dev/null' ;;
     java.version) tool=java; cmd='java -version 2>&1; readlink -f "$(command -v java)"' ;;
-    python.ssl) tool=python3; cmd="python3 -c 'import ssl,sys;print(\"python\",sys.version.split()[0],ssl.OPENSSL_VERSION)'" ;;
+    python.ssl) tool=python3; cmd="python3 -I -c 'import ssl,sys;print(\"python\",sys.version.split()[0],ssl.OPENSSL_VERSION)'" ;;
     node.versions) tool=node; cmd="node -p 'process.versions.node+\" openssl \"+process.versions.openssl'" ;;
-    go.version) tool=go; cmd='go version' ;;
+    go.version) tool=go; cmd='GOTOOLCHAIN=local go version' ;;
     ruby.openssl) tool=ruby; cmd="ruby -ropenssl -e 'puts \"ruby #{RUBY_VERSION} #{OpenSSL::OPENSSL_LIBRARY_VERSION}\"'" ;;
     php.openssl) tool=php; cmd="php -r 'echo \"php \",PHP_VERSION,\" \",defined(\"OPENSSL_VERSION_TEXT\")?OPENSSL_VERSION_TEXT:\"no openssl extension\",\"\\n\";'" ;;
     dotnet.runtimes) tool=dotnet; cmd='dotnet --list-runtimes' ;;
@@ -193,7 +196,9 @@ cap_query() { # query, match, max
   if ! have "$tool"; then
     printf 'skip\t%s\t%s is not installed\n' "$id" "$tool"; return
   fi
-  if have timeout; then timeout -k 5 20 sh -c "$cmd" 2>/dev/null; else sh -c "$cmd" 2>/dev/null; fi | emit_lines query "$p_query"
+  # The query runs from /: a tool started in the operator's folder could load code or settings
+  # planted there (a Python module, a go.mod naming a toolchain to fetch, a global.json).
+  if have timeout; then timeout -k 5 20 sh -c "cd / || exit; $cmd" 2>/dev/null; else sh -c "cd / || exit; $cmd" 2>/dev/null; fi | emit_lines query "$p_query"
 }
 
 cap_listeners() { # max

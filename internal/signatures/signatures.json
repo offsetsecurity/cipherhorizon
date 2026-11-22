@@ -1,5 +1,5 @@
 {
-  "version": "2026.11.09",
+  "version": "2026.11.22",
   "about": "What the CipherHorizon inventory scripts collect (PRD-019). Each signature names one read-only capability of the script engine and its parameters; the server interprets what comes back. Edit this file to collect something new: the engines do not change. A query signature can only pick one of the queries written in the engine itself.",
   "maps": {
     "ssh": {
@@ -1570,11 +1570,11 @@
       "platform": "linux",
       "area": "servers",
       "title": "Postfix TLS configuration",
-      "why": "smtpd_tls_* and smtp_tls_* decide what mail in and out of this machine is encrypted with and which certificate it presents.",
+      "why": "smtpd_tls_* and smtp_tls_* decide what mail in and out of this machine is encrypted with and which certificate it presents. Settings named for a password (smtp_sasl_password_maps) are not collected.",
       "capability": "lines",
       "params": {
         "paths": "/etc/postfix/main.cf",
-        "match": "^[[:space:]]*(smtpd?_tls_[a-z_]+|tls_[a-z_]+|smtpd?_use_tls|smtpd?_enforce_tls|smtp_sasl_[a-z_]+|smtpd_sasl_[a-z_]+)[[:space:]]*=",
+        "match": "^[[:space:]]*(smtpd?_tls_[a-z_]+|tls_[a-z_]+|smtpd?_use_tls|smtpd?_enforce_tls|smtpd?_sasl(_([a-oq-z]|p[b-z]|pa[a-rt-z]|pas[a-rt-z])[a-z]*)+)[[:space:]]*=",
         "max": "80"
       },
       "interpret": "tls-config"
@@ -1584,11 +1584,11 @@
       "platform": "linux",
       "area": "servers",
       "title": "Postfix TLS settings in force",
-      "why": "postconf -n lists the non-default settings Postfix runs with, which can differ from main.cf when a change has not been reloaded.",
+      "why": "postconf -n lists the non-default settings Postfix runs with, which can differ from main.cf when a change has not been reloaded. Settings named for a password are not collected.",
       "capability": "query",
       "params": {
         "query": "postfix.tls",
-        "match": "tls|sasl"
+        "match": "^([a-z0-9_]*tls[a-z0-9_]*|[a-z0-9_]*sasl(_([a-oq-z]|p[b-z]|pa[a-rt-z]|pas[a-rt-z])[a-z]*)+)[[:space:]]*="
       },
       "interpret": "tls-config"
     },
@@ -1597,11 +1597,11 @@
       "platform": "linux",
       "area": "servers",
       "title": "Dovecot TLS configuration",
-      "why": "ssl_min_protocol, ssl_cipher_list, ssl_prefer_server_ciphers and the certificate the IMAP and POP services present.",
+      "why": "ssl_min_protocol, ssl_cipher_list, ssl_prefer_server_ciphers and the certificate the IMAP and POP services present. The key's password (ssl_key_password) is not collected.",
       "capability": "lines",
       "params": {
         "paths": "/etc/dovecot/dovecot.conf|/etc/dovecot/conf.d/*.conf",
-        "match": "^[[:space:]]*ssl[a-z_]*[[:space:]]*=",
+        "match": "^[[:space:]]*ssl(_([a-oq-z]|p[b-z]|pa[a-rt-z]|pas[a-rt-z])[a-z]*)*[[:space:]]*=",
         "max": "40"
       },
       "interpret": "tls-config"
@@ -1611,11 +1611,11 @@
       "platform": "linux",
       "area": "servers",
       "title": "Dovecot TLS settings in force",
-      "why": "doveconf -n lists the settings Dovecot runs with.",
+      "why": "doveconf -n lists the settings Dovecot runs with. The key's password is not collected.",
       "capability": "query",
       "params": {
         "query": "dovecot.ssl",
-        "match": "^ssl"
+        "match": "^ssl(_([a-oq-z]|p[b-z]|pa[a-rt-z]|pas[a-rt-z])[a-z]*)*([[:space:]]|=|$)"
       },
       "interpret": "tls-config"
     },
@@ -1638,11 +1638,11 @@
       "platform": "linux",
       "area": "servers",
       "title": "PostgreSQL TLS configuration",
-      "why": "ssl, ssl_min_protocol_version, ssl_ciphers, ssl_ecdh_curve and the certificate the database presents.",
+      "why": "ssl, ssl_min_protocol_version, ssl_ciphers, ssl_ecdh_curve and the certificate the database presents. The command that unlocks the key (ssl_passphrase_command) is not collected.",
       "capability": "lines",
       "params": {
         "paths": "/etc/postgresql/*/main/postgresql.conf|/etc/postgresql/*/main/conf.d/*.conf|/var/lib/pgsql/data/postgresql.conf|/var/lib/pgsql/*/data/postgresql.conf|/var/lib/postgresql/*/main/postgresql.conf",
-        "match": "^[[:space:]]*(ssl|ssl_[a-z_]+|password_encryption)[[:space:]]*=",
+        "match": "^[[:space:]]*(ssl(_([a-oq-z]|p[b-z]|pa[a-rt-z]|pas[a-rt-z])[a-z]*)*|password_encryption)[[:space:]]*=",
         "max": "40"
       },
       "interpret": "tls-config",
@@ -1653,11 +1653,11 @@
       "platform": "linux",
       "area": "servers",
       "title": "MySQL and MariaDB TLS configuration",
-      "why": "tls_version, ssl-cipher, require_secure_transport and the certificate the database presents.",
+      "why": "tls_version, ssl-cipher, require_secure_transport and the certificate the database presents. Settings named for a passphrase are not collected.",
       "capability": "lines",
       "params": {
         "paths": "/etc/mysql/my.cnf|/etc/mysql/mysql.conf.d/*.cnf|/etc/mysql/mariadb.conf.d/*.cnf|/etc/mysql/conf.d/*.cnf|/etc/my.cnf|/etc/my.cnf.d/*.cnf",
-        "match": "^[[:space:]]*(ssl[a-z_-]*|tls[a-z_-]*|require_secure_transport|default_authentication_plugin|authentication_policy)",
+        "match": "^[[:space:]]*((ssl|tls)([-_]([a-oq-z]|p[b-z]|pa[a-rt-z]|pas[a-rt-z])[a-z]*)*([[:space:]]|=|$)|require_secure_transport|default_authentication_plugin|authentication_policy)",
         "max": "40"
       },
       "interpret": "tls-config"
@@ -1708,11 +1708,11 @@
       "platform": "linux",
       "area": "servers",
       "title": "BIND DNSSEC and DNS-over-TLS settings",
-      "why": "dnssec-validation, dnssec-policy and tls blocks: DNSSEC signing keys are RSA or ECDSA and have their own migration path.",
+      "why": "dnssec-validation, dnssec-policy and tls blocks: DNSSEC signing keys are RSA or ECDSA and have their own migration path. A TSIG key's algorithm is collected only from a line that holds nothing else, never its secret.",
       "capability": "lines",
       "params": {
         "paths": "/etc/bind/named.conf|/etc/bind/named.conf.options|/etc/bind/named.conf.local|/etc/named.conf|/etc/named/*.conf",
-        "match": "^[[:space:]]*(dnssec-validation|dnssec-policy|dnssec-enable|tls[[:space:]]|key-directory|algorithm|listen-on.*tls|forwarders|https[[:space:]])",
+        "match": "^[[:space:]]*(dnssec-validation|dnssec-policy|dnssec-enable|tls[[:space:]]|key-directory|algorithm[[:space:]]+[^;[:space:]]+;?[[:space:]]*($|#|//)|listen-on.*tls|forwarders|https[[:space:]])",
         "max": "40"
       },
       "interpret": "config"
