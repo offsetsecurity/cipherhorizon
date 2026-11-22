@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -178,6 +179,81 @@ func TestGuessingOneAccountDoesNotLockOutOthersOnTheSameAddress(t *testing.T) {
 	// Behind a shared address (a proxy, a container port mapping) someone else still signs in.
 	if s, _ := login(t, e, "bob", "temporary pass phrase one"); s != 200 {
 		t.Fatalf("another account from the same address: %d, want 200", s)
+	}
+}
+
+// loginStatus is login for use from several goroutines at once: it only reports the status.
+func loginStatus(e *env, user, pw string) int {
+	s, _, _ := e.req("POST", "/api/v1/auth/login", map[string]any{"username": user, "password": pw}, nil)
+	return s
+}
+
+func TestConcurrentWrongPasswordsCannotOutrunTheLock(t *testing.T) {
+	defer server.SetAuthFailDelay(0)()
+	e := newEnv(t, withLogin(setupCode))
+	setupAdmin(t, e)
+	// Hold the password hash, so every attempt below is in flight at the same time.
+	release := server.HoldHashSlotsForTest()
+	defer release()
+	const burst = 8 // more than the lock needs, fewer than the per-address limit
+	wrong := make([]int, burst)
+	var wg sync.WaitGroup
+	for i := range wrong {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			wrong[i] = loginStatus(e, "ana", fmt.Sprintf("wrong guess number %d", i))
+		}()
+	}
+	time.Sleep(300 * time.Millisecond) // every wrong guess has reached the server
+	right := make(chan int, 1)
+	go func() { right <- loginStatus(e, "ana", "violet amber harbour") }()
+	time.Sleep(300 * time.Millisecond)
+	release()
+	wg.Wait()
+	for i, s := range wrong {
+		if s != 401 {
+			t.Fatalf("wrong guess %d: %d, want 401", i, s)
+		}
+	}
+	if s := <-right; s != 401 {
+		t.Fatalf("the right password after %d concurrent wrong guesses: %d, want 401 (the account must be locked)", burst, s)
+	}
+	evs, _ := e.st.AuthEvents(50)
+	kinds := map[string]int{}
+	for _, ev := range evs {
+		kinds[ev.Kind]++
+	}
+	if kinds["locked"] != 1 || kinds["login"] != 0 {
+		t.Fatalf("audit trail after the burst: %v", kinds)
+	}
+}
+
+func TestConcurrentFailuresFromOneAddressStopAtTheLimit(t *testing.T) {
+	defer server.SetAuthFailDelay(0)()
+	e := newEnv(t, withLogin(setupCode))
+	setupAdmin(t, e)
+	release := server.HoldHashSlotsForTest()
+	defer release()
+	const burst = 60 // spraying many accounts from one address, all at once
+	got := make([]int, burst)
+	var wg sync.WaitGroup
+	for i := range got {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got[i] = loginStatus(e, fmt.Sprintf("user%d", i), "not a real password")
+		}()
+	}
+	time.Sleep(300 * time.Millisecond)
+	release()
+	wg.Wait()
+	n := map[int]int{}
+	for _, s := range got {
+		n[s]++
+	}
+	if n[401] != 50 || n[429] != burst-50 {
+		t.Fatalf("%d concurrent failures from one address: %v, want 50 refused and the rest 429", burst, n)
 	}
 }
 

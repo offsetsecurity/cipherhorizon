@@ -84,7 +84,8 @@ type Server struct {
 
 	routeTable []string
 	failures   limiter
-	signIn     atomic.Bool // whether sign-in is required right now; see signInOn
+	signInTurn accountLocks // one sign-in decision at a time per account
+	signIn     atomic.Bool  // whether sign-in is required right now; see signInOn
 }
 
 // New builds the server.
