@@ -314,11 +314,14 @@ func (o *OCSP) VerifySignature(issuer *x509.Certificate) (string, *x509.Certific
 	if !ok {
 		return SigUnsupported, nil
 	}
+	if rsaTooLarge(issuer) {
+		return SigInvalid, nil
+	}
 	if issuer.CheckSignature(alg, o.tbs, o.sig) == nil {
 		return SigValid, nil
 	}
 	for _, c := range o.Certs {
-		if !hasEKU(c, x509.ExtKeyUsageOCSPSigning) || c.CheckSignatureFrom(issuer) != nil {
+		if rsaTooLarge(c) || !hasEKU(c, x509.ExtKeyUsageOCSPSigning) || c.CheckSignatureFrom(issuer) != nil {
 			continue
 		}
 		if c.CheckSignature(alg, o.tbs, o.sig) == nil {

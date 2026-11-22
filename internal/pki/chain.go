@@ -2,6 +2,7 @@ package pki
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -168,16 +169,29 @@ func (s *Served) MissingIssuer(stores ...*Store) (missing bool, issuerDN string,
 	return true, top.Issuer.String(), top.IssuingCertificateURL
 }
 
+// MaxRSAKeyBits is the largest RSA key whose signatures are checked, the limit
+// crypto/tls applies to the keys a server presents. The cost of a check grows
+// with the square of the modulus size, and a served chain is hostile input, so
+// a signature by a larger key is treated as one that does not verify.
+const MaxRSAKeyBits = 8192
+
+// rsaTooLarge reports whether c carries an RSA key over MaxRSAKeyBits.
+func rsaTooLarge(c *x509.Certificate) bool {
+	k, ok := c.PublicKey.(*rsa.PublicKey)
+	return ok && k != nil && k.N != nil && k.N.BitLen() > MaxRSAKeyBits
+}
+
 // Issued reports whether parent issued child: the names chain and the signature
 // verifies.
 func Issued(parent, child *x509.Certificate) bool {
-	return bytes.Equal(parent.RawSubject, child.RawIssuer) && child.CheckSignatureFrom(parent) == nil
+	return bytes.Equal(parent.RawSubject, child.RawIssuer) && !rsaTooLarge(parent) && child.CheckSignatureFrom(parent) == nil
 }
 
 // selfSigned checks the signature with the certificate's own key, without
 // CheckSignatureFrom's CA requirements, so a self-signed leaf counts too.
 func selfSigned(c *x509.Certificate) bool {
-	return bytes.Equal(c.RawSubject, c.RawIssuer) && c.CheckSignature(c.SignatureAlgorithm, c.RawTBSCertificate, c.Signature) == nil
+	return bytes.Equal(c.RawSubject, c.RawIssuer) && !rsaTooLarge(c) &&
+		c.CheckSignature(c.SignatureAlgorithm, c.RawTBSCertificate, c.Signature) == nil
 }
 
 // SelfSigned reports whether c is signed by its own key under its own name.

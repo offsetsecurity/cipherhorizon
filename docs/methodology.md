@@ -104,8 +104,9 @@ lifetime limit and the CT requirement. The readiness level is unaffected by trus
 
 ### Rules added in eval/17: weak keys, session resumption and early data
 
-**Weak keys.** The scan tests the public key of every certificate the server sends, and every SSH host key, for
-the ways a key can be broken from its public half alone. A positive is a proof (a factor that divides the modulus,
+**Weak keys.** The scan tests the public key of every certificate the server sends (the first 16 of a chain, as
+for the rest of chain analysis), and every SSH host key, for the ways a key can be broken from its public half
+alone. A positive is a proof (a factor that divides the modulus,
 a scalar that reproduces the public point), except ROCA, which is the published fingerprint. A report made before
 these tests shows the checks as *not checked*.
 
@@ -117,7 +118,9 @@ these tests shows the checks as *not checked*.
 | `KEY.RSA-ROCA` | high | the modulus has the Infineon RSALib form | CVE-2017-15361 |
 
 Ed25519 and X25519 keys are not searched: the seed is hashed and clamped, so a small seed does not give a small
-scalar. Shared primes across an estate (batch GCD) and certificates read from machine inventories are not tested yet.
+scalar. An RSA key over 8192 bits, the most crypto/tls accepts, is not tested and is not used to check a signature.
+The tests stop when the scan's time limit passes or it is cancelled; the keys not yet tested are left without
+results and the report is marked incomplete. Shared primes across an estate (batch GCD) and certificates read from machine inventories are not tested yet.
 
 **Session resumption and early data.** After the certificate handshakes the scan completes one more full handshake
 per version (TLS 1.3, TLS 1.2), keeps the session ticket, and connects again offering it. It records how many
@@ -184,7 +187,9 @@ states the lifetime.
   per fetch, 90 s for the stage, 3 redirects (each re-checked), no environment proxy. Every connection's real
   address is checked after DNS: loopback, link-local (cloud metadata), private (RFC 1918, fc00::/7,
   100.64.0.0/10), unspecified and multicast are refused unless "CRL servers on private addresses" is on in Settings → Scanning (`--revocation-private` on the CLI; an internal CA's
-  CRL server). Results are cached per URL until the CRL's nextUpdate (at most a day), failures for 5 minutes.
+  CRL server). Results are cached per URL until the CRL's nextUpdate (at most a day), failures for 5 minutes. The cache
+  holds at most 128 MiB, weighed by what each parsed CRL keeps in memory: expired entries are released first, then the
+  oldest, and a CRL heavier than that is used for the scan but not kept.
 - **Revocation is a status, not a gate.** A revoked certificate stays on the path; the trust verdict and every
   other rule are unchanged. A current CRL that does not list the leaf counts, like a verified staple, as
   revocation being known. OCSP responders are never contacted: a lookup would tell the CA which site is checked,
@@ -232,7 +237,7 @@ states the lifetime.
 | `KX.DH-COMMON-PRIME` | medium | the DHE prime is an RFC-published group of ≤ 1024 bits | Logjam (CVE-2015-4000), RFC 7919 |
 | `HTTP.HSTS-DISABLED` / `-SHORT` / `-INVALID` / `-NO-SUBDOMAINS` | medium / low / medium / info | max-age 0 / under one year / syntax or duplicate header / no includeSubDomains | RFC 6797; HSTS preload requirements |
 | `CIPHER.CBC` | info | CBC suites in TLS 1.2 or earlier (label LUCKY13) | RFC 9325 §4.2 |
-| `VULN.DROWN-SHARED-KEY` | high | the leaf's key is served on an SSLv2 endpoint elsewhere in the estate | CVE-2016-0800 |
+| `VULN.DROWN-SHARED-KEY` | high | the leaf's key is served on an SSLv2 endpoint elsewhere in the estate (low when that endpoint showed the certificate without completing a handshake, so it never proved it holds the key) | CVE-2016-0800 |
 
 `CERT.EXPIRING` now fires at min(30 days, a third of the lifetime) as medium and min(7 days, a tenth) as high, and
 names the threshold: a 47-day certificate with 20 days left raises nothing.

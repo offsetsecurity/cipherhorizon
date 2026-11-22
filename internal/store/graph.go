@@ -21,7 +21,8 @@ import (
 // ProjectionVersion identifies the projection code. When it changes the graph is
 // rebuilt from the stored documents on the next start (ENG-HANDOFF-002 D1), so a fix
 // to a projection reaches old data without a data migration.
-const ProjectionVersion = 1
+// Version 2 records whether a presented certificate was backed by a completed handshake.
+const ProjectionVersion = 2
 
 // ObservationCap is the most observations one document contributes to the graph. It is a
 // variable so tests can lower it.

@@ -45,7 +45,9 @@ func Validate(s *Served, store *Store, now time.Time, sctTimes []time.Time, dl *
 	res := StoreResult{Store: store.Name, Snapshot: store.Snapshot}
 	inter := x509.NewCertPool()
 	for _, c := range s.Intermediates() {
-		inter.AddCert(c)
+		if !rsaTooLarge(c) { // no client verifies a signature by such a key
+			inter.AddCert(c)
+		}
 	}
 	verify := func(at time.Time) ([][]*x509.Certificate, error) {
 		return s.Leaf().Verify(x509.VerifyOptions{Roots: store.pool, Intermediates: inter, CurrentTime: at,

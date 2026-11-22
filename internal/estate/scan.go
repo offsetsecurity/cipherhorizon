@@ -89,8 +89,9 @@ func FromScanReport(rep *tlsprobe.Report) []Observation {
 		}
 	}
 
-	seen := map[string]bool{}
+	seen := map[string]int{} // certificate and position -> index in out
 	for _, cr := range rep.Certificates {
+		proven := cr.KeyProven()
 		for i, c := range cr.Chain {
 			if c.SHA256 == "" {
 				continue // a certificate that could not be parsed has no identity to key on
@@ -103,16 +104,26 @@ func FromScanReport(rep *tlsprobe.Report) []Observation {
 			// ECDSA-only): one observation each would be noise, so one per certificate and
 			// position, with the leaf position winning.
 			id := c.SHA256 + "/" + position
-			if seen[id] {
+			if j, dup := seen[id]; dup {
+				if proven {
+					delete(out[j].Attrs, "keyProven") // another probe path proved the key
+				}
 				continue
 			}
-			seen[id] = true
+			seen[id] = len(out)
+			attrs := map[string]string{"position": position}
+			if !proven {
+				// No completed handshake showed this chain: the endpoint presented the
+				// certificate but never proved it holds the key. Correlation and the DROWN
+				// shared-key check do not take such a sighting as proof of ownership.
+				attrs["keyProven"] = "false"
+			}
 			out = append(out, Observation{
 				Entity:   CertificateEntity(c),
 				Relation: RelPresents,
 				Rung:     evidence.RungExercised, Class: evidence.E3Exercised,
 				Method: MethodTLSCertificate, Quality: QualityAuthoritative,
-				Attrs: map[string]string{"position": position},
+				Attrs: attrs,
 			})
 		}
 	}

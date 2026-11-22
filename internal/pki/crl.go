@@ -92,6 +92,11 @@ func JudgeCRL(rl *x509.RevocationList, url string, subject, issuer *x509.Certifi
 		r.Problem = "the certificate's issuer is not available to this scan, so the CRL's signature cannot be checked"
 		return r
 	}
+	if rsaTooLarge(issuer) {
+		r.Signature = CRLSigInvalid
+		r.Problem = fmt.Sprintf("the issuer's RSA key is larger than %d bits, so the CRL's signature was not checked", MaxRSAKeyBits)
+		return r
+	}
 	if err := rl.CheckSignatureFrom(issuer); err != nil {
 		r.Signature = CRLSigInvalid
 		r.Problem = "the CRL's signature does not verify under the issuer's key: " + err.Error()

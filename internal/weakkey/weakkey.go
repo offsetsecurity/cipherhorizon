@@ -9,6 +9,7 @@
 package weakkey
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -34,13 +35,24 @@ type Weakness struct {
 	Detail string `json:"detail"`
 }
 
+// MaxRSABits is the largest RSA modulus the tests take on, the limit crypto/tls puts on the keys
+// whose signatures it verifies. The tests on a larger modulus cost far more and no client would
+// accept such a key, so they are not run on one.
+const MaxRSABits = 8192
+
+// RSATooLarge reports whether pub is an RSA key over MaxRSABits.
+func RSATooLarge(pub crypto.PublicKey) bool {
+	k, ok := pub.(*rsa.PublicKey)
+	return ok && k != nil && k.N != nil && k.N.BitLen() > MaxRSABits
+}
+
 // Tests names the tests Check runs on a key of this type; empty when it runs none (Ed25519 and
 // X25519 hash and clamp the seed, so a small seed does not give a small scalar; post-quantum keys
-// have no such structure).
+// have no such structure; an RSA modulus over MaxRSABits is not tested).
 func Tests(pub crypto.PublicKey) []Kind {
 	switch k := pub.(type) {
 	case *rsa.PublicKey:
-		if k != nil && k.N != nil && k.N.Sign() > 0 {
+		if k != nil && k.N != nil && k.N.Sign() > 0 && k.N.BitLen() <= MaxRSABits {
 			return []Kind{RSASmallFactor, RSAClosePrimes, RSAROCA}
 		}
 	case *ecdsa.PublicKey:
@@ -54,19 +66,29 @@ func Tests(pub crypto.PublicKey) []Kind {
 // Check runs every test that applies to the key. An empty result with len(Tests(pub)) > 0 means
 // the key passed them.
 func Check(pub crypto.PublicKey) []Weakness {
+	out, _ := CheckContext(context.Background(), pub)
+	return out
+}
+
+// CheckContext is Check that stops when ctx is done, returning ctx's error: the key was then not
+// fully tested, and the result says nothing about it.
+func CheckContext(ctx context.Context, pub crypto.PublicKey) ([]Weakness, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	switch k := pub.(type) {
 	case *rsa.PublicKey:
-		if k == nil || k.N == nil || k.N.Sign() <= 0 {
-			return nil
+		if k == nil || k.N == nil || k.N.Sign() <= 0 || k.N.BitLen() > MaxRSABits {
+			return nil, nil
 		}
-		return checkRSA(k.N)
+		return checkRSA(k.N), nil
 	case *ecdsa.PublicKey:
 		if k == nil {
-			return nil
+			return nil, nil
 		}
-		return checkEC(k)
+		return checkEC(ctx, k)
 	}
-	return nil
+	return nil, nil
 }
 
 func checkRSA(n *big.Int) []Weakness {

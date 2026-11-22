@@ -2,13 +2,21 @@ package revocation
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -192,5 +200,104 @@ func TestFetcherSharesOneRequest(t *testing.T) {
 	wg.Wait()
 	if n.Load() != 1 {
 		t.Errorf("%d requests for one URL", n.Load())
+	}
+}
+
+// bigCRL is a well-formed dummy CRL listing n serials.
+func bigCRL(t *testing.T, n int) []byte {
+	t.Helper()
+	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	ca := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Dummy CRL Issuer"},
+		KeyUsage: x509.KeyUsageCRLSign | x509.KeyUsageCertSign, BasicConstraintsValid: true, IsCA: true,
+		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(24 * time.Hour)}
+	der, err := x509.CreateCertificate(rand.Reader, ca, ca, &k.PublicKey, k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuer, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ents := make([]x509.RevocationListEntry, n)
+	for i := range ents {
+		ents[i] = x509.RevocationListEntry{SerialNumber: big.NewInt(int64(i + 2)), RevocationTime: now.Add(-time.Hour)}
+	}
+	crl, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{Number: big.NewInt(1), ThisUpdate: now.Add(-time.Hour),
+		NextUpdate: now.Add(12 * time.Hour), RevokedCertificateEntries: ents}, issuer, k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return crl
+}
+
+func heapInUse() uint64 {
+	runtime.GC()
+	runtime.GC()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.HeapAlloc
+}
+
+func cachedWeight(f *Fetcher) (int64, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var w int64
+	for k, e := range f.cache {
+		w += entryWeight(k, e.f, e.err)
+	}
+	return w, len(f.cache)
+}
+
+func TestCRLCacheKeepsToItsByteBudget(t *testing.T) {
+	crl := bigCRL(t, 20000)
+	var n atomic.Int32
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { n.Add(1); _, _ = w.Write(crl) }))
+	defer s.Close()
+
+	f := New(Policy{AllowLoopback: true})
+	f.CacheBytes = 16 << 20
+	now := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	f.Now = func() time.Time { return now }
+
+	before := heapInUse()
+	for i := range 24 { // every query string is a distinct cache key
+		if _, err := f.Get(context.Background(), fmt.Sprintf("%s/crl?%d", s.URL, i)); err != nil {
+			t.Fatal(err)
+		}
+		if w, _ := cachedWeight(f); w > f.CacheBytes {
+			t.Fatalf("after %d fetches the cache weighs %d bytes, over its %d-byte budget", i+1, w, f.CacheBytes)
+		}
+	}
+	if grew := int64(heapInUse()) - int64(before); grew > 2*f.CacheBytes {
+		t.Errorf("24 cached CRLs keep %d bytes of heap; the budget is %d", grew, f.CacheBytes)
+	}
+	// The newest entries are the ones kept.
+	if _, err := f.Get(context.Background(), s.URL+"/crl?23"); err != nil || n.Load() != 24 {
+		t.Errorf("the newest entry was evicted: %v, %d requests", err, n.Load())
+	}
+
+	// Past their expiry the entries are released to make room, not kept until the count forces it.
+	now = now.Add(maxTTL + time.Hour)
+	if _, err := f.Get(context.Background(), s.URL+"/crl?fresh"); err != nil {
+		t.Fatal(err)
+	}
+	if _, count := cachedWeight(f); count != 1 {
+		t.Errorf("%d entries cached after the others expired, want 1", count)
+	}
+
+	// A CRL heavier than the whole budget is used but not kept.
+	tiny := New(Policy{AllowLoopback: true})
+	tiny.CacheBytes = int64(len(crl))
+	for range 2 {
+		if got, err := tiny.Get(context.Background(), s.URL+"/crl?big"); err != nil || got.List == nil {
+			t.Fatalf("over-budget CRL not returned: %v", err)
+		}
+	}
+	if w, count := cachedWeight(tiny); w != 0 || count != 0 {
+		t.Errorf("an over-budget CRL was cached: %d entries, %d bytes", count, w)
 	}
 }

@@ -10,6 +10,8 @@
 package tlsprobe
 
 import (
+	"context"
+	"strings"
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/pki"
@@ -293,6 +295,11 @@ type CertResult struct {
 	// NoSNI marks the chain returned to a handshake without server_name, when it
 	// differs from the SNI chain.
 	NoSNI bool `json:"noSni,omitempty"`
+	// KeyUnproven is set when no handshake that showed this chain completed, so
+	// the server never proved it holds the leaf's private key: anyone can send a
+	// copy of a public certificate. Chains read from raw flights are always
+	// unproven. Use KeyProven, which also reads reports written before this field.
+	KeyUnproven bool `json:"keyUnproven,omitempty"`
 	// OCSPStaple is the raw stapled OCSP response (base64), at most 64 KiB.
 	OCSPStaple string `json:"ocspStaple,omitempty"`
 	// TLSSCTs are the raw SCTs from the TLS extension (base64), at most 32.
@@ -300,6 +307,13 @@ type CertResult struct {
 	// CRL is what the CRLs named by each certificate on the served path said, when
 	// Report.CRLLookups is set: one result per CRL tried, in path order.
 	CRL []pki.CRLResult `json:"crl,omitempty"`
+}
+
+// KeyProven reports whether a completed handshake showed this chain, so the
+// server proved it holds the leaf's private key. A chain from a raw flight is
+// never proven, including in reports written before KeyUnproven was recorded.
+func (r CertResult) KeyProven() bool {
+	return !r.KeyUnproven && !strings.HasPrefix(r.Source, "raw-")
 }
 
 // CertInfo describes one certificate.
@@ -385,8 +399,16 @@ type KeyTests struct {
 }
 
 // TestKey runs the weak-key tests on a public key.
-func TestKey(pub any) *KeyTests {
-	kt := &KeyTests{Ran: weakkey.Tests(pub), Weak: weakkey.Check(pub)}
+func TestKey(pub any) *KeyTests { return TestKeyContext(context.Background(), pub) }
+
+// TestKeyContext runs the weak-key tests on a public key, and returns nil, as for a key that was
+// not tested, when ctx ends before they finish.
+func TestKeyContext(ctx context.Context, pub any) *KeyTests {
+	weak, err := weakkey.CheckContext(ctx, pub)
+	if err != nil {
+		return nil
+	}
+	kt := &KeyTests{Ran: weakkey.Tests(pub), Weak: weak}
 	if kt.Ran == nil {
 		kt.Ran = []weakkey.Kind{}
 	}

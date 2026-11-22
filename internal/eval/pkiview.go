@@ -24,8 +24,15 @@ type Input struct {
 	// plus the system's own), as one unconstrained store; nil when none.
 	Anchors *pki.Store
 	// SSLv2Keys maps a public-key SHA-256 (SPKI) to the other endpoints in the
-	// estate whose latest scan accepted SSLv2 while serving that key.
+	// estate whose latest scan accepted SSLv2 while serving that key, with a
+	// completed handshake that proved they hold its private key.
 	SSLv2Keys map[string][]string
+	// SSLv2KeysUnproven is SSLv2Keys for endpoints that showed the key only in a
+	// certificate no completed handshake backed (a raw flight, or a handshake that
+	// failed). Anyone can send a copy of a public certificate, so such an
+	// endpoint is reported at low severity: a real legacy-only server stays
+	// visible, and a replayed certificate cannot raise a high finding here.
+	SSLv2KeysUnproven map[string][]string
 	// SSHBaseline is the id of the baseline an SSH server is judged against; empty means
 	// BaselineDefault.
 	SSHBaseline string

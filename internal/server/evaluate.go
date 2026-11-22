@@ -81,25 +81,46 @@ func (r *Runner) anchorsFor(assetID int64) *pki.Store {
 }
 
 // sslv2Index maps each public key served by an endpoint whose latest scan
-// accepted SSLv2 to those endpoints, leaving out the asset being evaluated.
-func (r *Runner) sslv2Index(except int64) map[string][]string {
+// accepted SSLv2 to those endpoints, leaving out the asset being evaluated. The
+// first map has the endpoints that proved they hold the key with a completed
+// handshake; the second those that only showed a certificate carrying it.
+func (r *Runner) sslv2Index(except int64) (proven, unproven map[string][]string) {
 	keys, err := r.st.SSLv2LeafKeys()
 	if err != nil {
 		r.log.Warn("reading the SSLv2 key index failed; the DROWN shared-key check is skipped", "err", err)
-		return nil
+		return nil, nil
 	}
-	out := map[string][]string{}
+	type at struct {
+		spki  string
+		asset int64
+	}
+	isProven := map[at]bool{}
 	for _, k := range keys {
-		if k.AssetID != except {
-			out[k.SPKI] = append(out[k.SPKI], k.Address)
+		if k.Proven {
+			isProven[at{k.SPKI, k.AssetID}] = true
 		}
 	}
-	return out
+	proven, unproven = map[string][]string{}, map[string][]string{}
+	listed := map[at]bool{}
+	for _, k := range keys {
+		a := at{k.SPKI, k.AssetID}
+		if k.AssetID == except || listed[a] {
+			continue
+		}
+		listed[a] = true
+		if isProven[a] {
+			proven[k.SPKI] = append(proven[k.SPKI], k.Address)
+		} else {
+			unproven[k.SPKI] = append(unproven[k.SPKI], k.Address)
+		}
+	}
+	return proven, unproven
 }
 
 // Evaluate judges a report for an asset with every input the server has.
 func (r *Runner) Evaluate(rep *tlsprobe.Report, assetID int64) eval.Evaluation {
-	return eval.EvaluateWith(rep, eval.Input{Now: r.opts.Now(), Anchors: r.anchorsFor(assetID), SSLv2Keys: r.sslv2Index(assetID)})
+	proven, unproven := r.sslv2Index(assetID)
+	return eval.EvaluateWith(rep, eval.Input{Now: r.opts.Now(), Anchors: r.anchorsFor(assetID), SSLv2Keys: proven, SSLv2KeysUnproven: unproven})
 }
 
 func resultOf(rep *tlsprobe.Report, ev eval.Evaluation) (store.Result, error) {

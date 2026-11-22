@@ -577,9 +577,16 @@ var t1Rules = []rule{
 					continue
 				}
 				k := ch.cr.Chain[0].SPKISHA256
-				if eps := c.in.SSLv2Keys[k]; len(eps) > 0 && !seen[k] {
+				if seen[k] {
+					continue
+				}
+				if eps := c.in.SSLv2Keys[k]; len(eps) > 0 {
 					seen[k] = true
 					hits = append(hits, hit{detail: fmt.Sprintf("%s: the same public key is served with SSLv2 enabled on %s (inferred; the attack was not attempted)",
+						ch.label(), strings.Join(eps, ", "))})
+				} else if eps := c.in.SSLv2KeysUnproven[k]; len(eps) > 0 {
+					seen[k] = true
+					hits = append(hits, hit{severity: Low, detail: fmt.Sprintf("%s: a certificate with the same public key was shown with SSLv2 enabled on %s, but no completed handshake there proved it holds the private key; check that endpoint (inferred; the attack was not attempted)",
 						ch.label(), strings.Join(eps, ", "))})
 				}
 			}

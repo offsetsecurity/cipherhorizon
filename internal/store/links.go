@@ -523,6 +523,7 @@ func snapshotTx(tx *sql.Tx) (estate.Snapshot, error) {
 		switch {
 		case stream == string(estate.StreamNetwork) && relation == estate.RelPresents:
 			sg.Leaf = oa["position"] == "leaf"
+			sg.KeyUnproven = oa["keyProven"] == "false"
 			for _, n := range strings.Split(strings.ToLower(ea["dnsNames"]), ",") {
 				if n = strings.TrimSpace(n); n != "" {
 					sg.DNSNames = append(sg.DNSNames, n)

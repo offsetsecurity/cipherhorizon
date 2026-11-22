@@ -10,8 +10,10 @@ import (
 	"strings"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/certinfo"
+	"github.com/offsetsecurity/cipherhorizon/internal/pki"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/registry"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe/wire"
+	"github.com/offsetsecurity/cipherhorizon/internal/weakkey"
 )
 
 // Suite lists for the restricted TLS 1.2-and-earlier handshakes that coax a
@@ -93,6 +95,7 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		noSNI      string
 		noSNIState *tls.ConnectionState
 		noSNIKey   string
+		noSNIErr   error
 	)
 	for i, a := range attempts {
 		if ctx.Err() != nil {
@@ -116,16 +119,19 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 		}
 		if a.source == "no-sni" {
 			// Judged after the raw chains are in: the default handshake may have failed.
-			noSNIState, noSNIKey = state, key
+			noSNIState, noSNIKey, noSNIErr = state, key, err
 			continue
 		}
 		if idx, seen := byLeaf[key]; seen {
 			results[idx].Source += ", " + a.source
 			p.mergeRevocation(&results[idx], state)
+			if err == nil {
+				results[idx].KeyUnproven = false
+			}
 			continue
 		}
 		byLeaf[key] = len(results)
-		results = append(results, p.describeChain(a.source, state))
+		results = append(results, p.describeChain(ctx, a.source, state, err == nil))
 	}
 
 	// Chains Go's TLS client could not reach (suites it does not offer, or a
@@ -137,13 +143,22 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 			continue
 		}
 		for _, rc := range e.chains {
+			if ctx.Err() != nil {
+				p.incomplete.Store(true)
+				break
+			}
 			fp := sha256.Sum256(rc.ders[0])
 			key := hex.EncodeToString(fp[:])
 			if _, seen := byLeaf[key]; seen {
 				continue
 			}
+			ders := rc.ders
+			if len(ders) > pki.MaxServedCerts {
+				p.note("%s: a raw flight carried %d certificates; the first %d were analysed", v, len(ders), pki.MaxServedCerts)
+				ders = ders[:pki.MaxServedCerts]
+			}
 			var certs []*x509.Certificate
-			for _, der := range rc.ders {
+			for _, der := range ders {
 				c, err := x509.ParseCertificate(der)
 				if err != nil {
 					break
@@ -162,7 +177,8 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 			if defaultFP == "" {
 				defaultFP = key
 			}
-			results = append(results, p.describeChain(source, &tls.ConnectionState{PeerCertificates: certs}))
+			// A raw flight is read before the server proves anything: the chain is unproven.
+			results = append(results, p.describeChain(ctx, source, &tls.ConnectionState{PeerCertificates: certs}, false))
 		}
 	}
 	if noSNIState != nil {
@@ -170,7 +186,7 @@ func (p *prober) certificates(ctx context.Context, legacy map[wire.Version]*lega
 			noSNI = "same"
 		} else {
 			noSNI = "different"
-			r := p.describeChain("no-sni", noSNIState)
+			r := p.describeChain(ctx, "no-sni", noSNIState, noSNIErr == nil)
 			r.NoSNI = true
 			results = append(results, r)
 		}
@@ -273,13 +289,28 @@ func negotiatedFrom(st *tls.ConnectionState, err error) *Negotiated {
 // describeChain describes a presented chain, keeps its raw bytes for
 // evaluation, and checks its name. Trust against the bundled root stores is
 // decided in evaluation, from the raw certificates; the OS store is consulted
-// here only when Options.OSTrust is set.
-func (p *prober) describeChain(source string, st *tls.ConnectionState) CertResult {
+// here only when Options.OSTrust is set. proven says whether the handshake
+// that showed the chain completed, proving the server holds the leaf's key.
+//
+// At most pki.MaxServedCerts certificates are described. The weak-key tests
+// stop when ctx ends: the keys not yet tested are left without results and the
+// report is marked incomplete.
+func (p *prober) describeChain(ctx context.Context, source string, st *tls.ConnectionState, proven bool) CertResult {
 	chain := st.PeerCertificates
-	res := CertResult{Source: source}
+	if len(chain) > pki.MaxServedCerts {
+		p.note("%s: the server sent %d certificates; the first %d were analysed", source, len(chain), pki.MaxServedCerts)
+		chain = chain[:pki.MaxServedCerts]
+	}
+	res := CertResult{Source: source, KeyUnproven: !proven}
 	for _, c := range chain {
 		ci := describeCert(c)
-		ci.KeyTests = TestKey(c.PublicKey)
+		if weakkey.RSATooLarge(c.PublicKey) {
+			p.note("%s: %q has an RSA key of %d bits, more than the %d-bit limit; the weak-key tests were not run on it",
+				source, ci.Subject, ci.PublicKey.Bits, weakkey.MaxRSABits)
+		}
+		if ci.KeyTests = TestKeyContext(ctx, c.PublicKey); ci.KeyTests == nil {
+			p.incomplete.Store(true)
+		}
 		res.Chain = append(res.Chain, ci)
 	}
 	leaf := chain[0]
@@ -288,7 +319,9 @@ func (p *prober) describeChain(source string, st *tls.ConnectionState) CertResul
 	if p.opts.OSTrust {
 		inter := x509.NewCertPool()
 		for _, c := range chain[1:] {
-			inter.AddCert(c)
+			if !weakkey.RSATooLarge(c.PublicKey) { // no client verifies a signature by such a key
+				inter.AddCert(c)
+			}
 		}
 		_, err := leaf.Verify(x509.VerifyOptions{
 			Intermediates: inter, CurrentTime: p.opts.Now(),

@@ -1,6 +1,7 @@
 package weakkey
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
@@ -73,8 +74,12 @@ func (s *search) init() {
 	s.nsy = new(big.Int).Sub(p.P, s.sy)
 }
 
-// find returns the private scalar d with d*G = (qx, qy) when d, or n - d, is within reach.
-func (s *search) find(qx, qy *big.Int) *big.Int {
+// ctxEvery is how many giant steps run between checks of the context.
+const ctxEvery = 256
+
+// find returns the private scalar d with d*G = (qx, qy) when d, or n - d, is within reach. It
+// returns ctx's error, and no answer, when ctx is done before the search finishes.
+func (s *search) find(ctx context.Context, qx, qy *big.Int) (*big.Int, error) {
 	s.once.Do(s.init)
 	p := s.curve.Params()
 	step := int64(2*s.m + 1)
@@ -106,21 +111,26 @@ func (s *search) find(qx, qy *big.Int) *big.Int {
 		return nil
 	}
 	if d := at(qx, qy, 0, 1); d != nil {
-		return d
+		return d, nil
 	}
 	ax, ay := qx, qy // Q - j*step*G: d = j*step + r
 	bx, by := qx, qy // Q + j*step*G: d = -j*step + r
 	for j := int64(1); j <= int64(s.steps); j++ {
+		if j%ctxEvery == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
 		ax, ay = s.curve.Add(ax, ay, s.sx, s.nsy) //nolint:staticcheck // see above
 		if d := at(ax, ay, j, 1); d != nil {
-			return d
+			return d, nil
 		}
 		bx, by = s.curve.Add(bx, by, s.sx, s.sy) //nolint:staticcheck // see above
 		if d := at(bx, by, j, -1); d != nil {
-			return d
+			return d, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // The search costs real time, and a server sees the same key on every scan: results are kept by
@@ -132,11 +142,11 @@ var (
 
 const cacheMax = 4096
 
-func checkEC(k *ecdsa.PublicKey) []Weakness {
+func checkEC(ctx context.Context, k *ecdsa.PublicKey) ([]Weakness, error) {
 	s := searchFor(k.Curve)
 	x, y := k.X, k.Y                                                  //nolint:staticcheck // the key's coordinates are what is searched for
 	if s == nil || x == nil || y == nil || !s.curve.IsOnCurve(x, y) { //nolint:staticcheck // see above
-		return nil
+		return nil, nil
 	}
 	h := sha256.New()
 	h.Write([]byte(s.curve.Params().Name))
@@ -151,10 +161,14 @@ func checkEC(k *ecdsa.PublicKey) []Weakness {
 	got, ok := cache[id]
 	cacheMu.Unlock()
 	if ok {
-		return got
+		return got, nil
+	}
+	d, err := s.find(ctx, x, y)
+	if err != nil {
+		return nil, err // an unfinished search is not cached
 	}
 	var out []Weakness
-	if d := s.find(x, y); d != nil {
+	if d != nil {
 		words := "the private key is " + d.String()
 		if below := new(big.Int).Sub(s.curve.Params().N, d); below.BitLen() < d.BitLen() {
 			words = "the private key is the group order minus " + below.String()
@@ -167,5 +181,5 @@ func checkEC(k *ecdsa.PublicKey) []Weakness {
 	}
 	cache[id] = out
 	cacheMu.Unlock()
-	return out
+	return out, nil
 }

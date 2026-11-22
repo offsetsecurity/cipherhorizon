@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/estate"
+	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
 
 // The estate fixture (PRD-003 AC-COR-1): unique and shared certificates, a wildcard on 40 hosts,
@@ -299,5 +300,44 @@ func TestCorrelationScales(t *testing.T) {
 	t.Logf("%d candidates in %s", len(got), elapsed)
 	if elapsed.Seconds() > 3 {
 		t.Errorf("correlating 3,000 endpoints took %s", elapsed)
+	}
+}
+
+// A certificate an endpoint showed without completing a handshake (it never proved it holds the
+// key) proposes a strong join but never confirms one by itself.
+func TestAnUnprovenCertificateProposesButNeverAutoConfirms(t *testing.T) {
+	var f fixture
+	e := f.endpoint(101, "replay.example.test")
+	h := f.host(201, "web-01", true)
+	f.presents(e, 1)
+	f.sn.Sightings[len(f.sn.Sightings)-1].KeyUnproven = true
+	f.holds(h, 1, estate.ClassCollector)
+	got := estate.Correlate(f.sn)
+	if len(got) != 1 || got[0].Strength != estate.StrengthStrong || got[0].AutoConfirm || got[0].Note == "" {
+		t.Fatalf("candidates = %+v", got)
+	}
+}
+
+// The projection records which presented certificates no completed handshake backed.
+func TestScanProjectionMarksUnprovenCertificates(t *testing.T) {
+	ci := func(sha string) tlsprobe.CertInfo { return tlsprobe.CertInfo{SHA256: sha, Subject: "CN=" + sha} }
+	rep := &tlsprobe.Report{Certificates: []tlsprobe.CertResult{
+		{Source: "tls-default", Chain: []tlsprobe.CertInfo{ci("aa")}},
+		{Source: "raw-tlsv1.2, TLS_RSA_WITH_3DES_EDE_CBC_SHA", KeyUnproven: true, Chain: []tlsprobe.CertInfo{ci("bb")}},
+		{Source: "raw-tlsv1.0", Chain: []tlsprobe.CertInfo{ci("cc")}}, // a report written before the field
+		{Source: "tls-default", KeyUnproven: true, Chain: []tlsprobe.CertInfo{ci("dd")}},
+	}}
+	want := map[string]bool{"aa": true, "bb": false, "cc": false, "dd": false}
+	for _, o := range estate.FromScanReport(rep) {
+		if o.Entity.Kind != estate.KindCertificate {
+			continue
+		}
+		sha := o.Entity.Attrs["fingerprint"]
+		if proven := o.Attrs["keyProven"] != "false"; proven != want[sha] {
+			t.Errorf("%s: proven = %v, want %v", sha, proven, want[sha])
+		}
+		if err := estate.Validate(estate.StreamNetwork, o); err != nil {
+			t.Errorf("%s: %v", sha, err)
+		}
 	}
 }

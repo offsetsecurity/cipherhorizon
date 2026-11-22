@@ -37,7 +37,7 @@ When a scan and an inventory describe the same thing, the product proposes that 
 - A join that would overwrite different details you entered is refused, and the fields are named.
 - A join whose evidence has since disappeared is flagged *evidence gone*; nothing is undone until you decide.
 
-Anything involving an imported document is always a proposal, never automatic: a document can claim anything.
+Anything involving an imported document is always a proposal, never automatic: a document can claim anything. So is a certificate match from an endpoint that showed the certificate without completing a handshake: it never proved it holds the key, and anyone can send a copy of a public certificate.
 
 ## Imports
 

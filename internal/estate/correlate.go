@@ -58,6 +58,10 @@ type CertSighting struct {
 	Leaf        bool     // a presented certificate in leaf position
 	DNSNames    []string // the certificate's names, lower-case
 	Where       string   // a short, bounded description for the explanation
+	// KeyUnproven marks a presented certificate that no completed handshake backed: the
+	// endpoint showed a copy of it but never proved it holds the key, so it can propose a
+	// join for a person to decide but never confirm one.
+	KeyUnproven bool
 }
 
 // Snapshot is everything Correlate reads.
@@ -92,6 +96,9 @@ type Candidate struct {
 
 	untrusted bool // some datum behind it did not come from this product's own scanner or collector
 }
+
+// unprovenNote explains why a certificate match was left for a person to confirm.
+const unprovenNote = "the endpoint showed this certificate without completing a handshake, so it did not prove it holds the key; confirm by hand"
 
 // Correlate proposes joins between endpoints and systems.
 func Correlate(sn Snapshot) []Candidate {
@@ -169,8 +176,11 @@ func Correlate(sn Snapshot) []Candidate {
 				}
 				c := get(ep.ID, holder.SystemID)
 				c.Rules = append(c.Rules, RuleHit{RuleCertificate, fmt.Sprintf("sha-256 %s is the leaf certificate of %s and is also held: %s", shortFP(s.Fingerprint), clipDesc(ep.Name), holder.Where)})
-				if !firstPartyHolder || !s.Class.FirstParty() {
+				if !firstPartyHolder || !s.Class.FirstParty() || s.KeyUnproven {
 					c.untrusted = true
+				}
+				if s.KeyUnproven && c.Note == "" {
+					c.Note = unprovenNote
 				}
 			}
 			for _, sys := range sortedInts(h.firstParty) {
@@ -200,7 +210,7 @@ func Correlate(sn Snapshot) []Candidate {
 				}
 				c := get(ep.ID, hst.SystemID)
 				c.Rules = append(c.Rules, RuleHit{RuleSAN, fmt.Sprintf("the leaf certificate of %s names %q, the name of host %s", clipDesc(ep.Name), clipDesc(name), clipDesc(hst.Name))})
-				if !hst.FirstParty || !s.Class.FirstParty() {
+				if !hst.FirstParty || !s.Class.FirstParty() || s.KeyUnproven {
 					c.untrusted = true
 				}
 			}
