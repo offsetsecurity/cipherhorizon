@@ -75,6 +75,7 @@ func ClientIdentification() string {
 }
 
 // ParseTarget reads host, host:port, [v6]:port or ssh://host[:port]; the default port is 22.
+// The host must be an IP address or a host name (tlsprobe.CheckHost).
 func ParseTarget(s string) (Target, error) {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "ssh://")
@@ -94,6 +95,9 @@ func ParseTarget(s string) (Target, error) {
 	}
 	if host == "" {
 		return Target{}, errors.New("empty host")
+	}
+	if err := tlsprobe.CheckHost(host); err != nil {
+		return Target{}, err
 	}
 	return Target{Host: host, Port: port}, nil
 }

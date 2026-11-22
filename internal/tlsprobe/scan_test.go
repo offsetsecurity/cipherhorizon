@@ -509,3 +509,40 @@ func TestParseTarget(t *testing.T) {
 		}
 	}
 }
+
+// A target's host is an IP address or a host name and nothing else: text that is neither, an
+// address with a zone, or a host carrying control characters or spaces is refused before any
+// connection is made.
+func TestParseTargetRefusesHostsThatAreNotNames(t *testing.T) {
+	for _, bad := range []string{
+		"[::ffff:127.0.0.1%x\r\nX-Extra: 1\r\n\r\nGET /x HTTP/1.1]:443",
+		"[::ffff:127.0.0.1%x.example.com]:443",
+		"[fe80::1%eth0]:443",
+		"fe80::1%eth0",
+		"exa\r\nmple.com:443",
+		"exa mple.com",
+		"example.com\x00",
+		"-example.com",
+		"example-.com",
+		"exa..mple.com",
+		"bücher.example",
+		strings.Repeat("a", 64) + ".example.com",
+		strings.Repeat("a.", 127) + "com",
+	} {
+		if got, err := tlsprobe.ParseTarget(bad); err == nil {
+			t.Errorf("ParseTarget(%q) accepted: %+v", bad, got)
+		}
+	}
+	for in, want := range map[string]tlsprobe.Target{
+		"Example.ORG:8443":       {Host: "Example.ORG", Port: 8443, SNI: "Example.ORG"},
+		"example.org.":           {Host: "example.org.", Port: 443, SNI: "example.org."},
+		"_dmarc.example.org":     {Host: "_dmarc.example.org", Port: 443, SNI: "_dmarc.example.org"},
+		"localhost:8443":         {Host: "localhost", Port: 8443, SNI: "localhost"},
+		"xn--bcher-kva.example":  {Host: "xn--bcher-kva.example", Port: 443, SNI: "xn--bcher-kva.example"},
+		"[::ffff:127.0.0.1]:443": {Host: "::ffff:127.0.0.1", Port: 443},
+	} {
+		if got, err := tlsprobe.ParseTarget(in); err != nil || got != want {
+			t.Errorf("ParseTarget(%q) = %+v, %v; want %+v", in, got, err, want)
+		}
+	}
+}

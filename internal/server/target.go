@@ -3,14 +3,11 @@ package server
 import (
 	"fmt"
 	"net"
-	"regexp"
 	"strings"
 
 	"github.com/offsetsecurity/cipherhorizon/internal/store"
 	"github.com/offsetsecurity/cipherhorizon/internal/tlsprobe"
 )
-
-var labelRE = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?$`)
 
 // targetSpec is what a person typed, parsed: the host and port, and what the scheme said.
 type targetSpec struct {
@@ -63,7 +60,7 @@ func normalizeTarget(input string) (targetSpec, error) {
 	if strings.ContainsAny(s, "@\\") {
 		return t, fmt.Errorf("credentials and backslashes are not allowed")
 	}
-	pt, err := tlsprobe.ParseTarget(s)
+	pt, err := tlsprobe.ParseTarget(s) // the host is an IP address or a valid host name
 	if err != nil {
 		return t, err
 	}
@@ -75,16 +72,6 @@ func normalizeTarget(input string) (targetSpec, error) {
 	t.host, t.port = strings.TrimSuffix(strings.ToLower(pt.Host), "."), pt.Port
 	if t.host == "" {
 		return t, fmt.Errorf("empty host")
-	}
-	if net.ParseIP(t.host) == nil {
-		if len(t.host) > 253 {
-			return t, fmt.Errorf("host name is too long")
-		}
-		for _, label := range strings.Split(t.host, ".") {
-			if !labelRE.MatchString(label) {
-				return t, fmt.Errorf("%q is not a valid host name", t.host)
-			}
-		}
 	}
 	return t, nil
 }

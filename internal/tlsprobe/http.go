@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // httpReadBudget caps how much of an HTTP response checkHSTS reads, so a
@@ -22,6 +23,11 @@ const httpReadBudget = 8 << 10 // 8 KiB
 // all (the reply is not a valid HTTP status line). A non-nil result with no
 // values means "a response arrived and lacked the header".
 func checkHSTS(conn *tls.Conn, host string) (*HSTSResult, error) {
+	// The host goes into the request as a header value: anything that could end the line or the
+	// header is refused, so the check can never send more than this one request.
+	if host == "" || strings.ContainsFunc(host, func(r rune) bool { return r <= ' ' || r == 0x7f || unicode.IsSpace(r) || unicode.IsControl(r) }) {
+		return nil, fmt.Errorf("not sending the request: host %q contains spaces or control characters", host)
+	}
 	req := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host)
 	if _, err := conn.Write([]byte(req)); err != nil {
 		return nil, fmt.Errorf("writing request: %w", err)
